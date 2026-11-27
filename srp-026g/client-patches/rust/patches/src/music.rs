@@ -520,7 +520,7 @@ impl Glue {
                     Told::Arrived(Arrived::Bus(_)) => Event::Frame,
                     // the music asks no game effect (the glow's own callback
                     // gets its query)
-                    Told::Arrived(Arrived::Effects(_)) => Event::Frame,
+                    Told::Arrived(Arrived::Effects(_) | Arrived::Particles(_) | Arrived::Assets(_)) => Event::Frame,
                     Told::Unload => Event::Unload,
                 };
                 let mut game = Game { thread, now, sound, bus, serial: &mut serial, query };
@@ -543,6 +543,12 @@ fn wait(asked: Option<Want>, told: Told, now: Millis) -> Option<Want> {
 
 static MUSIC: Lock<Glue> = Lock::new(Glue::Waiting { asked: None });
 static BUS: Lock<Bus<BusScene>> = Lock::new(Bus::new());
+
+/// The bus once open: the scene the Game slider (patch 144) leaves at
+/// General's alone.
+pub fn bus(thread: &Thread) -> Option<BusScene> {
+    BUS.with(thread, |bus| bus.scene)
+}
 
 /// The game thread's ms clock, from the machine's counter: its low word's
 /// steps since the last call (well under a wrap: a call a frame), so no

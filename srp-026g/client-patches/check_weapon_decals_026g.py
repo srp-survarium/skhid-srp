@@ -18,8 +18,11 @@ P's first two decal layers (P + i*270h) the decal's texture, `_nmap`,
 `_fmap` and `_smap` names and the editor's float4x4 of its u64 with the
 point 1.0 lower and the two sides halved (a u64 0 or a value that is no
 integer: the decal's default, the left or the right side of the receiver),
-the camouflage's layer as patch 44's, the name `srpw1_<camouflage>_<model>
-_<surface>` and `_<texture>_<high><low>` a decal ('/' and '\\' made '_'); a
+the camouflage's layer as patch 44's, the name of them all (the Rust patch
+weapon_camo's, as check_weapon_camo_026g.py's: of the layers that have a
+texture, so the same from a P allocated with other bytes in it, another
+for each other set of decals, and one name for the same decals written two
+ways); a
 third decal, an entry that is no table or has no texture: not painted;
 `data/decals` empty and no camouflage: no query.
 
@@ -50,8 +53,25 @@ bake) after a press within 5 pixels, not after a drag or without a press
 encode of the pick, accepts it (host, decal) and calls
 root.exit_decal_edit, al 1, `ret 10h`; a miss: al 0, nothing accepted; the
 start's and the cancel's calls: al 1, nothing called; the start's index
-counts the records of slots 0 and 1 before the edited one, and a record of
-another slot ends the edit with no query.
+counts the records of slots 0 and 1 before the edited one.
+
+The start, armour's and a weapon's: the record at +D52Dh the edited decal's
+in a decal's slot goes on to the query (armour: the start's index kept); a
+decal the item does not hold (yet: the owner's crash of 2026-11-26, trousers
+with only a camouflage and the last edit's record index 2; another decal's
+record; an index past the records) and a record of another slot end the edit
+(+D514h 0) and call root.exit_decal_edit, with no query.
+
+The preview's textures (0x264F4D, `call 0x264F80` in the host's config
+callback; the merged config made up, its `sounds` after `data` as the
+owner's trousers'): a `data/decals` entry at +D52Ch with a text first goes
+on to 0x264F80 with the original's stack and registers, back at 0x264F52;
+an index past the entries (1 and 0 of an empty table, 2 and 255 of two, 1 of
+a count of 1 with a whole entry beyond it), no
+`data`, no `data/decals` or one that is no table, an entry that is no table,
+has no values or no text first, and no config: no read, the edit off,
+root.exit_decal_edit, back at 0x264F68 (past the host's bake), the
+character's push taken, ebx, esi, edi, ebp kept.
 """
 import math
 import random
@@ -144,7 +164,6 @@ def close(a, b, eps=2e-5):
 
 
 def check_bake(original, build, say):
-    safe = lambda text: text.replace("/", "_").replace("\\", "_")
     v1 = (0x98074123, 0x76961E1C)          # placed values (any u64 the editor gives)
     v2 = (0x20080000 ^ 0x5A5, 0x8A30CE00 ^ 0x1234)
     plain = (
@@ -177,6 +196,7 @@ def check_bake(original, build, say):
         ("the second of two only", {"camouflage": camo.CAMO, "decals": [[""], [DECAL_B, v2[0], v2[1]]]}, 1,
          camo.CAMO, [None, (DECAL_B, v2)]),
     )
+    first_names = {}                       # each case's name of surface 0
     for title, data, surfaces, camouflage, decals in cases:
         root = camo.weapon(data)
         o_run = BakeRun(original)
@@ -196,8 +216,7 @@ def check_bake(original, build, say):
             want_camo = {"diffuse": camouflage, "normal": "", "fresnel": "",
                          "smoothness": camouflage + "_smap"} if camouflage else \
                 {"diffuse": "", "normal": "", "fresnel": "", "smoothness": ""}
-            want_name = f"srpw1_{safe(camouflage or '')}_{safe(camo.MODEL)}_{i}" + "".join(
-                f"_{safe(tex)}_{high:08x}{low:08x}" for tex, (low, high) in (d for d in decals if d))
+            want_name = camo.baked_name(camo.MODEL, i, 4.0, q[10])
             got_camo = {k: v for k, v in names.items() if k != "name"}
             say(got_camo == want_camo and names["name"] == want_name and p_model == render and surface == i
                 and one == 1 and editor == 0,
@@ -216,6 +235,24 @@ def check_bake(original, build, say):
         for q in queries:
             run.callback(q[4])
         say(run.read(render + 0xD0) == 5, f"{title}: every reference given back")
+        again = BakeRun(build)
+        again.surfaces, again.fill = surfaces, camo.FILLS[1]
+        again.site(camo.config(again, root), camo.make_render(again, references=5)[0], dict(camo.REGS))
+        named = lambda r: [c[9][0]["name"] for c in r.calls if c[0] == "query_resources"]
+        say(named(again) == named(run) and len(set(named(run))) == surfaces,
+            f"{title}: the same names from blocks that held other bytes, one a surface: {named(again)}")
+        first_names[title] = named(run)[0]
+    plain_run = BakeRun(build)
+    plain_run.surfaces = 1
+    plain_run.site(camo.config(plain_run, camo.weapon({"camouflage": camo.CAMO})),
+                   camo.make_render(plain_run, references=5)[0], dict(camo.REGS))
+    first_names["a camouflage and no decal"] = [c[9][0]["name"] for c in plain_run.calls
+                                                if c[0] == "query_resources"][0]
+    same = ("never placed: the defaults", "values that are no integers: the defaults")
+    say(first_names[same[0]] == first_names[same[1]], "the same two decals at their defaults, written two ways: "
+        "one name")
+    others = [name for title, name in first_names.items() if title != same[1]]
+    say(len(set(others)) == len(others), f"every other set of decals, and none, has a name of its own: {others}")
 
 
 # ------------------------------------------------------------------ the editor
@@ -489,8 +526,12 @@ def check_editor(original, build, say):
                                         until=KEY_BODY))}
             results.append((out, run.calls))
         (o, oc), (b, bc) = results
-        say(o == b and oc == bc, f"{title}: the pick, the preview's matrix, the bake, the start's query and the key "
-            "handler as "
+        # the start reads the inventory for every host (its check of the edited decal's record): the host is
+        # in none here, so it goes on as the original (whose own start has read the host's records)
+        reads = [c for c in bc if c[0] == "owner"]
+        bc = [c for c in bc if c[0] != "owner"]
+        say(o == b and oc == bc and len(reads) == 1, f"{title}: the pick, the preview's matrix, the bake, the "
+            "start's query (after its read of the inventory) and the key handler as "
             "the original's" + ("" if o == b and oc == bc else "".join(f"\n          {k}: {o[k]} / {b[k]}" for k in o if o[k] != b[k])))
 
     rng = random.Random(46)
@@ -626,19 +667,37 @@ def check_editor(original, build, say):
         say(run.read(base.late_join_state_va(late_join) + base.WEAPON_DECALS_STATE_OFFSET) == 0 or not editing,
             f"{title}: the press is over after the release")
 
-    # The start's index.
+    # The start, for armour and the weapon: the edit goes on only when the record at +D52Dh is the edited
+    # decal's (its id +D524h) in a decal's slot; on a weapon +D52Ch counts the decals before it.
     stock = ((3, 0x11), (2, 0x22), (0, 0x33), (1, 0x44))       # scope, camouflage, two decals
     moved = ((3, 0x11), (1, 0x44), (2, 0x22))                   # the owner's Mosin: a decal dragged to slot 1,
     #                                                             its record pushed last, the camouflage after
-    for title, records, raw, weapon_window, want_index, query in (
-            ("the first decal after a scope and a camouflage", stock, 2, True, 0, True),
-            ("the second", stock, 3, True, 1, True),
-            ("the camouflage's record", stock, 1, True, None, False),
-            ("armour's window", stock, 3, False, 7, True),
-            ("a decal moved to slot 1, alone", moved, 1, True, 0, True)):
+    trousers = ((3, 1775),)                                     # the owner's crash, 2026-11-26: item 826 with
+    #                                                             its camouflage (3184) alone, the Snufkin
+    #                                                             decal 1505 dropped and not answered yet; the
+    #                                                             jacket's edit before left index 1, record 2
+    jacket = ((0, 1779), (1, 1778), (3, 1775))                  # the jacket (763): Neco-Arc, Fumo, camouflage
+    for title, records, raw, decal, weapon_window, want_index, query in (
+            ("the first decal after a scope and a camouflage", stock, 2, 0x33, True, 0, True),
+            ("the second", stock, 3, 0x44, True, 1, True),
+            ("the camouflage's record", stock, 1, 0x22, True, None, False),
+            ("a decal moved to slot 1, alone", moved, 1, 0x44, True, 0, True),
+            ("a weapon's decal not on it yet (the last edit's record index, another decal's)", stock, 3, 0x55,
+             True, None, False),
+            ("a weapon's decal not on it yet, the last edit's record index past its records", moved, 5, 0x55,
+             True, None, False),
+            ("armour's window: its decal's record (the start's index kept)", stock, 3, 0x44, False, 7, True),
+            ("armour: the jacket's Fumo, the second decal (the start's index kept)", jacket, 1, 1778, False, 7,
+             True),
+            ("armour: the owner's crash: the decal dropped, \"change\" before the answer (record index 2 past "
+             "the trousers' one record)", trousers, 2, 1505, False, None, False),
+            ("armour: the decal not on it yet, the last edit's record index another decal's", jacket, 0, 1505,
+             False, None, False),
+            ("armour: the decal's id in the camouflage's slot", ((3, 1505),), 0, 1505, False, None, False)):
         run = EditRun(build, (preview, table))
         run.set_states(1 if weapon_window else 0, 1, ITEM)
         prepare(run)
+        run.word(CHARACTER + 0xD524, decal)
         item = run.alloc(struct.pack("<I", ITEM) + b"\0" * 0xB0)
         recs = run.alloc(b"".join(struct.pack("<IIIIB3x", rid, 0, 0, 0, slot) + b"\0" * 4 for slot, rid in records))
         run.word(item + 0x60, recs)
@@ -651,13 +710,121 @@ def check_editor(original, build, say):
         run.emu.mem_write(CHARACTER + 0xD514, b"\1")
         out = call_site(run, START_SITE, (), regs)
         queries = [c for c in run.calls if c[0] == "query"]
+        exits = [c for c in run.calls if c[0] == "movie"]
         index, editing = run.emu.mem_read(CHARACTER + 0xD52C, 1)[0], run.emu.mem_read(CHARACTER + 0xD514, 1)[0]
         if query:
             say(index == want_index and editing == 1 and len(queries) == 1 and queries[0][1] == CHARACTER
-                and queries[0][2] == (regs["ebx"], CHARACTER, regs["edi"], regs["ebp"]) and out["kept"],
+                and queries[0][2] == (regs["ebx"], CHARACTER, regs["edi"], regs["ebp"]) and out["kept"]
+                and not exits,
                 f"{title}: the decal's index {index}, then the query with the original's registers")
         else:
-            say(editing == 0 and not queries and out["kept"], f"{title}: the edit is off, no query")
+            say(editing == 0 and not queries and out["kept"] and exits == [("movie", MOVIE, EXIT_DECAL_EDIT, 0, 0, 0)]
+                and index == 7,
+                f"{title}: the edit is off, the movie leaves it (root.exit_decal_edit), no query")
+
+
+# ------------------------------------------------------------------ the preview's textures
+
+QUERY_TEXTURES, TEXTURES_SITE, AFTER_TEXTURES, AFTER_HOST_BAKE = 0x264F80, 0x264F4D, 0x264F52, 0x264F68
+
+
+class TexturesRun(BakeRun):
+    """The host's config callback at its call of 0x264F80 (0x264F4D, after its `push edi`): the merged
+    config a made-up one (patch 44's harness: has_key and child stubbed over its tables), 0x264F80 and
+    the movie call stubbed."""
+
+    def __init__(self, exe):
+        super().__init__(exe)
+        for at, size in ((CHARACTER, 0x40000), (MENU, 0x100000), (MOVIE, 0x1000)):
+            self.emu.mem_map(at, size, UC_PROT_ALL)
+        self.word(CHARACTER + 0xD2BC, MENU)
+        self.word(MENU + 0x690, MENU + 0x4000)
+        self.word(MENU + 0x4000 + 0x108, MENU + 0x5000)
+        self.word(MENU + 0x5000 + 4, MOVIE)
+        self.emu.mem_write(CHARACTER + 0xD514, b"\1")
+        for at in (QUERY_TEXTURES, MOVIE_CALL):
+            self.emu.hook_add(UC_HOOK_CODE, self.texture_stub, begin=at, end=at)
+        for at in (AFTER_TEXTURES, AFTER_HOST_BAKE):
+            self.emu.hook_add(UC_HOOK_CODE, lambda e, a, s, u: e.emu_stop(), begin=at, end=at)
+
+    def texture_stub(self, emu, address, size, _):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        arg = lambda i: self.read(sp + 4 + 4 * i)
+        if address == QUERY_TEXTURES:
+            self.calls.append(("textures", arg(0), self.read(sp), tuple(emu.reg_read(r) for r in (
+                UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP))))
+            return self.ret(sp, 4)
+        self.calls.append(("movie", emu.reg_read(UC_X86_REG_ECX), arg(0), arg(1), arg(2), arg(3)))
+        return self.ret(sp, 0x10)
+
+    def site(self, root, index, regs, count=None):
+        resource = camo.config(self, root) if root is not None else 0
+        self.word(CHARACTER + 0xD528, resource)
+        if count is not None:           # `data/decals` told to hold fewer than its array has
+            data = self.nodes[self.read(resource + 0x108)]["data"]
+            self.emu.mem_write(self.nodes[data]["decals"] + 0x16, struct.pack("<H", count))
+        self.emu.mem_write(CHARACTER + 0xD52C, bytes([index]))
+        sp = STACK + 0x80000
+        self.emu.mem_write(sp - 0x200, b"\xEE" * 0x200)
+        self.emu.mem_write(sp, struct.pack("<I", CHARACTER) + b"\x5A" * 0x20)   # 0x264F4C's push edi
+        for name, value in regs.items():
+            self.emu.reg_write(REGISTERS[name], value)
+        self.emu.reg_write(UC_X86_REG_ESP, sp)
+        self.emu.emu_start(TEXTURES_SITE, AFTER_HOST_BAKE, count=2_000_000)
+        out = {name: self.emu.reg_read(reg) for name, reg in REGISTERS.items()}
+        out["eip"] = self.emu.reg_read(UC_X86_REG_EIP)
+        out["editing"] = self.emu.mem_read(CHARACTER + 0xD514, 1)[0]
+        out["kept"] = out["esp"] == sp + 4 and all(out[r] == regs[r] for r in ("ebx", "esi", "edi", "ebp"))
+        return out
+
+
+def check_textures(build, say):
+    regs = {"eax": 0xA0A0A0A0, "ecx": 0xC0C0C0C0, "edx": 0xD0D0D0D0, "ebx": 0xB0B0B0B0, "ebp": 0xBEBEBEBE,
+            "esi": 0x51515151, "edi": CHARACTER}
+    v = (0x98074123, 0x76961E1C)
+
+    def armour(decals, **more):
+        data = {"part_name": "scavenger_anomaly_06_legs_s", "type": 4}
+        if decals is not None:
+            data["decals"] = decals
+        root = {"parameters": {"decal_available": True, "camo_available": True}, "data": dict(data, **more),
+                # the owner's trousers: `sounds` after `data`, whose entries' first value is the integer 0x102
+                # (the crash read it as the texture's address)
+                "sounds": [[0x102, "material/steps_walk"]] * 3}
+        return root
+
+    one, two = [[DECAL_A, v[0], v[1]]], [[DECAL_A, v[0], v[1]], [DECAL_B, 0, 0]]
+    for title, root, index, goes_on, *count in (
+            ("a decal's entry", armour(one), 0, True),
+            ("the second of two", armour(two), 1, True),
+            ("a weapon's two decals", camo.weapon({"decals": two}), 1, True),
+            ("the owner's crash: index 1 of the trousers' empty `data/decals`",
+             armour([], camouflage="character/human/camo/atlas/camo_atlas_teal_pixel"), 1, False),
+            ("index 0 of an empty `data/decals` (armour's first decal)", armour([]), 0, False),
+            ("an index past the two entries", armour(two), 2, False),
+            ("an index past them by far", armour(two), 255, False),
+            ("an index past the count, a whole entry beyond it", armour(two), 1, False, 1),
+            ("no `data/decals`", armour(None), 0, False),
+            ("no `data`", {"parameters": {"decal_available": True}}, 0, False),
+            ("`data/decals` no table", armour(5), 0, False),
+            ("an entry that is no table", armour([7]), 0, False),
+            ("an entry with no values", armour([[]]), 0, False),
+            ("an entry whose first value is no text", armour([[0x102, "material/steps_walk"]]), 0, False),
+            ("no config loaded", None, 0, False)):
+        run = TexturesRun(build)
+        out = run.site(root, index, regs, *count)
+        textures = [c for c in run.calls if c[0] == "textures"]
+        exits = [c for c in run.calls if c[0] == "movie"]
+        if goes_on:
+            say(out["eip"] == AFTER_TEXTURES and out["kept"] and out["editing"] == 1 and not exits
+                and textures == [("textures", CHARACTER, AFTER_TEXTURES, (regs["ebx"], regs["esi"], CHARACTER,
+                                                                          regs["ebp"]))] and run.error is None,
+                f"{title}: 0x264F80 with the original's stack and registers, back at 0x264F52 (the host's bake)")
+        else:
+            say(out["eip"] == AFTER_HOST_BAKE and out["kept"] and out["editing"] == 0 and not textures
+                and exits == [("movie", MOVIE, EXIT_DECAL_EDIT, 0, 0, 0)] and run.error is None,
+                f"{title}: no texture read, the edit off, the movie leaves it, back at 0x264F68 past the bake"
+                + (f" ({run.error})" if run.error else ""))
 
 
 def call_site(run, site, args, regs, read=None):
@@ -700,6 +867,7 @@ def main():
 
     check_bake(original, build, say)
     check_editor(original, build, say)
+    check_textures(build, say)
     print("all checks passed" if not failures else f"{failures} FAILED")
     sys.exit(1 if failures else 0)
 

@@ -8,7 +8,7 @@ handling, recoil, spread). Never edited by hand: `srp-item-tables`
 from a server game data file, only where an item changed, and says each
 change (`item: column old -> new`).
 
-- `release/build-content <revision>` writes them into `<out>/item-tables/`
+- `release/build-content <revision> --full` writes them into `<out>/item-tables/`
   from the server data it makes, against these, so the item changes show
   before any release (never into a checkout: the release commits them).
 - `release/release.sh` writes them from the server data it ships into the

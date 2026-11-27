@@ -9,13 +9,16 @@ patch = 135
 [[hook]]
 site = "minimap.enemy_spotted"
 handler = "on_enemy"
+order = 1
 
 # render_name's spotted test of an enemy: its marker and, with Alt, its name.
 [[hook]]
 site = "player_names.enemy_spotted"
 handler = "on_name"
+order = 1
 
 # initialize_match as it sends the icons movie its enemy list.
 [[hook]]
 site = "player_icons.enemy_ids"
 handler = "on_enemy_ids"
+order = 1

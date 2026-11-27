@@ -1,6 +1,11 @@
 //! Growing-roster protocol: E4 prepares a profile; E0 confirms installation.
 //! Every client must support this dialect. Only matching resource ACKs release
 //! admission. E0's impossible snapshot prefix also permits multi-datagram framing.
+//!
+//! E4's proposal: `FF 'L' 'J' 01`, the match, the serial, the place, the
+//! squad, the native profile, then srp's block as after the options
+//! (`static_info::SRPX_MAGIC`) with the faces entry of the one place
+//! (`05 01 <face>`), only when its face is not 0 (`face-choice.md`).
 
 use super::super::dictionary::Dictionary;
 use super::MAX_PLAYERS;
@@ -10,8 +15,10 @@ const PREPARE_MAGIC: [u8; 4] = [0xff, b'L', b'J', 1];
 const PREPARED_MAGIC: [u8; 8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0];
 const PREPARE_HEADER: usize = 14;
 pub const PREPARED_SIZE: usize = 20;
-/// D8's debug byte is 0x80/0x81 for dialect 1, or 0x82/0x83 with world
-/// load receipts. The low bit enables debug logging in either dialect.
+/// D8's debug byte is 0x80/0x81 for dialect 1; with world load receipts
+/// 0x02 more (0x82/0x83), and with the exact-tick upload requests
+/// (`srp_validate::messages::EXACT_WORLDS`, patch 211) 0x04 more (0x86/0x87).
+/// The low bit enables debug logging in either dialect.
 /// The stock writer sends 0 or 0xff: testing bit 7 alone is insufficient.
 /// Released snapshot-upload patches do not support this dialect.
 pub const CONNECT_CAPABILITY: u8 = 0x80;
@@ -29,7 +36,18 @@ pub fn spoken_by(revision: u8) -> bool {
 }
 
 pub fn has_connect_capability(debug: u8) -> bool {
-    matches!(debug, CONNECT_CAPABILITY | 0x81 | 0x82 | 0x83)
+    debug & !0x07 == CONNECT_CAPABILITY
+}
+
+/// Whether a game of the dialect sends load receipts (0x02).
+pub fn has_world_receipts(debug: u8) -> bool {
+    has_connect_capability(debug) && debug & 0x02 != 0
+}
+
+/// Whether a game of the dialect answers an upload request for a tick
+/// (`srp_validate::messages::EXACT_WORLDS`).
+pub fn has_exact_worlds(debug: u8) -> bool {
+    has_connect_capability(debug) && debug & srp_validate::messages::EXACT_WORLDS != 0
 }
 
 /// Binds an acknowledgement to one match and one immutable profile proposal.
@@ -173,6 +191,8 @@ mod tests {
                 kits: vec![MatchKit::empty(1, "kit")],
                 items: vec![],
                 squad: 7,
+                face: crate::v026g::faces::Face::DEFAULT,
+                notice: crate::v026g::match_msgs::static_info::Notice::Skipped,
             },
         }
     }
@@ -195,6 +215,40 @@ mod tests {
             Prepare::decode(&wrong_version, dictionary),
             Err(Error::Header)
         );
+    }
+
+    #[test]
+    fn a_face_but_0_ends_the_profile_with_its_faces_entry_and_reads_back() {
+        use crate::v026g::faces::Faces;
+        let dictionary = Dictionary::shared();
+        let plain = prepare().encode(dictionary).unwrap();
+        let mut faced = prepare();
+        faced.profile.face = Faces::shared().face(2).unwrap();
+        let bytes = faced.encode(dictionary).unwrap();
+        assert_eq!(bytes[plain.len()..], b"SRPX\x05\x01\x02"[..]);
+        assert_eq!(Prepare::decode(&bytes, dictionary).unwrap(), faced);
+        // Cut in the block (cut before it, it is a profile of face 0).
+        for end in plain.len() + 1..bytes.len() {
+            assert!(Prepare::decode(&bytes[..end], dictionary).is_err(), "{end}");
+        }
+        // A face the data does not list (the test data has three): face 0,
+        // as the options' read.
+        let unlisted = Prepare::decode(&[&plain[..], b"SRPX\x05\x01\x03"].concat(), dictionary).unwrap();
+        assert_eq!(unlisted, prepare());
+        // Another length than one place, the Blackout entry, the entry
+        // twice, an unknown tag: refused.
+        for bad in [
+            &b"SRPX\x05\x02\x01\x01"[..],
+            b"SRPX\x02\x01\x01",
+            b"SRPX\x05\x01\x01\x05\x01\x01",
+            b"SRPX\x01\x01\x01",
+            b"SRPY\x05\x01\x01",
+        ] {
+            assert!(
+                Prepare::decode(&[&plain[..], bad].concat(), dictionary).is_err(),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]

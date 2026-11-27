@@ -133,6 +133,19 @@ fn main() -> ExitCode {
         report.first_world_ms
     );
     println!(
+        "key frame worlds: {}; {} uploads are not ones",
+        match report.worlds_from {
+            sur_convert::WorldsSource::Accepted => "the ones the server took",
+            sur_convert::WorldsSource::Checked => {
+                "an older recording: the uploads that pass the world check"
+            }
+        },
+        report.worlds_untaken
+    );
+    for (time, why) in &report.refusals {
+        println!("world check refused the upload at {time} ms: {why}");
+    }
+    println!(
         "replay: {} ms to {} ms, {} key frames ({:?} ...), body {} bytes, decoded {} bytes",
         report.start_ms,
         report.end_ms,

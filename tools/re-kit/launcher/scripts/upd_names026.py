@@ -1,5 +1,5 @@
 """upd_names026.py : names for 0.26g survarium_updater.exe functions, recovered from
-__FUNCTION__ strings / log strings / behaviour (see ../notes/updater-026g.md).
+__FUNCTION__ strings / log strings / behaviour (see srp-026g/docs/notes/launcher_updater.md).
 Imported by upd_lib.py to annotate call targets. A trailing '?' marks a guess."""
 NAMES = {
     0x0001AEE4: "updater::execute",

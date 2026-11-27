@@ -65,7 +65,8 @@ pub mod key {
     /// Bits a bot never sends: the suicide (24: a hit on the player's own
     /// head, 0x2D8BC1; client patch 34 sends it for the K key), the wheel's
     /// weapon switch (25, 26), 29 (client patch 78's carry chord: with one
-    /// quick bit it raises that artefact) and the unused 30, 31.
+    /// quick bit it raises that artefact), 30 (client patch 206's second
+    /// sight switch) and 31 (the input's own wire flag).
     pub const NEVER: u32 = 0x0100_0000 | 0x0600_0000 | 0xE000_0000;
 }
 
@@ -131,6 +132,40 @@ pub fn stage_0() -> Vec<Part> {
         pulse(WEAPON_1, "weapon 1 (one tick)"),
         part(1_000, 0, "stands 1 s"),
     ]
+}
+
+/// The shots script (`srp-bot --drive shots`): a player who stays where he
+/// spawned and fires a second, again and again, reloading after every two,
+/// for another client to watch his gun (the attachments' third view).
+pub fn shots() -> Vec<Part> {
+    use key::*;
+    vec![
+        part(3_000, 0, "stands 3 s"),
+        part(1_000, FIRE, "fires 1 s"),
+        part(3_000, 0, "stands 3 s"),
+        part(1_000, FIRE, "fires 1 s"),
+        part(1_000, 0, "stands 1 s"),
+        pulse(RELOAD, "reload (one tick)"),
+        part(3_000, 0, "stands 3 s"),
+    ]
+}
+
+/// Which script a bot runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Script {
+    /// [`stage_0`]: walks, turns, sprints, fires.
+    Stage0,
+    /// [`shots`]: stands and fires.
+    Shots,
+}
+
+impl Script {
+    pub fn parts(self) -> Vec<Part> {
+        match self {
+            Script::Stage0 => stage_0(),
+            Script::Shots => shots(),
+        }
+    }
 }
 
 /// An input the script sends, and what it is for the log.

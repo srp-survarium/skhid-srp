@@ -76,8 +76,8 @@ use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Ins
 use crate::vostok::world::{GameWorld, ItemId, MatchId, Player, PlayerId, WorldKey};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread, WorldLoad};
 use crate::use_scan::rule::{use_owner, UseOwner};
-use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnSaveQuietExit,
-                    WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
+use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnLoadRecordExit,
+                    WeaponPickupOnSaveQuietExit, WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
 
 /// The longest a wait runs the callbacks before it gives up (the pickup is
 /// then refused, logged).
@@ -728,7 +728,6 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
     if let Some(current) = client.match_id() {
         forget_other_matches(thread, current);
     }
-    let local = client.local_player();
     let mut named = [None; NAMED];
     let mut count = 0;
     let mut drops = [None; PLACES as usize];
@@ -746,7 +745,7 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         if let Some(recipe) = record.drop.available().map(|gun| gun.recipe)
             && body_drop(thread, place, recipe).is_none()
             && let Some(body) = client.player(u32::from(place.get()))
-            && let Some(cook_from) = local.as_ref().and_then(|l| l.kit_player(recipe.place, recipe.kit))
+            && let Some(cook_from) = client.kit_player(recipe.place, recipe.kit)
                 .or_else(|| client.player(u32::from(recipe.place.get()))) {
             let from = DropOf { place, body: body.id(), life: None, lies: Lies::Current };
             log_recipe("a world to load has the open drop", recipe, &[Text(" (of place "), Dec(u32::from(place.get())),
@@ -793,7 +792,7 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         if wanted <= idle {
             continue;
         }
-        let Some(donor) = local.as_ref().and_then(|l| l.kit_player(recipe.place, recipe.kit))
+        let Some(donor) = client.kit_player(recipe.place, recipe.kit)
             .or_else(|| client.player(u32::from(recipe.place.get()))) else {
             log_recipe("a world to load names", recipe, &[Text(": its place has no player to cook it from (the reader \
                                                                  will not install it)")]);
@@ -859,7 +858,7 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some((world, place)) = located(&player) else { return Flow::Continue };
     update_record(thread, world, place, |r| *r = r.respawned());
     if let Some(gun) = record_at(thread, world, place).drop.gun()
-        && first_line(&REMOVALS_SAID, thread, usize::from(place.get()), player.time()) {
+        && first_line(&REMOVALS_SAID, thread, usize::from(place.get()), player.spawned()) {
         log_recipe("its body left the world: the drop stays, alone,", gun.recipe,
                    &[Text(" of place "), Dec(u32::from(place.get())), Text(" at "), Dec(player.time()), Text(" ms")]);
     }
@@ -868,10 +867,13 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 // ---- the death and the pickup -----------------------------------------------------------------
 
-/// The last death (its life and time) and removal (its time) each place's
-/// line said: a rollback runs both hooks again at each tick it simulates
-/// again, the same death or removal, and its line is said once.
-static DEATHS_SAID: GameCell<[Option<(u32, u32)>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
+/// The life whose death and whose removal each place's line last said: a
+/// rollback runs both hooks again at each tick it simulates again, the same
+/// death or removal at another time, and its line is said once a life. A
+/// death's breadcrumb is recorded once a life too: recorded at every pass, one
+/// death filled the crash report's ring 10 to 18 times (2026-11-26's report:
+/// 864 of its 901 events).
+static DEATHS_SAID: GameCell<[Option<u32>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
 static REMOVALS_SAID: GameCell<[Option<u32>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
 
 /// Whether `key` is not what `place`'s last line in `said` said (it is from
@@ -897,8 +899,8 @@ fn first_line<K: Copy + PartialEq>(said: &GameCell<[Option<K>; PLACES as usize]>
 /// is there (a rollback replaying the death). The ragdoll draws the gun in
 /// its hands; the prompt's box is the copy's, the same gun.
 pub fn died(player: &Player<'_>, thread: &Thread) {
-    breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
-    if first_line(&DEATHS_SAID, thread, usize::from(player.place()), (player.spawned(), player.time())) {
+    if first_line(&DEATHS_SAID, thread, usize::from(player.place()), player.spawned()) {
+        breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
         log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
               Text(" at "), Dec(player.time()), Text(" ms")]);
     }
@@ -2304,6 +2306,19 @@ pub fn on_load_quiet(ctx: &mut Context<'_>) -> Flow<WeaponPickupOnLoadQuietExit>
 pub fn on_load_ordinal(ctx: &mut Context<'_>) -> Flow<NoExit> {
     native::clamp_bullet_ordinal(ctx);
     Flow::Continue
+}
+
+/// `bullets.load_record`: a bullet whose shooter has no gun in its slot is
+/// not made ([`native::load_record`]), with a line saying so.
+pub fn on_load_record(ctx: &mut Context<'_>) -> Flow<WeaponPickupOnLoadRecordExit> {
+    match native::load_record(ctx) {
+        native::BulletRecord::Armed => Flow::Continue,
+        native::BulletRecord::Unarmed { place, slot } => {
+            log(&[Text("a loaded bullet of place "), Dec(u32::from(place)), Text(" names its slot "),
+                  Dec(u32::from(slot)), Text(", which has no gun: not made")]);
+            Flow::Exit(WeaponPickupOnLoadRecordExit::Skip)
+        }
+    }
 }
 
 #[cfg(test)]

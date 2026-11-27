@@ -9,12 +9,14 @@
   release/moderate bans                                             banned accounts and addresses
   release/moderate modules [--account A] [--at-most 3] [--log-mb 16]   DLLs and other code in games (patch 125), rarest first
   release/moderate memory [--account A] [--log-mb 16]              games' memory headroom (patch 126), tightest arena first
+  release/moderate resources [--log-file PATH] [--account A] [--all] [--log-mb 16]   differing game files
   release/moderate ban <name | address | range> <hours | forever> [--reason R] [--with-ip] [--tell]
   release/moderate unban <name | address | range> [--with-ip]
   release/moderate mute <name> <hours | forever> --reason R         the player is told the reason
   release/moderate unmute <name>
   release/moderate signups [open | closed]                          no argument: the current state
   release/moderate reset-password <name>                            its next sign-in sets the new one
+  release/moderate rename <account-id> <new-name> --reason R         live, free; use the exact ID, e.g. 777
   release/moderate give <name> <item name | id> [count]
   release/moderate money <name> --silver=+N|-N --reason R             silver only: gold is gone
 
@@ -25,9 +27,9 @@ not with NO_COLOR; --json: "suspicious"): BANNED IP <address or range>, IP of ba
 or e-mail domain: the same, reversed, one inside the other, or a letter or two apart). Changes
 take --dry-run: the request is shown and not sent, and exit 1 when the page refuses. Python 3, stdlib only (here: nix-shell -p python3).
 
-Reads (registrations, joins, who, bans, modules, memory) run a small read-only Python on the live host: srp.db
+Reads (registrations, joins, who, bans, modules, memory, resources) run a small read-only Python on the live host: srp.db
 opened read-only, and only the last --log-mb MB of logs/srp.log (registrations) and
-logs/login.log (sign-ins), logs/modules.log* (modules), logs/memory.log* (memory), read by seek, under nice/ionice.
+logs/login.log (sign-ins), logs/modules.log* (modules), logs/memory.log* (memory), logs/resources.log* (resources), read by seek, under nice/ionice.
 The live host is small: keep
 --follow at 30 s or more. Changes go through the admin page, POSTed by curl on the jump host
 (the address in SRP_ADMIN_IPS); curl reads the URL and the form from stdin, so neither the token
@@ -152,6 +154,8 @@ def remote_main(request):
         out["text"] = read_newest("%s/logs/modules.log" % data, request["window"])
     elif kind == "memory":
         out["memory"] = memory_summary(read_newest("%s/logs/memory.log" % data, request["window"]), request.get("account"))
+    elif kind == "resources":
+        out["text"] = read_newest("%s/logs/resources.log" % data, request["window"])
     sys.stdout.write(json.dumps(out))
 
 
@@ -331,13 +335,15 @@ def registrations(db, text):
     return events
 
 
+# The client's address, and the relay it came through if any.
+PEER = r"(?P<addr>\S+)(?: via relay \S+)?"
 JOIN_LINES = [
-    ("joined", None, re.compile(r"Sign-in: account=0x(?P<id>[0-9a-f]+)(?: from (?P<addr>\S+))? session=")),
-    ("refused", "banned account", re.compile(r"Sign-in of banned account (?P<name>.+) from (?P<addr>\S+) refused$")),
-    ("refused", "banned address", re.compile(r"Sign-in of (?P<name>.+) from banned address (?P<addr>\S+) \((?P<detail>[^)]*)\) refused$")),
-    ("refused", "sign-ups closed", re.compile(r"Sign-in of new user name (?P<name>.+) from (?P<addr>\S+): registration is closed$")),
-    ("refused", None, re.compile(r"Sign-in of (?P<name>.+) from (?P<addr>\S+) refused: (?P<detail>.+)$")),
-    ("flagged", "stale shell_32.dll in %TEMP%", re.compile(r"Cheat check: (?P<name>.+) from (?P<addr>\S+) has a stale")),
+    ("joined", None, re.compile(r"Sign-in: account=0x(?P<id>[0-9a-f]+)(?: from " + PEER + r")? session=")),
+    ("refused", "banned account", re.compile(r"Sign-in of banned account (?P<name>.+) from " + PEER + r" refused$")),
+    ("refused", "banned address", re.compile(r"Sign-in of (?P<name>.+) from banned address " + PEER + r" \((?P<detail>[^)]*)\) refused$")),
+    ("refused", "sign-ups closed", re.compile(r"Sign-in of new user name (?P<name>.+) from " + PEER + r": registration is closed$")),
+    ("refused", None, re.compile(r"Sign-in of (?P<name>.+) from " + PEER + r" refused: (?P<detail>.+)$")),
+    ("flagged", "stale shell_32.dll in %TEMP%", re.compile(r"Cheat check: (?P<name>.+) from " + PEER + r" has a stale")),
 ]
 
 
@@ -631,6 +637,9 @@ def who(args):
 MODULE_REPORT = re.compile(
     r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match (?P<match>0x[0-9a-f]+), "
     r"(?P<moment>loaded|ended|minute \d+), part \d+/\d+ of \d+ entries: (?P<list>.*)$", re.M)
+EXECUTABLE_REPORT = re.compile(
+    r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match 0x[0-9a-f]+, "
+    r"executable sha256 (?P<sha256>[0-9a-f]{64}) size (?P<size>\d+)$", re.M)
 PE = r"pe (-|[0-9a-f]{8}/[0-9a-f]+)"
 QUOTED = r'"((?:[^"\\]|\\.)*)"'
 PLACE = r"(game|temp|other)(?: in %s)?" % QUOTED
@@ -639,6 +648,7 @@ CODE = re.compile(r"^code (private|mapped|image) (x|rx|rwx|wcx) ([0-9a-f]+)/([0-
 LOAD = re.compile(r"^load %s %s ([0-9a-f]+) %s at (\d+) (listed|unlisted)$" % (PLACE, QUOTED, PE))
 OVER = re.compile(r"^over (\?|%s) class (\?|%s) ([0-9a-f]+) (\d+)x(\d+) from (\?|windows|%s)$" % (QUOTED, QUOTED, PLACE))
 UNSEEN = re.compile(r"^over unknown: (.+)$")
+OVER_FILE = re.compile(r"^exe %s %s (?:sha256 ([0-9a-f]{64}) size (\d+)|(too big|unread))$" % (PLACE, QUOTED))
 
 
 def unquote(text):
@@ -657,9 +667,13 @@ def module_reports(text):
     extended styles, "?", "windows" or its exe's folder kind) for another
     process's always-on-top window over the game's, the sizes it covered
     and its exe's folders apart, ("unseen", why) where that could
-    not be told.
+    not be told, ("file", folder, name, "hashed", sha256, size) for the
+    file of such a window's exe (or "too big" / "unread", no hash).
     Returns (held, starts, dirs)."""
     held, starts, dirs = {}, {}, {}
+    for report in EXECUTABLE_REPORT.finditer(text):
+        key = ("exe", report["sha256"], int(report["size"]))
+        held.setdefault(key, {})[int(report["id"])] = (report["name"], report["at"])
     for report in MODULE_REPORT.finditer(text):
         for entry in report["list"].split(" | "):
             module, code = MODULE.match(entry), CODE.match(entry)
@@ -681,6 +695,9 @@ def module_reports(text):
                 dir = over[10]
             elif unseen := UNSEEN.match(entry):
                 key = ("unseen", unseen[1])
+            elif file := OVER_FILE.match(entry):
+                folder, dir, name, sha256, size, unhashed = file.groups()
+                key = ("file", folder, unquote(name), unhashed or "hashed", sha256 or "", int(size or 0))
             else:
                 continue
             held.setdefault(key, {})[int(report["id"])] = (report["name"], report["at"])
@@ -700,7 +717,9 @@ def built(pe):
 def module_line(key, accounts, starts, dirs=()):
     names = ", ".join("%s (%d)" % (who, n) for n, (who, _) in sorted(accounts.items())[:6])
     more = " +%d" % (len(accounts) - 6) if len(accounts) > 6 else ""
-    if key[0] == "code":
+    if key[0] == "exe":
+        what = "exe    sha256 %s  size %d bytes" % (key[1], key[2])
+    elif key[0] == "code":
         _, memory, protect, exec_size, size, pe = key
         what = "code   %-7s %-3s exec %x of %x  %d start(s)  %s" % (memory, protect, exec_size, size, len(starts), built(pe))
     elif key[0] == "load":
@@ -712,6 +731,9 @@ def module_line(key, accounts, starts, dirs=()):
         what = "over   %-5s  %-32s  class %s  styles %x (%s)" % (home, name, cls, style, ", ".join(how) or "plain")
     elif key[0] == "unseen":
         what = "over   unknown: %s" % key[1]
+    elif key[0] == "file":
+        _, folder, name, read, sha256, size = key
+        what = "file   %-5s  %-32s  %s" % (folder, name, "sha256 %s  size %d bytes" % (sha256, size) if read == "hashed" else "not hashed: " + read)
     else:
         folder, name, size, pe = key
         what = "%-5s  %-32s  size %x  %s" % (folder, name, size, built(pe))
@@ -733,10 +755,11 @@ def modules(args):
         held = mine
     for key, accounts in sorted(held.items(), key=lambda item: (len(item[1]), str(item[0]).casefold())):
         if args.account or len(accounts) <= args.at_most:
-            fields = {"code": ("kind", "memory", "protect", "exec_size", "size", "pe"),
+            fields = {"exe": ("kind", "sha256", "file_size"), "code": ("kind", "memory", "protect", "exec_size", "size", "pe"),
                       "load": ("kind", "folder", "name", "image_size", "pe", "listed"),
                       "over": ("kind", "name", "class", "styles", "home"),
-                      "unseen": ("kind", "why")}.get(key[0], ("folder", "name", "image_size", "pe"))
+                      "unseen": ("kind", "why"),
+                      "file": ("kind", "folder", "name", "read", "sha256", "file_size")}.get(key[0], ("folder", "name", "image_size", "pe"))
             row = dict(zip(fields, key))
             row["starts"] = sorted(starts.get(key, ()))
             row["dirs"] = sorted(dirs.get(key, ()))
@@ -772,6 +795,50 @@ def memory(args):
         if "largest_free" in row:
             text += "  least largest free %s" % mib(row["largest_free"]["value"])
         emit(args, dict(row, kind="arena"), text)
+
+
+RESOURCE_LINE = re.compile(
+    r"^(?:(?P<dated>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\S* |(?P<clock>\d\d:\d\d:\d\d)\S* \[resources\] )"
+    r"\[\w+\] (?P<who>.*) \(account (?P<account>\d+)\), match (?P<match>0x[0-9a-f]+), (?P<what>.*)$")
+
+
+def resource_lines(text):
+    """The lines of resources.log (`resource_checks`, the match server):
+    each with whether it says the game's patches or files are the release's."""
+    for raw in text.splitlines():
+        found = RESOURCE_LINE.match(raw)
+        if not found:
+            continue
+        row = found.groupdict()
+        dated, clock = row.pop("dated"), row.pop("clock")
+        row["at"] = dated or clock
+        row["account"] = int(row["account"])
+        what = row["what"]
+        row["as_release"] = what.endswith(": as the release") or bool(re.search(r": \d+ files as the release$", what))
+        yield row
+
+
+def resources(args):
+    window = int(args.log_mb * 1024 * 1024)
+    if args.log_file is None:
+        text = remote({"kind": "resources", "window": window})["text"]
+    else:
+        if not os.path.isfile(args.log_file):
+            raise SystemExit(f"{args.log_file}: no local log file")
+        text = read_newest(args.log_file, window)
+    rows = list(resource_lines(text))
+    if not rows:
+        sys.exit("moderate: no file checks in the log window")
+    if args.account:
+        target = args.account.casefold()
+        rows = [row for row in rows if str(row["account"]) == target or row["who"].casefold() == target]
+        if not rows:
+            sys.exit("moderate: no file check of %r in the read" % args.account)
+    shown = rows if args.all else [row for row in rows if not row["as_release"]]
+    for row in shown:
+        emit(args, row, "%s  %s (%d)  match %s  %s" % (row["at"].replace("T", " "), row["who"], row["account"], row["match"], row["what"]))
+    if not args.json:
+        print("%d of %d lines differ from the release" % (sum(not row["as_release"] for row in rows), len(rows)), file=sys.stderr)
 
 
 def bans(args):
@@ -942,6 +1009,25 @@ def give(args):
     answered(args, admin(args, fields, "give"), r": given \d+ of ")
 
 
+def rename_id(text):
+    """An immutable ID, never a nickname lookup (duplicates are why we rename)."""
+    if not re.fullmatch(r"#?[0-9]+", text) or not 0 < int(text.lstrip("#")) <= 0xffffffff:
+        raise argparse.ArgumentTypeError("use a positive account ID, e.g. 777 or '#777'")
+    return int(text.lstrip("#"))
+
+
+def rename(args):
+    if not args.reason.strip():
+        sys.exit("moderate: rename needs --reason (kept in the account's history)")
+    fields = [("tab", "rename"), ("rename_id", str(args.account_id)),
+              ("rename_name", args.nickname), ("rename_reason", args.reason)]
+    row = admin(args, fields, "rename")
+    answered(args, row, r"^Account #%d renamed: " % args.account_id)
+    if row and (" Error: the change stands in memory only:" in row["answer"] or " The database was busy:" in row["answer"]):
+        # Applied in memory, but do not report durable success on a refused/busy write.
+        sys.exit(2)
+
+
 def money(args):
     """The page's two steps: a preview hands out a plan, the confirm applies
     it only if neither the account nor the fields changed since."""
@@ -1004,6 +1090,12 @@ def main():
     p.add_argument("--account", help="only this account's reports (name or id)")
     p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")
     p.set_defaults(run=memory)
+    p = commands.add_parser("resources", help="games' files against the release's (resources.log), the differing ones")
+    p.add_argument("--log-file", help="read local resources.log or the launcher’s runtime/server.log, including rotations")
+    p.add_argument("--account", help="only this account's lines (name or id)")
+    p.add_argument("--all", action="store_true", help="the lines as the release too")
+    p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")
+    p.set_defaults(run=resources)
 
     def change(name, text):
         p = commands.add_parser(name, help=text)
@@ -1029,6 +1121,11 @@ def main():
     p = change("unmute", "lift a chat mute")
     p.add_argument("target")
     p.set_defaults(run=unmute)
+    p = change("rename", "rename an exact account ID live, without charging")
+    p.add_argument("account_id", type=rename_id)
+    p.add_argument("nickname")
+    p.add_argument("--reason", required=True, help="kept in the account's history")
+    p.set_defaults(run=rename)
     p = change("signups", "close or open the registration of new accounts")
     p.add_argument("state", nargs="?", choices=("open", "closed"))
     p.set_defaults(run=signups)

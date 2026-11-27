@@ -15,16 +15,22 @@ pub struct Match {
     pub game_mode: u8,
     pub batteries: usize,
     pub respawn_points: usize,
+    /// Of them, the team-2 group's (a free-for-all's spawn history indexes it).
+    pub team_2_points: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Rule {
     Mode { game_mode: u8, batteries: usize },
-    Respawn { points: usize },
+    Respawn { points: usize, team_2: usize },
     Other,
 }
 
 impl Match {
+    /// A match has one respawn rule and at most one rule of its mode: with
+    /// none it is a free-for-all (mode 8: the time, respawn and kd rules
+    /// alone, ffa.md), whose world has no rule between the respawn points
+    /// and the kd stats, but patch 142's spawn history.
     pub(crate) fn of(rules: impl IntoIterator<Item = Rule>) -> Option<Self> {
         let (mut mode, mut respawn) = (None, None);
         for rule in rules {
@@ -32,23 +38,29 @@ impl Match {
                 Rule::Mode { game_mode, batteries } => {
                     if mode.replace((game_mode, batteries)).is_some() { return None; }
                 }
-                Rule::Respawn { points } => {
-                    if respawn.replace(points).is_some() { return None; }
+                Rule::Respawn { points, team_2 } => {
+                    if respawn.replace((points, team_2)).is_some() { return None; }
                 }
                 Rule::Other => {}
             }
         }
-        let (game_mode, batteries) = mode?;
-        Some(Self { game_mode, batteries, respawn_points: respawn? })
+        let (game_mode, batteries) = mode.unwrap_or((srp_validate::mode::FREE_FOR_ALL, 0));
+        let (respawn_points, team_2_points) = respawn?;
+        Some(Self { game_mode, batteries, respawn_points, team_2_points })
     }
 
-    fn context(self, time: u32) -> world::Context<'static> {
+    /// The world check's context: a mode-13 world takes the hunt's own
+    /// parameters (none: refused as `NoArtefactHuntParams`).
+    fn context(self, time: u32, artefact_hunt: Option<&artefact_hunt_rule::Params>) -> world::Context<'_> {
+        let artefact_hunt = artefact_hunt.filter(|_| self.game_mode == srp_validate::mode::ARTEFACT_HUNT);
         world::Context {
             time, places: MAX_PLAYERS, game_mode: self.game_mode,
             batteries: self.batteries, respawn_points: Some(self.respawn_points),
+            team_2_points: Some(self.team_2_points),
             // The native per-item bounds remain at their readers (patch 115).
             // Do not guess profile, swapped inventory or authored map objects.
-            profiles: None, artefacts: None, objects: None, inventory: None,
+            profiles: None, artefacts: None, objects: None, inventory: None, dict_ids: None,
+            artefact_hunt,
         }
     }
 }
@@ -56,16 +68,17 @@ impl Match {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failure { NoTime, NoMatch, Invalid(Refusal) }
 
-fn parse(state: &[u8], game: Option<Match>) -> Result<world::Frame<'_>, Failure> {
+fn parse<'s>(state: &'s [u8], game: Option<Match>, hunt: Option<&artefact_hunt_rule::Params>)
+    -> Result<world::Frame<'s>, Failure> {
     let (time, body) = state.split_first_chunk::<4>().ok_or(Failure::NoTime)?;
-    let context = game.ok_or(Failure::NoMatch)?.context(u32::from_le_bytes(*time));
+    let context = game.ok_or(Failure::NoMatch)?.context(u32::from_le_bytes(*time), hunt);
     let frame = world::frame(body, context.places).map_err(Failure::Invalid)?;
     world::validate_frame(&frame, &context).map_err(Failure::Invalid)?;
     Ok(frame)
 }
 
-pub fn verdict(state: &[u8], game: Option<Match>) -> Result<(), Failure> {
-    parse(state, game).map(|_| ())
+pub fn verdict(state: &[u8], game: Option<Match>, hunt: Option<&artefact_hunt_rule::Params>) -> Result<(), Failure> {
+    parse(state, game, hunt).map(|_| ())
 }
 
 pub fn on_unpacked(ctx: &mut Context<'_>) -> Flow<WorldCheckOnUnpackedExit> {
@@ -85,7 +98,9 @@ fn check(thread: &Thread, load: Option<WorldLoad<'_>>) -> bool {
         log_refusal(thread, &[Piece::Text("world_check: a world at a load with no readable state; not loaded")]);
         return false;
     };
-    let parsed = parse(load.state(), load.match_context());
+    // Patch 171: a hunt's world is read with the rule's own parameters.
+    let hunt = crate::artefact_hunt::params(thread);
+    let parsed = parse(load.state(), load.match_context(), hunt.as_ref());
     let state = load.state();
     breadcrumbs::record(load.thread(), Crumb::World {
         time: state.get(..4).map_or(0, |t| u32::from_le_bytes([t[0], t[1], t[2], t[3]])),
@@ -128,20 +143,24 @@ fn log(thread: &Thread, error: Failure, len: usize) {
 mod tests {
     use super::*;
     #[test]
-    fn a_match_has_exactly_one_mode_and_respawn_rule() {
+    fn a_match_has_one_respawn_rule_and_at_most_one_mode_rule() {
         let mode = Rule::Mode { game_mode: 4, batteries: 0 };
-        let respawn = Rule::Respawn { points: 3 };
+        let respawn = Rule::Respawn { points: 3, team_2: 1 };
         assert_eq!(Match::of([mode, Rule::Other, respawn]), Some(Match {
-            game_mode: 4, batteries: 0, respawn_points: 3,
+            game_mode: 4, batteries: 0, respawn_points: 3, team_2_points: 1,
         }));
-        for rules in [vec![], vec![mode], vec![respawn], vec![mode,mode,respawn],
-                      vec![mode,respawn,respawn]] { assert_eq!(Match::of(rules), None); }
+        // A free-for-all's rules: the time's, the respawn's and the kd's.
+        assert_eq!(Match::of([Rule::Other, respawn, Rule::Other]), Some(Match {
+            game_mode: srp_validate::mode::FREE_FOR_ALL, batteries: 0, respawn_points: 3, team_2_points: 1,
+        }));
+        for rules in [vec![], vec![mode], vec![mode,mode,respawn],
+                      vec![mode,respawn,respawn], vec![respawn,respawn]] { assert_eq!(Match::of(rules), None); }
     }
     #[test]
     fn missing_time_match_and_incomplete_sections_are_refused() {
-        let game = Some(Match { game_mode: 4, batteries: 0, respawn_points: 3 });
-        assert_eq!(verdict(&[1,2,3], game), Err(Failure::NoTime));
-        assert_eq!(verdict(&[0;20], None), Err(Failure::NoMatch));
-        assert!(matches!(verdict(&[0;20], game), Err(Failure::Invalid(_))));
+        let game = Some(Match { game_mode: 4, batteries: 0, respawn_points: 3, team_2_points: 0 });
+        assert_eq!(verdict(&[1,2,3], game, None), Err(Failure::NoTime));
+        assert_eq!(verdict(&[0;20], None, None), Err(Failure::NoMatch));
+        assert!(matches!(verdict(&[0;20], game, None), Err(Failure::Invalid(_))));
     }
 }

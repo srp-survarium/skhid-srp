@@ -121,7 +121,11 @@ package survarium.char
       protected var _propsDescriptor:PropertiesDescriptor;
       
       private var newSkills:Array = [];
-      
+
+      // A refused take-back's red locks: the skill right-clicked and the skills of rows it holds,
+      // shown until the pointer leaves that skill; null while none is shown.
+      private var _refusal:Object = null;
+
       public function CharWindow()
       {
          super();
@@ -178,6 +182,7 @@ package survarium.char
          }
          this.skillsTabPage.addEventListener(IndexEvent.INDEX_CHANGE,this.updateSkillsData);
          this._skillContainer.addEventListener(Events.SKILL_UPDATE,this.onSkillUpdate);
+         this._skillContainer.addEventListener(Events.SKILL_TAKE_BACK,this.onSkillTakeBack);
          this._skillContainer.addEventListener(Events.SHOW_ANTISKILLS,this.onSkillAntiskills);
          this._skillContainer.addEventListener(Events.HIDE_ANTISKILLS,this.onSkillHideAntiskills);
          if(this.btn_change_titul)
@@ -311,6 +316,69 @@ package survarium.char
          this.checkButton();
       }
       
+      // A right click on a skill with points (the owner, 2026-11-27): one point back, confirmed or
+      // pending, free and pending until Confirm, unless the skills of a row would keep points their
+      // branch no longer reaches; then nothing changes and those skills show their red lock while
+      // the pointer stays on the skill (the server's rule: SkillsTree::validate).
+      private function onSkillTakeBack(e:Event) : void
+      {
+         var renderer:MovieClip = e.target as MovieClip;
+         var skillData:Object = renderer.data;
+         skillData.newValue -= 1;
+         var stranded:Array = this.strandedSkills();
+         skillData.newValue += 1;
+         if(stranded.length > 0)
+         {
+            this.showRefusal(renderer,stranded);
+            return;
+         }
+         ISkillRenderer(renderer).takeBack();
+      }
+
+      // The open branch's skills with points in a row its points no longer reach.
+      private function strandedSkills() : Array
+      {
+         var unlocked:uint = this.getBranchUnlockedLevel().points;
+         var stranded:Array = [];
+         for each(var renderer:MovieClip in this._skillRenderers)
+         {
+            var rendererData:Object = renderer.data;
+            if(renderer.parent == this._skillContainer && rendererData && rendererData.newValue > 0 && rendererData.branch_points > unlocked)
+            {
+               stranded.push(renderer);
+            }
+         }
+         return stranded;
+      }
+
+      private function showRefusal(renderer:MovieClip, stranded:Array) : void
+      {
+         this.hideRefusal();
+         for each(var held:ISkillRenderer in stranded)
+         {
+            held.showLock(true);
+         }
+         _refusal = {
+            renderer:renderer,
+            stranded:stranded
+         };
+         renderer.addEventListener(MouseEvent.ROLL_OUT,this.hideRefusal);
+      }
+
+      private function hideRefusal(e:Event = null) : void
+      {
+         if(!this._refusal)
+         {
+            return;
+         }
+         this._refusal.renderer.removeEventListener(MouseEvent.ROLL_OUT,this.hideRefusal);
+         for each(var held:ISkillRenderer in this._refusal.stranded)
+         {
+            held.showLock(false);
+         }
+         _refusal = null;
+      }
+
       private function setSkillProgress(branchPoints:uint) : void
       {
          this.progressIndicator.value = Math.min(this.indicatorPoints(branchPoints) + 1,this.progressIndicator.maximum - this.POINTS_PER_LEVEL);
@@ -335,7 +403,7 @@ package survarium.char
       // Where branchPoints fall on the progress indicator, whose rows are POINTS_PER_LEVEL apart:
       // a row's mark is reached at the branch points the tree gives that row, and between two rows
       // the bar moves evenly (stock rows ask 0/5/10/15/20, drawn as the points themselves; the
-      // medical tree's 0/3/10/15/20 mark its second row at 3)
+      // medical tree's 0/3/7/12/17 mark its rows at those points)
       private function indicatorPoints(branchPoints:uint) : Number
       {
          var thresholds:Array = [];
@@ -381,7 +449,7 @@ package survarium.char
          var value:uint = 0;
          var points:uint = 0;
          var lastUnlocked:Boolean = false;
-         // the branch points of the branch's last tier: 20 in the stock, medical and artefact trees
+         // the branch points of the branch's last tier: 20 in the stock and artefact trees, 17 in the medical
          // (medical-skills.md, artefact-skills.md); the bar fills when it is taken
          var lastTier:uint = 0;
          for each(var tierData:Object in _currentSkills)
@@ -419,9 +487,10 @@ package survarium.char
          return data;
       }
       
-      private function getSpendPoints() : uint
+      // The points spent since the last Confirm: below 0 when more were taken back than spent.
+      private function getSpendPoints() : int
       {
-         var value:uint = 0;
+         var value:int = 0;
          for(var j:uint = 0; j < this._skillList.length; j++)
          {
             var _currentSkills:Array = this._skillList[j];
@@ -588,6 +657,8 @@ package survarium.char
          {
             return;
          }
+         // The renderers are refilled (another tab, the server's skills, Cancel).
+         this.hideRefusal();
          var _currentSkills:Array = this._skillList[index];
          this._skillContainer.x = 50;
          this._skillContainer.y = 180;

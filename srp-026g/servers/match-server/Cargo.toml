@@ -15,6 +15,8 @@ client-test = []
 
 [dependencies]
 crc32fast = { workspace = true }
+# The voice wire's channel byte, as the games' DLL has it (`v026g::voice`).
+voice-abi = { path = "../../crates/voice-abi" }
 log = { workspace = true }
 serde = { workspace = true }
 # The maps the server's bots path on (`v026g::bots::maps`).
@@ -22,6 +24,8 @@ mapdata = { path = "../../crates/mapdata" }
 # SHA-256 of a replay file (`v026g::replay`): its sidecar, the updater's check.
 openssl = { workspace = true }
 serde_json = { workspace = true }
+# `srp-history-backfill`: a copy of srp.db and the bundle it writes.
+rusqlite = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }
@@ -31,10 +35,16 @@ vostok = { workspace = true }
 # check the game itself runs (exe patch 87), one crate for both.
 world-frame = { workspace = true }
 srp-validate = { workspace = true }
+# The files a match checks (`resource_checks`), as the game data names them.
+resources-db = { workspace = true }
+# Artifact Hunt's rule: its end in a trusted world (`game.rs::observe`).
+artefact-hunt-rule = { workspace = true }
 # Client patch 85's pickup command, checked as the clients check it.
 weapon-pickup = { path = "../../crates/weapon-pickup" }
 # [body physics S3] The one model of the client's body: the bots' reckoning moves by it (`bots::body`), as the bench's stand-in does.
 client-body = { path = "../../crates/client-body" }
+# Client patch 180's throw-back command (Return to Sender), checked against the kits' skills.
+technical-skills = { path = "../../crates/technical-skills" }
 
 # The replay conversion thread runs at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]

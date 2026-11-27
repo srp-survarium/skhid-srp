@@ -84,8 +84,8 @@ activation's fog beyond the body is its `up` puffs and `body` strokes, which hav
   explosions/dark_smoke (blend_mode 1; the glow's own materials are additive, 2, and a dark grey
   additive barely shows) with its constant_emissive DARK_GREY.
 
-Its first-person effect plays FOREST_FIRST_PERSON only, so nothing of the smoke drifts into the
-carrier's own view.
+Its first-person effect played its rays only, so nothing of the smoke drifted into the carrier's
+own view (until version 15).
 
 Version 13 (the owner, 2026-11-07): the leg quarters look the same to everyone as to their carrier
 ("it should be like on yourself for everyone"): each quarter is one particle effect seen in both
@@ -93,6 +93,13 @@ views (`view` 2) playing its system without the point light and the haze (FIRST_
 no composite and no first-person twin; and Forest Protection's smoke a tiny bit thicker: the
 FOREST_SMOKE emitters' Rate (curve and data source) and MaxParticles (rounded up) times
 SMOKE_THICKER, their colour and sizes as they were; the rays and the haze unchanged.
+
+Version 15 (the owner, 2026-11-22: the carrier should see the smoke too, "so the person knows they
+are protected"; 14 is the open PR #1586's): Forest Protection's first-person twin plays the rays and
+the smoke (FOREST_FIRST_PERSON), still without the point light and the haze, its smoke thinner than
+the others see: the FOREST_SMOKE emitters' Rate (curve and data source) and MaxParticles (rounded
+up) FIRST_PERSON_SMOKE times the third person's (nine eighths of the stock rate). Thinner because the smoke
+reaches the middle of the view when aiming (view_cone.py), and a thick one would wash the view grey.
 """
 import argparse
 import copy
@@ -105,7 +112,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '13'
+VERSION = '17'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -136,7 +143,8 @@ FOREST_PUFFS = ('up', 'body')                       # the stock fog, moved onto 
 FOREST_SMOKE = ('up', 'body', 'left_hend', 'right_hend')
 SMOKE_THICKER = 1.5                                 # version 13: FOREST_SMOKE's Rate and MaxParticles
 FOREST_LEFT_OUT = ('up_light',)
-FOREST_FIRST_PERSON = ('rays',)                     # what the carrier sees of it on his own arms
+FOREST_FIRST_PERSON = ('rays',) + FOREST_SMOKE      # what the carrier sees of it on his own arms (version 15)
+FIRST_PERSON_SMOKE = 3 / 4                          # version 15: the twin's FOREST_SMOKE Rate and MaxParticles, of the third person's
 DARK_SMOKE_FROM = 'material_instances/fx/explosions/dark_smoke.material'
 DARK_SMOKE = 'fx/artifacts/smoke_dark_grey'
 DARK_GREY = [0.30000001192092896] * 3 + [1.0]   # 0.3 as an f32 (the render the owner picked)
@@ -395,31 +403,47 @@ def forest_particle(stock):
                        if n == 'float3' else kinds) for n, kinds in dict(arms[1])['data_sources'][1]])
     tree = greyed((T_NAMED, [(k, lod if k == 'LOD 0' else data if k == 'data_sources' else c) for k, c in arms[1]]))
     lod = dict(tree[1])['LOD 0']
+    children = [(g, with_material(e, DARK_SMOKE) if emitter_name(e) in FOREST_SMOKE else e)
+                for g, e in dict(lod[1])['children'][1]]
+    lod = (T_NAMED, [(k, (T_NAMED, children) if k == 'children' else c) for k, c in lod[1]])
+    return smoke_scaled((T_NAMED, [(k, lod if k == 'LOD 0' else c) for k, c in tree[1]]), SMOKE_THICKER)
+
+
+def forest_twin(forest):
+    """Forest Protection's first-person system (version 15): `forest` with FOREST_FIRST_PERSON only,
+    its smoke FIRST_PERSON_SMOKE times as thick as in the third person."""
+    return smoke_scaled(keep_emitters(forest, lambda e: emitter_name(e) in FOREST_FIRST_PERSON), FIRST_PERSON_SMOKE)
+
+
+def smoke_scaled(tree, k, names=FOREST_SMOKE):
+    """`tree` with each FOREST_SMOKE emitter's Rate curve and MaxParticles (rounded up) times `k`,
+    and its Rate's data source (which no other emitter uses) too."""
+    lod = dict(tree[1])['LOD 0']
     children, sources = [], set()
     for g, e in dict(lod[1])['children'][1]:
-        if emitter_name(e) in FOREST_SMOKE:
-            e, source = thicker(with_material(e, DARK_SMOKE))
+        if names is None or emitter_name(e) in names:
+            e, source = rate_times(e, k)
             sources.add(source)
         children.append((g, e))
     users = [dict(dict(dict(e[1])['properties'][1])['Rate'][1])['selected_source'][1] for _, e in children]
-    assert all(users.count(s) == 1 for s in sources), 'a smoke Rate source another emitter shares'
-    lod = (T_NAMED, [(k, (T_NAMED, children) if k == 'children' else c) for k, c in lod[1]])
-    data = (T_NAMED, [(n, (T_NAMED, [(f, (T_NAMED, [(m, rate_scaled(x, SMOKE_THICKER) if m == 'source' else x)
+    assert names is None or all(users.count(s) == 1 for s in sources), 'a smoke Rate source another emitter shares'
+    lod = (T_NAMED, [(n, (T_NAMED, children) if n == 'children' else c) for n, c in lod[1]])
+    data = (T_NAMED, [(n, (T_NAMED, [(f, (T_NAMED, [(m, rate_scaled(x, k) if m == 'source' else x)
                                                      for m, x in c[1]]) if f in sources else c) for f, c in kinds[1]])
                        if n == 'float' else kinds) for n, kinds in dict(tree[1])['data_sources'][1]])
-    return (T_NAMED, [(k, lod if k == 'LOD 0' else data if k == 'data_sources' else c) for k, c in tree[1]])
+    return (T_NAMED, [(n, lod if n == 'LOD 0' else data if n == 'data_sources' else c) for n, c in tree[1]])
 
 
-def thicker(emitter):
-    """A smoke emitter SMOKE_THICKER as thick (version 13): its Rate curve and MaxParticles (rounded
-    up) times SMOKE_THICKER; and the name of its Rate's data source, which the caller scales too."""
+def rate_times(emitter, k):
+    """`emitter` with its Rate curve and MaxParticles (rounded up) times `k`; and the name of its
+    Rate's data source, which the caller scales too."""
     props, source = [], None
     for name, value in dict(emitter[1])['properties'][1]:
         if name == 'Rate':
             source = dict(value[1])['selected_source'][1]
-            value = (T_NAMED, [(n, rate_scaled(c, SMOKE_THICKER) if n == 'source' else c) for n, c in value[1]])
+            value = (T_NAMED, [(n, rate_scaled(c, k) if n == 'source' else c) for n, c in value[1]])
         elif name == 'MaxParticles':
-            value = (value[0], scaled_maximum(value[1], SMOKE_THICKER))
+            value = (value[0], scaled_maximum(value[1], k))
         props.append((name, value))
     return (T_NAMED, [(n, (T_NAMED, props) if n == 'properties' else c) for n, c in emitter[1]]), source
 
@@ -567,13 +591,15 @@ def check_twin(twin, tree):
     assert set(kept) == set(emitters) - dropped
 
 
-def check_forest(tree, stock):
+def check_forest(tree, twin, stock):
     """The forest system is the stock Onyx glow, grey (`greyed`), with exactly these differences:
     the emitters with no arm part, and FOREST_LEFT_OUT, left out; each kept emitter's domain parts
     those of ARMS it had (FOREST_PUFFS: all of ARMS, nothing else); FOREST_PUFFS' Scale, in the
     emitter and in its data source, `up`'s x curve on every axis; FOREST_SMOKE's Material
     DARK_SMOKE, and their Rate (curve and data source) and MaxParticles SMOKE_THICKER times the
-    stock's (version 13). Every other rate, size, colour and value is the stock's."""
+    stock's (version 13). Every other rate, size, colour and value is the stock's. Its first-person
+    `twin` is the system's FOREST_FIRST_PERSON emitters, the smoke's Rate (curve and data source) and
+    MaxParticles FIRST_PERSON_SMOKE times the system's (version 15), all else the system's."""
     ref = greyed(copy.deepcopy(stock))
     ref_emitters, emitters = emitters_by_name(ref), emitters_by_name(tree)
     expected = {n for n, (_, e) in ref_emitters.items()
@@ -618,6 +644,31 @@ def check_forest(tree, stock):
         assert all(dict(dict(source[1])[a][1])['data'] == outward for a in AXES), s
     for d in differences(tree, ref):
         assert d.startswith(('/LOD 0/children', '/data_sources/float3/', '/data_sources/float/')), d
+    # The twin (version 15): the system's FOREST_FIRST_PERSON emitters, the smoke's Rate (curve and
+    # data source) and MaxParticles FIRST_PERSON_SMOKE times the system's; nothing else differs.
+    system, emitters = emitters, emitters_by_name(twin)
+    assert set(emitters) == set(FOREST_FIRST_PERSON), sorted(emitters)
+    thin = set()
+    for name, (guid, emitter) in emitters.items():
+        assert guid == system[name][0]
+        if name not in FOREST_SMOKE:
+            assert differences(emitter, system[name][1]) == [], name
+            continue
+        props, ref_props = dict(dict(emitter[1])['properties'][1]), dict(dict(system[name][1][1])['properties'][1])
+        assert props['MaxParticles'][1] == scaled_maximum(ref_props['MaxParticles'][1], FIRST_PERSON_SMOKE), name
+        rate, ref_rate = dict(props['Rate'][1]), dict(ref_props['Rate'][1])
+        assert rate['source'] == rate_scaled(ref_rate['source'], FIRST_PERSON_SMOKE), name
+        thin.add(rate['selected_source'][1])
+        for d in differences(emitter, system[name][1]):
+            assert d.endswith('/properties/MaxParticles') or '/properties/Rate/source/' in d, (name, d)
+    floats = dict(dict(dict(tree[1])['data_sources'][1])['float'][1])
+    for s in thin:
+        source = dict(dict(dict(twin[1])['data_sources'][1])['float'][1])[s]
+        expected = (T_NAMED, [(n, rate_scaled(c, FIRST_PERSON_SMOKE) if n == 'source' else c) for n, c in floats[s][1]])
+        assert sort_key(source) == sort_key(expected), s
+    for d in differences(twin, tree):
+        assert (d.startswith(('/LOD 0/children/', '/LOD 0/children_order'))
+                or any(d.startswith(f'/data_sources/float/{s}/') for s in thin)), d
 
 
 def composite_effect(tree, fp_system):
@@ -746,15 +797,32 @@ def main():
         operations.append({'op': 'add_file', 'path': f'particles/{fp_system}.particle'})
         # the stock child is the stock effect, value for value
         assert sort_key(get(effect, 'effect/effects')[1][0]) == sort_key(get(parse(stock[effect_path]), 'effect'))
+        # Each visibly distinct 8-bit intensity gets one pooled resource.
+        previous = 255
+        for tier in range(1, 29):
+            intensity = round(255 * 0.8 ** tier)
+            if intensity == previous:
+                continue
+            previous = intensity
+            weakened = smoke_scaled(particle, intensity / 255, names=None)
+            name = f'{system}_wear_{tier}'
+            variants = {
+                f'gameplay/effects/effect_artefact_{kind}_wear_{tier}.options': forest_effect(parse(stock[effect_path]), name),
+                f'particles/{name}.particle': weakened,
+                f'particles/{name}_fp.particle': first_person_particle(weakened),
+            }
+            for path, tree in variants.items():
+                files[path] = serialize(tree)
+                assert sort_key(parse(files[path])) == sort_key(tree), path
+                operations.append({'op': 'add_file', 'path': path})
     # Forest Protection's glow: its effect, its particle system and the grey materials.
     onyx = parse(stock[f'particles/{KINDS[FOREST_FROM]}.particle'])
     forest = forest_particle(onyx)
-    check_forest(forest, onyx)
-    forest_twin = keep_emitters(forest, lambda e: emitter_name(e) in FOREST_FIRST_PERSON)
-    assert set(emitters_by_name(forest_twin)) == set(FOREST_FIRST_PERSON)
+    twin = forest_twin(forest)
+    check_forest(forest, twin, onyx)
     forest_files = {FOREST_EFFECT: forest_effect(parse(stock[f'gameplay/effects/effect_artefact_{FOREST_FROM}.options'])),
                     f'particles/{FOREST_SYSTEM}.particle': forest,
-                    f'particles/{FOREST_SYSTEM}_fp.particle': forest_twin}
+                    f'particles/{FOREST_SYSTEM}_fp.particle': twin}
     used = {dict(dict(e[1])['properties'][1])['Material'][1] for _, e in emitters_by_name(forest).values()}
     for name in ORANGE_MATERIALS:            # the grey copies the forest system still draws with
         if f'fx/artifacts/{name}_grey' not in used:
@@ -793,11 +861,11 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': "the artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
+        'description': "Progressively weaker activation glows at each distinct 8-bit intensity. The artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
                        'stock third-person particle effect and a first-person one (view 0) playing '
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '
-                       'Forest Protection\'s glow, effect_forest_protection (a composite: third person, and a first-person one with only its rays) playing '
+                       'Forest Protection\'s glow, effect_forest_protection (a composite: third person, and a first-person one with its rays and three quarters of its smoke) playing '
                        'fx/artifacts/human_forest_protection: a dark-grey smoke around the arms (the stock Onyx glow on the arms at full rate with its up puffs and body strokes moved onto them, no light, drawn with fx/artifacts/smoke_dark_grey, its smoke 1.5 times the stock rate); '
                        'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (one particle effect each, seen in both views) playing '
                        'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '

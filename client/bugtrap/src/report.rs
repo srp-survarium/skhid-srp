@@ -35,7 +35,7 @@ const STACK_BYTES: usize = 256 * 1024;
 /// The game log's tail: at most this many lines of its last bytes.
 const LOG_LINES: usize = 20;
 const LOG_BYTES: usize = 8 * 1024;
-/// srp_patches.log's tail (its lines are at most 200 bytes, vostok/log.rs).
+/// The patch log's tail (`srp_patches.<stamp>.log`; lines at most 512 bytes, vostok/log.rs).
 const PATCH_LINES: usize = 100;
 const PATCH_BYTES: usize = 24 * 1024;
 /// The largest tail read.
@@ -493,48 +493,20 @@ impl Source for Bytes<'_> {
     }
 }
 
-/// The newest `Survarium*.log` in Documents\Survarium: its last lines,
-/// without credential-bearing records (`sanitize.rs`). Its name holds the
+/// The game's log of the crashed run, its last lines, without
+/// credential-bearing records (`sanitize.rs`): the newest run's
+/// `Survarium[_<user>].<stamp>.log` in `game\logs`. Its name holds the
 /// player's account name, so it is not written.
 unsafe fn log_tail(w: &mut dyn Write) {
     let folders = crate::logs::folders();
-    let docs = &folders[0];
-    let mut pattern = Wide::<1100>::new();
-    if docs.len == 0
-        || pattern.wide(&docs.buf[..docs.len]).is_err()
-        || write!(pattern, "Survarium*.log").is_err()
-    {
-        let _ = w.write_str("Game log:  no Documents folder\r\n");
+    let folder = &folders[crate::logs::LOGS_SCOPE];
+    let Some(name) = newest_game_log(folder) else {
+        let _ = w.write_str("Game log:  none found in game\\logs\r\n");
         return;
-    }
-    let mut found: WIN32_FIND_DATAW = zeroed();
-    let find = FindFirstFileW(pattern.ptr(), &mut found);
-    if find == INVALID_HANDLE_VALUE {
-        let _ = write!(w, "Game log:  none found (error {})\r\n", GetLastError());
-        return;
-    }
-    let mut newest = [0u16; 260];
-    let mut newest_time = 0u64;
-    loop {
-        let time = (found.ftLastWriteTime.dwHighDateTime as u64) << 32
-            | found.ftLastWriteTime.dwLowDateTime as u64;
-        if found.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT) == 0
-            && time >= newest_time
-        {
-            newest_time = time;
-            newest = found.cFileName;
-        }
-        if FindNextFileW(find, &mut found) == 0 {
-            break;
-        }
-    }
-    FindClose(find);
-    let name_len = newest.iter().position(|&c| c == 0).unwrap_or(0);
+    };
+    let name_len = name.iter().position(|&c| c == 0).unwrap_or(0);
     let mut path = Wide::<1400>::new();
-    if name_len == 0
-        || path.wide(&docs.buf[..docs.len]).is_err()
-        || path.wide(&newest[..name_len]).is_err()
-    {
+    if path.wide(&folder.buf[..folder.len]).is_err() || path.wide(&name[..name_len]).is_err() {
         let _ = w.write_str("Game log:  none found\r\n");
         return;
     }
@@ -544,24 +516,64 @@ unsafe fn log_tail(w: &mut dyn Write) {
         "Game log:  ",
         LOG_LINES,
         LOG_BYTES,
-        format_args!(
-            "Game log:  last {LOG_LINES} lines of the newest Survarium*.log in Documents\\Survarium\r\n"
-        ),
+        format_args!("Game log:  last {LOG_LINES} lines of the newest Survarium*.log in game\\logs\r\n"),
     );
 }
 
-/// `srp_patches.log` beside the exe (vostok/log.rs; the game's working
-/// folder is the exe's): what the client patches said last.
+/// The last written run's `Survarium*.log` of `folder`
+/// (`run_name::Kind::Game`); none in a folder unknown or without one.
+unsafe fn newest_game_log(folder: &Wide<1024>) -> Option<[u16; 260]> {
+    let mut pattern = Wide::<1100>::new();
+    if folder.len == 0
+        || pattern.wide(&folder.buf[..folder.len]).is_err()
+        || write!(pattern, "Survarium*.log").is_err()
+    {
+        return None;
+    }
+    let mut found: WIN32_FIND_DATAW = zeroed();
+    let find = FindFirstFileW(pattern.ptr(), &mut found);
+    if find == INVALID_HANDLE_VALUE {
+        return None;
+    }
+    let mut newest = None;
+    let mut newest_time = 0u64;
+    loop {
+        let time = (found.ftLastWriteTime.dwHighDateTime as u64) << 32
+            | found.ftLastWriteTime.dwLowDateTime as u64;
+        let n = found.cFileName.iter().position(|&c| c == 0).unwrap_or(0);
+        let wanted = crate::run_name::parse(&found.cFileName[..n])
+            .is_some_and(|run| run.kind == crate::run_name::Kind::Game);
+        if found.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT) == 0
+            && wanted
+            && (newest.is_none() || time >= newest_time)
+        {
+            newest_time = time;
+            newest = Some(found.cFileName);
+        }
+        if FindNextFileW(find, &mut found) == 0 {
+            break;
+        }
+    }
+    FindClose(find);
+    newest
+}
+
+/// The crashed run's client patch log (vostok/log.rs): the newest
+/// `srp_patches.<stamp>.log` in `game\logs` (logs::Candidate::patch_log),
+/// what the client patches said last.
 unsafe fn patch_tail(w: &mut dyn Write) {
     // The exe's folder from GetModuleFileNameW alone (logs::folders would
     // ask the shell for Documents too).
     let exe = crate::dump::folder();
+    let log = crate::logs::Candidate::patch_log(&exe.buf[..exe.len]);
+    let folder = crate::logs::game_logs(&exe.buf[..exe.len]);
     let mut path = Wide::<1400>::new();
-    if exe.len == 0
-        || path.wide(&exe.buf[..exe.len]).is_err()
-        || write!(path, "{}", crate::logs::PATCH_LOG).is_err()
+    if folder.len == 0
+        || log.len == 0
+        || path.wide(&folder.buf[..folder.len]).is_err()
+        || path.wide(&log.name[..log.len]).is_err()
     {
-        let _ = w.write_str("Patch log: no game folder\r\n");
+        let _ = w.write_str("Patch log: none in game\\logs\r\n");
         return;
     }
     let _ = tail(
@@ -570,8 +582,16 @@ unsafe fn patch_tail(w: &mut dyn Write) {
         "Patch log: ",
         PATCH_LINES,
         PATCH_BYTES,
-        format_args!("Patch log: last {PATCH_LINES} lines of srp_patches.log\r\n"),
+        format_args!("Patch log: last {PATCH_LINES} lines of {}\r\n", Name(&log)),
     );
+}
+
+/// The patch log's file name (ours: parsed).
+struct Name<'a>(&'a crate::logs::Candidate);
+impl core::fmt::Display for Name<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.0.patch_log_name(f)
+    }
 }
 
 /// The last `lines` lines of `path`'s last `bytes`, after `title` (a line

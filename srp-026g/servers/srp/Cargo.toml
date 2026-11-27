@@ -14,7 +14,8 @@ client-test = ["match-server/client-test", "lobby-server/client-test"]
 
 [dependencies]
 ctrlc = { workspace = true }
-log = { workspace = true }
+# `set_boxed_logger` for its own logger (`src/logger.rs`).
+log = { workspace = true, features = ["std"] }
 
 session = { workspace = true }
 survarium = { workspace = true }
@@ -22,6 +23,7 @@ vostok = { workspace = true }
 
 lobby-server = { path = "../lobby-server" }
 login-server = { path = "../login-server" }
+udp-transport = { workspace = true }
 match-server = { path = "../match-server" }
 web-server = { path = "../web-server" }
 
@@ -29,4 +31,5 @@ web-server = { path = "../web-server" }
 openssl = { workspace = true }
 
 [dev-dependencies]
+socket2 = { workspace = true }
 ban-reason = { workspace = true }

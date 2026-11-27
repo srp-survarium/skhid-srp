@@ -3,7 +3,7 @@
 use super::*;
 use crate::v026g::registry::Seat;
 use crate::v026g::tests::{MAP_TDM, session_of, setup};
-use skhid_voice::{Core, Encoder, FRAME, RATE, Sender, wire};
+use skhid_voice::{Core, Encoder, FRAME, Hearing, RATE, Sender, wire};
 use std::sync::Arc;
 
 struct Server {
@@ -39,7 +39,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
                 match_id: ticket.match_id,
                 place,
             },
-            "127.0.0.1".parse().unwrap(),
+            udp_transport::relay::Peer::direct("127.0.0.1:1".parse().unwrap()),
         );
     }
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -49,7 +49,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
     let _server = Server {
         stop,
         thread: Some(std::thread::spawn(move || {
-            run(&socket, registry, [7; 32], &worker_stop)
+            run(&socket, registry, [7; 32], Default::default(), &worker_stop)
         })),
     };
     let games: Vec<_> = (0..2)
@@ -69,20 +69,24 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
         assert!(matches!(welcome, wire::Message::Welcome { slot } if slot == place as u8));
         cores[index].receive(&welcome, 0);
         let roster = receive(&games[index]);
-        assert!(matches!(&roster, wire::Message::Roster { entries } if entries.len() == 2));
+        // The whole match: both teams' places.
+        assert!(matches!(&roster, wire::Message::Roster { entries } if entries.len() == 4));
         cores[index].receive(&roster, 0);
     }
     let mut encoders = [Encoder::new().unwrap(), Encoder::new().unwrap()];
     let mut senders = [Sender::new(session_of(0), 1), Sender::new(session_of(2), 1)];
     let mut output = [Vec::<i16>::new(), Vec::<i16>::new()];
     for index in 0..2 {
-        games[index].send(&senders[index].start(0)).unwrap();
+        games[index]
+            .send(&senders[index].start(0, wire::Channel::Near))
+            .unwrap();
         cores[1 - index].receive(&receive(&games[1 - index]), 0);
     }
-    // 0.8s, 20 audio datagrams each: comfortably inside the relay's 60/s cap,
-    // even when this deterministic test runs faster than the real audio clock.
+    // 0.8s, 20 audio datagrams each, at the real audio clock: the relay takes
+    // 30 a second of a talker's audio past a burst of 10.
     let frequencies = [600.0, 900.0];
     for frame in 0..40 {
+        std::thread::sleep(Duration::from_millis(20));
         let now = frame as u32 * 20;
         for index in 0..2 {
             let samples = std::array::from_fn(|i| {
@@ -95,7 +99,11 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
             }
         }
         for index in 0..2 {
-            output[index].extend_from_slice(&cores[index].mix(1.0, 0, now));
+            output[index].extend(
+                cores[index]
+                    .mix(1.0, &Hearing::UNITY, now)
+                    .map(|[left, _]| left),
+            );
         }
     }
     for index in 0..2 {
@@ -128,7 +136,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
         let projection = (sin * sin + cos * cos).sqrt() / (energy * sound.len() as f64).sqrt();
         assert!(
             projection > 0.4,
-            "client {index}: received the teammate's {hz}Hz tone ({projection})"
+            "client {index}: received the other client's {hz}Hz tone ({projection})"
         );
     }
 }

@@ -1,11 +1,16 @@
 """SWF containers and ABC blocks, as much as the movie build needs: tags, DoABC, SymbolClass, class names,
 and bitmaps from PNG and JPEG files."""
+import hashlib
+import os
+from pathlib import Path
 import struct
+import tempfile
 import zlib
 
 DO_ABC, DO_ABC_OLD, SYMBOL_CLASS, END = 82, 72, 76, 0
 DEFINE_BITS_LOSSLESS2 = 36
 DEFINE_BITS_JPEG2 = 21
+DEFINE_BITS_JPEG3 = 35
 DEFINE_SPRITE, SHOW_FRAME, PLACE_OBJECT2 = 39, 1, 26
 # The tags that define a character, its id their first field.
 DEFINES = {2, 6, 7, 10, 11, 14, 20, 21, 22, 32, 33, 34, 35, 36, 37, 39, 46, 48, 60, 75, 83, 84, 87, 90, 91}
@@ -135,8 +140,41 @@ def symbol_class(bindings):
     return tag(SYMBOL_CLASS, body)
 
 
+def kept(what, data, make):
+    """make() (bytes: a pure function of `data` and this file's code), made once: kept in the
+    checks' cache (bitmaps/<what>-<SHA-256 of this file and data>, its own SHA-256 before it).
+    A PNG's pixels are decoded and premultiplied a byte at a time: seconds a movie, every build."""
+    cache = os.environ.get('SKHID_CHECKS_CACHE') or Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'skhid-checks'
+    path = Path(cache) / 'bitmaps' / f'{what}-{hashlib.sha256(SOURCE + data).hexdigest()}'
+    try:
+        found = path.read_bytes()
+        if hashlib.sha256(found[32:]).digest() == found[:32]:
+            return found[32:]
+    except OSError:
+        pass
+    made = make()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as partial:
+            partial.write(hashlib.sha256(made).digest() + made)
+        os.replace(partial.name, path)
+    except OSError:
+        pass
+    return made
+
+
+SOURCE = hashlib.sha256(Path(__file__).read_bytes()).digest()
+
+
 def png(data):
     """(width, height, RGBA bytes) of an 8-bit RGBA or RGB, non-interlaced PNG."""
+    made = kept('png', data, lambda: (lambda width, height, pixels: struct.pack('<II', width, height)
+                                      + zlib.compress(pixels, 1))(*png_pixels(data)))
+    return (*struct.unpack_from('<II', made), zlib.decompress(made[8:]))
+
+
+def png_pixels(data):
+    """png(), decoded here."""
     if data[:8] != b'\x89PNG\r\n\x1a\n':
         raise ValueError('Not a PNG')
     pos, header, idat = 8, None, b''
@@ -191,11 +229,13 @@ def png(data):
 
 def bitmap(cid, width, height, rgba):
     """A DefineBitsLossless2 tag (32-bit ARGB, premultiplied, as Flash keeps it) of RGBA pixels."""
-    argb = bytearray()
-    for i in range(0, len(rgba), 4):
-        r, g, b, a = rgba[i:i + 4]
-        argb += bytes((a, r * a // 255, g * a // 255, b * a // 255))
-    return tag(DEFINE_BITS_LOSSLESS2, struct.pack('<HBHH', cid, 5, width, height) + zlib.compress(bytes(argb), 9))
+    def packed():
+        argb = bytearray()
+        for i in range(0, len(rgba), 4):
+            r, g, b, a = rgba[i:i + 4]
+            argb += bytes((a, r * a // 255, g * a // 255, b * a // 255))
+        return zlib.compress(bytes(argb), 9)
+    return tag(DEFINE_BITS_LOSSLESS2, struct.pack('<HBHH', cid, 5, width, height) + kept('argb', rgba, packed))
 
 
 def jpeg(cid, data):
@@ -217,6 +257,16 @@ def jpeg(cid, data):
             raise ValueError('a JPEG must be baseline (SOF0)')
         pos += 2 + length
     raise ValueError('no frame (SOF0) in the JPEG')
+
+
+def jpeg_alpha(cid, data, alpha):
+    """A DefineBitsJPEG3 tag: a baseline JPEG file (jpeg()) and its alpha, one byte a pixel (zlib), for a
+    picture with transparent parts far smaller than a lossless one. Its colour is premultiplied by the
+    alpha (black where it is transparent), as Flash keeps a bitmap."""
+    _, (width, height) = jpeg(cid, data)
+    if len(alpha) != width * height:
+        raise ValueError(f'the alpha is {len(alpha)} bytes, the JPEG {width} x {height}')
+    return tag(DEFINE_BITS_JPEG3, struct.pack('<HI', cid, len(data)) + data + zlib.compress(alpha, 9))
 
 
 class _Reader:

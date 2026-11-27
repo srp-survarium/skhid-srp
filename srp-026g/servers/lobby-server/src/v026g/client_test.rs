@@ -6,11 +6,12 @@
 use std::sync::OnceLock;
 
 use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::maps::MapId;
 
 /// The match being formed: its map (`maps_dict` id) and per-team size, the teams of the server's bots by place, and the roles the
 /// lobby would give them.
 pub struct Roster<'a> {
-    pub map_id: u8,
+    pub map_id: MapId,
     pub per_team: u8,
     pub bot_teams: &'a [u8],
     pub defaults: Vec<BotRole>,
@@ -38,7 +39,7 @@ pub fn set_roles_hook(hook: RolesHook) -> Result<(), HookError> {
 /// The roles of a Player vs Bots match's bots: the hook's, else `defaults`. A match not against bots (`size` none) is untouched. A
 /// hook that fails is logged as an error and the lobby's roles stand (the runner checks the roles of its seats when a try starts, so
 /// the test is voided and not reported against the wrong bot).
-pub(super) fn roles(size_and_map: Option<(u8, u8)>, bot_teams: &[u8], defaults: Vec<BotRole>) -> Vec<BotRole> {
+pub(super) fn roles(size_and_map: Option<(u8, MapId)>, bot_teams: &[u8], defaults: Vec<BotRole>) -> Vec<BotRole> {
     match roles_with(HOOK.get(), size_and_map, bot_teams, defaults.clone()) {
         Ok(roles) => roles,
         Err(error) => {
@@ -51,7 +52,7 @@ pub(super) fn roles(size_and_map: Option<(u8, u8)>, bot_teams: &[u8], defaults: 
 /// [`roles`] with the hook given.
 fn roles_with(
     hook: Option<&RolesHook>,
-    size_and_map: Option<(u8, u8)>,
+    size_and_map: Option<(u8, MapId)>,
     bot_teams: &[u8],
     defaults: Vec<BotRole>,
 ) -> Result<Vec<BotRole>, HookError> {
@@ -71,7 +72,7 @@ mod tests {
     #[test]
     fn without_a_hook_the_lobbys_roles_stand() {
         let defaults = vec![BotRole::Flanker, BotRole::Support];
-        assert_eq!(roles_with(None, Some((6, 2)), &[0, 1], defaults.clone()), Ok(defaults.clone()));
+        assert_eq!(roles_with(None, Some((6, MapId::new(2))), &[0, 1], defaults.clone()), Ok(defaults.clone()));
         assert_eq!(roles_with(None, None, &[0, 1], defaults.clone()), Ok(defaults));
     }
 
@@ -81,15 +82,15 @@ mod tests {
     fn the_hooks_roles_are_applied_to_the_matchs_bots() {
         let defaults = vec![BotRole::Flanker, BotRole::Support, BotRole::Rusher];
         let hook: RolesHook = Box::new(|roster| {
-            assert_eq!((roster.map_id, roster.per_team, roster.bot_teams.len()), (2, 6, 3));
+            assert_eq!((roster.map_id, roster.per_team, roster.bot_teams.len()), (MapId::new(2), 6, 3));
             let mut roles = roster.defaults;
             roles[1] = BotRole::Camper;
             roles
         });
-        let given = roles_with(Some(&hook), Some((6, 2)), &[0, 1, 1], defaults.clone());
+        let given = roles_with(Some(&hook), Some((6, MapId::new(2))), &[0, 1, 1], defaults.clone());
         assert_eq!(given, Ok(vec![BotRole::Flanker, BotRole::Camper, BotRole::Rusher]));
         assert_eq!(roles_with(Some(&hook), None, &[0, 1, 1], defaults.clone()), Ok(defaults.clone()));
         let short: RolesHook = Box::new(|_| vec![BotRole::Camper]);
-        assert_eq!(roles_with(Some(&short), Some((6, 2)), &[0, 1, 1], defaults), Err(HookError::WrongLength { wanted: 3, got: 1 }));
+        assert_eq!(roles_with(Some(&short), Some((6, MapId::new(2))), &[0, 1, 1], defaults), Err(HookError::WrongLength { wanted: 3, got: 1 }));
     }
 }

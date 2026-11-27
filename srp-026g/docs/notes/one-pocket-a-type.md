@@ -190,16 +190,18 @@ is bought); the slider may still lower a pocket.
 
 The owner: "people are confused why they have 3 slots but only 1 grenade".
 
-- **A pocket's cells are its units** (`ItemRendererQSlot`, `AmmoSlider.cellUnits`): an RGD-5 in a
-  pocket of 3 shows 3 cells, not 1. Of the two cells a carried RGD-5 takes the first is drawn as
-  any filled cell, the second in the speed warning's pale red (`WeightEffects.WARNING_COLOR`); a
-  cell left over that holds no whole RGD-5 (the third of 3) is pale red too. The slider still
-  counts grenades.
+- **A pocket's cells are its units** (`ItemRendererQSlot`, `AmmoSlider.blockedCells`): an RGD-5
+  in a pocket of 3 shows 3 cells, not 1. Each grenade is one cell, drawn as any item's; the units
+  the pairs use up, the pocket's units less the grenades it holds, are its last cells, in the speed
+  warning's pale red (`WeightEffects.WARNING_COLOR`): 3 units hold 1 (1 cell, 2 red), 4 hold 2
+  (2 cells, 2 red; the owner, 2026-11-22: "all reds come last"). The same for a grenade with
+  Toxic Smoke and a trap with Bear Trap, each of which takes 1.5 units (5 units hold 3;
+  technical-skills.md).
 - **Additional Medicine's unit** is the pocket's last cell for a medicine, pale green
   (`Colors.GREEN`), dimmer while empty.
 - **The card line "Pocket slots"** (`ItemCompare.pocketDepth`, the text of property 166,
-  `st_srp_inv_pocket_units`): 1, the RGD-5's 2, a booster's whole pocket
-  (`st_srp_inv_pocket_units_whole`, an infinity sign). The card's first row; compared as the
+  `st_srp_inv_pocket_units`): 1, the RGD-5's 2, a Bear Trap trap's 1.5, a booster's whole pocket
+  (`st_srp_inv_pocket_units_whole`, "All" in each language: the lobby font has no infinity sign). The card's first row; compared as the
   other rows, less is better.
 - **The weight is a card's last row** (`ItemCompare.weightLast`), for every item (held Alt, a
   medicine's skill lines come under it). A card has nine rows: with more to show, the weight

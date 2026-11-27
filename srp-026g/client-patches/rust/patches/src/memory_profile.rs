@@ -3,7 +3,7 @@
 //! with `SKHID_MEMORY_PROFILE=on`, read once when the arenas are made
 //! ([`Setting`]). Off, nothing is reserved, written or logged, and the
 //! allocator is the game's byte for byte: its gates are written into it
-//! only when the profile is on (`vostok::memory_profile::install`).
+//! only when the profile is on (`vostok::memory_profile::start`).
 //!
 //! On, every block the engine's heaps hand out or take back (dlmalloc's
 //! mspace_malloc, mspace_realloc, mspace_free: each doug_lea arena's heap and
@@ -41,7 +41,9 @@ use crate::vostok::files::tick_count;
 use crate::vostok::memory_profile::ScrollLock;
 use crate::vostok::gun_cook::process_id;
 use crate::vostok::log::{line, Piece::*};
-use crate::vostok::memory::{placed, process, regions_map, scaleform_heaps, ManagedNode, ResourceClass, Walk};
+use crate::vostok::memory::{
+    geometry_pool, placed, process, regions_map, scaleform_heaps, GeometryKind, GeometryPool, ManagedNode, ResourceClass, Walk,
+};
 use crate::vostok::memory_profile::{self as runtime, Block, CallSite, HeapCall, StartRefused};
 use crate::vostok::trace::TraceFile;
 use crate::vostok::{Context, Flow, InstallRefused, NoExit, Thread, YieldingLock};
@@ -855,6 +857,25 @@ fn write_snapshot<W: FnMut(&[u8])>(thread: &Thread, text: &mut Text<'_, W>, prof
     let whole = process(thread);
     text.word("process").word("free").dec(u64::from(whole.free)).word("largest").dec(u64::from(whole.largest_free));
     text.word("video").dec(whole.video_budget);
+    text.end();
+    for (kind, name) in [(GeometryKind::Vertices, "vertices"), (GeometryKind::Indices, "indices")] {
+        text.word("pool").word(name);
+        match geometry_pool(thread, kind) {
+            GeometryPool::Absent => text.word("absent"),
+            GeometryPool::Torn => text.word("torn"),
+            GeometryPool::Read(pool) => text
+                .dec(u64::from(pool.chunks))
+                .dec(pool.bytes)
+                .dec(pool.used)
+                .dec(u64::from(pool.ranges))
+                .dec(u64::from(pool.most_ranges))
+                .dec(u64::from(pool.unpooled)),
+        };
+        text.end();
+    }
+    let shared = crate::geometry_share::sharing(thread);
+    text.word("pool").word("shared").dec(u64::from(shared.ranges)).dec(u64::from(shared.sharers));
+    text.dec(shared.saved).dec(shared.peak_saved).dec(u64::from(shared.refused));
     text.end();
     text.word("blocks").dec(profiler.blocks.count as u64).word("sites").dec(profiler.sites.count as u64);
     text.end();

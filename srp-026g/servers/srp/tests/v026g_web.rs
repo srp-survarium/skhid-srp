@@ -69,7 +69,7 @@ fn start(name: &str) -> (Stack, SocketAddr) {
             ips: vec![session::Net::parse("127.0.0.1").unwrap()],
             trust_proxy: false,
         };
-        let _ = web_server::serve_on(&listener, store, admin, Some(game));
+        let _ = web_server::serve_on(&listener, store, admin, game);
     });
     (stack, web)
 }

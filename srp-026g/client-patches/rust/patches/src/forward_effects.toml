@@ -1,0 +1,30 @@
+# Patch 169: the forward effects draw as 0.44a5's: a DXT1 transparency map,
+# tiled maps, distortion of the emissive map alone (forward_effects.rs;
+# README "The forward effects of 0.44a5"). The sites are sites_026g.tsv's.
+name = "forward_effects"
+patch = 169
+
+# forward_default's call of compile_begin: the configuration's byte 0Dh
+[[hook]]
+site = "forward.compile_begin"
+handler = "on_forward_begin"
+
+# particle_lighting's call of compile_begin: the same byte's DXT1 bit
+[[hook]]
+site = "particle_lighting.compile_begin"
+handler = "on_particle_lighting_begin"
+
+# forward_default's constant_tile_uv: a tiled material's four factors
+[[hook]]
+site = "forward.tile_uv"
+handler = "on_tile_uv"
+
+# stage_lights' constructor: probe_diffuse_mult's constant host
+[[hook]]
+site = "stage_lights.constructed"
+handler = "on_stage_lights_constructed"
+
+# the particle pass's probe constants: probe_diffuse_mult's value
+[[hook]]
+site = "stage_lights.particle_probe"
+handler = "on_particle_probe"

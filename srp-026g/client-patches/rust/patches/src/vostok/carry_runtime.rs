@@ -212,6 +212,27 @@ impl HeldShape {
 
 /// The renderer calls queue a copy and retain both resource references.
 pub(super) struct Scene { renderer: raw::SceneRenderer, reference: raw::SceneReference }
+/// What a played particle system's body-shaped (animated domain) emitters take their points from:
+/// none, as the artefacts' clients play their idle (0x25F335..0x25F387: two empty attachments; the
+/// emitters start at the matrix's origin), or a player's, as the effects' presenter plays a
+/// player's effect (play_effect 0x2AC290): his hit model (+498h) and his model (+F290h), the 0.21d
+/// PDB's collision::animated_object and render::skeleton_model_instance. The play holds both, so
+/// while it lasts they are this body's and no other's.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Bones {
+    animated: Option<raw::HitModel>,
+    skeleton: Option<raw::PlayerModel>,
+}
+impl Bones {
+    pub const NONE: Self = Self { animated: None, skeleton: None };
+    /// # Safety
+    /// `player` is live on the hook's thread.
+    pub(super) unsafe fn of(player: raw::Player) -> Self {
+        // SAFETY: the caller's live player; his two fields.
+        unsafe { Self { animated: player.hit_model(), skeleton: player.model() } }
+    }
+}
+
 impl Scene {
     pub(super) unsafe fn of_world(world: raw::GameWorld) -> Option<Self> {
         // SAFETY: live client world from a client callback/draw argument.
@@ -261,6 +282,38 @@ impl Scene {
         unsafe {
             raw::engine_update_skeleton(Some(self.renderer), Some(model.skinned()), bones.as_ptr().cast(),
                                         bones.as_ptr().cast(), count)
+        }
+    }
+    /// Plays `particle` at `matrix` in the scene, its body-shaped (animated
+    /// domain) emitters on `bones`. The particle by value (the play takes the
+    /// reference added here), the matrix twice.
+    pub(super) unsafe fn play_particle(&self, particle: raw::ParticleSystem, matrix: &[f32; 16], bones: Bones) {
+        let Bones { mut animated, mut skeleton } = bones;
+        // SAFETY: a particle system the caller keeps; its count atomic; the
+        // renderer and scene retained by the live caller; our locals copied.
+        unsafe {
+            core::sync::atomic::AtomicU32::from_ptr(particle.references())
+                .fetch_add(1, core::sync::atomic::Ordering::AcqRel);
+            raw::engine_play_particle_system(Some(self.renderer), Some(self.reference), Some(particle),
+                                             matrix.as_ptr(), matrix.as_ptr(), &mut animated, &mut skeleton);
+        }
+    }
+    /// Removes the scene's instance of `particle`, as the artefacts' clients
+    /// do (0x25ECC6..0x25ECCF: the particle system's slot).
+    pub(super) unsafe fn stop_particle(&self, particle: raw::ParticleSystem) {
+        let mut slot = Some(particle);
+        // SAFETY: as play_particle; the slot ours, read by the call.
+        unsafe { raw::engine_remove_particle_system(Some(self.renderer), Some(self.reference), &mut slot) }
+    }
+    /// Moves the scene's instance of `particle` to `matrix`, as the
+    /// effects' presenters move theirs each frame (0x2AC353: the particle
+    /// system's slot, the matrix twice).
+    pub(super) unsafe fn move_particle(&self, particle: raw::ParticleSystem, matrix: &[f32; 16]) {
+        let mut slot = Some(particle);
+        // SAFETY: as play_particle; the slot and the matrix ours, read by the call.
+        unsafe {
+            raw::engine_update_particle_system(Some(self.renderer), Some(self.reference), &mut slot, matrix.as_ptr(),
+                                               matrix.as_ptr())
         }
     }
     pub(super) unsafe fn remove(&self, model: raw::SceneModel) -> bool {
@@ -352,6 +405,9 @@ pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, hidden: &mut HiddenWeapo
             for (n, model) in models.into_iter().enumerate() {
                 if model.is_some_and(|model| scene.remove(model)) { *removed |= 1 << n; }
             }
+            // its fitted parts with it (patch 161): the gun's own draw, which
+            // is skipped from here, is what keeps them in the scene
+            super::attachments::out_of_scene(ctx.thread(), weapon, &scene);
             return true;
         }
         let Some(record) = hidden.find(weapon.address()) else { return false };

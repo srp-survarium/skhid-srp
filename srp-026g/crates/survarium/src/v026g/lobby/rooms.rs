@@ -18,6 +18,7 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, at_most};
+use crate::v026g::dictionary::MapId;
 
 /// The first start of a room request: the list of the rooms.
 pub const ROOMS_FIRST: u32 = 2_060_000_000;
@@ -28,8 +29,11 @@ pub const ROOMS_LIST: u32 = ROOMS_FIRST;
 pub const ROOM_STATE: u32 = ROOMS_FIRST + 1;
 /// Leave the asker's room (the window's cross). Answered with its state.
 pub const ROOM_LEAVE: u32 = ROOMS_FIRST + 2;
-/// `ROOM_VOTE_BASE + card`, card 0 to 2: a vote. Answered with the state.
-pub const ROOM_VOTE_BASE: u32 = ROOMS_FIRST + 3;
+/// `ROOM_VOTE_BASE + card`, card 0 to [`CARDS`] − 1: a vote. Answered with
+/// the state. Past the room with bots since the fourth card (the owner's
+/// of 2026-11-26); 2 060 000 003 to 2 060 000 005, the three cards' before
+/// it, are no request now.
+pub const ROOM_VOTE_BASE: u32 = ROOMS_FIRST + 50;
 /// Play: into an open room, or a new one (the movie's Play button with
 /// rooms on: no search, no queue). Answered with the state.
 pub const ROOM_PLAY: u32 = ROOMS_FIRST + 6;
@@ -104,9 +108,9 @@ pub const ROOM_CHAT: u32 = ROOMS_FIRST + 30;
 /// room's queue (its PIN, if it asks one, given just before), or join it if
 /// a place is free. Answered with the state.
 pub const ROOM_QUEUE_BASE: u32 = ROOMS_FIRST + 200_000;
-/// `ROOM_BITS_BASE + chunk × 2^20 + bits`: 20 entries of the pool of the
-/// room the asker creates next, entry `chunk × 20 + b` in by bit `b`
-/// ([`bits_answer`]).
+/// `ROOM_BITS_BASE + chunk × 2^16 + bits`: 16 entries of the pool of the
+/// room the asker creates next, entry `chunk × 16 + b` in by bit `b`
+/// ([`bits_answer`]); [`CHUNKS`] of them end below [`ROOM_CREATE_BASE`].
 pub const ROOM_BITS_BASE: u32 = ROOMS_FIRST + 1_000_000;
 /// `ROOM_CREATE_BASE + code` ([`create_start`]): make a room. Answered with
 /// the state.
@@ -121,21 +125,26 @@ pub const ROOM_KEY_MAX: u32 = 99_999;
 /// The largest PIN.
 pub const PIN_MAX: u16 = 9999;
 /// The pool entries one bits request carries.
-pub const BITS_PER_CHUNK: u32 = 20;
-/// The most chunks: a pool of 160 entries at the most.
-pub const CHUNKS: u32 = 8;
+pub const BITS_PER_CHUNK: u32 = 16;
+/// The most chunks: a pool of 512 entries at the most (every playable map:
+/// 333 on 2026-11-22 with both Artifact Hunt and Freeze Tag on every team map,
+/// whose 256 cut off every map after the 0.21 ones, the Londons among them;
+/// 167 with the free-for-alls, 142 before them; 20 a chunk and 8 chunks, 160,
+/// until then).
+pub const CHUNKS: u32 = 32;
 /// The most pool entries a create can name: one bit each.
 pub const POOL_BITS: usize = (CHUNKS * BITS_PER_CHUNK) as usize;
 /// The pool's entries a page of [`room_pool`] lists.
 pub const POOL_PAGE_ROWS: usize = 30;
-/// The most pages of the pool.
-pub const POOL_PAGES: u32 = 16;
+/// The most pages of the pool: every entry a create can name.
+pub const POOL_PAGES: u32 = POOL_BITS.div_ceil(POOL_PAGE_ROWS) as u32;
 /// The most rooms one [`room_list`] lists, whatever the `3B` asks for.
 pub const LIST_ROWS: usize = 31;
 /// The most members a room has: two sides of 10.
 pub const MEMBERS_MAX: usize = 20;
-/// The most cards of a vote.
-pub const CARDS: usize = 3;
+/// The cards of a vote (the owner's of 2026-11-26: "Change the number of
+/// vote options to 4"; three before).
+pub const CARDS: usize = 4;
 /// The most rows of [`friend_rooms`] after its header: all a `91` holds
 /// (a friend list has 200 at most).
 pub const FRIEND_ROWS: usize = u8::MAX as usize - 1;
@@ -361,9 +370,10 @@ pub enum RoomRequest {
 }
 
 /// The code of a create: `((((size − least size) × 16 + max level) × 10 + wait index)
-/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one (the lobby movie sends one
-/// code, RoomsWire.CREATE_PIN: a private room has no size, level, wait or minimum of its own). A
-/// room has no level of its own to make: the server works it out from its players.
+/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one (the lobby movies before
+/// the create in one request, [`RoomCreate`], sent one code, RoomsWire.CREATE_PIN: a private room
+/// has no size, level, wait or minimum of its own). A room has no level of its own to make: the
+/// server works it out from its players.
 pub fn create_start(spec: RoomSpec) -> u32 {
     let rules = rules();
     let wait = rules
@@ -406,8 +416,8 @@ pub fn member_gear_place(value: u32) -> Option<(u8, u32)> {
     (check < KICK_CHECKS).then(|| ((value % MEMBERS_MAX as u32) as u8, check))
 }
 
-/// The start of 20 entries of a pool: `chunk` 0 to [`CHUNKS`] − 1, `bits`
-/// below 2^20.
+/// The start of 16 entries of a pool: `chunk` 0 to [`CHUNKS`] − 1, `bits`
+/// below 2^16.
 pub fn bits_start(chunk: u8, bits: u32) -> u32 {
     ROOM_BITS_BASE + u32::from(chunk) * (1 << BITS_PER_CHUNK) + (bits & ((1 << BITS_PER_CHUNK) - 1))
 }
@@ -511,6 +521,124 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
     Some(request)
 }
 
+/// The start of a create's text ([`RoomCreate`]): no player's name.
+pub const CREATE_TEXT: &str = "S1C;";
+
+/// A private room made in one request (since 2026-11-20; the owner's: "this is still awful
+/// experience for something which should be a single very fast request"): the game's player
+/// search, `4E 06` (Flash `find_players`, which sends the movie's text as it is, 3 bytes or
+/// more, `lobby.md` §2.16.3), whose text is `S1C;<door>;<pool>`. `door` is `P` (players) or `B`
+/// (with bots) and the 4-digit PIN; `pool` the entries chosen, in hex: character `k` the
+/// entries `4k` to `4k + 3`, entry `4k + b` in by bit `b`, [`POOL_BITS`] / 4 characters at most.
+/// Before it the movie sent the PIN, the pool in bits requests and the create one after
+/// another, each on the game's 500 ms lobby tick (4 to 8 s for 219 entries).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoomCreate {
+    pub pin: u16,
+    pub kind: PrivateKind,
+    pub pool: PoolPick,
+}
+
+/// Who plays a private room's matches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrivateKind {
+    /// Its members alone.
+    Players,
+    /// Its members, and bots to 8 a team ([`ROOM_CREATE_BOTS`]).
+    WithBots,
+}
+
+/// Pool entries chosen by their place in the pool offered (the index of [`room_pool`]'s rows),
+/// below [`POOL_BITS`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PoolPick([u64; POOL_BITS / 64]);
+
+impl PoolPick {
+    /// Entry `index` in; one past [`POOL_BITS`] is no entry.
+    pub fn with(mut self, index: usize) -> Self {
+        if let Some(word) = self.0.get_mut(index / 64) {
+            *word |= 1 << (index % 64);
+        }
+        self
+    }
+
+    pub fn has(self, index: usize) -> bool {
+        self.0
+            .get(index / 64)
+            .is_some_and(|word| word >> (index % 64) & 1 == 1)
+    }
+
+    /// The entries of `entries` (the pool offered, in its order) chosen.
+    pub fn of<T: Copy>(self, entries: &[T]) -> Vec<T> {
+        entries
+            .iter()
+            .enumerate()
+            .filter(|&(index, _)| self.has(index))
+            .map(|(_, &entry)| entry)
+            .collect()
+    }
+}
+
+/// A create's text that is not one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BadCreate;
+
+impl RoomCreate {
+    /// A player search's text: `None` when it is one (no [`CREATE_TEXT`] at its start).
+    pub fn parse(text: &str) -> Option<Result<Self, BadCreate>> {
+        let rest = text.strip_prefix(CREATE_TEXT)?;
+        Some(Self::parse_fields(rest).ok_or(BadCreate))
+    }
+
+    fn parse_fields(rest: &str) -> Option<Self> {
+        let (door, pool) = rest.split_once(';')?;
+        let kind = match door.get(..1)? {
+            "P" => PrivateKind::Players,
+            "B" => PrivateKind::WithBots,
+            _ => return None,
+        };
+        let pin = door.get(1..)?;
+        if pin.len() != 4 || !pin.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        if pool.is_empty() || pool.len() > POOL_BITS / 4 {
+            return None;
+        }
+        let mut pick = PoolPick::default();
+        for (k, digit) in pool.chars().enumerate() {
+            let nibble = digit.to_digit(16)?;
+            for b in 0..4 {
+                if nibble >> b & 1 == 1 {
+                    pick = pick.with(4 * k + b);
+                }
+            }
+        }
+        Some(Self {
+            pin: pin.parse().ok()?,
+            kind,
+            pool: pick,
+        })
+    }
+
+    /// Its text, as the movie writes it (`RoomsWire.createText`).
+    pub fn text(&self) -> String {
+        let door = match self.kind {
+            PrivateKind::Players => 'P',
+            PrivateKind::WithBots => 'B',
+        };
+        let last = (0..POOL_BITS).rev().find(|&index| self.pool.has(index));
+        let pool: String = (0..=last.map_or(0, |last| last / 4))
+            .map(|k| {
+                let nibble = (0..4).fold(0, |nibble, b| {
+                    nibble | u32::from(self.pool.has(4 * k + b)) << b
+                });
+                char::from_digit(nibble, 16).unwrap_or('0')
+            })
+            .collect();
+        format!("{CREATE_TEXT}{door}{:04};{pool}", self.pin)
+    }
+}
+
 /// Where a room is.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -595,8 +723,8 @@ pub struct RoomRow {
     pub players: u8,
     pub phase: RoomPhase,
     pub secs: u32,
-    /// The map being played, or the one ahead in the vote; 0: none.
-    pub map_id: u8,
+    /// The map being played, or the one ahead in the vote (the row's 0: none).
+    pub map_id: Option<MapId>,
     pub door: ListDoor,
     /// The owner's name: the room's.
     pub name: String,
@@ -630,10 +758,28 @@ pub struct FriendRoom {
 /// A card of the vote.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Card {
-    pub map_id: u8,
+    pub shown: Shown,
     pub votes: u8,
     /// The asker voted for it.
     pub mine: bool,
+}
+
+/// A map as a room shows it: its `maps_dict` id and the mode its match
+/// plays, a twist's own (`twist::Played::lobby_number`): what the movie
+/// names on a card and on the banner of a match being played.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shown {
+    pub map_id: MapId,
+    pub mode: u8,
+}
+
+impl From<crate::v026g::twist::Played> for Shown {
+    fn from(played: crate::v026g::twist::Played) -> Self {
+        Self {
+            map_id: played.map().id,
+            mode: played.lobby_number(),
+        }
+    }
 }
 
 /// A member of the asker's room, in the order of the room.
@@ -711,8 +857,8 @@ pub struct RoomView {
     pub pin: bool,
     pub cards: Vec<Card>,
     pub members: Vec<Member>,
-    /// The map of its last match; 0: none yet.
-    pub last_map: u8,
+    /// What its last match played; none yet.
+    pub last: Option<Shown>,
     /// Always 0 since 2026-10-19 (no map is fixed before the start); kept
     /// so the lobby movies of revision 24 and before read the wire.
     pub next_map: u8,
@@ -801,12 +947,15 @@ pub struct RoomForm {
     pub tiles_on: Vec<bool>,
     /// The modes left out (`maps::MapMode::mode`).
     pub modes_off: Vec<u8>,
+    /// The PIN the window starts with typed, 0 to [`PIN_MAX`]: the last
+    /// room's (none: an empty field).
+    pub pin: Option<u16>,
 }
 
 /// A map a pool may hold, in [`room_pool`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PoolEntry {
-    pub map_id: u8,
+    pub map_id: MapId,
     /// Of its `maps_dict` entry (`maps::MapMode`).
     pub level: u8,
     pub weather: u8,
@@ -881,7 +1030,7 @@ pub fn room_list(
             room.players,
             room.phase as u8,
             room.secs,
-            room.map_id,
+            room.map_id.map_or(0, MapId::get),
             room.door as u8,
             row_name(&room.name)
         )
@@ -899,7 +1048,7 @@ pub fn room_list(
 ///   <pool>;<members>;<serial>;<pin>;<next map>;<min players>;<code>` (`code`
 ///   as above: why a join of another room, or a room made, left it in this
 ///   one), then a row a card, `C;<i>;<map_id>;
-///   <votes>;<mine>`, a row a member, `P;<i>;<gear>;<owner>;<me>;
+///   <votes>;<mine>;<mode>` ([`Card::shown`]: the mode a twist's own), a row a member, `P;<i>;<gear>;<owner>;<me>;
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
 ///   gone for now), in a private room a row `A;<sides>`, a digit a member
 ///   in the list's order, its team as the owner arranged it (0, 1;
@@ -912,8 +1061,8 @@ pub fn room_list(
 ///   a row `J;<seconds>` when the asker waits to go into its room's match
 ///   being played ([`RoomView::join_in`]), or `J;-1;<why>` when it waits
 ///   and the match takes nobody now ([`JoinHold`]; a movie that reads only
-///   the seconds takes -1 as no row), and `L;<map_id>`, the last match's
-///   map (0: none).
+///   the seconds takes -1 as no row), and `L;<map_id>;<mode>`, the last
+///   match's map and the mode it played (`L;0`: none).
 pub fn room_state(
     room: Option<&RoomView>,
     code: RoomCode,
@@ -948,10 +1097,11 @@ pub fn room_state(
     )];
     names.extend(room.cards.iter().enumerate().map(|(index, card)| {
         format!(
-            "C;{index};{};{};{}",
-            card.map_id,
+            "C;{index};{};{};{};{}",
+            card.shown.map_id,
             card.votes,
-            u8::from(card.mine)
+            u8::from(card.mine),
+            card.shown.mode
         )
     }));
     names.extend(room.members.iter().enumerate().map(|(index, member)| {
@@ -999,7 +1149,10 @@ pub fn room_state(
             row_name(&switch.name)
         ));
     }
-    names.push(format!("L;{}", room.last_map));
+    names.push(match room.last {
+        Some(last) => format!("L;{};{}", last.map_id, last.mode),
+        None => "L;0".to_owned(),
+    });
     rows_at(ROOM_STATE, names)
 }
 
@@ -1008,9 +1161,6 @@ pub fn room_state(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListMember {
     pub member: Member,
-    /// The team of its place in the room's match being played, 0 or 1;
-    /// `None` when it has none.
-    pub side: Option<u8>,
     /// Its account: a right-click on it asks for its kits by it
     /// (`3D 00 <GEAR_BY_ACCOUNT> <account>`).
     pub account_id: u32,
@@ -1020,9 +1170,9 @@ pub struct ListMember {
 /// ROOM_MEMBERS_BASE + i`, to anyone (the room chosen in the Rooms list; a
 /// room with a PIN too: names are no secret): `S1;G;<key>;<members>`, then
 /// two rows a member in the order of the room: `P;<i>;<gear>;<owner>;<me>;
-/// <in match>;<fit>;<away>;<side>;<account>;<squad>` (the state's fields;
-/// `side` 1 or 2, the team of its place in the room's match being played, 0
-/// when it has none; `squad` its squad's mark, [`Member::squad`], 0 none),
+/// <in match>;<fit>;<away>;0;<account>;<squad>` (the state's fields; `0`
+/// where its side was, none told since 2026-11-13: the list never shows who
+/// plays on which side; `squad` its squad's mark, [`Member::squad`], 0 none),
 /// and its whole name alone (up to the 63 bytes a row holds, `;`
 /// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
 /// member.
@@ -1036,14 +1186,13 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
     for (index, seen) in members.iter().enumerate() {
         let member = &seen.member;
         names.push(format!(
-            "P;{index};{};{};{};{};{};{};{};{};{}",
+            "P;{index};{};{};{};{};{};{};0;{};{}",
             member.gear,
             u8::from(member.owner),
             u8::from(member.me),
             u8::from(member.in_match),
             member.fit as u8,
             u8::from(member.away),
-            seen.side.map_or(0, |team| team.min(1) + 1),
             seen.account_id,
             squad_number(member.squad)
         ));
@@ -1054,38 +1203,62 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
 
 /// `91` as the answer to `3B 00 <ROOM_POOL_BASE + page> <count>`, `place =
 /// that start + i`: `S1;M;<total>;<page>`, then a row an entry of that
-/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>;<bots>` (`bots` 1:
-/// [`PoolEntry::bots`]). An entry's index is the bit a pool names it by
-/// ([`bits_start`]).
-pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireError> {
+/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>;<bots>;<offered>`
+/// (`bots` 1: [`PoolEntry::bots`]). The entries `offered` (1) first, the maps
+/// a private room's pool may hold, which the create window lists: an entry's
+/// index is the bit a pool names it by ([`bits_start`]). Then the maps only
+/// an open room's card shows (`shown`, `offered` 0: a free-for-all played
+/// with a twist only), their indices after the offered ones, a bit of none:
+/// the movie names and draws every card, room and match by this list, and
+/// a card on a map not in it was empty (Military Warehouses, 2026-11-27).
+/// A movie of before reads the first seven fields, and lists the shown ones
+/// in its create window too.
+pub fn room_pool(
+    offered: &[PoolEntry],
+    shown: &[PoolEntry],
+    page: u8,
+) -> Result<ServerMessage, WireError> {
+    rows_at(
+        ROOM_POOL_BASE + u32::from(page),
+        pool_names(offered, shown, page),
+    )
+}
+
+fn pool_names(offered: &[PoolEntry], shown: &[PoolEntry], page: u8) -> Vec<String> {
     let first = usize::from(page) * POOL_PAGE_ROWS;
-    let mut names = vec![format!("{ROOMS_VERSION};M;{};{page}", entries.len())];
+    let total = offered.len() + shown.len();
+    let mut names = vec![format!("{ROOMS_VERSION};M;{total};{page}")];
     names.extend(
-        entries
+        offered
             .iter()
+            .map(|entry| (entry, true))
+            .chain(shown.iter().map(|entry| (entry, false)))
             .enumerate()
             .skip(first)
             .take(POOL_PAGE_ROWS)
-            .map(|(index, entry)| {
+            .map(|(index, (entry, offered))| {
                 format!(
-                    "{index};{};{};{};{};{};{}",
+                    "{index};{};{};{};{};{};{};{}",
                     entry.map_id,
                     entry.level,
                     entry.weather,
                     entry.mode,
                     u8::from(entry.extra),
-                    u8::from(entry.bots)
+                    u8::from(entry.bots),
+                    u8::from(offered)
                 )
             }),
     );
-    rows_at(ROOM_POOL_BASE + u32::from(page), names)
+    names
 }
 
 /// `91` as the answer to `3B 00 <ROOM_FORM> 1`, `place = ROOM_FORM + i`:
-/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>` (`saved`
-/// 1: the asker's own settings, 0: the defaults; `modes off` the modes left
-/// out, `,` between them, empty for none), then a row a chunk of 20 entries
-/// of the pool, `E;<chunk>;<bits>`: entry `chunk × 20 + b`'s tile is in by
+/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>;<pin>`
+/// (`saved` 1: the asker's own settings, 0: the defaults; `modes off` the
+/// modes left out, `,` between them, empty for none; `pin` its 4 digits,
+/// empty for none, last so a movie of before reads the row as it did), then
+/// a row a chunk of 16 entries
+/// of the pool, `E;<chunk>;<bits>`: entry `chunk × 16 + b`'s tile is in by
 /// bit `b` ([`RoomForm::tiles_on`]), every chunk the pool has (one at least).
 pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
     at_most("room form entries", form.tiles_on.len(), POOL_BITS)?;
@@ -1095,13 +1268,14 @@ pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
 fn form_names(form: &RoomForm) -> Vec<String> {
     let modes: Vec<String> = form.modes_off.iter().map(u8::to_string).collect();
     let mut names = vec![format!(
-        "{ROOMS_VERSION};F;{};{};{};{};{};{}",
+        "{ROOMS_VERSION};F;{};{};{};{};{};{};{}",
         u8::from(form.saved),
         form.size,
         form.min_side,
         form.max_level,
         form.wait,
-        modes.join(",")
+        modes.join(","),
+        form.pin.map_or(String::new(), |pin| format!("{pin:04}"))
     )];
     let chunk = BITS_PER_CHUNK as usize;
     let chunks = form.tiles_on.len().div_ceil(chunk).max(1);
@@ -1233,6 +1407,72 @@ fn offer_name(offer: &RoomOffer) -> String {
 mod tests {
     use super::*;
 
+    /// A create in one text: its PIN, its kind and exactly the entries chosen, read back as
+    /// written; a player's search is none; anything else after its start is refused.
+    #[test]
+    fn a_create_text_is_read_back_and_a_search_is_none() {
+        let pool = (0..219)
+            .filter(|index| index % 3 != 0)
+            .fold(PoolPick::default(), PoolPick::with);
+        let create = RoomCreate {
+            pin: 42,
+            kind: PrivateKind::WithBots,
+            pool,
+        };
+        let text = create.text();
+        assert!(text.starts_with("S1C;B0042;6b"), "{text}");
+        assert_eq!(text.len(), CREATE_TEXT.len() + 6 + 55);
+        assert_eq!(RoomCreate::parse(&text), Some(Ok(create)));
+        let read = RoomCreate::parse(&text).unwrap().unwrap().pool;
+        assert!((0..POOL_BITS).all(|index| read.has(index) == (index < 219 && index % 3 != 0)));
+        assert_eq!(
+            RoomCreate::parse("S1C;P9999;1"),
+            Some(Ok(RoomCreate {
+                pin: 9999,
+                kind: PrivateKind::Players,
+                pool: PoolPick::default().with(0),
+            }))
+        );
+        assert_eq!(
+            RoomCreate::parse("S1C;P0000;8F")
+                .unwrap()
+                .unwrap()
+                .pool
+                .of(&[0, 1, 2, 3, 4, 5, 6, 7]),
+            [3, 4, 5, 6, 7]
+        );
+        assert_eq!(RoomCreate::parse("Bob"), None);
+        assert_eq!(RoomCreate::parse("S1;R"), None);
+        let too_long = format!("S1C;P1234;{}", "f".repeat(POOL_BITS / 4 + 1));
+        for bad in [
+            "S1C;",
+            "S1C;P1234",
+            "S1C;P1234;",
+            "S1C;X1234;1",
+            "S1C;P123;1",
+            "S1C;P12345;1",
+            "S1C;P12a4;1",
+            "S1C;-;1",
+            "S1C;P1234;1g",
+            "S1C;P1234;1;2",
+            &too_long,
+        ] {
+            assert_eq!(RoomCreate::parse(bad), Some(Err(BadCreate)), "{bad}");
+        }
+    }
+
+    /// The lobby movie votes at these starts and draws as many cards
+    /// (`RoomsWire.VOTE`, `RoomsWire.CARDS`): the two ship together.
+    #[test]
+    fn the_movie_votes_on_the_cards_the_server_deals() {
+        let wire = include_str!("../../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
+        assert!(wire.contains("public static const FIRST:int = 2060000000;"));
+        let vote = format!("public static const VOTE:int = FIRST + {};", ROOM_VOTE_BASE - ROOMS_FIRST);
+        assert!(wire.contains(&vote), "{vote}");
+        let cards = format!("public static const CARDS:int = {CARDS};");
+        assert!(wire.contains(&cards), "{cards}");
+    }
+
     #[test]
     fn every_start_is_one_request_and_inside_an_int() {
         const {
@@ -1246,13 +1486,25 @@ mod tests {
         assert_eq!(room_request(ROOM_STATE, 1), Some(RoomRequest::State));
         assert_eq!(room_request(ROOM_LEAVE, 1), Some(RoomRequest::Leave));
         assert_eq!(room_request(ROOM_PLAY, 1), Some(RoomRequest::Play));
-        assert_eq!(
-            room_request(ROOM_VOTE_BASE + 2, 1),
-            Some(RoomRequest::Vote { card: 2 })
-        );
-        // Play and leaving a queue come right after the three cards; then
-        // nothing up to the pool.
-        assert_eq!(ROOM_VOTE_BASE + 3, ROOM_PLAY);
+        // The four cards' votes past the room with bots, before the kicks;
+        // where the three cards' were (3 to 5) nothing, then Play.
+        const {
+            assert!(ROOM_CREATE_BOTS < ROOM_VOTE_BASE);
+            assert!(ROOM_VOTE_BASE + (CARDS as u32) <= ROOM_KICK_BASE);
+        }
+        for card in 0..CARDS as u8 {
+            assert_eq!(
+                room_request(ROOM_VOTE_BASE + u32::from(card), 1),
+                Some(RoomRequest::Vote { card })
+            );
+        }
+        assert_eq!(room_request(ROOM_VOTE_BASE - 1, 1), None);
+        assert_eq!(room_request(ROOM_VOTE_BASE + CARDS as u32, 1), None);
+        for retired in ROOM_LEAVE + 1..ROOM_PLAY {
+            assert_eq!(room_request(retired, 1), None);
+        }
+        // Play and leaving a queue; then nothing up to the pool.
+        assert_eq!(ROOM_LEAVE + 4, ROOM_PLAY);
         assert_eq!(ROOM_PLAY + 1, ROOM_UNQUEUE);
         assert_eq!(ROOM_UNQUEUE + 1, ROOM_JOIN_MATCH);
         assert_eq!(
@@ -1341,12 +1593,16 @@ mod tests {
             Some(RoomRequest::Members { key: ROOM_KEY_MAX })
         );
         assert_eq!(
-            room_request(bits_start(7, 0xF_FFFF), 1),
+            room_request(bits_start(15, 0xFFFF), 1),
             Some(RoomRequest::Bits {
-                chunk: 7,
-                bits: 0xF_FFFF
+                chunk: 15,
+                bits: 0xFFFF
             })
         );
+        // 512 entries, and the chunks' starts end below the create's.
+        assert_eq!(POOL_BITS, 512);
+        const { assert!(ROOM_BITS_BASE + CHUNKS * (1 << BITS_PER_CHUNK) <= ROOM_CREATE_BASE) };
+        assert_eq!(room_request(bits_start(CHUNKS as u8 - 1, 0xFFFF) + 1, 1), None);
         assert_eq!(room_request(ROOMS_LAST, 1), None);
         assert_eq!(room_request(ROOMS_FIRST - 1, 1), None);
     }
@@ -1374,7 +1630,8 @@ mod tests {
                 }
             }
         }
-        // The movie's one code (RoomsWire.CREATE_PIN): the defaults and a PIN.
+        // The one code of the movies before the create in one request (their RoomsWire.CREATE_PIN):
+        // the defaults and a PIN.
         let spec = RoomSpec {
             size: 8,
             max_level: 0,
@@ -1416,20 +1673,31 @@ mod tests {
             wait: 45,
             tiles_on,
             modes_off: vec![3, 4],
+            pin: Some(42),
         };
         assert_eq!(
             form_names(&form),
-            ["S1;F;1;9;2;7;45;3,4", "E;0;524293", "E;1;5"]
+            ["S1;F;1;9;2;7;45;3,4;0042", "E;0;5", "E;1;88"]
         );
         assert!(room_form(&form).is_ok());
-        // No pool: one chunk all the same; no mode out: an empty field.
+        // No pool: one chunk all the same; no mode out, no PIN: empty fields.
         let form = RoomForm {
             saved: false,
             tiles_on: Vec::new(),
             modes_off: Vec::new(),
+            pin: None,
             ..form
         };
-        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;", "E;0;0"]);
+        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;;", "E;0;0"]);
+        // A big pool (the free-for-alls' maps too): a row each 16, POOL_BITS at most.
+        let big = RoomForm {
+            tiles_on: (0..POOL_BITS).map(|index| index % 3 != 0).collect(),
+            ..form.clone()
+        };
+        let names = form_names(&big);
+        assert_eq!(names.len(), 1 + 32);
+        assert_eq!(names[16], format!("E;15;{}", 0x6DB6_u32));
+        assert!(room_form(&big).is_ok());
         // More entries than a create can name: refused.
         let form = RoomForm {
             tiles_on: vec![true; POOL_BITS + 1],
@@ -1438,8 +1706,37 @@ mod tests {
         assert!(room_form(&form).is_err());
     }
 
+    /// The pool's rows: the offered entries by their bits, then the maps only shown (Military
+    /// Warehouses' free-for-all, maps_dict 43, level 16), `offered` 0, on as many pages as both.
     #[test]
-    fn a_member_list_gives_each_side_account_and_whole_name() {
+    fn the_pool_lists_the_offered_entries_then_the_shown_ones() {
+        let entry = |id: u16, level: u8| PoolEntry {
+            map_id: MapId::new(id),
+            level,
+            weather: 1,
+            mode: 8,
+            extra: false,
+            bots: id == 100,
+        };
+        let offered: Vec<PoolEntry> = (0..POOL_PAGE_ROWS as u16)
+            .map(|i| entry(100 + i, 1))
+            .collect();
+        let shown = [entry(43, 16)];
+        let first = pool_names(&offered, &shown, 0);
+        assert_eq!(first.len(), 1 + POOL_PAGE_ROWS);
+        assert_eq!(first[0], format!("S1;M;{};0", POOL_PAGE_ROWS + 1));
+        assert_eq!(first[1], "0;100;1;1;8;0;1;1");
+        assert_eq!(first[POOL_PAGE_ROWS], "29;129;1;1;8;0;0;1");
+        assert_eq!(
+            pool_names(&offered, &shown, 1),
+            [format!("S1;M;{};1", POOL_PAGE_ROWS + 1), "30;43;16;1;8;0;0;0".into()]
+        );
+        assert_eq!(pool_names(&offered, &[], 1), ["S1;M;30;1"]);
+        assert!(room_pool(&offered, &shown, 1).is_ok());
+    }
+
+    #[test]
+    fn a_member_list_gives_each_account_and_whole_name_and_no_side() {
         let member = Member {
             gear: 7,
             owner: true,
@@ -1459,32 +1756,22 @@ mod tests {
             name: "Bob".into(),
             ..member.clone()
         };
-        let seen = |member: &Member, side, account_id| ListMember {
+        let seen = |member: &Member, account_id| ListMember {
             member: member.clone(),
-            side,
             account_id,
         };
         assert_eq!(
-            members_names(
-                42,
-                &[
-                    seen(&member, Some(1), 5),
-                    seen(&other, None, 6),
-                    seen(&other, Some(0), 7)
-                ]
-            ),
+            members_names(42, &[seen(&member, 5), seen(&other, 6)]),
             [
-                "S1;G;42;3",
-                "P;0;7;1;0;1;2;1;2;5;2",
+                "S1;G;42;2",
+                "P;0;7;1;0;1;2;1;0;5;2",
                 "a;b",
                 "P;1;7;0;0;0;0;0;0;6;0",
-                "Bob",
-                "P;2;7;0;0;0;0;0;1;7;0",
                 "Bob"
             ]
         );
         assert_eq!(members_names(42, &[]), ["S1;G;42;0"]);
-        assert!(room_members(42, &vec![seen(&member, None, 1); MEMBERS_MAX + 1]).is_err());
+        assert!(room_members(42, &vec![seen(&member, 1); MEMBERS_MAX + 1]).is_err());
     }
 
     /// The longest names the game takes (63 bytes: wide Latin, Cyrillic,
@@ -1508,7 +1795,6 @@ mod tests {
                     squad: Some(SQUAD_MARKS),
                     name: names[i % names.len()].clone(),
                 },
-                side: Some(1),
                 account_id: i32::MAX as u32,
             })
             .collect();

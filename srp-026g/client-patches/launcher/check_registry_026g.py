@@ -218,7 +218,7 @@ FIX = {0x15223, 0x153FE, 0x1541E, 0x15997, 0x15A4D, 0x162F4, 0x16338, 0x1709F, 0
 
 def main():
     original = Path(sys.argv[1]).read_bytes()
-    code = (HERE / 'launcher_values_026g.bin').read_bytes()
+    code = L.code()
     assert FIX <= {row[0] for row in L.PATCHES}
     patched, _ = L.build(original, code, site=L.DEFAULT_SITE)
     failures = 0

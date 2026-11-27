@@ -1,0 +1,60 @@
+# The devices' names (texts.py): the model's name as it is sold (Latin in every language) and what
+# follows the comma: the muzzle thread (texts.py checks it against the module's 0.69d0 slot), then
+# what tells two devices of one name apart (clamp: fixed by a clamp; O/U, SxS: for a double-barrelled
+# gun, the barrels one over the other or side by side). 0.69d0's own strings are not taken: they
+# mislabel kinds and threads and name seven devices alike.
+# module	name	after the comma
+aek919k_m12x1l_muzzlebrake	AEK-919K	M12x1L
+aws_rapira_m24x15_muzzlebrake	Rapira	M24x1.5
+cncwarrior_rofh_m14x1l_firearrestor	ROFH	M14x1L
+cncwarrior_rofh_m16x1l_firearrestor	ROFH	M16x1L
+custom_01_m14x1l_clamp_muzzlebrake	Custom 01	M14x1L
+custom_01_m30x1_clamp_muzzlebrake	Custom 01	M30x1
+custom_02_m14x1l_firearrestor	Custom 02	M14x1L
+custom_02_m24x15_firearrestor	Custom 02	M24x1.5
+custom_03_m14x1l_clamp_firearrestor	Custom 03	M14x1L
+custom_04_i05x28_clamp_firearrestor	Custom 04	1/2"x28
+custom_04_i06x24_clamp_firearrestor	Custom 04	5/8"x24
+custom_04_m14x1l_clamp_firearrestor	Custom 04	M14x1L
+diamondhead_tbrake_i05x28_muzzlebrake	T-Brake	1/2"x28
+diamondhead_tbrake_m14x1l_muzzlebrake	T-Brake	M14x1L
+grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake	Defcon 1	1/2"x28
+grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake	Defcon 1	M16x1L
+grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake	Defcon 1	M30x1
+gunsru_custom_m22x075_muzzlebrake	Guns.ru	M22x0.75
+hartman_kochevnik_m22x075_muzzlebrake	Kochevnik	M22x0.75
+lantac_dragon_i05x28_muzzlebrake	Dragon	1/2"x28
+lantac_dragon_i06x24_muzzlebrake	Dragon	5/8"x24
+lantac_drakon_m14x1l_muzzlebrake	Dragon	M14x1L
+manticorearms_nightbrake_i05x28_firearrestor	NightBrake	1/2"x28
+manticorearms_nightbrake_i06x24_firearrestor	NightBrake	5/8"x24
+manticorearms_nightbrake_m12x1l_firearrestor	NightBrake	M12x1L
+manticorearms_nightbrake_m141l_firearrestor	NightBrake	M14x1L
+redheat_ilgynagk01_m22x075_muzzlebrake	Ilgynag K01	M22x0.75
+redheat_krymske2_m24x15_firearrestor	Krymsk-2	M24x1.5
+redheat_shturm_m14x1l_muzzlebrake	Shturm	M14x1L
+redheat_shturm_m24x15_muzzlebrake	Shturm	M24x1.5
+spikestactical_dynacomp_m24x15_firearrestor	Dynacomp	M24x1.5
+taktikatula_saiga419_m22x075_firearrestor	TT-419	M22x0.75
+venometactical_antidote_m14x1l_firearrestor	Antidote	M14x1L
+zenit_dtk2_m24x15_muzzlebrake	Zenit DTK-2	M24x1.5
+zenit_dtk3_m24x15_muzzlebrake	Zenit DTK-3	M24x1.5
+akmsu_m24x15_muzzlebrake	AKMSU	M24x1.5
+aks74u_m24x15_muzzlebrake	AKS-74U	M24x1.5
+custom_01_doublevert_m22x075_choke	Custom 01	M22x0.75 O/U
+custom_01_duckbill	Custom 01	M22x0.75
+custom_01_m22x075_choke	Custom 01	M22x0.75
+custom_02_duckbill	Custom 02	M22x0.75
+custom_03_duckbill	Custom 03	M22x0.75
+custom_doublevert_01_duckbill	Custom 01	M22x0.75 O/U
+custom_doublevert_02_duckbill	Custom 02	M22x0.75 O/U
+custom_doublhor_01_duckbill	Custom 01	M22x0.75 SxS
+kkm_i05x28_muzzlebrake	KKM	1/2"x28
+polychoke_ventedcollar_m22x075_choke	Polychoke	M22x0.75
+remington_doublehor_m22x075_choke	Remington	M22x0.75 SxS
+remington_doublevert_m22x075_choke	Remington	M22x0.75 O/U
+remington_m22x075_choke	Remington	M22x0.75
+stone_shurhit_m22x075_choke	Sure-Hit	M22x0.75
+zenit_dtk4_m24x15_clamp_muzzlebrake	Zenit DTK-4	M24x1.5 clamp
+zenit_dtk4_m24x15_muzzlebrake	Zenit DTK-4	M24x1.5
+zenit_dtk4_m30x1_clamp_firearrestor	Zenit DTK-4	M30x1

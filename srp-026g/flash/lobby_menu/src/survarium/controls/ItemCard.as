@@ -215,7 +215,7 @@ package survarium.controls
          _data = itemData;
          if(this._data != null)
          {
-            trace("IC:updateItemData",itemData.name,itemData.broken);
+            trace("IC:updateItemData",itemData.name);
             alpha = 1;
             this.updateData();
          }
@@ -245,7 +245,12 @@ package survarium.controls
             sellPrice = price / ItemPrice.SELL_DIVISOR;
             _cost = sellPrice;
          }
-         _step = slotData.clip_size == undefined ? 1 : (slotData.clip_size);
+         // The card's own item (updateData: a stack, a pocket's item) is an ItemData, which has
+         // clipSize and no clip_size; it is sealed, so reading clip_size off it threw (#1069) and
+         // the click that chose a kit's ammo or medkit in the shop stopped there, before its
+         // right-click menu (InventoryList.selectItem puts the kit's item on the card).
+         var clip:uint = slotData is ItemData ? (slotData as ItemData).clipSize : uint(slotData.clip_size);
+         _step = clip == 0 ? 1 : clip;
          trace("onSlotUpdate",this._cost,slotData.cost);
       }
       
@@ -334,7 +339,7 @@ package survarium.controls
       private function isUpgradeable(item:Object) : Boolean
       {
          var category:int = int(item.category);
-         return (category == ItemCategory.BODY_ARMOR || category == ItemCategory.HELMETS || category == ItemCategory.PANTS || category == ItemCategory.RIGS) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && (UpgradeWindow.hasScopes(int(item.dictId)) || Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable));
+         return (category == ItemCategory.BODY_ARMOR || category == ItemCategory.HELMETS || category == ItemCategory.PANTS || category == ItemCategory.RIGS) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && (UpgradeWindow.hasAttachments(int(item.dictId)) || Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable));
       }
    }
 }

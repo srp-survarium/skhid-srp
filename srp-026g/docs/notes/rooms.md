@@ -18,12 +18,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Play fills an eligible room in its bracket first (nearest level, then fullest).
     When all are full it queues, choosing a shortest queue. Repeated Play keeps
     the same queue position.
-  - Four ready Play users waiting across that bracket's queues open another room;
+  - Three ready players waiting across that bracket's queues open another room
+    (owner 2026-11-14: a public room's Queue counts as Play does);
     up to 16 transfer together, oldest first. This repeats with demand: no fixed
     three-plus-one limit. The rooms table's `rooms_most` still applies;
     at that limit, or if creation fails, everyone keeps waiting.
-  - Explicitly chosen queues do not count toward expansion and never move with it.
-    Disconnected games, restarted games not yet told their queue, and unplayable
+  - Only Play's waiters are routed again on a changed loadout. Disconnected games, restarted games not yet told their queue, and unplayable
     loadouts do not count. A changed equipment bracket is routed again.
   - Players up to level 10 may explicitly join a level-15 room through Rooms.
     Play does not put them there automatically. The switch suggestion is only
@@ -34,12 +34,23 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   PIN and a chosen map/mode pool. No team-size, minimum, max-level or countdown
   controls. The server refuses a public CREATE request (code 16), including from
   older movies, without changing the player's current room or queue.
+  - **One request** (the owner's of 2026-11-20: "a single very fast request"): Create sends
+    the PIN, With bots and the pool's entries at once (the game's player search carries the
+    text, `lobby.md` §2.16.3) and the room comes with its answer, about half a second later
+    (the game's lobby tick, then the round trip); 4 to 8 s before, a request a step.
+  - **The STALKER maps last** (the owner's of 2026-11-15: "also when creating private
+    rooms, stalker maps should be at the bottom of the list"): the window lists the maps in
+    the order of the server's pool (`Core::room_entries`, the match pool then the
+    experimental maps), the STALKER maps of every mode (projects `v010b_*`,
+    `MapMode::is_stalker`) after every other, each part in its order. A saved window keeps
+    its tiles by map and weather, not by place: the order changes none of them.
   - **Remembered** (the owner's of 2026-10-20: "when you set up your room with the specific
     levels, specific maps and game modes is for it to persist next time"): a room made by
     hand is its maker's next create window, kept with the account in srp.db (restarts,
     reinstalls, other PCs): team size, players to start, max level, time to start, the
-    map/weather tiles and the modes. Not the PIN: typed each time (the owner may change
-    that). A room Play made keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
+    map/weather tiles, the modes and the PIN, pretyped in its field (the owner's of
+    2026-11-19; settings kept before then have none: the field empty). A room Play made
+    keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
     any max level, 30 s, every mode, the pool without the experimental maps).
   - Fitted when asked: a map or mode no longer offered is dropped; one added later is in
     (an experimental one out); the max level never below the maker's gear; other values
@@ -113,7 +124,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   follows it as they close (`RoomsWindow.resultsClosed`). Live 2026-10-30: one let in from a
   room's queue as that room's match ended (and its results sent) had them closed by the
   window opening (`scripts/results-stay/check.sh`).
-- **Before each match:** once the minimum of players who can play is in, a vote on 3 cards
+- **Before each match:** once the minimum of players who can play is in, a vote on 4 cards (3
+  until the owner's of 2026-11-26: "Change the number of vote options to 4"; `CARDS`)
   (map + weather + mode) for the room's time to start: 15 s and the owner's wait together,
   10 s more after a match (players come back from results first), always whole, a full
   room too. The vote is open until the match starts (the owner's of 2026-10-19: its time
@@ -121,10 +133,71 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
-  - **The third card is Blackout** (the owner's of 2026-11-02: "offers blackout in voting
-    always as a third choice"): cards 1 and 2 drawn from the rest of the pool, card 3 one of
-    its Blackout maps, on another map than theirs while there is one; a pool without
-    Blackout or of Blackout alone draws its three as before (`blackout.md`).
+  - **Each card is drawn from pools: mode, then map, then weather** (the owner's of 2026-11-15:
+    "the mode/map picks should come from pools, that means if research was chosen, it cannot be
+    chosen again", "that means no map repeats", "no mode repeats"; earlier that day: "make 3 new
+    stalker maps 3 times as likely in FFA", "the pick should be first map, then weather", after
+    the revision 59 restart had played Training Camp twice in about 35 free-for-alls): every
+    card, server's and private rooms alike. Its mode alike among the pool's modes no card shows,
+    then its map (its place, below) alike among that mode's maps no card shows, then
+    its weather alike among that map's ids of that mode. A drawn mode and a drawn map leave for
+    the next cards: no mode and no map twice on a vote while the pool has others. A map of one
+    weather (the STALKER maps, London, the ports) comes as often as a levels 1-8 map of three
+    (before 2026-11-15, every id alike: a third as often). A pool with too few (a private room's
+    maker ticked one mode or few maps) draws the shown ones again once no other is left (a shown
+    mode on a map no card shows first, below), never a card fewer (`rooms::Left`).
+  - **Every version of a map is one map** (the owner's of 2026-11-26: "Rudnya maps of different
+    versions all count like a single Rudnya", "for example stock Rudnya and the ported Rudnya";
+    players had been given three Rudnyas to choose from; then of every map). A card's map is its
+    place, `survarium::v026g::maps::Place`, read from the game data: the project folder of its
+    config (`match_making_params.map_name`), `level_MM` or a build's name and `level_MM`
+    (`v069d_level_01`, `v021d_level_01`: Rudnya; `v011e_level_03`, `v021d_level_03`: Vostok;
+    `v011e_level_04`, `v021d_level_04`: Chemical Plant; `v021d_level_02`, `_05`, `_06`: School,
+    Fort, Mamayev Kurgan; `v044a_level_09` and the native-named London (v0.32): London), the
+    same rule artefact-hunt-maps@3 places a version's Artifact Hunt by. A map that is no version
+    of a level (the STALKER maps, `v010b_*`) is its own. Its weathers, lighting and every mode
+    copy (Free for All, Blackout, Artifact Hunt, Freeze Tag, Research) share its project folder, so
+    no table names them: a map a patch adds is placed as soon as its data is there. A card's
+    mode is drawn among the modes that still have a map no card shows (of those, the modes no
+    card shows): an ordinary mode comes again before a map does, so one Rudnya while the pool has
+    other maps (until 2026-11-26 a mode no card showed came first, even on a shown map); Free for
+    All or Blackout come again only when nothing else is left.
+    What still tells the versions apart, on purpose: the create window's tiles (a level and a
+    weather: a maker picks which Rudnyas its pool holds), the cards' and the list's names and
+    renders, and the per-account `g26_map_plays` counts (by `map_id`: what was played).
+  - **Every card from the whole pool** (the owner's of 2026-11-22: "all columns should draw from
+    a general pool", "first choose ffa, then its version"): Free for All is one mode of the
+    pool like any other, on any card, as likely as each other mode; a card that drew it then
+    draws its twist (below). From 2026-11-12 to then the third card was always a free-for-all
+    ("ffa should be a third pane always"), and Blackout had that card from 2026-11-02
+    (`ffa.md`, "Where it is played").
+  - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
+    draws "FFA: Racket", "FFA: Roulette" (one of its bands, not shown: `ffa-roulette.md`), "FFA: Saloon
+    (Winchester)", "FFA: Saloon" (the Colt alone) or none by the owner's shares (30 / 30 / 5 / 5 /
+    30 since 2026-11-22; the two Saloons by their own names since 2026-11-15, "so
+    people know what they get and can vote based on this"); a private
+    room's is always plain Free for all, and the create window has no twist tick (the owner's of
+    2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from
+    2026-11-14 to then). A window saved with them loads, the twists' modes left out.
+  - **A map played with a twist only** (Military Warehouses; the owner, 2026-11-22: "military
+    warehouses should not be playable on general ffa, only ffa: racket and other variants";
+    `ffa.md`, "Twists"): its config's `srp_twists_only`, which holds in open rooms alone. An
+    open room's card on it draws a twist alone, by the twists' shares (the map drawn first, as
+    any). A private room may hold it as any map and plays it plain, as its every free-for-all
+    (the owner, 2026-11-27: "when creating private room… this is because we removed FFA from
+    them, which is fine for pub lobbies, not for private ones"): the create window lists it and
+    a private room's pool keeps it. From 2026-11-22 to 2026-11-27 no private room had it.
+  - **The pool the movie is sent** (`S1;M`) lists every entry, each `offered` 1: the movie names
+    and draws every card, room and match by it (from 2026-11-22 to 2026-11-27 Military Warehouses
+    was left out, and a card on it was empty: no picture, name or mode; the owner, 2026-11-27:
+    "they don't get an icon in room voting"). Its `offered` 0, a map only an open room's card
+    shows and no create window lists, is read by the movie but not sent now.
+  - **Free for All and Blackout are each on one card at the most** (the owner's of 2026-11-12:
+    "Make it so blackout cannot be on two cards at the same time"; of 2026-11-22: "there can
+    only be one ffa (or none)", plain or with any twist). A case of no mode repeats (above): a
+    mode comes again only when the pool has no other, these two the last of those; a pool with
+    nothing else keeps them, never a card fewer (`blackout.md`; `rooms::ONE_CARD_AT_MOST` names
+    the modes).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
@@ -147,7 +220,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - No countdown: it waits however many are in. Its owner (its maker, or the member who came
     first after it left) has Start beside Leave; the others read "Waiting for the creator to
     start." Start makes the match at once with whoever can play, 1 v 0 too, on the vote's
-    winner then: the 3 cards are there and voted for as in any room, Start ends the vote.
+    winner then: the 4 cards are there and voted for as in any room, Start ends the vote.
   - **Its owner arranges the teams** (the owner's of 2026-10-26: "the owner should be able to
     arrange both teams (even 1 vs 10), there should be a button to move the player into any
     team"): the room shows its members in two columns, Team 1 and Team 2. Its owner has a
@@ -261,6 +334,16 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   ("The match is full."). The roster's 20 places, never used twice, are the match server's
   own limit ("player limit"). Until then a joiner could fill a side a player came back to,
   past the room's size.
+- **An open room whose match has no place left** (the owner's of 2026-11-22: "people shouldn't
+  be able to enter such rooms", "instead they should be in queue", "so that other one can be
+  created for them"): while its match is played an open room has no more free places than its
+  match's roster has left (20 less the places given, less its members not in the match, who
+  each hold one). With none it is full to Play, Join, Switch and its queue's turn: Play takes
+  another room or queues, Join puts the player in its queue, and three waiting open a room
+  (**Play**, above). The match over, its places are the room's size again and its queue
+  comes in. A private room is entered as before (nobody opens another one for its players).
+  - Not yet: the list still shows such a room with its members' count and "Join" (the movie
+    reads full from the count); the press queues.
 - **A late join that fails** (its game did not come, left, or did not catch up; the match
   server lets it go, `Matchmaking::join_failed`): the member waits in its room again, with
   its `J` row, and goes in 15 s later as a new place (live, 2026-10-19, room 2168: it stayed
@@ -276,7 +359,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - the side it would go to full (the room's size): "The match is full." (4)
   - all 20 lifetime roster places used, even if players have left: "This match has reached its
     player limit. You'll join the next match." (7). The newcomer remains a room member and
-    plays its next match; the public room's separate capacity is still 16 members.
+    plays its next match; the public room's separate capacity is still 16 members. Since
+    2026-11-22 only in a private room, or in an open one after a late join that failed took
+    its member's place (an open room with no place left is not entered, above).
   - a maintenance within 30 min: "Server maintenance soon: no new joins." (5)
   - the match ending (its mode's rule, its result): "The match is ending: you'll play the next one." (6)
   - no game of the match can give a joiner a world now: their last worlds were refused by the
@@ -384,16 +469,21 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Below State: the chosen room's members, each with its equipment level (the room view's)
     in a column of its own, then its name. Grey while its game is gone (`away`), red with the
     red mark when its kit or gear cannot play, white for the player itself, gold in the room's
-    match. While the room plays, the side of each player in the match (a bar of the side's
-    colour; side 1 left, side 2 right; those not in the match where there is room).
-  - Up to 20: one column while they fit at 18 a row; two otherwise (always two while it
-    plays). Rows share the space (12 to 22 high, the font 12 to 14); the map's render is made
-    up to 60 lower for a full room; nothing goes past the panel.
+    match. Never who plays on which side, in any mode or state (the owner's of 2026-11-13:
+    "it should always be like at voting", "just what players are in the game"): the server
+    tells no side (the row's side field is always 0), and while the room plays, its players
+    are where they are at its vote, those in the match gold.
+  - Up to 20, in two columns in the room's order. Rows share the space (12 to 22 high, the
+    font 12 to 14); the map's render is made up to 60 lower for a full room; nothing goes
+    past the panel.
   - **Long names** (up to 63 bytes, Cyrillic and other wide letters): the list gets them whole;
     a name too wide for its place is cut by its width in the panel's own font and ends with
     "…" (the game's bold Calibri has it); the level is never covered. The room view's names
     the same way, its "(owner)" kept whole; the state's rows cut a name past 32 bytes and end
     it with "…". No hover with the full name (the movie's lists have no tooltips).
+  - **"(owner)" only in a private room** (the owner, 2026-11-15: "we should also remove from
+    public lobbies (which can now only be created from PLAY) the (owner) tag", "since there are
+    no room owners right now"): the room view names its creator in a room with a PIN alone.
   - Anyone may ask, of any room, a room with a PIN too: names are no secret (a PIN keeps
     the door, not the names). Asked when a room is chosen, then every 3 s, whatever else the
     window polls (in a room or a queue too). In the room's window the movie asks for its own

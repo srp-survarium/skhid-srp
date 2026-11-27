@@ -2,10 +2,12 @@
 //! keys' events into the input sent each tick, and the input as a world takes
 //! it (game_world_core::change_input<player_input>, [`InputChange`]).
 
-use core::marker::PhantomData;
+use artefact_carry::carry::QuickSlot;
 
 use super::context::{Context, Reg};
 use super::hook::{Handle, Thread};
+use super::inventory::Inventory;
+use super::world::GameWorld;
 use crate::raw;
 
 /// A game action (an entry of the action table). A newtype, not an enum:
@@ -23,8 +25,26 @@ impl Action {
     /// gives it the default key H and a controls row (patch 62's table), and
     /// holding it makes a quick-use key offer that slot's artefact.
     pub const ARTEFACT: Action = Action(0x23);
-    /// ptt (entry 0xA74F8C, kind 8, default P): patch 66's push-to-talk.
+    /// ptt_nearby: the action table's debug entry serialize_player_state
+    /// (0xA74E10, default O), renamed and made a chat key (kind 8) by patch 66:
+    /// push-to-talk of the 10 m voice.
+    pub const PTT_NEARBY: Action = Action(0x37);
+    /// ptt (entry 0xA74F8C, kind 8, default P): patch 66's push-to-talk of
+    /// the radio.
     pub const PTT: Action = Action(0x47);
+    /// screenshot: the action table's entry 0xA74CBC, the game's `torch`,
+    /// which nothing in the game reads; patch 152 names it and gives it F11.
+    pub const SCREENSHOT: Action = Action(0x1A);
+    /// screenshot_no_ui: the entry 0xA74CD0, the game's `night_vision`, as
+    /// unread; patch 152's F12.
+    pub const SCREENSHOT_NO_UI: Action = Action(0x1B);
+    /// scope_next (patch 206's row of the moved action table,
+    /// item_hotkeys_026g.asm, default Y): the switch between a weapon's main
+    /// and second sight.
+    pub const SCOPE_NEXT: Action = Action(0x5A);
+    /// The binder's answer for a key without an action (kNOTBINDED; the
+    /// game's own test at 0x23FE39).
+    pub const NONE: Action = Action(0x49);
 }
 
 /// What the input handler holds of an action: its last key event, as
@@ -102,6 +122,15 @@ impl ActionMask {
     /// their own head.
     pub const SUICIDE: ActionMask = ActionMask(1 << 24);
     pub const MELEE: ActionMask = ActionMask(1 << 27);
+    /// Patch 206: the second sight's switch, on the key's press only (bit
+    /// 30, which the stock game neither sets nor reads;
+    /// srp_validate::messages::SCOPE_NEXT).
+    pub const SCOPE_NEXT: ActionMask = ActionMask(srp_validate::messages::SCOPE_NEXT);
+
+    /// The quick-use bit of `slot` (one of [`QUICK_USE`](Self::QUICK_USE)).
+    pub const fn quick_use(slot: QuickSlot) -> ActionMask {
+        ActionMask(1 << (14 + slot.get() as u32))
+    }
 
     pub const fn union(self, other: ActionMask) -> ActionMask {
         ActionMask(self.0 | other.0)
@@ -128,14 +157,14 @@ impl ActionMask {
 /// shim makes it from a hook's argument; a patch receives it.
 pub struct InputHandler<'t> {
     this: raw::PlayerInputHandler,
-    thread: PhantomData<&'t Thread>,
+    thread: &'t Thread,
 }
 
 impl<'t> Handle<'t> for InputHandler<'t> {
     type Raw = raw::PlayerInputHandler;
 
-    unsafe fn from_raw(_: &'t Thread, raw: Option<raw::PlayerInputHandler>) -> Option<Self> {
-        raw.map(|this| InputHandler { this, thread: PhantomData })
+    unsafe fn from_raw(thread: &'t Thread, raw: Option<raw::PlayerInputHandler>) -> Option<Self> {
+        raw.map(|this| InputHandler { this, thread })
     }
 }
 
@@ -145,7 +174,18 @@ impl<'t> InputHandler<'t> {
         // SAFETY: the context is this site's: the handler building the input,
         // alive until the epilogue returns, on the hook's thread.
         let this = unsafe { raw::site::input_builder_end::handler(ctx) }?;
-        Some(InputHandler { this, thread: PhantomData })
+        Some(InputHandler { this, thread: ctx.thread() })
+    }
+
+    /// The inventory whose quick slots the hud shows: its game world's
+    /// network client's local player's, as game_world_ui::update_local_player_state
+    /// (0x23B740) reads them. None without a local player (a spectator's game,
+    /// a replay).
+    pub fn local_inventory(&self) -> Option<Inventory<'t>> {
+        // SAFETY: the handler's game world (+334h), alive while the handler
+        // builds the input, on the hook's thread.
+        let world = unsafe { self.this.game_world() }?;
+        GameWorld::of(world, self.thread).network_client()?.local_player()?.inventory()
     }
 }
 
@@ -165,6 +205,15 @@ impl InputHandler<'_> {
             return None;
         }
         ActionState::parse(state).ok()
+    }
+
+    /// Whether `action` has an event this tick or is held: the input builder's
+    /// own test for the bit of each action it sets (action_present 0x242460's
+    /// answer, the state whatever it is: down, held or up).
+    pub fn action_present(&self, action: Action) -> bool {
+        let mut state = 0;
+        // SAFETY: as action_state.
+        unsafe { raw::engine_action_present(Some(self.this), action.0, &mut state) != 0 }
     }
 
     /// The action mask of the input being built.

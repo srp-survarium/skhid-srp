@@ -6,12 +6,15 @@ package
    import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
    import flash.display.Sprite;
+   import flash.display.StageAlign;
+   import flash.display.StageScaleMode;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.utils.getQualifiedClassName;
 
@@ -78,6 +81,14 @@ package
             finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
             return;
          }
+         // The vote's cards as the game lays them out at this stage's size (check.sh runs it at
+         // the game's 1920x1080 and 1280x720).
+         if(loaderInfo.parameters.cards == "1")
+         {
+            checkCardsAt();
+            finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+            return;
+         }
          var step:String = "the classes";
          try
          {
@@ -132,6 +143,7 @@ package
             "BOT · Carol", false, "Bob", true, false);
          checkSideStable();
          checkRoomView();
+         checkShownOnly();
          checkQueueButton();
          checkPlayOffer();
          checkCreate();
@@ -140,7 +152,166 @@ package
          checkSoldier();
          checkInSquad();
          checkFit();
+         checkBigPool();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // A pool of 256 entries at most (every playable map: 219 in the live data): a create's one
+      // text (RoomsWire.createText, the server's RoomCreate) of a 219-entry pool, every third entry
+      // out, read back entry by entry as the server reads it (its test has the same text: "S1C;B0042;6b",
+      // 55 hex digits); and the window told 200 entries, a room's vote drawn with them.
+      private function checkBigPool() : void
+      {
+         var Wire:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.rooms.RoomsWire");
+         var count:int = 219;
+         var picked:Array = [];
+         var i:int;
+         for(i = 0; i < count; i++)
+            if(i % 3 != 0)
+               picked.push(i);
+         var text:String = Wire.createText("0042", true, picked);
+         var bad:Array = [];
+         var head:String = "S1C;B0042;";
+         if(text.indexOf(head) != 0 || text.length != head.length + 55 || text.indexOf("S1C;B0042;6b") != 0)
+            bad.push("text " + text.substr(0, 20) + "... of " + text.length);
+         var pool:String = text.substr(head.length);
+         for(i = 0; i < Wire.POOL_BITS; i++)
+         {
+            var k:int = i >> 2;
+            var nibble:int = k < pool.length ? parseInt(pool.charAt(k), 16) : 0;
+            if(((nibble >> (i & 3)) & 1) != (i < count && i % 3 != 0 ? 1 : 0))
+               bad.push("entry " + i);
+         }
+         if(Wire.createText("1234", false, [0]) != "S1C;P1234;1")
+            bad.push("one entry: " + Wire.createText("1234", false, [0]));
+         if(Wire.POOL_BITS < count || bad.length != 0)
+            failures.push("a 219-entry pool's create: " + Wire.POOL_BITS + " bits, wrong: " + bad.slice(0, 5).join(", "));
+         trace("ROOMS a 219-entry pool: one create request of " + text.length + " characters, every entry read back: "
+            + (bad.length == 0 ? "yes" : "no"));
+         count = 200;
+         var rows:Array = ["S1;M;" + count + ";0"];
+         for(i = 0; i < count; i++)
+            rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 8, 13][i % 7] + ";0");
+         if(!tell(rows))
+            return;
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var misses:Array = overlaps("a 200-entry pool, a room's vote");
+         if(misses.length != 0)
+            failures.push("a 200-entry pool: " + misses.join("; "));
+      }
+
+      // The vote's four cards (the owner's of 2026-11-26: "Change the number of vote options to
+      // 4") as the game lays the window out on a stage of the game's size: the movie's MainScene
+      // the harness, the window over the bottom bar at the stage's foot, scaled by
+      // RoomsWindow.layout. In an open room's vote and a private room's (its teams' line under the
+      // cards makes them lower), in every language: four cards, each whole inside the window and
+      // the stage, all as wide and as high, none meeting another or the players' panel under
+      // them, every text on them whole (the map names shrink to fit: overlaps).
+      private function checkCardsAt() : void
+      {
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+         var Loc:Object = domain.getDefinition("survarium.data.LocalizationData");
+         var step:String = "the window";
+         try
+         {
+            stage.align = StageAlign.TOP_LEFT;
+            stage.scaleMode = StageScaleMode.NO_SCALE;
+            Loc.setData(HarnessText.DATA.english);
+            domain.getDefinition("MainScene").stage = this;
+            Win = domain.getDefinition("survarium.rooms.RoomsWindow");
+            var panel:* = new (domain.getDefinition("SrvBottomPanel") as Class)();
+            panel.y = stage.stageHeight - panel.height + 13;
+            addChild(panel);
+            win = new Win(panel);
+            Win.me = win;
+            addChild(win);
+         }
+         catch(err:Error)
+         {
+            failures.push("cards: " + step + ": " + err);
+            return;
+         }
+         var size:String = stage.stageWidth + "x" + stage.stageHeight;
+         var shown:String = null;
+         for each(var language:String in HarnessText.LANGUAGES)
+         {
+            var say:Object = HarnessText.DATA[language];
+            Loc.setData(say);
+            for each(var s:Array in [["open, vote", false, false, 3, null], ["private, owner", true, true, 0, "01010"]])
+            {
+               var what:String = size + ", " + language + ", " + s[0];
+               // The longest names: Vostok v0.11 (level 13) and the others of checkFit's pool.
+               tell(["S1;M;7;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+                  "5;12;7;1;8;0","6;300;1;1;13;0"]);
+               tellRoom(1003, s[1], s[2], s[3], s[4], 0, []);
+               win["layout"]();
+               var k:Number = win.scaleX;
+               var left:Number = win.x;
+               var right:Number = win.x + (Win.DESIGN_W - Win.LEFT - Win.RIGHT) * k;
+               var cells:Array = [];
+               voteCards(win, cells);
+               // Where each card is drawn (its frame too: 3 px for our vote) and its picture: the card.
+               var boxes:Array = [];
+               var pictures:Array = [];
+               for each(var cell:Sprite in cells)
+               {
+                  boxes.push(cell.getBounds(stage));
+                  pictures.push(cell.getChildAt(0).getBounds(stage));
+               }
+               boxes.sortOn("x", Array.NUMERIC);
+               pictures.sortOn("x", Array.NUMERIC);
+               var players:Rectangle = null;
+               var texts:Array = [];
+               walk(win,[],texts,0,0,[]);
+               for each(var t:Object in texts)
+                  if(t.text == String(say.st_srp_rooms_players).toUpperCase())
+                     players = TextField(t.field).getBounds(stage);
+               var bad:Array = [];
+               if(boxes.length != 4)
+                  bad.push(boxes.length + " cards");
+               if(right > stage.stageWidth + 0.5 || win.y < 0)
+                  bad.push("the window off the stage");
+               for(var i:int = 0; i < boxes.length; i++)
+               {
+                  var b:Rectangle = boxes[i];
+                  if(b.left < left + 8 * k || b.right > right - 8 * k || b.top < win.y || b.bottom > stage.stageHeight)
+                     bad.push("card " + i + " " + b + " outside the window " + left + ".." + right);
+                  if(i > 0 && b.left < Rectangle(boxes[i - 1]).right + 4 * k)
+                     bad.push("cards " + (i - 1) + " and " + i + " meet");
+                  var p:Rectangle = pictures[i];
+                  if(Math.abs(p.width - Rectangle(pictures[0]).width) > 1 || Math.abs(p.height - Rectangle(pictures[0]).height) > 1)
+                     bad.push("card " + i + " " + p.width + "x" + p.height + " not as card 0");
+                  if(players == null || players.top < b.bottom)
+                     bad.push("card " + i + " over the players' panel");
+               }
+               bad = bad.concat(overlaps(what));
+               if(bad.length != 0)
+                  failures.push(what + ": " + bad.join("; "));
+               if(shown == null && boxes.length > 0)
+                  shown = boxes.length + " cards of " + Math.round(Rectangle(pictures[0]).width) + "x"
+                     + Math.round(Rectangle(pictures[0]).height) + ", window scale " + k.toFixed(3);
+            }
+         }
+         Loc.setData(HarnessText.DATA.english);
+         trace("ROOMS cards at " + size + ": " + shown + "; whole, apart and over the players in every language: "
+            + (failures.length == 0 ? "yes" : "no"));
+      }
+
+      // The room view's vote cards under `at`: its sprites named by their card (RoomsRoom.render)
+      // with the card's map drawn in them.
+      private static function voteCards(at:DisplayObjectContainer, out:Array) : void
+      {
+         for(var i:int = 0; i < at.numChildren; i++)
+         {
+            var child:Sprite = at.getChildAt(i) as Sprite;
+            if(child == null || !child.visible)
+               continue;
+            var pictured:Boolean = child.numChildren > 0 && child.getChildAt(0) is Bitmap;
+            if(child.buttonMode && /^[0-9]$/.test(child.name) && pictured)
+               out.push(child);
+            else
+               voteCards(child, out);
+         }
       }
 
       // Ruffle draws the movie's embedded Calibri, yet not exactly as Scaleform lays it out: every
@@ -159,8 +330,10 @@ package
          {
             var say:Object = HarnessText.DATA[language];
             Loc.setData(say);
-            // The pool the cards and rows name: long map names, the longest weather, every mode.
-            tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+            // The pool the cards and rows name: long map names, the longest weather, every mode (the
+            // create window's ticks).
+            tell(["S1;M;7;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+               "5;12;7;1;8;0","6;300;1;1;13;0"]);
             var states:Array = [
                ["private, owner", 1001, true, true, 0, "01010", 0, []],
                ["private, member", 1002, true, false, 0, "01010", 0, []],
@@ -221,6 +394,23 @@ package
                   var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
                   b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
                   misses = misses.concat(overlaps(language + ", create"));
+                  // a tick for each mode of the pool, in RoomsCreate.MODE_ORDER (named by its mode),
+                  // before the pool's tiles (named by their levels)
+                  var ticks:Array = [];
+                  findRows(win, ticks);
+                  var modes:Array = [];
+                  for each(var tick:* in ticks)
+                     modes.push(tick.name);
+                  if(modes.slice(0, 7).join() != "2,3,6,4,5,8,13")
+                     failures.push(language + ": the create window's mode ticks " + modes.join());
+                  // the seven of them above the window's foot (its Create button, in the same box; the
+                  // window here is as low as it gets, RoomsWindow.MIN_H)
+                  var formButtons:Array = [];
+                  walk(win,[],[],0,0,formButtons);
+                  for each(var foot:* in formButtons)
+                     if(foot.label == say.st_srp_rooms_create && ticks.length >= 7 && (foot.parent != ticks[6].parent
+                        || ticks[6].y + ticks[6].getBounds(ticks[6]).bottom > foot.y))
+                        failures.push(language + ": the create window's last mode tick reaches its foot");
                }
          }
          Loc.setData(HarnessText.DATA.english);
@@ -233,11 +423,13 @@ package
 
       // The window told room `key`'s state: its cards, five members (the asker the first when it
       // is the owner, else the second, its kit or gear unfit by `fit`), the teams and `extra` rows.
-      private function tellRoom(key:int, pin:Boolean, owner:Boolean, phase:int, teams:String, fit:int, extra:Array) : void
+      // `cards`: its `C` rows (none: four on maps 61, 62, 63 and 184).
+      private function tellRoom(key:int, pin:Boolean, owner:Boolean, phase:int, teams:String, fit:int, extra:Array,
+         cards:Array = null) : void
       {
          var size:int = 10;
-         var names:Array = [["S1","R",key,15,pin ? 0 : 15,size,30,phase,754,owner ? 1 : 0,5,5,key,pin ? 1 : 0,63,pin ? 1 : 2,0].join(";"),
-            "C;0;61;2;1","C;1;62;1;0","C;2;63;0;0"];
+         var names:Array = [["S1","R",key,15,pin ? 0 : 15,size,30,phase,754,owner ? 1 : 0,5,5,key,pin ? 1 : 0,63,pin ? 1 : 2,0].join(";")];
+         names = names.concat(cards != null ? cards : ["C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","C;3;184;0;0"]);
          for(var i:int = 0; i < WHO.length; i++)
          {
             var me:Boolean = owner ? i == 0 : i == 1;
@@ -976,11 +1168,22 @@ package
          tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;2;0"]);
          tellRoom(1003, false, false, 3, null, 0, []);
          var short:Object = tagOf("PROTECTIVE DEVICE");
+         // Free for all (mode 8, docs/notes/ffa.md): its card (the third, map 63) names it.
+         tell(["S1;M;3;0","0;61;5;5;3;0","1;62;13;5;2;0","2;63;12;3;8;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var ffa:Object = tagOf("FREE FOR ALL");
+         // Artifact Hunt (mode 13, artefact_hunt.md): the same card names it.
+         tell(["S1;M;3;0","0;61;5;5;3;0","1;62;13;5;2;0","2;63;12;3;13;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var hunt:Object = tagOf("ARTIFACT HUNT");
          trace("ROOMS vote card tag: long " + (long != null ? long.tag + " for " + long.text : "none")
-            + ", then short " + (short != null ? short.tag + " for " + short.text : "none"));
-         if(long == null || short == null)
+            + ", then short " + (short != null ? short.tag + " for " + short.text : "none")
+            + ", free for all " + (ffa != null ? ffa.tag + " for " + ffa.text : "none")
+            + ", artifact hunt " + (hunt != null ? hunt.tag + " for " + hunt.text : "none"));
+         if(long == null || short == null || ffa == null || hunt == null)
             failures.push("vote card tags not found");
-         else if(short.tag > short.text + 20 || long.tag > long.text + 20)
+         else if(short.tag > short.text + 20 || long.tag > long.text + 20 || ffa.tag > ffa.text + 20
+            || hunt.tag > hunt.text + 20)
             failures.push("a vote card's mode tag is wider than its name (" + short.tag + " for " + short.text + ")");
          var texts:Array = [];
          walk(win,[],texts,0,0,[]);
@@ -1031,6 +1234,55 @@ package
          for each(var key:String in ["Kosztinpeter", "Players", "State"])
             if(none[key] == null || none[key] != leading[key])
                failures.push("side card: " + key + " moves with the map (" + none[key] + " / " + leading[key] + ")");
+      }
+
+      // A map only an open room's card shows (a free-for-all played with a twist only: Military
+      // Warehouses, maps_dict 43, level 16; the owner, 2026-11-27: "they don't get an icon in room
+      // voting", "it is just empty"): the pool lists it after the private ones, `offered` 0, and
+      // its card, an FFA: Racket, is drawn with its map's picture, name and weather. Told the pool
+      // without it (what the server sent before), the card has no picture, no name, no mode.
+      private function checkShownOnly() : void
+      {
+         var offered:Array = ["0;61;5;5;3;0;0;1","1;62;13;5;2;0;0;1","2;63;12;3;8;0;0;1"];
+         var cards:Array = ["C;0;61;2;1;3","C;1;62;1;0;2","C;2;43;0;0;9","C;3;63;0;0;8"];
+         var drawn:Function = function(pool:Array):Object
+         {
+            tell(["S1;M;" + pool.length + ";0"].concat(pool));
+            tellRoom(1003, false, false, 3, null, 0, [], cards);
+            var cells:Array = [];
+            voteCards(win, cells);
+            var card:Sprite = null;
+            for each(var cell:Sprite in cells)
+               if(cell.name == "2")
+                  card = cell;
+            // The picture's middle: the map's, not the empty card's colour (RoomsLook.mapRender).
+            var middle:int = -1;
+            if(card != null)
+            {
+               var picture:BitmapData = Bitmap(card.getChildAt(0)).bitmapData;
+               middle = picture.getPixel(picture.width / 2, picture.height / 2);
+            }
+            var texts:Array = [];
+            walk(win,[],texts,0,0,[]);
+            var named:Boolean = false;
+            var moded:Boolean = false;
+            for each(var t:Object in texts)
+            {
+               named = named || String(t.text).indexOf("Military") == 0;
+               moded = moded || t.text == "FFA: RACKET";
+            }
+            return {"cards": cells.length, "pictured": card != null, "middle": middle, "named": named, "moded": moded};
+         };
+         var before:Object = drawn(offered);
+         var now:Object = drawn(offered.concat(["3;43;16;1;8;0;0;0"]));
+         trace("ROOMS a map only shown (Military Warehouses, FFA: Racket): pool without it " + before.cards
+            + " pictured cards, its card named " + before.named + "; with it " + now.cards + " pictured cards, its picture "
+            + now.pictured + " (middle 0x" + uint(now.middle).toString(16) + "), named " + now.named + ", " + (now.moded ? "FFA: RACKET" : "no mode"));
+         if(before.cards != 3 || before.pictured || before.named)
+            failures.push("a map only shown: the pool without it drew its card (" + before.cards + " cards)");
+         if(now.cards != 4 || !now.pictured || now.middle == 0x05080B || !now.named || !now.moded)
+            failures.push("a map only shown: its card not drawn (" + now.cards + " cards, picture " + now.pictured
+               + ", middle 0x" + uint(now.middle).toString(16) + ", named " + now.named + ", mode " + now.moded + ")");
       }
 
       // Only private rooms can be made: no public sliders, and Create
@@ -1101,6 +1353,88 @@ package
             toggle.parent.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
          createGreyed("create, bots off again", 0, "1 / 2");
          trace("ROOMS create with bots: toggle, unticked and greyed modes and maps");
+         checkPretypedPin();
+      }
+
+      // The last room's PIN pretyped (the owner's of 2026-11-19): the form's last field in the
+      // field, Create on; a press on the field puts the caret after its digits. A form without
+      // one (a server of before): the field empty.
+      private function checkPretypedPin() : void
+      {
+         tell(["S1;F;1;8;1;0;30;;0042", "E;0;3"]);
+         if(!pressButton("Back") || !pressButton("Private room"))
+            return;
+         var field:TextField = pinField();
+         if(field == null || field.text != "0042")
+            failures.push("create: PIN not pretyped (" + (field != null ? field.text : "no field") + ")");
+         createShows("create, PIN pretyped",true);
+         if(field != null)
+         {
+            field.setSelection(0,0);
+            field.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
+            field.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP));
+            if(field.selectionBeginIndex != 4 || field.selectionEndIndex != 4)
+               failures.push("create: a press on the PIN puts the caret at " + field.selectionBeginIndex + ", not after its digits");
+         }
+         tell(["S1;F;1;8;1;0;30;", "E;0;3"]);
+         if(!pressButton("Back") || !pressButton("Private room"))
+            return;
+         field = pinField();
+         if(field == null || field.text != "")
+            failures.push("create: a form without a PIN typed " + (field != null ? field.text : "no field"));
+         createShows("create, no PIN kept",false);
+         trace("ROOMS create: last PIN pretyped, caret after it on a press, empty without one");
+         // A map only an open room's card shows (checkShownOnly): no tile, out of the pool's count.
+         tell(["S1;M;3;0", "0;61;1;1;2;0;0;1", "1;117;2;1;4;0;0;1", "2;43;16;1;8;0;0;0"]);
+         createGreyed("create, a map only shown", 0, "2 / 2");
+         if(createText("Military Warehouses") != null)
+            failures.push("create: a map only shown has a tile");
+         trace("ROOMS create: a map only shown has no tile");
+         // Military Warehouses offered (the server's since 2026-11-27: a private room plays its
+         // free-for-all plain, the owner: "fine for pub lobbies, not for private ones"): its tile,
+         // in the pool's count.
+         tell(["S1;M;3;0", "0;61;1;1;2;0;0;1", "1;117;2;1;4;0;0;1", "2;43;16;1;8;0;0;1"]);
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         var tile:Boolean = false;
+         var counted:Boolean = false;
+         for each(var t:Object in texts)
+         {
+            tile = tile || String(t.text).indexOf("Military") == 0;
+            counted = counted || /: \d+ \/ 3$/.test(String(t.text));
+         }
+         if(!tile || !counted)
+            failures.push("create: Military Warehouses offered: tile " + tile + ", in the pool's count " + counted);
+         trace("ROOMS create: Military Warehouses offered has its tile: " + (tile && counted ? "yes" : "no"));
+      }
+
+      // Presses the window's button labelled `label`.
+      private function pressButton(label:String) : Boolean
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         for each(var b:* in buttons)
+         {
+            if(b.label == label)
+            {
+               var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+               return true;
+            }
+         }
+         failures.push("create: no " + label + " button");
+         return false;
+      }
+
+      // The create window's PIN field (its one input).
+      private function pinField() : TextField
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+            if(t.field.type == "input")
+               return t.field as TextField;
+         return null;
       }
 
       // The create window's text `text`, if it shows it.
@@ -1206,7 +1540,7 @@ package
       {
          var size:int = pin ? 10 : 6;
          var head:String = ["S1","R",key,0,0,size,30,phase,0,owner ? 1 : 0,5,5,key,pin ? 1 : 0,0,pin ? 1 : 2,0].join(";");
-         var names:Array = [head,"C;0;61;0;0","C;1;63;0;0","C;2;65;0;0"];
+         var names:Array = [head,"C;0;61;0;0","C;1;63;0;0","C;2;65;0;0","C;3;117;0;0"];
          for(var i:int = 0; i < WHO.length; i++)
          {
             // P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<name>

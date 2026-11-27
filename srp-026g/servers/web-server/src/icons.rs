@@ -1,12 +1,16 @@
 //! The wiki's icons, from the game's lobby (`lobby_menu.swf`): each item's,
 //! each modification's (`ui_desc.icon`), each item group's (the shop's
 //! filter buttons), each quest's (`ui.icon`, the quest list's) and each
-//! faction's (the quest window's faction tab). Built per release with the calculator
+//! faction's (the quest window's faction tab), and each map's picture as the
+//! rooms draw it (the lobby's table `MapRenders.tsv` names it: the rooms and
+//! the site read the one table), each mode's loading-screen icon, and the
+//! wiki index's tile pictures the other sets have too small. Built per release with the calculator
 //! (`srp-026g/scripts/damage-calc/build_site.py`, through
 //! `srp-026g/scripts/wiki/build_icons.py`) into `../wiki/icons/`; every file
 //! is part of the binary, `../wiki/icons/files.rs` lists them. The
 //! modification, group and quest icons are white glyphs on transparent, for
-//! the page to tint (CSS masks); a faction's emblem is in its colours.
+//! the page to tint (CSS masks); a faction's emblem and a mode's icon are in
+//! their colours.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -24,6 +28,16 @@ pub(crate) enum IconSet {
     Quest,
     /// By the faction's id.
     Faction,
+    /// By the map's level and weather, `<level>_<weather>`: the rooms'
+    /// picture of it.
+    Map,
+    /// By the loading screen's mode icon frame (`ui.icon` + 1), or
+    /// `twist-<lobby mode>` for a free-for-all's twist: `SrvGameModeIcons`.
+    Mode,
+    /// By the wiki index's section, a tile's picture where the sets above
+    /// have none big enough for a tile; `<section>@2x` its copy for screens
+    /// of twice the density.
+    Tile,
 }
 
 impl IconSet {
@@ -34,6 +48,9 @@ impl IconSet {
             Self::Group => "groups",
             Self::Quest => "quests",
             Self::Faction => "factions",
+            Self::Map => "maps",
+            Self::Mode => "modes",
+            Self::Tile => "tiles",
         }
     }
 }

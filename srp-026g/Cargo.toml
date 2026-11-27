@@ -7,10 +7,13 @@ members = [
   "crates/mapdata",
   "crates/mapdata-srchash",
   "crates/research-rule",
+  "crates/artefact-hunt-rule",
   "crates/resources-db",
   "crates/session",
   "crates/artefact-carry",
   "crates/weapon-pickup",
+  "crates/second-sight",
+  "crates/technical-skills",
   "crates/ragdoll",
   "crates/voice-abi",
   "client-voice",
@@ -18,6 +21,7 @@ members = [
   "crates/udp-transport",
   "crates/vostok",
   "crates/weapon-kit",
+  "crates/weapon-modules",
   "crates/srp-validate",
   "crates/world-frame",
 
@@ -28,6 +32,8 @@ members = [
   "servers/web-server",
 
   "scripts/binary-config-cli",      # Parser for binary config files
+  "scripts/ffa-mode/check-points",  # FFA spawn points against the maps' collision
+  "scripts/stalker-maps/ffa-points", # STALKER maps' FFA spawn planner
 ]
 exclude = []
 resolver = "3"
@@ -74,11 +80,11 @@ proc-macro2 = "1.0.97"
 quote = "1.0.40"
 syn = { version = "2.0.105", features = ["full"] }
 
-env_logger = "0.10"
 log = "0.4"
 
 binary-config-parser = { path = "crates/binary-config-parser" }
 resources-db = { path = "crates/resources-db" }
+artefact-hunt-rule = { path = "crates/artefact-hunt-rule" }
 ban-reason = { path = "crates/ban-reason" }
 sign-in-cipher = { path = "crates/sign-in-cipher" }
 session = { path = "crates/session" }
@@ -88,6 +94,7 @@ udp-transport = { path = "crates/udp-transport" }
 vostok = { path = "crates/vostok" }
 world-frame = { path = "crates/world-frame" }
 weapon-kit = { path = "crates/weapon-kit" }
+weapon-modules = { path = "crates/weapon-modules" }
 
 # The release build (servers, grid builds, benches) as one codegen unit with
 # fat LTO: cross-crate inlining into the bots' hot paths (mapdata's casts and

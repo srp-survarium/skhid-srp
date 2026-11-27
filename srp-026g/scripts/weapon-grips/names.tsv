@@ -1,0 +1,13 @@
+# The grips' names in the languages 0.69d0 does not ship (its own English, Russian, Ukrainian, German and
+# Polish names come from the donor folder: texts.py). The guns' names as each language's table has them.
+# module	belarusian	serbian	croatian	czech	hungarian	finnish	portuguese
+ak_zenit_rk2_foregrip	Тактычная рукаятка Зеніт РК-2	Taktička drška Zenit RK-2	Taktički rukohvat Zenit RK-2	Taktická rukojeť Zenit RK-2	Zenit RK-2 taktikai markolat	Taktinen kahva Zenit RK-2	Empunhadura tática "Zenit" RK-2
+fabdefence_miki_foregrip	Рукаятка FAB-Defense MIKI	Prednja drška FAB-Defense MIKI	Prednji rukohvat FAB-Defense MIKI	Přední rukojeť FAB-Defense MIKI	FAB-Defense MIKI előmarkolat	Etukahva FAB-Defense MIKI	Empunhadura FAB-Defense MIKI
+fabdefence_ptk_foregrip	Рукаятка FAB-Defense PTK	Prednja drška FAB-Defense PTK	Prednji rukohvat FAB-Defense PTK	Přední rukojeť FAB-Defense PTK	FAB-Defense PTK előmarkolat	Etukahva FAB-Defense PTK	Empunhadura FAB-Defense PTK
+fort401_foregrip	Штатная рукаятка Форт-401	Standardna prednja drška Fort-401	Standardni prednji rukohvat Fort-401	Standardní přední rukojeť Fort-401	Fort-401 gyári előmarkolat	Vakioetukahva Fort-401	Empunhadura padrão Fort-401
+gandp_ris_foregrip	Рукаятка G&P RIS	Prednja drška G&P RIS	Prednji rukohvat G&P RIS	Přední rukojeť G&P RIS	G&P RIS előmarkolat	Etukahva G&P RIS	Empunhadura G&P RIS
+imi_fsg2_foregrip	Рукаятка FSG2	Prednja drška FSG2	Prednji rukohvat FSG2	Přední rukojeť FSG2	FSG2 előmarkolat	Etukahva FSG2	Empunhadura FSG2
+magpul_afg1_foregrip	Рукаятка AFG-1	Prednja drška AFG-1	Prednji rukohvat AFG-1	Přední rukojeť AFG-1	AFG-1 előmarkolat	Etukahva AFG-1	Empunhadura AFG-1
+mauser_m712_foregrip	Рукаятка Маўзер M.712	Drška Mauser M.712	Rukohvat Mauser M.712	Rukojeť Mauser M.712	Mauser M.712 markolat	Kahva Mauser M.712	Empunhadura da Mauser M.712
+pkp_pecheneg_foregrip	Штатная рукаятка ПКП	Standardna prednja drška PKP	Standardni prednji rukohvat PKP	Standardní přední rukojeť PKP	PKP gyári előmarkolat	Vakioetukahva PKP	Empunhadura padrão da PKP
+troy_modular_foregrip	Рукаятка Troy Modular	Prednja drška Troy Modular	Prednji rukohvat Troy Modular	Přední rukojeť Troy Modular	Troy Modular előmarkolat	Etukahva Troy Modular	Empunhadura Modular Troy

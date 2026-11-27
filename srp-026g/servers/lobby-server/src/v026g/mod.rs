@@ -1,5 +1,5 @@
-//! The 0.26g lobby (`resources/notes/v026g/lobby.md`, `lobby_requests.md`,
-//! `social.md`), beside the 0.21d one.
+//! The 0.26g lobby (`srp-026g/docs/notes/lobby.md`, `lobby_requests.md`,
+//! `social.md`).
 //!
 //! What 0.26g changed: the lobby is one UDP link on the match transport
 //! (`udp-transport`, `Table::Lobby`), whose connect payload is the sign-in
@@ -102,6 +102,7 @@ pub mod client_test;
 mod clans;
 mod core;
 mod dispatch;
+mod faces;
 mod gear;
 mod items;
 mod patch_check;
@@ -189,7 +190,7 @@ pub struct Settings {
     pub tick: Duration,
     /// The `maps_dict` ids played: playable ones only (a room's default
     /// pool, what a clan match is drawn from).
-    pub maps: Vec<u8>,
+    pub maps: Vec<maps::MapId>,
     /// The least patch revision of a game let in, 0 for any: an older one
     /// is refused at its sign-in, and its sessions from before in the lobby
     /// (`SRP_MIN_PATCH_REVISION`; `patch_check`).
@@ -212,8 +213,8 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 6 (6 Blackout). Using \
-                     2,3,4,5,6"
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 8, 12 or 13 (6 Blackout, 8 free for all, \
+                     12 Freeze Tag, 13 Artifact Hunt). Using every mode"
                 );
                 DEFAULT_MODES.to_vec()
             }),
@@ -345,7 +346,8 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 6 (6 Blackout;
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 8, 12 and 13 (6 Blackout, 8 free for all,
+/// 12 Freeze Tag, 13 Artifact Hunt;
 /// `maps::GameMode::lobby_number`), at least one.
 fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
     let modes: Option<Vec<maps::GameMode>> = value
@@ -361,17 +363,17 @@ fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
 }
 
 /// `SRP_MATCH_MAPS`: `maps_dict` ids, at least one.
-fn parse_maps(value: &str) -> Option<Vec<u8>> {
-    let ids: Option<Vec<u8>> = value
+fn parse_maps(value: &str) -> Option<Vec<maps::MapId>> {
+    let ids: Option<Vec<maps::MapId>> = value
         .split(',')
-        .map(|id| id.trim().parse::<u8>().ok())
+        .map(|id| id.trim().parse::<maps::MapId>().ok())
         .collect();
     ids.filter(|ids| !ids.is_empty())
 }
 
 /// The playable ids of `modes`; with `only` not empty, those of them it
 /// names.
-fn map_pool(modes: &[maps::GameMode], only: &[u8]) -> Vec<u8> {
+fn map_pool(modes: &[maps::GameMode], only: &[maps::MapId]) -> Vec<maps::MapId> {
     maps::playable()
         .filter(|map| modes.contains(&map.mode))
         .filter(|map| only.is_empty() || only.contains(&map.id))
@@ -407,6 +409,12 @@ pub(crate) enum Notice {
     /// To every client in the lobby now.
     Broadcast {
         messages: Vec<ServerMessage>,
+    },
+    /// [`Inbox::idle_removed`].
+    IdleRemoved {
+        match_id: u32,
+        account_id: u32,
+        name: String,
     },
 }
 
@@ -447,6 +455,18 @@ impl Inbox {
         self.notices
             .locked()
             .push(Notice::AccountChanged { account_id });
+    }
+
+    /// The match server removed the player of `account_id` (`name` in the
+    /// match) from its match `match_id` (the id the clients were told) for
+    /// being idle (anti-AFK): the match's chat and the general chat say so,
+    /// once.
+    pub fn idle_removed(&self, match_id: u32, account_id: u32, name: &str) {
+        self.notices.locked().push(Notice::IdleRemoved {
+            match_id,
+            account_id,
+            name: name.to_owned(),
+        });
     }
 
     /// Send messages to every client in the lobby now, in order. A client
@@ -498,6 +518,8 @@ pub struct Lobby {
     host: Arc<dyn MatchHost>,
     inbox: Arc<Inbox>,
     settings: Settings,
+    /// The relays whose tunnel addresses may say a datagram's own address.
+    relays: udp_transport::relay::Relays,
     /// "Watch replay" (`replay`): srp's replays, shared with the match
     /// server and the web page; none, every ask is answered `off`.
     replays: Option<Arc<Replays>>,
@@ -509,6 +531,7 @@ const WAIT: Duration = Duration::from_millis(2);
 impl Lobby {
     pub fn bind(
         settings: Settings,
+        relays: udp_transport::relay::Relays,
         store: Arc<SessionStore>,
         accounts: Arc<GameAccounts>,
         results: Arc<Results>,
@@ -525,6 +548,7 @@ impl Lobby {
             host,
             inbox,
             settings,
+            relays,
             replays: None,
         })
     }
@@ -558,10 +582,13 @@ impl Lobby {
         );
         core.packet_log = PacketLog::from_env();
         core.replays = self.replays.as_deref();
+        let mut socket = udp_transport::relay::Datagrams::new(
+            &self.socket, self.relays.clone(),
+        )?;
         let mut buffer = [0_u8; 2048];
         while !self.inbox.stopped() {
-            match self.socket.recv_from(&mut buffer) {
-                Ok((len, from)) => core.datagram(from, &buffer[..len], Instant::now()),
+            match socket.recv_from(&mut buffer) {
+                Ok((len, peer)) => core.datagram(peer, &buffer[..len], Instant::now()),
                 Err(error)
                     if matches!(
                         error.kind(),
@@ -578,7 +605,7 @@ impl Lobby {
                 }
             }
             for (to, datagram) in core.step(Instant::now()) {
-                if let Err(error) = self.socket.send_to(&datagram, to) {
+                if let Err(error) = socket.send_to(&datagram, to) {
                     log::debug!("A lobby datagram to {to} was not sent: {error}");
                 }
             }
@@ -597,5 +624,6 @@ pub fn run(
     host: Arc<dyn MatchHost>,
     inbox: Arc<Inbox>,
 ) -> io::Result<()> {
-    Lobby::bind(Settings::from_env(), store, accounts, results, host, inbox)?.run()
+    let relays = udp_transport::relay::Relays::from_env()?;
+    Lobby::bind(Settings::from_env(), relays, store, accounts, results, host, inbox)?.run()
 }

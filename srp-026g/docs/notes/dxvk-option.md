@@ -127,6 +127,86 @@ window keeping its size.
   not at all; one left out for want of room, none ever with these five, is counted on the line). Nothing changes in a running
   game; DirectX 11 runs ignore the five.
 
+## Performance: what DXVK is given, and why
+
+Read 2026-11-09 for the FPS reports (a player's logs: RTX 5070 Ti, NVIDIA 617.42, Windows, a 300 Hz
+monitor, `dxvk.latencySleep` and `dxvk.hideIntegratedGraphics`; another player: GTX 1050, "DXVK
+20-30 fps, DirectX 11 80-90"), from DXVK 3.1.1's source and the exe. Nothing measured: no Windows PC,
+and the local GPU was taken by the FPS lane's runs. DXVK is given the five options above and
+nothing else; every other setting is DXVK 3.1.1's default, each for the reason below.
+
+- **Frame latency is already 1.** The game's swap chain has one buffer (`initialize_swap_chain`'s
+  desc, BufferCount 1 at 0x3CF57E), and DXVK caps the frame latency at the buffer count
+  (`D3D11SwapChain::GetActualFrameLatency`: the device's maximum frame latency, 3 by default, then
+  `min(.., BufferCount)`). So under DXVK each Present waits until the frame before it is presented
+  (with vsync, until it is on screen: the presenter's `vkWaitForPresentKHR` for FIFO), the CPU never
+  more than one frame ahead; Windows' own DXGI lets it queue three. Input lag under DXVK is low
+  without any option.
+- **Reduce input lag** (`dxvk.latencySleep`) stays an option, off by default. In a 32-bit process
+  DXVK does not use NVIDIA's `VK_NV_low_latency2` (`dxvk.disableNvLowLatency2` Auto; the report's log:
+  "Latency control enabled, using built-in algorithm"). The built-in algorithm
+  (`dxvk_latency_builtin.cpp` `sleepBuiltin`) waits each frame for the previous Present to be
+  processed, then sleeps so the next frame's GPU work starts just in time. DXVK assumes the game reads
+  input after Present returns; this engine reads it on its logic thread, which runs up to one frame
+  ahead of the render (0.10b `engine_world_logic.cpp`: the logic waits while its frame id is past
+  the renderer's + 1), so the gain over latency 1 is small and unmeasured, and the cost is frame
+  rate and pacing (dxvk.conf: "may reduce performance or lead to less consistent frame pacing"). With
+  it on, a Present with a sync interval (vsync, or a scene that asks for it: below) at a window sets
+  DXVK's own limiter to that monitor's refresh rate (`DxgiSwapChain::UpdateTargetFrameRate`): the
+  report's "Built-in frame rate limiter enabled ..." and "Detected frame rate (~353) higher than
+  selected refresh rate of ~300 Hz. Engaging frame rate limiter." are that, not a fault.
+- **Present mode:** `dxvk.tearFree` Auto. Without a sync interval DXVK presents IMMEDIATE (tearing,
+  the lowest latency), with one FIFO (`Presenter::pickPresentMode`); the swap chain is made with both
+  as dynamic modes (the log's "Present mode: VK_PRESENT_MODE_FIFO_KHR (dynamic: yes)", so FIFO there
+  does not say vsync was on). The Tear-free option (True) picks MAILBOX without a sync interval.
+  `dxgi.syncInterval` is not set: the game's Vsync checkbox decides.
+- **Frame rate limit Off** is DXVK's 0, its own limiter only in the cases above. -1 would turn those
+  off too, and with them the refresh rate the latency sleep aims at; not used.
+- **Pipelines:** `dxvk.enableGraphicsPipelineLibrary` Auto, used wherever the driver has
+  `graphicsPipelineLibrary` and independent interpolation (`DxvkDevice::canUseGraphicsPipelineLibrary`;
+  the report's log: "Graphics pipeline libraries supported"). Shaders are then compiled when the game
+  creates them, a draw links its pipeline from them at once, and the optimized pipeline is built in
+  the background. False would bring compile stalls back at first draws; True adds nothing.
+- **Compiler threads:** `dxvk.numCompilerThreads` 0: one per CPU thread, at most 8 in a 32-bit
+  process, at the lowest thread priority (`DxvkPipelineWorkers`; the log: 8). Unchanged.
+- **The shader cache:** DXVK 3.1.1 keeps no pipeline state cache. Its `<hash>.dxvk.bin` and `.lut` in
+  `%LOCALAPPDATA%\dxvk` hold its translated shaders, named by the 64-bit FNV-1a of the exe's name with
+  the slash before it (`DxvkShaderCache::getDefaultFilePaths`: the second `find_last_of` starts at
+  the slash it found, so the folder is left out): `\survarium_skhid.exe` is `2e2077e43dd237bb`, the
+  report's file ("Cache: 960 shaders"). It outlives our updates (the exe's name stays) and is rebuilt
+  for another DXVK version (its header has DXVK's version). The pipelines' own compiles are the
+  driver's, in its cache. A cache shipped with the game would save only the translation of a shader
+  the first time a PC meets it, would need a folder DXVK may write (`DXVK_SHADER_CACHE_PATH`; the game
+  can be under Program Files) and would go stale with DXVK's version: none is shipped.
+
+**DirectX 11 stays the default.** The RTX 5070 Ti ran about 350 fps under DXVK, so DXVK has no
+general slow path in this game. A GTX 1050 three times slower under DXVK is that PC's; what its DXVK
+logs (`survarium_skhid_d3d11.log`, `_dxgi.log` beside the exe) would tell, none received yet:
+
+- the GPU DXVK took (`Found device`, `Creating device`): the exe takes DXVK when any device has
+  Vulkan 1.4, and DXVK leaves out a device under 1.4, so a dedicated GPU without 1.4 beside an
+  integrated one with it runs on the integrated one;
+- video memory: a GTX 1050 has 2 GB; DXVK puts what does not fit into system memory (the log's
+  heaps, the overlay's "memory" item), where Windows' DirectX 11 driver pages it in and out;
+- the CPU: DXVK adds its own threads (command stream, submission, presenter, compiler threads), on a
+  four-thread CPU against the game's render, logic and task threads.
+
+**DirectX 11's own settings** (exe 0.26g):
+
+- `r_vsync` off by default (`options::set_default_values`, 0x3CD74A). Present's sync interval is
+  `r_vsync` or its caller's flag: `renderer::render` passes the scene's (a flag of the scene's
+  creation, `scene::scene` 0x14FA65) unless the debug variable `r_force_no_vsync` (0x1F1D967) is
+  set; `is_ready_for_render` passes 0.
+- `r_max_fps` 10000 by default (0xA7A824): `renderer::render` sleeps whole milliseconds when a frame
+  took less than 1/r_max_fps (0x13DF5C): no limit in effect.
+- `r_instancing` off by default (0x3CD804), and no code reads it past the options' pointer
+  (0x2260498): not a lever.
+- The swap chain: one buffer, DISCARD (bit-block transfer), windowed, fullscreen by
+  SetFullscreenState. Windowed on Windows 10 the desktop compositor copies each frame; Windows 11
+  turns such swap chains into flip model itself ("Optimizations for windowed games"). A flip-model
+  swap chain of our own (FLIP_DISCARD, two buffers, tearing allowed) would be an exe change tested on
+  Windows, and would raise DXVK's frame latency to 2: not done.
+
 ## The files
 
 - The Skhid ZIP ships DXVK 3.1.1's 32-bit DLLs in `game\binaries\x86\dxvk\`, ordinary overlay
@@ -275,6 +355,43 @@ size; Settings to windowed writes the caption back itself (set_size). This holds
 DXVK (Wine too), not only AMD's. The renderer's state is a `Lock` now, by way of defence: no second
 thread reading it is shown (the start, the login screen and every Present are the main thread's).
 
+## The taskbar after Alt+Tab
+
+**The report** (2026-11-03, Linux, then the same on Windows): after Alt+Tab back into the game in
+fullscreen, the desktop's taskbar stays drawn over it.
+
+**What the game does at the focus's return** (PROVEN in the code, the behaviour of the shell not run
+here): the window procedure's WM_ACTIVATE (message_processor 0x1827A) calls the engine world's
+activate slot and nothing of the window; the window is made fullscreen again by the engine's tick,
+`goto_fullscreen` 0x3CFE20 (its only caller the game's vtable +30h 0x1ED430, at 0x13D63, each
+tick): while +EFh is 0 (minimize 0x3CFE94 clears it at every focus loss of a fullscreen output,
+present 0x3CF8BE when DXGI left fullscreen without the focus), the window has the focus (GetFocus)
+and is not minimized, `SetFullscreenState(TRUE, fullscreen_output)`, +EFh 1 when it succeeds.
+So the window is activated first, in whatever shape the focus loss left it (with DXVK: its saved
+rectangle and styles, not topmost, once DXVK left fullscreen 100 ms after the loss; with Windows'
+DXGI: windowed at the output's size, not topmost after a start in fullscreen, which set_size never
+makes topmost), and it covers the monitor again only in a later tick, with SWP_NOACTIVATE (DXVK's
+`enterFullscreenMode`). Windows' taskbar goes under a window that covers its monitor when it sees
+that window activated so (the shell's "rude" window), which it did not.
+
+**The fix** (patch 83, `render_output.fullscreen_back`, a lohook at 0x3CFE77 after that
+SetFullscreenState succeeded, with either renderer, a fullscreen output only, +EDh 0): the window
+is marked fullscreen for the taskbar, `ITaskbarList2::MarkFullscreenWindow(window, TRUE)`, the
+shell's own call for this ("the taskbar is moved to the bottom of the z-order when this window is
+active"). The list is made at the first return (`CoInitializeEx` apartment on the main thread, one
+already a multithreaded apartment used as it is; `CoCreateInstance(CLSID_TaskbarList)`, HrInit)
+and kept; a refusal is said once and never asked again. The window's z-order and styles are not
+touched, so nothing changes at the next focus loss. `srp_patches.log` says `fullscreen: back in
+front, the taskbar told the window is fullscreen` at each return. Paths that do not reach it: a
+windowed output (+EDh 1); the start's fullscreen entry (`show` 0x3CF600) and Settings' (set_size
+0x3CF980), entered while the window is already in front (Settings' makes it topmost too).
+
+**Not fixed by it:** under Wine the taskbar is the desktop's (KDE, GNOME and the like), which reads
+the X11 or Wayland window's states, not the shell's list (Wine's MarkFullscreenWindow does nothing).
+With DXVK, which Linux players always have (the prefix's), the window is topmost and covers the
+screen again after the return (`enterFullscreenMode`); why a desktop keeps its panel over it is not
+known here: it needs the player's desktop and a run.
+
 ## The address space (SRP-3)
 
 **The reports** (2026-11-08/09, rev53 and rev54; RX 7800 XT twice, RX 6900 XT; AMD's Windows Vulkan driver 2.0.353 to
@@ -370,11 +487,47 @@ MiB), and AMD's presentation through D3D12 is AMD's. The game peaks near 3.9 GB 
 (rev54) reserve more. DXVK on such a PC can still run out: no setting is switched for the player after a crash (no
 fallback that would hide which renderer failed).
 
+## Refresh rate and fullscreen exits
+
+**The game asks for no refresh rate.** Its one swap chain (`res_render_output` 0x3CF4F0) has
+RefreshRate 0/0 (0x3CF5C1), Flags 0 (no ALLOW_MODE_SWITCH, 0x3CF5ED), windowed, one DISCARD
+buffer. Every fullscreen entry is `SetFullscreenState(TRUE, output)` on it, the output
+`fullscreen_output` 0x3CFAF0 (r_monitor_index): `show` 0x3CF600 (the start), `apply_fullscreen_state`
+0x3CFDB0 (from `resize` 0x3CFB30: Settings' Apply, `end_render_options_changing` 0x1181CF, and the
+window's first size, 0x119972) and `goto_fullscreen` 0x3CFE20 (each tick, back after a focus loss).
+The exe has no ResizeTarget call, no ChangeDisplaySettings import and no refresh setting (`r_resolution`,
+`r_fullscreen`, `r_monitor_index`; `r_vsync` is options +105h, off by default, 0x3CD74A, the Graphics
+checkbox; Present's sync interval is it or the caller's flag, 0x3CF8E0). Lobby and match changes call
+none of these. So every path is fullscreen at that output's current desktop mode: DXVK 3.1.1's
+`ChangeDisplayMode` zeroes the size without ALLOW_MODE_SWITCH and `FindClosestMatchingMode1` takes the
+active mode's refresh rate for 0/0, so a player with a 144 Hz panel and a 60 Hz desktop gets 60 Hz in
+fullscreen under DXVK (Windows' own DXGI resolves unspecified fields towards the desktop mode too, as
+documented for FindClosestMatchingMode; not run here).
+
+**What DXVK's dxgi log says.** `Setting display mode` is written twice per entry (`setWindowMode`, then
+`setMonitorDisplayMode`); a leave restores every monitor (`EnumDisplayMonitors`), each one a
+`Restoring display mode` (its registry mode) and a `Setting display mode`. `setMonitorDisplayMode`
+returns without `ChangeDisplaySettingsExW` when the mode is already the current one. The report of
+2026-11-09 (RTX 5070 Ti, Windows, DXVK, `dxvk.latencySleep`) repeats, 17 times: an entry at @300, a
+restore of one monitor at @300 and of another at @60. That is two monitors, the game's at 300 Hz
+(every entry finds 300 as the current mode, also after each restore), the other at 60 Hz: no entry
+at 60 Hz and no real mode change (DXVK's d3d11 log made its Vulkan swap chain once in the whole run,
+and its limiter line is "refresh rate of ~300 Hz").
+
+**What leaves fullscreen.** Not the game's code: `minimize` 0x3CFE80 (the focus lost) calls
+`SetFullscreenState(FALSE, output)`, which DXGI and DXVK refuse. DXVK leaves by itself when another
+window has been the foreground one for 100 ms (`isOccluded`, from the GetFullscreenState of each
+present, 0x3CF832, and from Present); the game then minimizes its window (0x3CF8C5) when it lacks
+the focus, and `goto_fullscreen` enters again when it has it. So the 17 exits are 17 times another
+window was in front (Alt+Tab, the other monitor). The popup style above sets nothing DXVK reacts to.
+With `dxvk.latencySleep` and vsync on, DXVK sets its own limiter to the refresh rate of the window's
+monitor at a windowed Present and keeps it in fullscreen (`UpdateTargetFrameRate`): a window left on
+a 60 Hz monitor at such a Present would hold the game at 60 fps afterwards. The report's log does not
+show it (one limiter line, ~300 Hz).
+
 ## Known limits
 
 - A start that fails with DXVK costs one start; the next is DirectX 11 again by itself.
-- DXVK's DLLs import the Universal C Runtime (`api-ms-win-crt-*`): Windows 10 and 11 have it, a
-  Windows 7 or 8.1 without its update fails at the start with DXVK (and then falls back, above).
 - The Vulkan look runs in the game's process: a Vulkan layer that hangs there hangs the start
   (one that crashes leaves the marker).
 - Antivirus: DXVK's 3.1.1 release notes say some antivirus programs flag its 32-bit builds. A

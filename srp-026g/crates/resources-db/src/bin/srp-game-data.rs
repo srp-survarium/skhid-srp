@@ -26,8 +26,8 @@ use std::process::ExitCode;
 
 use resources_db::Archive;
 use resources_db::server::{
-    Data, GameArchive, LAST_PATCH, PATCH_PREFIX, PatchFile, Provenance, RESOURCES_DB, archives_in,
-    build, patch_number, read, url_in,
+    Data, GameArchive, LAST_PATCH, PATCH_PREFIX, PROJECTS, PatchFile, Provenance, RESOURCES_DB,
+    archives_in, build, is_read, objects_of, patch_number, read, url_in,
 };
 
 const USAGE: &str = "usage:
@@ -82,7 +82,9 @@ path once, as an argument or a line of --paths) at their paths under --out,
 a new folder; a path no archive has is refused. compare reads every file
 under --dir (at its path there, as pack takes it) and says, one a line,
 `same <path> <archive>`, `differs <path> <archive>` or `new <path>`: the
-same bytes as the archives give there, other bytes, or a file they lack.
+same bytes as the archives give there, other bytes, or a file they lack; a
+`differs` or `new` line ends in ` server` when the server's game data would
+change with it (a file the server reads; of a project, its server cut).
 
 build and pack never overwrite --out, nor get its folder.";
 
@@ -269,7 +271,7 @@ fn run(args: &[String]) -> Result<(), String> {
             })?;
             let made = resources_db::server::Input::of(&out).map_err(|e| e.to_string())?;
             println!(
-                "{}: {} bytes, sha256 {}, {} gameplay files, {} projects, {} clip lengths ({} clips unread), made of:",
+                "{}: {} bytes, sha256 {}, {} gameplay files, {} projects, {} clip lengths ({} clips unread), {} checked files, made of:",
                 out.display(),
                 made.size,
                 made.sha256,
@@ -277,6 +279,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 built.projects,
                 built.clips,
                 built.clips_unread,
+                built.checked,
             );
             print(&built.provenance);
             Ok(())
@@ -470,8 +473,15 @@ fn compare(options: &[String]) -> Result<Vec<String>, String> {
     let files = resources_db::pack::files_of(Path::new(dir)).map_err(|e| e.to_string())?;
     let mut lines = Vec::new();
     for (path, bytes) in &files {
+        let server = |live: Option<&[u8]>| {
+            if server_sees(path, live, bytes) {
+                " server"
+            } else {
+                ""
+            }
+        };
         let Some((index, _)) = overlay.entry(path) else {
-            lines.push(format!("new {path}"));
+            lines.push(format!("new {path}{}", server(None)));
             continue;
         };
         let name = &names[index];
@@ -479,10 +489,29 @@ fn compare(options: &[String]) -> Result<Vec<String>, String> {
             .read(path)
             .map_err(|e| format!("{path}: {e}"))?
             .unwrap_or_default();
-        let word = if &live == bytes { "same" } else { "differs" };
-        lines.push(format!("{word} {path} {name}"));
+        if &live == bytes {
+            lines.push(format!("same {path} {name}"));
+        } else {
+            lines.push(format!("differs {path} {name}{}", server(Some(&live))));
+        }
     }
     Ok(lines)
+}
+
+/// Whether the server's game data changes with `new` at `path` over `live`: a
+/// file it reads, and of a project only its cut ([`objects_of`]; one that does
+/// not parse counts as changed: the server would refuse it).
+fn server_sees(path: &str, live: Option<&[u8]>, new: &[u8]) -> bool {
+    if !is_read(path) {
+        return false;
+    }
+    if !path.starts_with(PROJECTS) {
+        return true;
+    }
+    match (live.map(objects_of), objects_of(new)) {
+        (Some(Ok(was)), Ok(now)) => was != now,
+        _ => true,
+    }
 }
 
 /// `check <file> <archives>`: whether `data` is, byte for byte, what

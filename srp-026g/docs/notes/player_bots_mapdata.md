@@ -4,7 +4,7 @@ The map knowledge server-driven bots need (`player_bots.md` §5), built as
 the crate `crates/mapdata`: spawns and objectives, a walk grid with paths,
 and line of sight, from the map projects in the game's `resources.db`. Tags
 as elsewhere: PROVEN, LIKELY, GUESS. The match server loads the files
-(`SRP_MAPDATA_DIR`, §6); no bot moves by them yet.
+(`SRP_MAPDATA_DIR`, §6), and the bots move by them (`player_bots.md` §6, stages 2 and 3).
 
 ## 1. Dumping
 
@@ -1539,7 +1539,7 @@ zone is always active, as is every zone before `attach`.
 
 ## 8. Not done, not proven
 
-- The match server loads the files (§6), but no bot moves by them yet.
+- (Done 2026-10-14: the bots move by the files the match server loads, §6; `player_bots.md` §6, stage 2.)
 - The grid against the client's real movement (step, slope, jump height,
   narrow doors, the one-way bases) is not checked in a game.
 - Grid memory: done (§6, "Lighter maps"); 15 MB on level_02 (floors no body gets to dropped).

@@ -163,7 +163,8 @@ class Config:
 
     def client_environment(self, index: int) -> dict[str, str]:
         # run.py's own environment goes on to the clients: SKHID_MEMORY_PROFILE=on there
-        # profiles them (patch 127, docs/notes/memory-profile.md); unset, nothing is set.
+        # profiles them (patch 127, docs/notes/memory-profile.md), SKHID_SYNC_LOG=on logs their
+        # off-grid ticks (patch 210, docs/notes/sync-log.md); unset, nothing is set.
         return dict(os.environ, **(self.client_env | {
             "WINEPREFIX": str(self.prefix(index)), "WINEDEBUG": "-all",
             # Full-memory crash dumps (client/bugtrap/README.md, "Dump contents").
@@ -315,6 +316,21 @@ def check_revisions(config: Config, count: int) -> list[tuple[Account, int | Non
     return found
 
 
+def server_exit(config: Config, log: Path) -> str:
+    """Why the server exited at its start, from the end of its log, with the fix of the usual one:
+    game data with a patch above SRP_MIN_PATCH_REVISION (a test patch's)."""
+    lines = [line for line in log.read_text(errors="replace").splitlines() if line.strip()] if log.exists() else []
+    found = next((m for line in reversed(lines[-50:])
+                  if (m := re.search(r"SRP_MIN_PATCH_REVISION is (\d+).*has resources\.db\.patch_(\d+)", line))), None)
+    if found:
+        least, top = found.groups()
+        return (f"server exited: its game data has resources.db.patch_{top}, SRP_MIN_PATCH_REVISION is {least}: "
+                f"set it to {top} in {config.path} with exes of revision {top} (tools/test-patch <setup> --exe "
+                f"<name> --revision {top}), or keep the earlier game data (a test patch the server does not read "
+                "needs none)")
+    return "server exited" + (f": {lines[-1].strip()}" if lines else "") + f" (see {log})"
+
+
 def stop(config: Config, state: dict) -> None:
     for key in list(state["clients"]):
         index = int(key)
@@ -373,7 +389,7 @@ def start(config: Config, state: dict, count: int, clients_only: bool) -> None:
             deadline = time.monotonic() + 10
             while True:
                 if not alive(state["server"]):
-                    raise RuntimeError("server exited; see runtime/server.log")
+                    raise RuntimeError(server_exit(config, config.runtime / "server.log"))
                 try:
                     with socket.create_connection(("127.0.0.1", config.ports[0]), timeout=.2):
                         break

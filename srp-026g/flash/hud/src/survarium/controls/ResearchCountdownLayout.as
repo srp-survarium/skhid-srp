@@ -10,7 +10,7 @@ package survarium.controls
    import flash.text.TextFormat;
    import scaleform.clik.controls.Label;
 
-   // Research alone adds a row of capture points below the score. Keep the
+   // Research's units and Artifact Hunt's artefact are a row below the score (TopRow). Keep the
    // countdown labels below that row. The respawn label's CLIK sizing and
    // timeline must not resize our text during the first frame of a death.
    public class ResearchCountdownLayout
@@ -67,7 +67,7 @@ package survarium.controls
          field.filters = [new GlowFilter(0,0.9,3,3,3)];
       }
 
-      public function place(units:ResearchUnits) : void
+      public function place(units:TopRow) : void
       {
          var hud:DisplayObjectContainer = units.parent;
          if(hud == null || respawn.parent == null)

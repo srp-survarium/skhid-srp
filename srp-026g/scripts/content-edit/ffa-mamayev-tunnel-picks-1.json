@@ -1,0 +1,563 @@
+{
+ "_about": "Mamayev Kurgan Free for All, six more of the owner's picks (the owner, 2026-11-16, on level_06/evening_8 after the tunnel top opened: \"I also run where a few times to get new additional spawns to that location\", then \"there are 6 spawns\"; his `where` places, private/spawn-examples/mamayev026-tunnel-2026-11-16.tsv), in level_06/day_8, evening_8 and rain_8 only, Team Deathmatch's and the other modes' projects untouched: new team-2 points 98-103 after the last (97), copies of the first solo spawn (point 30: 20 m exclusion, 500 ms protection), facing as he faced (rotation [0, -yaw, 0]): on the hill west of the tunnel roof (48.918 39.901 147.937), three on the roof (70.353 36.186 139.945; 81.382 34.757 137.306, kept as he stood: picks --as-stood 3, its centre over a seam of the roof, the check's floor 2.93 m below; 66.470 36.422 140.330) and two at the map's west edge (-48.674 25.199 70.014; -47.217 25.941 78.718). Each on its ground (but 3), body clear, 2 m or more from harmful zones; all fail the cover rule, kept as his. After level06-tunnel-top-1, whose opened roof three of them stand on (scripts/ffa-mode/check-points picks, docs/notes/ffa.md)",
+ "add_entry": [
+  {
+   "files": "projects/level_06/day_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 97
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_98",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_98",
+    "point_id": 98,
+    "team": 2,
+    "position": [
+     48.918,
+     39.901,
+     147.937
+    ],
+    "rotation": [
+     0.0,
+     -2.1746802,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/day_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 98
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_99",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_99",
+    "point_id": 99,
+    "team": 2,
+    "position": [
+     70.353,
+     36.186,
+     139.945
+    ],
+    "rotation": [
+     0.0,
+     -1.6632991,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/day_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 99
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_100",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_100",
+    "point_id": 100,
+    "team": 2,
+    "position": [
+     81.382,
+     34.757,
+     137.306
+    ],
+    "rotation": [
+     0.0,
+     1.3892822,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/day_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 100
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_101",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_101",
+    "point_id": 101,
+    "team": 2,
+    "position": [
+     66.47,
+     36.422,
+     140.33
+    ],
+    "rotation": [
+     0.0,
+     1.235693,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/day_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 101
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_102",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_102",
+    "point_id": 102,
+    "team": 2,
+    "position": [
+     -48.674,
+     25.199,
+     70.014
+    ],
+    "rotation": [
+     0.0,
+     -1.335177,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/day_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 102
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_103",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_103",
+    "point_id": 103,
+    "team": 2,
+    "position": [
+     -47.217,
+     25.941,
+     78.718
+    ],
+    "rotation": [
+     0.0,
+     -1.5707965,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/evening_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 97
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_98",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_98",
+    "point_id": 98,
+    "team": 2,
+    "position": [
+     48.918,
+     39.901,
+     147.937
+    ],
+    "rotation": [
+     0.0,
+     -2.1746802,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/evening_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 98
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_99",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_99",
+    "point_id": 99,
+    "team": 2,
+    "position": [
+     70.353,
+     36.186,
+     139.945
+    ],
+    "rotation": [
+     0.0,
+     -1.6632991,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/evening_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 99
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_100",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_100",
+    "point_id": 100,
+    "team": 2,
+    "position": [
+     81.382,
+     34.757,
+     137.306
+    ],
+    "rotation": [
+     0.0,
+     1.3892822,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/evening_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 100
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_101",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_101",
+    "point_id": 101,
+    "team": 2,
+    "position": [
+     66.47,
+     36.422,
+     140.33
+    ],
+    "rotation": [
+     0.0,
+     1.235693,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/evening_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 101
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_102",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_102",
+    "point_id": 102,
+    "team": 2,
+    "position": [
+     -48.674,
+     25.199,
+     70.014
+    ],
+    "rotation": [
+     0.0,
+     -1.335177,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/evening_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 102
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_103",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_103",
+    "point_id": 103,
+    "team": 2,
+    "position": [
+     -47.217,
+     25.941,
+     78.718
+    ],
+    "rotation": [
+     0.0,
+     -1.5707965,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/rain_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 97
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_98",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_98",
+    "point_id": 98,
+    "team": 2,
+    "position": [
+     48.918,
+     39.901,
+     147.937
+    ],
+    "rotation": [
+     0.0,
+     -2.1746802,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/rain_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 98
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_99",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_99",
+    "point_id": 99,
+    "team": 2,
+    "position": [
+     70.353,
+     36.186,
+     139.945
+    ],
+    "rotation": [
+     0.0,
+     -1.6632991,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/rain_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 99
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_100",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_100",
+    "point_id": 100,
+    "team": 2,
+    "position": [
+     81.382,
+     34.757,
+     137.306
+    ],
+    "rotation": [
+     0.0,
+     1.3892822,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/rain_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 100
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_101",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_101",
+    "point_id": 101,
+    "team": 2,
+    "position": [
+     66.47,
+     36.422,
+     140.33
+    ],
+    "rotation": [
+     0.0,
+     1.235693,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/rain_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 101
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_102",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_102",
+    "point_id": 102,
+    "team": 2,
+    "position": [
+     -48.674,
+     25.199,
+     70.014
+    ],
+    "rotation": [
+     0.0,
+     -1.335177,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  },
+  {
+   "files": "projects/level_06/rain_8/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "point_id": 102
+   },
+   "like": {
+    "point_id": 30
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "ffa_mamayev_103",
+    "full_name": "logic/modes/ffa/respawn/ffa_mamayev_103",
+    "point_id": 103,
+    "team": 2,
+    "position": [
+     -47.217,
+     25.941,
+     78.718
+    ],
+    "rotation": [
+     0.0,
+     -1.5707965,
+     0.0
+    ],
+    "enemy_check_radius": 20.0,
+    "ally_check_radius": 1.0,
+    "invulnerability_time": 0,
+    "invulnerability_time_ms": 500
+   }
+  }
+ ]
+}

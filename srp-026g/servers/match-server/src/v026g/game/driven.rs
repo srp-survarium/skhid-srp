@@ -1416,9 +1416,13 @@ impl Game {
             return;
         };
         if let Some(peer) = self.peers[index].as_mut() {
-            send(peer, &ServerMessage::UploadRequest);
-            peer.asked = Some(now);
-            peer.asked_clock = Some(clock);
+            // A world of the present, asked as a round's (`Game::send_requests`): main's 0xF6 says which world (patch 211).
+            send(peer, &ServerMessage::UploadRequest(UploadWanted::Horizon));
+            peer.asked = Some(Asked {
+                at: now,
+                clock,
+                wanted: Wanted::Vote(Round::at(now)),
+            });
             peer.unanswered_since.get_or_insert(now);
         }
     }

@@ -1,0 +1,16 @@
+name = "artefact_courier"
+patch = 109
+
+# Courier (artefact-skills.md): at a respawn into another kit, the artefacts the death left in the
+# kit the place was in go into the new kit's empty containers.
+
+# the respawn rule's spawn before it makes the chosen kit current: the kit it leaves
+[[hook]]
+site = "courier.spawn_kits"
+handler = "on_spawn_kits"
+
+# the spawn's end, the new kit set up and in the world: the move
+[[hook]]
+site = "courier.spawned"
+handler = "on_spawned"
+order = 0

@@ -92,7 +92,8 @@ void lj_prepare(struct lj_state *s, const lj_u8 *packet, lj_u32 length) {
         s->api.ack(s->client, seed, serial, (lj_u8)place, status);
         return;
     }
-    if (place != s->roster) {
+    /* A solo identity belongs to exactly this place, in no squad. */
+    if (place != s->roster || (size && body[0] >= 4 && body[0] < 24 && (body[0] != 4 + place || squad != 0))) {
         s->api.ack(s->client, seed, serial, (lj_u8)place, LJ_FAILED);
         return;
     }

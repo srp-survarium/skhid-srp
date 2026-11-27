@@ -40,7 +40,7 @@ struct Cli {
     out: PathBuf,
     /// A map id (`maps_dict`, e.g. 117); repeatable.
     #[arg(long = "map")]
-    maps: Vec<u8>,
+    maps: Vec<maps::MapId>,
     /// A project (`level_01/day_4`); repeatable.
     #[arg(long = "project")]
     projects: Vec<String>,

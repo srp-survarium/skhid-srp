@@ -19,8 +19,9 @@ Integration is a separate review step.
 
 Compatibility changes from the old PR:
 
-- Input bit 29 is now the shipped artefact-carry/weapon-pickup marker. Only bit 30
-  remains unused; the native per-input flag in bit 31 remains allowed.
+- Input bit 29 is now the shipped artefact-carry/weapon-pickup marker, bit 30 client
+  patch 206's second-sight switch (`messages::SCOPE_NEXT`, 2026-11-26); the native
+  per-input flag in bit 31 remains allowed. Every action bit is one a client sends.
 - Static options can carry the shipped `SRPX` Blackout extension. Its layout is
   checked against the current server encoder, including malformed extensions and
   truncated native options.
@@ -331,7 +332,19 @@ without the objects and kits: most bytes of a state are free values
 ## Native deserialization bounds
 
 Patch 115 ports the FSM, anomaly and artefact guards to generated lohooks, typed
-fields and the current `vostok` boundary. It is independent of runtime message
+fields and the current `vostok` boundary, and bounds a dead selector's death
+animation by its set's own lists (get_death_animations 0x338280's entry), a
+double-barrel's or pistol's fire animation by the state's two (at the load,
+0x252B48 in the sound wrappers' deserialize the game runs, and 0x310224 in the
+bare classes'; the world check refuses any other byte too), and a throw's grenade
+by its set's grenades (is_ready_for_transition 0x33A66D, the throw 0x33A770; a
+set whose vtable is not a grenade set's has none, as at every other reader of
+the throw's set and of the selected grenade slot: the pull 0x3103CF, the
+checks 0x310465 and 0x33A73F, the serialize 0x33A51B, can-throw 0x2E40BF,
+attach_grenade 0x33A7F5; the server refuses a throw or a selected grenade
+slot of no grenade set of the kit), and an animation to wait for
+by the state's own handles (its class's register_animations: 4, 5, 9 or 10;
+the callbacks 0x30DB7D, 0x310692, 0x310CF0). It is independent of runtime message
 and semantic-world enforcement. The checked stock instructions confirm the FSM's
 ESI/EDI and two stack inputs; the re-kit records that stronger ABI evidence.
 
@@ -595,6 +608,13 @@ players' names and accounts; never committed):
 - `dumps/<config>/`: the kept world dumps of the local runs
   (`private/local-clients-*/runtime/snapshots`, copied once on 2026-11-07,
   14,748 worlds). They have no recording, so only `world-drift` reads them.
+- `retired/`: recordings no check reads (same layout as `live/` and `local/`, a
+  `README.txt` with each file's reason; first on 2026-11-21, the owner's choice).
+  `world-check` reads every recording with this tree's data, so a content change
+  that alters a map's world objects (its objects, anomalies, damage zones or
+  respawn points) retires that map's older recordings: moved here, not deleted,
+  with a line in the README saying which change. So does a local recording of
+  content that never reaches main.
 
 Two rows of `tools/checks.tsv` read it (`tools/checks/worlds.sh`); the corpus is
 in their key (`{main}/private/world-corpus/**`), not in the diff: a refresh
@@ -614,6 +634,14 @@ alone does not select them, `tools/check world-check world-drift` runs them.
   the local recordings and every dump, in parallel chunks
   (`WORLD_DRIFT_JOBS`, default the cores less 4). Needs the original exe. Inputs:
   the arena's sources and lock, the exe build, the host check and the corpus.
+  The first chunk runs alone to populate this checkout's native build caches;
+  the remaining chunks then run in parallel. Cold parallel builds previously
+  raced over the same sysroot `.building` directory and lost object files.
+  The standalone native fixture stops at 0x27C116, after deserialize and
+  before unrelated successful-load reporting (which needs Windows APIs).
+  Shared fixture consumers retain their later endpoint for receipt lifecycle
+  checks. Refusal tests require the first log message and the current logger's
+  exact summary of consecutive repeats, rather than a write per duplicate.
 
 On 2026-11-07 (main 1287a0f61 with this tooling; the machine shared with
 another drift run) the corpus held 481 revision-50 live recordings (2.4 GB)
@@ -625,6 +653,53 @@ the mutated copies) in 20 chunks in 1,214 s.
 A release that changes the world format refuses the older recordings: move them
 out of `live/` and refresh, with recordings of the new revision's games, before
 the next change is checked.
+
+`release/world-corpus` is additive by default: it does **not** retire the
+recordings it already has. After a format change, replace the active live
+set with an archive outside `private/world-corpus/`:
+
+```sh
+release/world-corpus --newest 100 \
+  --archive /absolute/path/to/private/world-corpus-archive/<date>-old/live
+```
+
+This fetches into staging, requires every requested file to arrive through
+a successful tar stream, then preserves the previous set in the new archive
+and installs the replacement. An empty listing, missing file, transfer error
+or existing archive stops replacement. Archive and active set must share a
+filesystem, so the moves are renames. A lock prevents concurrent refreshes.
+It changes nothing on the host. Also preserve incompatible `local/` recordings
+and `dumps/` in the archive: the live refresh cannot establish their provenance.
+Run `tools/check world-check world-drift` afterwards. Never move files merely
+because they fail: establish their recorded revision and the relevant format
+and data changes first, retaining current failures for diagnosis.
+
+On 2026-11-12 the old corpus caused 241,154 refusals against current data:
+241,149 worlds from 480 revision-50 live recordings dated November 5–7,
+and five worlds from the obsolete revision-37 Vostok prototype on November
+12. The documented November 7 import had never been retired. The game-objects
+stream has no per-object lengths and needs its map's exact object list;
+revision 51 added the Keeper pool (60 artefacts plus its core), and revision
+56 added four bytes to active artefacts for Cascade. Current data and the
+current reader cannot interpret those historical layouts. The old live set
+passed with its contemporary code/data, as recorded above.
+
+The repair preserves 528 pre-revision-56 recordings (including older local
+tests that happened to pass without exercising the changed state) and the
+14,748 pre-November-7 dumps in
+`private/world-corpus-archive/20261112-pre-rev56/`. Its `manifest.json` records
+every original path, size and SHA-256, with recorded revisions and prior
+verdicts. No parser rule or validation threshold changed. The active corpus
+now contains 100 completed revision-56 live recordings and the three
+revision-57 Vostok playtests. The standard `world-check` passed all 44,218
+worlds, with none refused, unchecked or unread and no recordings skipped.
+Evidence: `private/world-corpus-fix/incoming-full-check.log` and
+`checks-final.log`.
+The repaired native `world-drift` runner also passed all 1,029 sampled/local
+worlds and their mutated copies (18,522 native comparisons), with zero
+differences across 20 chunks. The refresh tests, runner tests, executable-report
+native check, distance-detail check and replay check passed too. This changes
+the validation tooling and corpus maintenance, not the game or its parser.
 
 ## Performance evidence and limits
 
@@ -973,11 +1048,14 @@ dispatches to. There are exactly three entry points, each enumerated above:
    phase `[+0x1F1C64]` (0->1->2), each case a per-id handler; its 128 KB stack
    buffer is the decompression target for 0xE4/0xE8, which `lzma2_bound`
    (`OPTIONS_CAP` 0x578A0 / `SNAPSHOT_STATE_CAP`) caps before the decoder runs.
+   0xF6 is one byte (srp's 0, the snapshot upload's, which reads none) or, since patch 211,
+   1 and a tick (`messages::UploadRequest`; `desync_capture.md`): anything else is refused, and an
+   earlier game refuses the two bytes, so srp sends them only to a game whose 0xD8 has 0x04.
    The input path reads fixed node fields (0x318400) and applies the rotation
    by ADDING its two IEEE halves to the player angle (0x2D86E0 -> 0x2D8AD0, and
    the merged node 0x2C6640) -- bounded by `rotation_is_sane` (each half finite
-   and < 1024) and the `UNUSED_ACTIONS` bit, so no NaN/Inf or stray action
-   reaches the angle. `enter_match` 0x2D1470 guards the place byte `< 0x14`
+   and < 1024), so no NaN/Inf reaches the angle (every action bit is a
+   client's since patch 206's bit 30). `enter_match` 0x2D1470 guards the place byte `< 0x14`
    before indexing the 20-place table (stride 0x45FC) and runs the resync/too-
    old time checks; `items_dictionary::item_by_id` 0x1F0090 is a lookup that
    returns NULL (not an array index) on an unknown id, null-checked by callers.

@@ -1,6 +1,8 @@
 //! Team voice's portable codec, protocol, jitter buffers and retail radio.
 //! The Windows DLL adds capture/playback and a UDP session around these types.
 mod codec;
+pub mod mic_test;
+pub mod microphone;
 mod radio;
 mod receiver;
 #[cfg(any(windows, test))]
@@ -10,9 +12,9 @@ mod sounds;
 #[cfg(windows)]
 mod windows;
 pub mod wire;
-pub use codec::{AGC_LEVEL, Decoder, Encoder, Preprocessor, agc_level};
+pub use codec::{AGC_LEVEL, BITRATE, Decoder, EXPECTED_LOSS, Encoder, Preprocessor};
 pub use radio::Radio;
-pub use receiver::{Core, Stats};
+pub use receiver::{Core, Ears, Heard, Hearing, Muffle, Stats, Stereo};
 pub use sender::Sender;
 pub const RATE: usize = 16_000;
 pub const FRAME: usize = 320;

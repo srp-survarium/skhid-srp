@@ -1,6 +1,6 @@
 use crate::{RATE, sounds::STATIC_BED};
 #[derive(Clone, Copy)]
-struct Biquad {
+pub(crate) struct Biquad {
     b0: f32,
     b1: f32,
     b2: f32,
@@ -10,13 +10,13 @@ struct Biquad {
     z2: f32,
 }
 #[derive(Clone, Copy)]
-enum Kind {
+pub(crate) enum Kind {
     Low,
     High,
     Peak,
 }
 impl Biquad {
-    fn new(kind: Kind, f: f32, q: f32, gain: f32) -> Self {
+    pub(crate) fn new(kind: Kind, f: f32, q: f32, gain: f32) -> Self {
         let w = 2. * std::f32::consts::PI * f / RATE as f32;
         let c = w.cos();
         let alpha = w.sin() / (2. * q);
@@ -59,13 +59,21 @@ impl Biquad {
             z2: 0.,
         }
     }
-    fn run(&mut self, x: f32) -> f32 {
+    pub(crate) fn run(&mut self, x: f32) -> f32 {
         let y = self.b0 * x + self.z1;
         self.z1 = self.b1 * x - self.a1 * y + self.z2;
         self.z2 = self.b2 * x - self.a2 * y;
         y
     }
 }
+/// The radio's words this much louder (+3 dB) than its fit's makeup gives
+/// them: as loud as a near voice (the owner, 2026-11-13: "the general sound
+/// is a bit quiet"). Band-limited, a voice of the same energy is heard
+/// quieter (its loudness summed over fewer critical bands): summed so
+/// (Zwicker's exponent 0.23 over third-octave bands), speech through the
+/// automatic gain needed 1.7 to 3.9 dB, 3.1 on average, to match its near
+/// level (`a_radio_voice_is_as_loud_as_a_direct_one`).
+const VOICE: f32 = std::f32::consts::SQRT_2;
 /// Fitted to retail's plain/_radio quick-command pairs. The clipping's
 /// high-pass removes difference tones; the makeup preserves voice loudness.
 pub struct Radio {
@@ -109,7 +117,7 @@ impl Radio {
                 let v2 = drive * drive;
                 drive * (27. + v2) / (27. + 9. * v2)
             };
-            v = self.post.run(sat / 5. * 2.5);
+            v = self.post.run(sat / 5. * 2.5) * VOICE;
             if bed > 0. {
                 v += bed * f32::from(STATIC_BED[self.bed_at]) / 32768.;
                 self.bed_at = (self.bed_at + 1) % STATIC_BED.len();

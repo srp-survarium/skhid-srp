@@ -4,7 +4,7 @@
 //! [`Frame`], calls the handler, applies what it wrote and takes its
 //! [`Flow`]. A handler names a general register by [`Reg`], reads a stack
 //! dword or a typed frame local, sets the flags for a following `jcc`, and
-//! writes an XMM or the x87 top as the overwritten instructions' result.
+//! writes an XMM register as the overwritten instructions' result.
 //!
 //! Patch 76 (the ragdoll) is the first to ship lohooks (`ragdoll.toml`).
 

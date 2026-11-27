@@ -10,6 +10,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+
+import localization_026g as registry
 import zlib
 
 import check_localization_026g as checker
@@ -31,11 +34,31 @@ class LocalizationTests(unittest.TestCase):
         path.write_bytes(encode_strings(strings))
         return path
 
-    def test_serbian_roundtrip_preserves_every_latin_letter_and_tokens(self):
+    def test_serbian_and_croatian_roundtrip_preserves_every_latin_letter_and_tokens(self):
         strings = {'st_test': 'ČĆŠŽĐ čćšžđ: {USE} %d <white>Pokreni</white>',
                    'st_blank': '', 'st_multiline': 'Prvi red\nDrugi red'}
-        path = self.dictionary('serbian', strings)
-        self.assertEqual(read_strings(path), (strings, []))
+        for language in ('serbian', 'croatian'):
+            with self.subTest(language=language):
+                path = self.dictionary(language, strings)
+                self.assertEqual(read_strings(path), (strings, []))
+
+    def test_windows_rules_prefer_exact_locales_to_shared_primary(self):
+        def resolve(lcid):
+            return next((LANGUAGES[index][0] for mask, value, index in registry.windows_rules()
+                         if lcid & mask == value), 'english')
+        for lcid in (0x041A, 0x101A, 0x1041A):
+            self.assertEqual(resolve(lcid), 'croatian')
+        for lcid in (0x081A, 0x0C1A, 0x141A, 0x201A, 0x241A):
+            self.assertEqual(resolve(lcid), 'serbian')
+        self.assertEqual(resolve(0x0807), 'german')
+        self.assertEqual(resolve(0x0411), 'english')
+
+    def test_windows_registry_rejects_ambiguous_or_invalid_rules(self):
+        for rule in (0x1A, (0x041A,), (), (0x1A,), (0x10000,), (0x041B, 0x041B)):
+            with self.subTest(rule=rule), patch.object(
+                    registry, 'LANGUAGES', (*LANGUAGES, ('test', 'Test', rule, 'tt'))):
+                with self.assertRaises(ValueError):
+                    registry.rust_table()
 
     def test_missing_languages_and_keys_fail_even_when_counts_match(self):
         self.dictionary('english', {'a': 'One', 'b': 'Two'})
@@ -238,12 +261,21 @@ class LocalizationTests(unittest.TestCase):
         self.assertTrue(any('the replay_player movie is not given' in issue for issue in issues))
 
     def test_srp_texts_take_no_braces(self):
-        # The game's localizer drops {...} (but an action's {NAME}) from every text it hands a movie.
-        self.catalog({'st_srp_test': 'Loadout {n}', 'st_test': 'Use {USE}'})
+        # The game's localizer makes an action's {NAME} its key (exe patch 212) and drops any other
+        # {...} from every text: a text names a key of KEY_ACTIONS in capitals, nothing else in braces.
+        keys = {'kE': 'E', 'kY': 'Y', 'st_srp_key_unbound': 'unbound'}
+        self.catalog({'st_srp_test': 'Loadout {n}', 'st_test': 'Use {USE}', **keys})
         report = checker.audit_catalog(self.root)
         self.assertEqual(report['languages']['english']['braces'], ['st_srp_test'])
-        self.catalog({'st_srp_test': 'Loadout %1$s', 'st_test': 'Use {USE}'})
+        self.catalog({'st_srp_test': 'Loadout %1$s', 'st_test': 'Use {USE}', **keys})
         self.assertFalse(checker.failed(checker.audit_catalog(self.root)))
+        self.catalog({'st_srp_test': 'Switch ({SCOPE_NEXT}) or {USE}', **keys})
+        self.assertFalse(checker.failed(checker.audit_catalog(self.root)))
+        self.catalog({'st_srp_test': 'Switch {scope_next} {SECOND}', **keys})
+        self.assertEqual(checker.audit_catalog(self.root)['languages']['english']['braces'], ['st_srp_test'])
+        # A text naming a key needs the texts it may become: the default key's and "unbound".
+        self.catalog({'st_srp_test': 'Switch ({SCOPE_NEXT})', 'kE': 'E'})
+        self.assertEqual(checker.audit_catalog(self.root)['languages']['english']['key_texts'], ['st_srp_test'])
 
     def mapping(self, tables):
         """A binary UI mapping, {table: [[ui key, dictionary key], ...]}, as the game's files keep it."""

@@ -1,9 +1,12 @@
 # Rudnya (v0.69)
 
 0.69d's Rudnya (its `level_01`, day) as a map of its own beside 0.26g's Rudnya, in content
-pack `rudnya-069d@3`. The owner's asks: port it "with the same sharp look" (2026-10-29);
+pack `rudnya-069d` (now @7). The owner's asks: port it "with the same sharp look" (2026-10-29);
 "add batteries there", "and artefact spawners", "and research points and battery chargers",
-"we know positions from 0.26 version", "might need to be changed a bit" (2026-10-30).
+"we know positions from 0.26 version", "might need to be changed a bit" (2026-10-30); after he
+played it (2026-11-20): "our converter is pretty bad and I think we were patching the map screen by
+screen", "instead of doing that properly": every fix a conversion rule fed by 0.69d's own data, for
+the whole map (pack @4, below).
 
 | maps_dict id | level (`map_id`) | project | mode | loading id | HUD key |
 | ---: | ---: | --- | --- | ---: | --- |
@@ -23,12 +26,78 @@ pack `rudnya-069d@3`. The owner's asks: port it "with the same sharp look" (2026
   tiles left the blend overlays up to 2 m off: seams and holes in trenches); materials on
   0.26 templates, which have no metalness, parallax, detail maps or 0.69d's colour grading.
   35.6 MiB of geometry (team deathmatch), 40.9 MiB (charging stations); native maps 43-48.
-- The light is 0.69d's (resource-porter `lighting.rs`): its probes re-encoded for 0.26 with
-  their multipliers and full rotations, its fill lights as probe volumes, its darkening
-  lights as 0.26 ambient lights (at least x0.25, no cylinders), its sun, clouds and the
-  pond's mist; interiors raised to what 0.69d's exposure shows, the church, the tractor
-  station's annex and the bus stop per area (`area_gains`). 0.26's atmosphere and the
-  ambient sounds are native Rudnya's (the two maps share coordinates).
+- The light is 0.69d's, by rule (resource-porter `lighting.rs`, `tone.rs`, `surface.rs`; pack @4):
+  its probes re-encoded for 0.26 with their multipliers and full rotations; its 288 ambient
+  lights as 0.26g ambient lights (adding, brightening and darkening ones, their falloff and
+  facing fitted); its sun; its exposure range (EV 6 to 12.5), colour grading and tone curve,
+  as an exposure profile of the lighting pack (`three-maps-021-lighting@10`, marker 33001 in
+  the scene's `mie_fog_base_height`) and the scene's own colour grading texture; its clouds
+  and the pond's mist. Nothing is tuned by place: pack @3's per-area gains, raised interior
+  probes, exposure bias and sun desaturation are gone.
+- Metering as 0.69d's: 0.26g meters the arithmetic mean of a frame, so a dark room with a sunlit
+  opening was exposed for the opening (the church drew at 4/255 against 0.69d's 52). Behind the
+  marker the lighting pack's three luminance programs meter 0.69d's weighted log-average (its
+  floor 0.01 of the frame, a disc of two frame half-heights round the centre, which leaves out
+  nothing at 16:10, 0.1 % at 16:9 and 18 % at 21:9); other maps take the native instructions.
+- Materials by the two builds' shading: gloss from 0.69d's smoothness by the GGX alpha each
+  build draws, Fresnel 0.04, the 43 materials with a metalness map on diffuse and Fresnel maps
+  made from their albedo and metalness (pack @3 bound the metalness map as the Fresnel map and
+  metal mirrored the sky). Pack @5: a smoothness map is drawn as a map on every category (the
+  alpha-tested two-sided template had none and drew 0.69d's unused constant: the rusty sheet
+  metal of the sheds and roofs at gloss 0.62 where its map is matte, the tester's "greasy"
+  roofs; 19 materials), and a vertex blend keeps 0.69d's own strength, falloff, second-layer
+  tile and mask scale and rotation (55 of 68 blends drew the template's). An alpha-tested blend
+  that 0.69d cuts by its second layer's alpha (`consider_blended_albedo_opaque` false: the lath
+  under the wallpaper of house_7's stairs, whose transparent texels 0.26g drew black) is cut so
+  by `v021d-vertex-blend@4`'s programs, selected by the blend strength the converter writes from
+  those flags (resource-porter `weather_fog_021::vertex_blend::blend_cut`; 3 of Rudnya's
+  materials, 14 in all of 0.69d's; techniques 0 and 2 are not converted, noted by the build).
+- 0.69d's own sound emitters (22; one sound 0.26g lacks is imported) and its fly swarms.
+
+Known differences from 0.69d (the owner, 2026-11-21, of the eight views and the outdoor
+comparison: "the way rudnya is is fine"; not in work):
+
+- The sky and the distance fog are 0.26g's with native Rudnya's settings: 0.69d's sky colour
+  and its height fog over the map (the haze, the pale power plant) are not converted, so the
+  overviews have 0.26g's bluish mie fog colour (0.131, 0.133, 0.308) over the map.
+  resource-porter's `docs/survarium-069d-to-026.md` has what was read of both.
+- 0.69d's sky probe on Rudnya (and on its other maps with cloud shadows) is 0.60-0.69 of what
+  its own atmosphere model gives at the map's density; the cause is not found.
+- Outdoor shade is darker than 0.69d's (the sun to ambient balance is about twice 0.69d's).
+- No cloud shadows: 0.69d dims its sun by its clouds' shadows (0.27 to 0.93 as they turn, 0.64
+  on average on Rudnya). They are converted and seen in the game (resource-porter #87, #88,
+  drafts) but wait for 0.69d's sky brightness: with them alone the ground of wide views under a
+  cloud went darker than today, the exposure held by 0.26g's sky (about 1.5 times 0.69d's).
+- Pack @6 (after the tester's reports of 2026-11-22): each fill light draws 0.69d's own facing
+  term (its `dot_normal` cutoff and power, carried in its `attenuation_power` for
+  `three-maps-021-lighting@13`'s 8 `ambient_light.ps` programs), so a wall turned from a fill
+  light's centre is lit as in 0.69d (the bus stop's slab wall had nothing, 2.4 of 0.69d's 27).
+- Pack @7 (the tester's second batch, 2026-11-23): a box fill light draws 0.69d's own box
+  falloff, side width and `gradient_attenuation` (full at the door or window, nothing at the
+  far face), a cylinder is drawn as a cylinder in the box around it (both carried in
+  `attenuation_power` for `three-maps-021-lighting@14`'s 4 box `ambient_light.ps` programs);
+  drawn as plain boxes, the church floor, the barn loft and the apiary deck had uniform bright
+  rectangles and the belfry's near-black darkener a black square round the bell opening. A
+  vertex blend takes a template of its own technique and tiled-mask switch, so 6 more of the
+  68 blends draw their own numbers (the sheds' rusty roof sheets drew rust all over; their
+  rust patches now follow 0.69d's, the rust itself still more saturated than 0.69d's); the 4
+  alpha-tested ones of technique 1 without a mask stay on their category's template.
+- Pack @8: the sun's colour as 0.26g's environment loader reads it. The loader raises `sun_color`
+  to 2.2 (0x34e447, through 0x1bfcb0), so the scene stores 0.69d's sun colour to 1/2.2
+  ((1, 0.882, 0.753), intensity 4.88; resource-porter #95). Written linear until @7, the sun
+  drew at (1, 0.544, 0.253) of its intensity: 0.78 of its light and red, the planks, tiles and
+  wallpaper in sun brown where 0.69d shows them grey. Shade is unchanged.
+- Pack @10 (the owner's seams between ground types, 2026-11-26): the terrain overlays
+  (`terrain_tiled/{grass,dirt,sand_grass,earth}_vc`, `tiled/trash/trash_vc` and
+  `trash_dirt_moss_alpha_vc` over the 12 `terrain_game` tiles, the bus stop, the culture centre
+  and house_3) are 0.69d vertex blends of technique 2, which bind no second texture: both
+  builds' technique-2 programs draw the base layer alone and discard where
+  `sat(pow(w, (1 - mask)^2 falloff) strength)` is under 0.4. The converter took a blend without
+  a second texture for a one-texture vertex-colour mesh, so each overlay was drawn whole to its
+  mesh border: straight seams where two ground types meet, since the first port (pack @4's
+  frames have them). Now they are blends on the technique-2 tiled-mask templates with their own
+  numbers (strength 3, falloff 10, mask scale 3 or 4, rotation 30); the 6 materials are all the
+  pack changes.
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
@@ -75,6 +144,9 @@ own project and options, made by the porter from the manifest (`map.modes`):
     on rubble that differs by up to 0.5 m (the props rest on one another); the six team-deathmatch
     covers near team 2's spawn (four half, two low), which native's battery modes do not have.
 - **Battery respawn** 10 s in both battery modes (`modes.tsv`, as every map).
+- **Free for All** (maps_dict 169, `v069d_level_01/day_8`, `ffa-ported-1` and the Free for All lists after
+  it): native Rudnya's 60 spawns since `ffa-rudnya-v069-picks-1` (the owner, 2026-11-27: "can rudnya 69 use
+  the same ffa spots as 26?"), the same places in the same frame; `ffa.md`, "Rudnya's picks on Rudnya (v0.69)".
 
 ## What comes from 0.26g
 
@@ -110,12 +182,18 @@ vostok-port build-survarium-069d-map --manifest ports/survarium-069d-rudnya-to-0
   --donor-db donor-069d.split --target-db <stock 0.26g resources.db> \
   --published-patch resources.db.patch_30 --output <bundle>
 vostok-port pack from-bundle --base-db <stock 0.26g resources.db> --bundle <bundle> \
-  --output <packs>/rudnya-069d-3 --id rudnya-069d --version 3
+  --output <packs>/rudnya-069d-4 --id rudnya-069d --version 4
 ```
+
+The build's notes print the scene's exposure profile ("tone: ... floor, ceiling, key"): the same
+numbers are the map's `exposure_profiles` row in resource-porter's
+`ports/three-maps-021-lighting.json`, and that pack's new version ships with the map's.
 
 The pack's folder goes in `$SKHID_PACKS_DIR` (`private/content-packs/rudnya-069d-3`), where
 `release/build-content` composes it from; `pack.json`'s sha256 is its row in
-`release/content.tsv`. The skill `map-port` has the whole procedure.
+`release/content.tsv`. A version whose scene has another number of client objects moves the four
+`expected_counts` of the map's projects in `scripts/content-edit/artefact-keeper-1.json` by the
+difference (pack @4: 4 more). The skill `map-port` has the whole procedure.
 
 ## Checked against 0.69d
 

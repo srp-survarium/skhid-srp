@@ -20,6 +20,9 @@ package
    // Prints "KF ..." lines (trace) and ends with "KF RESULT pass" or "KF RESULT fail: ...".
    public class KillFeedHarness extends Sprite
    {
+      // A kill by a battery strike (exe patch 143; CombatLogItem.BATTERY_ICON).
+      private static const BATTERY_ICON:int = 200;
+
       private var loader:Loader = new Loader();
 
       private var list:MovieClip;
@@ -146,12 +149,18 @@ package
       // ported weapons' from 53 on) up to 99: icon i shows frame i + 1 of object_icon, or past the clip's
       // frames the bitmap CombatLogWeapon<i> in its place (the clip hidden) when the movie has that
       // class, else the clip's last frame; the weapon right after the killer, within the row, the victim
-      // after it.
+      // after it. And the battery strike's icon (exe patch 143): 200, the bitmap CombatLogBatteryIcon.
       private function weapons() : void
       {
          var bitmaps:int = 0;
          var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
-         for(var icon:int = 0; icon <= 99; icon++)
+         var icons:Array = [];
+         for(var n:int = 0; n <= 99; n++)
+         {
+            icons.push(n);
+         }
+         icons.push(BATTERY_ICON);
+         for each(var icon:int in icons)
          {
             var data:Object = row(1,0,0,0);
             data.object_icon = icon;
@@ -171,14 +180,15 @@ package
             for(var i:int = 0; i < item.numChildren; i++)
             {
                var bitmap:Bitmap = item.getChildAt(i) as Bitmap;
-               if(bitmap && bitmap.bitmapData && getQualifiedClassName(bitmap.bitmapData).indexOf("CombatLogWeapon") == 0)
+               if(bitmap && bitmap.bitmapData && /^CombatLog(Weapon|BatteryIcon)/.test(getQualifiedClassName(bitmap.bitmapData)))
                {
                   shown += ", " + getQualifiedClassName(bitmap.bitmapData) + " " + bitmap.width + "x" + bitmap.height + " at y " + bitmap.y;
                   mark = bitmap;
                   bitmaps++;
                }
             }
-            var want:String = icon >= clip.totalFrames && domain.hasDefinition("CombatLogWeapon" + icon) ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
+            var name:String = icon == BATTERY_ICON ? "CombatLogBatteryIcon" : "CombatLogWeapon" + icon;
+            var want:String = icon >= clip.totalFrames && domain.hasDefinition(name) ? "no frame, " + name : "frame " + Math.min(icon + 1,clip.totalFrames);
             if(shown.indexOf(want) != 0 || shown.indexOf(",",want.length) >= 0)
             {
                failures.push("icon " + icon + ": " + shown + " (want " + want + ")");
@@ -194,7 +204,7 @@ package
                trace("KF icon " + icon + ": " + shown);
             }
          }
-         trace("KF icons 0 to 99: " + bitmaps + " bitmaps");
+         trace("KF icons 0 to 99 and " + BATTERY_ICON + ": " + bitmaps + " bitmaps");
       }
 
       private function finish(result:String) : void

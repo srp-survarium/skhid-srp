@@ -7,7 +7,7 @@ use super::{
     medical::{Player, kit_modifiers, name_equal},
     types::{GameTime, Place, Tick},
 };
-use srp_validate::Places as Reached;
+use srp_validate::{Places as Reached, world::ArtefactWear};
 use crate::{
     artefact_skills::{
         Copies, HitKind, Kind, LifeboneRegeneration, MOVEMENT_LIST, OnyxProtection, Phase, Regeneration, Room, SPRING_LISTS,
@@ -43,7 +43,7 @@ pub fn isolation(ctx: &mut Context<'_>) {
 }
 
 /// An artefact's kind by its virtual table's enable_active (+80h).
-fn kind_of(artefact: raw::Artefact) -> Option<Kind> {
+pub(super) fn kind_of(artefact: raw::Artefact) -> Option<Kind> {
     // SAFETY: a carried artefact's own virtual table.
     let enable_active = unsafe { *artefact.vtable()?.enable_active() };
     match enable_active {
@@ -116,21 +116,24 @@ fn own(player: raw::Player, kind: Kind) -> impl Iterator<Item = Own> {
     carried(player)
         .filter(move |copy| copy.kind == kind && copy.state != State::Other)
         .enumerate()
-        .map(|(nth, copy)| Own { copy, counts: Room::counts_own(nth) })
+        .map(|(index, copy)| Own { copy, counts: Room::counts_own(index) })
+}
+
+/// The player whose inventory holds `artefact`; none for one in no inventory.
+fn holder(artefact: raw::Artefact) -> Option<raw::Player> {
+    // SAFETY: a live artefact's inventory and its holder, whose interface is its base_player's
+    // (+108h).
+    unsafe { artefact.item().inventory().and_then(|inventory| inventory.holder()).map(|holder| holder.player()) }
 }
 
 /// Whether `artefact` is one of its holder's own copies past the 4 of its kind that count: it
 /// then gives nothing, its passive nor its active. The holder is its inventory's (an Onyx's protector and a
 /// Lifebone's regeneration subscriber are in their holder's parts only while it carries them);
 /// an artefact in no inventory, or in no passive nor active, counts as the game has it.
-fn uncounted(artefact: raw::Artefact) -> bool {
-    // SAFETY: a protector's or a subscriber's live artefact, its inventory and holder.
-    let holder = unsafe { artefact.item().inventory().and_then(|inventory| inventory.holder()) };
-    let (Some(holder), Some(kind)) = (holder, kind_of(artefact)) else {
+pub(super) fn uncounted(artefact: raw::Artefact) -> bool {
+    let (Some(player), Some(kind)) = (holder(artefact), kind_of(artefact)) else {
         return false;
     };
-    // SAFETY: the holder interface is its base_player's (+108h).
-    let player = unsafe { holder.player() };
     own(player, kind).any(|own| own.copy.at == artefact && !own.counts)
 }
 
@@ -149,7 +152,22 @@ pub fn onyx_uncounted(ctx: &Context<'_>) -> bool {
 /// Lifebones that count for its holder, leaving the part's tick as it is.
 pub fn lifebone_uncounted(ctx: &Context<'_>) -> bool {
     // SAFETY: the subscriber's invoker calls it on its live Lifebone.
-    unsafe { raw::site::artefact_own_lifebone::lifebone(ctx) }.is_some_and(uncounted)
+    unsafe {
+        use raw::site::artefact_own_lifebone as site;
+        let Some(item) = site::lifebone(ctx) else { return false };
+        if uncounted(item) { return true; }
+        let power = wear(item).power();
+        if power == 1.0 { return false; }
+        let Some(args) = site::frame(ctx) else { return false };
+        let (Some(tick), Some(record)) = (args.tick(), args.record()) else { return false };
+        let scaled = regeneration_values(record).at_power(Regeneration {
+            rate: *tick.rate(), delay_ms: *tick.delay(), limit: *tick.limit()
+        }, power);
+        *tick.rate() = scaled.rate;
+        *tick.delay() = scaled.delay_ms;
+        *tick.limit() = scaled.limit;
+        true
+    }
 }
 
 /// Patch 54's press (artefacts_026g.asm `ready`) for a copy it would fire: one past the 4 of its
@@ -173,34 +191,58 @@ fn active_onyx(player: raw::Player) -> bool {
     carried(player).any(|copy| copy.kind == Kind::Onyx && copy.state == State::Active)
 }
 
-/// Onyx II: the landing of a player with the skill and an active Onyx does no damage.
-pub fn lands_unhurt(ctx: &Context<'_>) -> bool {
-    // SAFETY: the landing's ECX is its live player.
-    let Some(player) = (unsafe { raw::site::artefact_landing::player(ctx) }) else {
-        return false;
-    };
-    skills(player).onyx() && active_onyx(player)
+/// Onyx II: the landing of a player does no damage while an Onyx of a holder with the skill is
+/// active for it: one of its own, or one a teammate's Cascade gives it (the carrier's skill goes
+/// with the copy, as Spring II's reload nodes do).
+fn landing_power(thread: &Thread, player: raw::Player) -> f32 {
+    let own = if skills(player).onyx() {
+        carried(player).find(|copy| copy.kind == Kind::Onyx && copy.state == State::Active)
+    } else { None };
+    if let Some(own) = own { return wear(own.at).firing().power(); }
+    // SAFETY: the landing player's live world.
+    let roster = Roster::of(thread, unsafe { player.world_core() });
+    let (_, actives) = shared(roster, Player::new(thread, player), Kind::Onyx);
+    actives.iter().find(|&onyx| holder(onyx).is_some_and(|carrier| skills(carrier).onyx()))
+        .map_or(0.0, |onyx| wear(onyx).firing().power())
 }
 
-/// Larkspur II: a Larkspur's actual activation (never a restore) fills its holder's stamina.
+pub fn lands_unhurt(ctx: &Context<'_>) -> bool {
+    // SAFETY: the landing's ECX is its live player.
+    unsafe { raw::site::artefact_landing::player(ctx) }.is_some_and(|player| landing_power(ctx.thread(), player) == 1.0)
+}
+
+/// Larkspur II: a Larkspur's actual activation (never a restore) fills its holder's stamina, and
+/// that of each teammate the activation reached (Cascade's, Medic's share just before this: the
+/// places it healed).
 pub fn larkspur(ctx: &Context<'_>) {
     use raw::site::medical_artefact as site;
-    // SAFETY: the actual activation owns this item, its inventory and holder; the holder's
-    // stamina is embedded in it.
-    unsafe {
+    // SAFETY: the actual activation owns this item.
+    let artefact = unsafe {
         let Some(item) = site::item(ctx) else {
             return;
         };
-        if !item.vtable().is_some_and(|table| *table.enable_active() == raw::image::LIFEBONE_ACTIVE) {
-            return;
-        }
-        let Some(holder) = item.item().inventory().and_then(|inventory| inventory.holder()) else {
-            return;
-        };
-        let player = holder.player();
-        if skills(player).larkspur() {
-            let stamina = player.stamina();
-            *stamina.current() = *stamina.maximum();
+        item.item().artefact()
+    };
+    if kind_of(artefact) != Some(Kind::Lifebone) {
+        return;
+    }
+    let Some(player) = holder(artefact).filter(|&player| skills(player).larkspur()) else {
+        return;
+    };
+    let reached = reached(ctx.thread(), artefact);
+    // SAFETY: the live holder's world core (0 when it has none).
+    let roster = Roster::of(ctx.thread(), unsafe { player.world_core() });
+    let teammates = roster.iter().map(Player::get).filter(|&teammate| {
+        // SAFETY: a roster player's own place.
+        srp_validate::Place::new(unsafe { *teammate.place() }).is_some_and(|place| reached.contains(place))
+    });
+    for filled in core::iter::once(player).chain(teammates) {
+        // SAFETY: a live player's embedded stamina.
+        unsafe {
+            let stamina = filled.stamina();
+            // A worn copy gives its power's share of the whole bar, never past full.
+            let full = *stamina.maximum();
+            *stamina.current() = (*stamina.current() + full * wear(artefact).firing().power()).min(full);
         }
     }
 }
@@ -277,7 +319,7 @@ impl<'t> Roster<'t> {
 /// The match's world core: the engine world's game's game world's match (a live or a replay
 /// match alike; never the network client's own field, which a replay client keeps elsewhere,
 /// ragdoll.md section 16), none in the lobby (the world's match 0) or before the engine runs.
-fn match_core() -> Option<raw::CoreWorld> {
+pub(in crate::vostok) fn match_core() -> Option<raw::CoreWorld> {
     // SAFETY: the image's engine world slot, the engine world, its game and the game's embedded
     // world are live while the game runs, the match while the world holds it; each pointer is 0
     // when absent.
@@ -334,7 +376,7 @@ struct Activation {
 /// teammates Cascade gave its active to (the owner, 2026-11-11: "they should get full effect"),
 /// read only while the copy is active (state 4). Every activation of a kind the tree shares sets
 /// it (none reached without Cascade); a world's save writes it with each active copy and its load
-/// reads it back (`artefact.save`, `artefact.load`), so a rollback and a late joiner have the
+/// reads it back (`carry.ground_save`, `carry.ground_load`), so a rollback and a late joiner have the
 /// activation's own.
 static ACTIVATIONS: Lock<[Option<Activation>; 255]> = Lock::new([None; 255]);
 
@@ -472,13 +514,14 @@ impl super::world::Player<'_> {
 /// A shared Spring's nodes of the kit list `index` for `phase`, summed: its passive's +340h,
 /// +350h and +3D8h, its active's +360h, +370h, +380h, +3B8h, +3C8h and +3E8h (each its index).
 fn spring_nodes(spring: raw::Artefact, phase: Phase, index: u32) -> f32 {
+    let strength = phase_wear(spring, phase).power();
     let (passive, active) = spring_phase_nodes(spring);
     let nodes: &[raw::ModifierNode] = match phase {
         Phase::Passive => &passive,
         Phase::Active => &active,
     };
     // SAFETY: the Spring's own nodes.
-    nodes.iter().filter(|node| unsafe { *node.index() } == index).fold(0.0, |sum, node| sum + unsafe { *node.value() })
+    nodes.iter().filter(|node| unsafe { *node.index() } == index).fold(0.0, |sum, node| sum + spring_value(index, unsafe { *node.value() }, strength))
 }
 
 /// A carried Spring's nodes: its passive's (+340h, +350h, +3D8h) and its active's (+360h, +370h,
@@ -501,27 +544,38 @@ fn list_nodes(list: raw::ModifierList) -> impl Iterator<Item = raw::ModifierNode
 /// The artefact containers a player has at most (quick slots 13..19).
 const CONTAINERS: usize = 7;
 
-/// The nodes of a player's own Springs past the 4 that count, gathered once for one getter's
-/// call: all of each one's nodes, its passive's and its active's (one that stopped counting while
-/// active, as a pickup into a freed earlier container makes it, adds its active no more).
-struct LeftOut {
-    springs: [Option<([raw::ModifierNode; 3], [raw::ModifierNode; 6])>; CONTAINERS],
+fn phase_wear(item: raw::Artefact, phase: Phase) -> ArtefactWear {
+    match phase {
+        Phase::Passive => wear(item),
+        Phase::Active => wear(item).firing(),
+    }
 }
 
-impl LeftOut {
-    /// None when every own Spring of `player` counts.
-    fn of(player: raw::Player) -> Option<Self> {
-        own(player, Kind::Spring).find(|own| !own.counts)?;
-        let mut springs = [None; CONTAINERS];
-        let uncounted = own(player, Kind::Spring).filter(|own| !own.counts).map(|own| spring_phase_nodes(own.copy.at));
-        for (slot, nodes) in springs.iter_mut().zip(uncounted) {
-            *slot = Some(nodes);
-        }
-        springs[0].is_some().then_some(Self { springs })
+fn spring_value(index: u32, value: f32, power: f32) -> f32 {
+    // Spending is floored at zero by the game. A worn copy gives a fraction
+    // of the original complete saving, even though the config specifies -5.
+    if power == 1.0 { value } else if index == 19 { value.max(-1.0) * power } else { value * power }
+}
+
+struct SpringNodes {
+    passive: [raw::ModifierNode; 3],
+    active: [raw::ModifierNode; 6],
+    power: [f32; 2],
+}
+
+impl SpringNodes {
+    fn changed(own: Own) -> Option<Self> {
+        let wear = wear(own.copy.at);
+        if own.counts && wear == ArtefactWear::FRESH { return None; }
+        let (passive, active) = spring_phase_nodes(own.copy.at);
+        let power = if own.counts { [wear.power(), wear.firing().power()] } else { [0.0; 2] };
+        Some(Self { passive, active, power })
     }
 
-    fn contains(&self, node: &raw::ModifierNode) -> bool {
-        self.springs.iter().flatten().any(|(passive, active)| passive.contains(node) || active.contains(node))
+    fn strength(&self, node: raw::ModifierNode) -> Option<f32> {
+        if self.passive.contains(&node) { Some(self.power[0]) }
+        else if self.active.contains(&node) { Some(self.power[1]) }
+        else { None }
     }
 }
 
@@ -537,9 +591,17 @@ fn own_springs(thread: &Thread, list: raw::ModifierList, index: u32) -> Option<f
         // SAFETY: a kit's lists, one for each of its 68 indices (the Spring lists among them).
         kit_modifiers(player.get()).is_some_and(|modifiers| unsafe { modifiers.lists().at(index as usize) } == list)
     })?;
-    let left_out = LeftOut::of(player.get())?;
-    // SAFETY: the list's own nodes.
-    Some(list_nodes(list).filter(|node| !left_out.contains(node)).fold(0.0, |sum, node| unsafe { *node.value() } + sum))
+    let mut changed = own(player.get(), Kind::Spring).filter_map(SpringNodes::changed);
+    let first = changed.next()?;
+    let mut springs = [const { None }; CONTAINERS];
+    springs[0] = Some(first);
+    for (slot, spring) in springs[1..].iter_mut().zip(changed) { *slot = Some(spring); }
+    Some(list_nodes(list).fold(0.0, |sum, node| {
+        // SAFETY: the list owns this live modifier node.
+        let value = unsafe { *node.value() };
+        let power = springs.iter().flatten().find_map(|spring| spring.strength(node)).unwrap_or(1.0);
+        spring_value(index, value, power) + sum
+    }))
 }
 
 /// apply_modifier before its list's sum (0x2D5B0C, EDI the list of the index ESI): the sum
@@ -679,7 +741,14 @@ fn onyx_protection(onyx: raw::Artefact, phase: Phase, kind: u32, part: *const u8
         if !(0..end.index_from(first).unwrap_or(0)).any(|at| name_equal(first.at(at).name(), part)) {
             return None;
         }
-        Some(match phase {
+        Some(onyx_values(onyx, phase))
+    }
+}
+
+fn onyx_values(onyx: raw::SkillOnyx, phase: Phase) -> OnyxProtection {
+    // SAFETY: both callers hold a checked Onyx object at its protect callback.
+    unsafe {
+        match phase {
             Phase::Passive => OnyxProtection {
                 damage_add: *onyx.passive_damage_add(),
                 damage_mul: *onyx.passive_damage_mul(),
@@ -694,7 +763,7 @@ fn onyx_protection(onyx: raw::Artefact, phase: Phase, kind: u32, part: *const u8
                 piercing_mul: *onyx.active_piercing_mul(),
                 absorb: Some(*onyx.absorb()),
             },
-        })
+        }
     }
 }
 
@@ -720,18 +789,18 @@ pub fn shared_protection(ctx: &mut Context<'_>) {
         let own_active = active_onyx(recipient);
         let protections = passives
             .iter()
-            .filter_map(|onyx| onyx_protection(onyx, Phase::Passive, kind, part))
+            .filter_map(|onyx| onyx_protection(onyx, Phase::Passive, kind, part).map(|p| (p, phase_wear(onyx, Phase::Passive).power())))
             .chain(
                 actives
                     .iter()
                     .filter(|_| !own_active)
                     .take(1)
-                    .filter_map(|onyx| onyx_protection(onyx, Phase::Active, kind, part)),
+                    .filter_map(|onyx| onyx_protection(onyx, Phase::Active, kind, part).map(|p| (p, phase_wear(onyx, Phase::Active).power()))),
             );
         let mut result = None;
-        for protection in protections {
+        for (protection, power) in protections {
             let (d, p) = result.unwrap_or((*damage.value(), *piercing.value()));
-            result = Some(protection.protect(d, p));
+            result = Some(protection.at_power(power, d, p));
         }
         if let Some((d, p)) = result {
             *damage.value() = d;
@@ -748,14 +817,21 @@ fn lifebone_regeneration(lifebone: raw::Artefact, part: *const u8) -> Option<Lif
         let lifebone = lifebone.lifebone();
         let (first, end) = (lifebone.regeneration()?, lifebone.regeneration_end()?);
         let record = (0..end.index_from(first).unwrap_or(0)).map(|at| first.at(at)).find(|record| name_equal(record.name(), part))?;
-        Some(LifeboneRegeneration {
+        Some(regeneration_values(record))
+    }
+}
+
+fn regeneration_values(record: raw::LifeboneRegeneration) -> LifeboneRegeneration {
+    // SAFETY: the Lifebone owns this live regeneration record.
+    unsafe {
+        LifeboneRegeneration {
             rate_add: *record.rate_add(),
             rate_mul: *record.rate_mul(),
             delay_add: *record.delay_add(),
             delay_mul: *record.delay_mul(),
             limit_add: *record.limit_add(),
             limit_mul: *record.limit_mul(),
-        })
+        }
     }
 }
 
@@ -778,9 +854,9 @@ pub fn shared_regeneration(ctx: &mut Context<'_>) {
         let (passives, _) = shared(roster, Player::new(ctx.thread(), recipient), Kind::Lifebone);
         let part = pool.name() as *const u8;
         let mut tick = None;
-        for record in passives.iter().filter_map(|lifebone| lifebone_regeneration(lifebone, part)) {
+        for (record, power) in passives.iter().filter_map(|item| lifebone_regeneration(item, part).map(|r| (r, wear(item).power()))) {
             let native = Regeneration { rate: *frame.rate(), delay_ms: delay, limit: *frame.limit() };
-            tick = Some(record.apply(tick.unwrap_or(native)));
+            tick = Some(record.at_power(tick.unwrap_or(native), power));
         }
         let Some(tick) = tick else {
             return;
@@ -790,4 +866,126 @@ pub fn shared_regeneration(ctx: &mut Context<'_>) {
         tick.delay_ms
     };
     ctx.set_reg(Reg::Eax, delay);
+}
+
+
+pub(super) fn wear(item: raw::Artefact) -> ArtefactWear {
+    // SAFETY: the live artefact base owns the initialized use count.
+    ArtefactWear::new(unsafe { *item.uses_spent() })
+}
+
+fn set_wear(item: raw::Artefact, wear: ArtefactWear) {
+    // SAFETY: each caller holds the live artefact in its simulation or load hook.
+    unsafe { *item.uses_spent() = wear.uses() };
+}
+
+pub fn wear_init(ctx: &mut Context<'_>) {
+    // SAFETY: the site holds the live artefact base.
+    if let Some(item) = unsafe { raw::site::artefact_wear_init::item(ctx) } {
+        set_wear(item, ArtefactWear::FRESH);
+    }
+}
+
+pub fn wear_spawn(ctx: &mut Context<'_>) {
+    // SAFETY: the site holds the live artefact base.
+    if let Some(item) = unsafe { raw::site::artefact_wear_spawn::item(ctx) } {
+        set_wear(item, ArtefactWear::FRESH);
+    }
+}
+
+pub fn wear_save(ctx: &mut Context<'_>) {
+    use raw::site::artefact_wear_save as site;
+    // SAFETY: the serializer holds this live artefact and the writer for its state.
+    let (Some(item), Some(writer)) = (unsafe { site::item(ctx) }, unsafe { site::writer(ctx) }) else { return };
+    let wear = wear(item);
+    let state = ctx.reg(Reg::Eax) as u8;
+    if let Some(byte) = wear.inline(state) {
+        ctx.set_reg8(Reg::Eax, byte);
+    } else {
+        let [lo, hi] = wear.uses().to_le_bytes();
+        super::carry_runtime::write_bytes(writer, &[ArtefactWear::EXTENDED, lo, hi]);
+        // The native writer appends the ordinary state byte after the extension.
+    }
+}
+
+pub fn wear_load(ctx: &mut Context<'_>) {
+    use raw::site::artefact_wear_load as site;
+    // SAFETY: the deserializer holds the live artefact and its reader just after the first byte.
+    let Some(item) = (unsafe { site::item(ctx) }) else { return };
+    let byte = ctx.reg(Reg::Eax) as u8;
+    let (state, wear) = if byte == ArtefactWear::EXTENDED {
+        let Some([lo, hi, state]) = (unsafe { site::reader(ctx) }).and_then(super::carry_runtime::read_bytes) else { return };
+        (state, ArtefactWear::new(u16::from_le_bytes([lo, hi])))
+    } else { ArtefactWear::from_inline(byte) };
+    set_wear(item, wear);
+    ctx.set_reg(Reg::Eax, u32::from(state));
+}
+
+pub fn wear_use(ctx: &mut Context<'_>) {
+    // SAFETY: the site holds the live artefact base.
+    if let Some(item) = unsafe { raw::site::artefact_wear_use::item(ctx) }
+        && kind_of(item).is_some() {
+        set_wear(item, wear(item).after_use());
+    }
+}
+
+pub fn onyx_passive(ctx: &Context<'_>) -> bool {
+    use raw::site::artefact_onyx_passive as site;
+    // SAFETY: protect owns the item and hit arguments at this site.
+    unsafe { apply_onyx(site::item(ctx), site::frame(ctx), Phase::Passive) }
+}
+
+pub fn onyx_active(ctx: &Context<'_>) -> bool {
+    use raw::site::artefact_onyx_active as site;
+    // SAFETY: protect owns the item and hit arguments at this site.
+    unsafe { apply_onyx(site::item(ctx), site::frame(ctx), Phase::Active) }
+}
+
+fn apply_onyx(item: Option<raw::Artefact>, frame: Option<raw::OnyxHitArgs>, phase: Phase) -> bool {
+    let (Some(item), Some(frame)) = (item, frame) else { return false };
+    let power = phase_wear(item, phase).power();
+    if power == 1.0 { return false; }
+    // SAFETY: the caller holds the live Onyx and the two floats of its protect callback.
+    unsafe {
+        let (Some(d), Some(p)) = (frame.damage(), frame.piercing()) else { return false };
+        let values = onyx_values(item.onyx(), phase);
+        (*d.value(), *p.value()) = values.at_power(power, *d.value(), *p.value());
+    }
+    true
+}
+
+pub fn heal_amount(ctx: &mut Context<'_>) {
+    // SAFETY: patch 54 keeps its Lifebone in EDI throughout the heal loop.
+    if let Some(item) = unsafe { raw::site::artefact_heal_amount::item(ctx) } {
+        ctx.set_xmm_f32(0, ctx.xmm_f32(0) * wear(item).firing().power());
+    }
+}
+
+pub(super) fn worn_resource(thread: &Thread, item: raw::Artefact) -> Option<raw::MedicalEffectResource> {
+    crate::forest_glow::worn_glow(thread, kind_of(item)?, wear(item)).map(|kept| kept.resource())
+}
+
+pub fn wear_glow(ctx: &mut Context<'_>) -> bool {
+    // SAFETY: play_effect holds its live artefact in EBX. The selected resource
+    // is retained for the process and is passed to emit in ESI.
+    if let Some(item) = unsafe { raw::site::artefact_wear_glow::item(ctx) }
+        && let Some(resource) = worn_resource(ctx.thread(), item) {
+        ctx.set_reg(Reg::Esi, resource.address());
+        return true;
+    }
+    false
+}
+
+pub fn fall(ctx: &mut Context<'_>) {
+    // SAFETY: the native landing owns its player in EDI.
+    if let Some(player) = unsafe { raw::site::artefact_fall::player(ctx) } {
+        ctx.set_xmm_f32(0, ctx.xmm_f32(0) * (1.0 - landing_power(ctx.thread(), player)));
+    }
+}
+
+pub fn fatal_fall(ctx: &mut Context<'_>) {
+    // SAFETY: the native landing owns its player in EDI.
+    if let Some(player) = unsafe { raw::site::artefact_fatal_fall::player(ctx) } {
+        ctx.set_xmm_f32(0, ctx.xmm_f32(0) * (1.0 - landing_power(ctx.thread(), player)));
+    }
 }

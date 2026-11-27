@@ -22,8 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
-  "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
-                                                       live three numbers, `to` the new ones, in place
+  "set_vector":     [{"file", "path", "from", "to"}]   a float2/3/4 (e.g. a model's `bounding_box/min`): `from` the
+                                                       live components, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
                                                        type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
@@ -33,18 +33,25 @@ Edits (edits.json):
                     each key path (`parameters/arp`) taken out of every matching file that has it: its
                     table's later records move down in place, the count drops by 1; a key no matching
                     file has is refused
-  "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
+  "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended: every
+                                                       key's (a gun's `skeleton` too, when it names the same
+                                                       path as its `model`); one key's is set_string
+  "set_string":     [{"file", "path", "from", "to"}]   the one text at `path`: `from` must be the live
+                                                       value (a stale base is refused), `to` appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
-  "add_entry":      [{"files", "list", "after", "like", "values", "only_if"}]
+  "add_entry":      [{"files", "list", "after" | "at_end", "like", "values", "only_if", "expected_files"}]
                     a new entry of the indexed table `list` (a lobby card's `ui_desc/props_list`, the
-                    card lines' `ui_properties`) after the entry whose keys match `after`, made like
+                    card lines' `ui_properties`) after the entry whose keys match `after` (with
+                    "at_end": true instead, after its last entry: a project's new visuals, whose
+                    last may have a twin), made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
                     the same file, a list of numbers a vector (a position), a list of vectors an
                     indexed table of vectors (a wire's points) made anew; a key of `values` may be a
                     path in the entry (`spawned_item/position`): the tables on its way are copied
                     anew, the like entry's own stay as they are; files without `only_if`, the table
-                    or those entries are left alone
+                    or those entries are left alone, unless `expected_files` says how many files
+                    must take the entry (a project's object: any other number is refused)
   "_inputs":        [{"files" (glob)}]               read-only dependencies supplied by build-content.
                     add_entry with reload_clip_ratio:true copies the empty/tactical hands-clip
                     duration ratio into prop_value, only for state 314. Declare its clips here.
@@ -57,8 +64,17 @@ Edits (edits.json):
   "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
                     weapon-stats.tsv. Private hands/item clips and event times follow the pair;
                     declare source .b-spline and .bones_names dependencies in _inputs.
-  "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
+  "reload_commit":  [{"files" (glob)}]               each item reload clip of a magazine reload
+                    (state 303, 311, 314) gets the `reload_commit` channel: one knot, domain 1, at
+                    the clip's own seat sound (reload_seat: the last sound event of a magazine,
+                    belt, shell or stripper going in), where client patch 205 counts the new
+                    ammunition; a clip two guns read at two seats, or one without a seat sound,
+                    stops it. After retime_reload (it reads the clips as they are); declare the
+                    clips in _inputs (docs/notes/reload-commit.md).
+  "append_entry":  [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
+                    "unique_key": null for a list whose entries are known by their index (the
+                    game reads them by it: a battery's `states`), the count check alone;
                     arrays in the new value are indexed tables, leaving existing records intact;
                     "files" and "expected_counts" (two lists, a count a file) in place of
                     "file" and "expected_count" append the same record to each file; with
@@ -119,6 +135,16 @@ Edits (edits.json):
                                                        collision); the later entries move down in place, the
                                                        count drops by 1. Applied last: the paths of the edits
                                                        above are the live file's
+  "sort_entries":   [{"file", "list", "key"}]          the entries of the indexed table `list` in ascending
+                                                       order of their number `key` (equal ones keep their
+                                                       order), the records moved in place; applied after
+                                                       remove_entry, on a list no other edit of the file
+                                                       touches. The game's items_dict reader
+                                                       (items_dictionary_cook::on_configs_loaded 0x2C8FC2)
+                                                       logs "old items dictionary format" for each id lower
+                                                       than the one before it, then sorts the table itself
+  "remove_lines":   [{"file", "lines"}]                a text file (startup.cfg) without those lines, each
+                                                       one of its lines exactly once; the rest byte for byte
   "add_event_channel": [{"file", "from", "add"}]       an animation clip (`.b-spline`, not a config): `from`
                                                        is its live event channels, `add` one more after them,
                                                        each {"name", "type", "knots", "domains"}; the bone
@@ -133,6 +159,16 @@ Edits (edits.json):
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
                     velocity; no events, no edits to stock clips. Not shipped: the carry's pose
                     source (scripts/artefact-carry/pose.json) runs it to compile its curves.
+  "remove_faces":   [{"files": ["<mesh>/vertices", "<mesh>/indices", "<mesh>/face_data"], "faces"}]
+                    a collision mesh (a model's collision or walker_collision) without the triangles
+                    whose corners are `faces` (each three points of the vertices file, in model space,
+                    within 0.0005 and in the file's order): indices and face_data lose them, the
+                    vertices stay; a face not exactly one triangle is refused
+  "files_from_repo": [{"source", "output", "sha256"}]
+                    a new animations/ resource from a file of this repo (`source`, relative to
+                    the edit list), its bytes pinned by `sha256`; a `.b-spline` must parse as a
+                    clip. The battery swing's clips: scripts/battery-hit/make_clips.py writes
+                    them from its keys, and checks them (`--check`)
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
@@ -165,6 +201,7 @@ import re
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -256,14 +293,16 @@ def set_number(buf, path, frm, to, as_float=False):
 
 
 def set_vector(buf, path, frm, to):
-    """A float3 value's three numbers, in place."""
+    """A native float2, float3 or float4, preserving its type and dimensions."""
     at, _, _, t, _ = rec(buf, find(buf, path))
-    if t != 7 or len(frm) != 3 or len(to) != 3:
-        raise TypeError('%s: a float3 and three numbers each' % path)
-    old = struct.unpack_from('<3f', buf, at)
+    dimensions = {6: 2, 7: 3, 8: 4}.get(t)
+    if dimensions is None or len(frm) != dimensions or len(to) != dimensions:
+        raise TypeError('%s: a float2/3/4 and matching numbers each' % path)
+    fmt = '<%df' % dimensions
+    old = struct.unpack_from(fmt, buf, at)
     if any(abs(a - b) > 1e-6 for a, b in zip(old, frm)):
         raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
-    struct.pack_into('<3f', buf, at, *to)
+    struct.pack_into(fmt, buf, at, *to)
 
 
 def set_bool(buf, path, frm, to):
@@ -349,6 +388,19 @@ def replace_string(buf, frm, to):
     return n
 
 
+def set_string(buf, path, frm, to):
+    """The text at `path`: `frm`, the live value (a stale base is refused), becomes `to`, appended.
+    Nothing else changes, other keys holding the same text neither."""
+    off = find(buf, path)
+    d, i, c, t, cnt = rec(buf, off)
+    if t != T_STR:
+        raise ValueError('%s is not a text' % path)
+    old = bytes(buf[d:d + cnt - 1]).decode()
+    if old != frm:
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
+    REC.pack_into(buf, off, append(buf, to.encode() + b'\0'), i, c, t, len(to.encode()) + 1)
+
+
 def edit_text(buf, path, frm, to):
     """A text (a description in a localization table): its one `frm` becomes `to`, the new text
     appended. A text without `frm`, or with it twice, is refused."""
@@ -425,16 +477,16 @@ def filled(buf, text):
 
 
 def add_entry(buf, path, after, like, values):
-    """A new entry of the indexed table `path` after the one matching `after`: the entry matching
-    `like` copied (its keys, types and order), the keys of `values` set. Its records and the table's
-    new array are appended; the old array stays, unreferenced. Returns the new entry's index, or None
-    when the file has no such table or entry."""
+    """A new entry of the indexed table `path` after the one matching `after` (None: after its last):
+    the entry matching `like` copied (its keys, types and order), the keys of `values` set. Its
+    records and the table's new array are appended; the old array stays, unreferenced. Returns the
+    new entry's index, or None when the file has no such table or entry."""
     try:
         lst = find(buf, path)
     except KeyError:
         return None
     kids = children(buf, lst)
-    at = [i for i, e in enumerate(kids) if matches(buf, e, after)]
+    at = [len(kids) - 1] if after is None else [i for i, e in enumerate(kids) if matches(buf, e, after)]
     model = [e for e in kids if matches(buf, e, like)]
     if not at or not model:
         return None
@@ -455,7 +507,10 @@ def add_entry(buf, path, after, like, values):
 
 def copied_table(buf, table, values, path):
     """A new array of the records of the table at `table`, the keys of `values` set; a key `a/b` (or
-    `a[0]/b`) sets b in a copy of the table a. Returns the array's offset."""
+    `a[0]/b`) sets b in a copy of the table a. Every nested table gets its own records:
+    the native loader (0xF6D00) relocates each reachable record in place, so sharing
+    an unchanged subtree would relocate it twice. Strings/vector payloads may be
+    shared: only their owning records are mutated. Returns the array's offset."""
     recs = []
     named = rec(buf, table)[3] == T_NAMED
     for k, c in enumerate(children(buf, table)):
@@ -495,6 +550,8 @@ def copied_table(buf, table, values, path):
                 d = (d & ~0xffffffff) | struct.unpack('<I', struct.pack('<f', v))[0]
             else:
                 d = (d & ~0xffffffff) | (1 if v else 0)
+        elif t in (T_NAMED, T_INDEXED):
+            d = copied_table(buf, c, {}, path)
         recs.append(REC.pack(d, i, crc, t, cnt))
     return append_array(buf, recs)
 
@@ -592,11 +649,14 @@ def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     _, name, crc, kind, count = rec(buf, off)
     if kind != T_INDEXED or count != expected_count:
         raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
-    if not isinstance(value, dict) or unique_key not in value:
-        raise ValueError(f'{path}: new entry must have {unique_key}')
     entries = children(buf, off)
-    if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
-        raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    if unique_key is not None:
+        if not isinstance(value, dict) or unique_key not in value:
+            raise ValueError(f'{path}: new entry must have {unique_key}')
+        if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+            raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    elif not isinstance(value, dict):
+        raise ValueError(f'{path}: a new entry is a table')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
     records.append(value_record(buf, 0, '', as_table(value, vectors)))
     REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
@@ -728,11 +788,13 @@ def single(v):
 
 def pierce_kept(pierce, armor):
     """What a wall of material `armor` leaves of a bullet of piercing `pierce` (its damage, speed and
-    piercing are all multiplied by it; 0 stops it), as survarium::bullet::try_pierce 0x32D960 computes
-    it in single precision: t = clamp((P - A) / A, 0, 1), 1 when A is 0; 1 - (1 - t)^2. No thickness
-    and no angle: every wall of the material alike."""
-    t = 1.0 if armor == 0 else min(1.0, max(0.0, single(single(pierce - armor) / armor)))
-    return single(1 - single(single(1 - t) * single(1 - t)))
+    piercing are all multiplied by it; 0 or less stops it), as survarium::bullet::try_pierce 0x32D960
+    computes it with exe patch 175, in single precision: 1 - (A / P)^2, 1 when A is 0. No thickness
+    and no angle: every wall of the material alike. Asked only of a bullet the wall lets through."""
+    if armor == 0:
+        return 1.0
+    q = single(armor / pierce)
+    return single(1 - single(q * q))
 
 
 def pierce_lines(read, paths, spec):
@@ -1037,7 +1099,34 @@ def default_modification(decade):
         new = REC.pack(int(cell) & 0xffffffff, ii, icrc, T_INT, icnt)
         REC.pack_into(buf, items, append_array(buf, [bytes(buf[c:c + 24]) for c in kids] + [new]), i, crc, t, cnt + 1)
         return ['[%d]' % cnt], []
-    return Derived('default_modifications', read, write)
+    out = Derived('default_modifications', read, write)
+    out.decade = decade
+    return out
+
+
+def built_in_order(columns):
+    """The kinds (id decades) of a table's built-in bonus columns, in the columns' order."""
+    return [key.decade for key in columns.values() if hasattr(key, 'decade')]
+
+
+def built_in_kinds(buf, items):
+    """The kind of each item of a default list."""
+    return [as_number(T_INT, rec(buf, c)[0] & 0xffffffff) // 10 for c in children(buf, items)]
+
+
+def sorted_built_ins(kinds, order):
+    """The indexes of a default list's items by kind in `order`; kinds it lacks after them, as they were."""
+    return sorted(range(len(kinds)), key=lambda k: order.index(kinds[k]) if kinds[k] in order else len(order))
+
+
+def sort_built_ins(buf, items, order):
+    """A default list's items put in `order` (sorted_built_ins), in place: the indexes that changed."""
+    kids = children(buf, items)
+    was = [bytes(buf[c:c + 24]) for c in kids]
+    now = [was[k] for k in sorted_built_ins(built_in_kinds(buf, items), order)]
+    for c, r in zip(kids, now):
+        buf[c:c + 24] = r
+    return [k for k in range(len(was)) if was[k] != now[k]]
 
 
 def shown_value():
@@ -1264,7 +1353,11 @@ STATS = {
             'resources': 'mode/parameters/resources_count',
             'restore_mul': 'mode/parameters/restore_multiplier',
             'loading_screen': 'mode/ui/loading_screen_id', 'icon': 'mode/ui/icon',
+            # srp's key: the build lists show the map under, where its project's prefix does not say it
+            # (v032, v042: the two Londons; survarium maps::Build)
+            'build': 'mode/srp_build',
         },
+        'add': {'build'},
         'match': {'match_s', 'countdown_s', 'respawn_s', 'wait_s', 'wait_players', 'tickets', 'spawn_points', 'batteries',
                   'battery_spawn_s', 'battery_spawn_var_s', 'capture_award', 'capture_reach',
                   'capture_half_height', 'resources', 'restore_mul'},
@@ -1285,7 +1378,8 @@ STATS = {
     'maps': {
         'configs': 'projects/*/*/client_project',
         'columns': {
-            'spawn_protection_s': 'server_objects/respawn_points[*]/invulnerability_time',
+            # the two teams' points; team 2's are Free for all's, with its own protection (ffa-1.json)
+            'spawn_protection_s': 'server_objects/respawn_points[team=0|1]/invulnerability_time',
             'spawn_zone_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_duration',
             'spawn_zone_fade_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_attenuation',
             'resupply_ms': 'client_objects[game_object_type=resupply_zone]/resupply_time_in_ms',
@@ -1302,21 +1396,24 @@ STATS = {
             'back': armour_values('back'), 'weight': 'parameters/weight', 'oxygen_s': 'data/amount_time_sec',
             'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
             'rarity': 'parameters/base_rarity_level', 'mods': 'parameters/available_modifications_mask',
-            # built-in bonuses, a column a kind: the modification's id
-            'pockets': default_modification(103),
-            'artefact_slots': default_modification(104),
+            # built-in bonuses, a column a kind: the modification's id; an item's default list is kept
+            # in this order (sort_built_ins), the lobby card's one order of its lines (flash/lobby_menu/
+            # tables/survarium/data/BonusOrder.tsv): what it carries (ammo bags first), then the body,
+            # the gun, the rest
             'ammo_bags': default_modification(105),
+            'pockets': default_modification(103),
+            'slot_size': default_modification(117),
+            'artefact_slots': default_modification(104),
+            'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_spend': default_modification(116),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
             'accuracy': default_modification(107),
             'aim': default_modification(108),
-            'max_weight': default_modification(112),
-            'health_regen': default_modification(109),
-            'stamina_regen': default_modification(110),
-            'movement': default_modification(111),
-            'artefact_search': default_modification(113),
             'reload_speed': default_modification(114),
             'recoil': default_modification(115),
-            'stamina_spend': default_modification(116),
-            'slot_size': default_modification(117),
+            'artefact_search': default_modification(113),
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
@@ -1347,11 +1444,11 @@ STATS = {
         'configs': 'gameplay/items/boosters/*.options',
         'columns': {
             'weight': 'parameters/weight',
-            # built-in bonuses, a column a kind: the modification's id
-            'health_regen': default_modification(109),
-            'stamina_regen': default_modification(110),
-            'movement': default_modification(111),
+            # built-in bonuses, a column a kind: the modification's id; kept in this order, the armour's
             'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
             'artefact_search': default_modification(113),
             'sway': default_modification(121),
             'respawn': default_modification(122),
@@ -1595,8 +1692,21 @@ def stats_problems(category, columns, rows, targets, files, table):
                                                                 have or 'absent', cell or 'nothing')
                         for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row,
                                                                          present)]
+                out += ['%s: built-in bonuses %s, not in the order of the columns' % (stats_label(category, row, p), at)
+                        for at, kinds in built_ins_unsorted(files[p], off, columns)]
             except ValueError as why:
                 out.append('%s: %s' % (stats_label(category, row, p), why))
+    return out
+
+
+def built_ins_unsorted(buf, off, columns):
+    """[(walk path, kinds)] of each default list under `off` not in the columns' order (built_in_order)."""
+    order = built_in_order(columns)
+    out = []
+    for at, o in resolve(buf, 'default_modifications', off) if order else ():
+        kinds = built_in_kinds(buf, o)
+        if sorted_built_ins(kinds, order) != list(range(len(kinds))):
+            out.append((at, kinds))
     return out
 
 
@@ -1649,6 +1759,13 @@ def stats_write(category, columns, rows, data, table):
                         write_cell(b, o, cell)
                         written.setdefault(p, []).append(root + at)
                 print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+            for at, o in resolve(b, 'default_modifications', off) if built_in_order(columns) else ():
+                was = built_in_kinds(b, o)
+                moved = sort_built_ins(b, o, built_in_order(columns))
+                if moved:
+                    written.setdefault(p, []).extend(root + at + '[%d]' % k for k in moved)
+                    lists.setdefault(p, set()).add(root + at)
+                    print('%s built-in order: %s -> %s' % (stats_label(category, row, p), was, built_in_kinds(b, o)))
             if stats_differences(b, off, columns, rows[row], row, present):
                 raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
@@ -1817,6 +1934,50 @@ def remove_entry(buf, path, where):
     d, i, crc, t, cnt = rec(buf, lst)
     REC.pack_into(buf, lst, d, i, crc, t, cnt - 1)
     return at
+
+
+def sort_entries(buf, path, key):
+    """The entries of the indexed table `path` in ascending order of their number `key` (a stable
+    sort), their records moved in place in the table's own array. Returns the new index of each
+    entry by its old one; an entry without the key as a number is refused."""
+    lst = find(buf, path)
+    if rec(buf, lst)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    kids = children(buf, lst)
+    keys = []
+    for i, e in enumerate(kids):
+        k = child(buf, e, key) if rec(buf, e)[3] == T_NAMED else None
+        if k is None or rec(buf, k)[3] not in (T_INT, T_FLOAT):
+            raise ValueError('%s[%d] has no number %s' % (path, i, key))
+        keys.append(as_number(rec(buf, k)[3], rec(buf, k)[0] & 0xffffffff))
+    order = sorted(range(len(kids)), key=keys.__getitem__)
+    records = [bytes(buf[e:e + 24]) for e in kids]
+    moved = [0] * len(kids)
+    for dst, src in enumerate(order):
+        buf[kids[dst]:kids[dst] + 24] = records[src]
+        moved[src] = dst
+    return moved
+
+
+def remove_lines(source, lines):
+    """A text file (startup.cfg: a console command a line, CRLF) without `lines`, each a whole line
+    of it exactly once (its end not included); every other byte stays."""
+    kept = source.splitlines(keepends=True)
+    for line in lines:
+        at = [i for i, have in enumerate(kept) if have.rstrip(b'\r\n') == line.encode()]
+        if len(at) != 1:
+            raise ValueError('%d lines are %r, not 1: the base is not the live data' % (len(at), line))
+        del kept[at[0]]
+    return bytearray(b''.join(kept))
+
+
+def resorted(path, lst, moved):
+    """A path of the file before the table `lst` was sorted (`moved`: sort_entries'), after it."""
+    head = lst + '['
+    if not path.startswith(head):
+        return path
+    k, rest = path[len(head):].split(']', 1)
+    return '%s%d]%s' % (head, moved[int(k)], rest)
 
 
 def add_item(buf, path, where, key, value):
@@ -2048,6 +2209,59 @@ def retime_reload(config, weapon, read_asset):
     return assets, written
 
 
+RELOAD_COMMIT = 'reload_commit'  # the channel client patch 205 subscribes a magazine reload to
+RELOAD_COMMIT_SEATED = 1         # its one domain value: the new ammunition is in the gun
+RELOAD_COMMIT_TYPE = 2           # an event channel's type, as the clips' own (sound_events, shoot)
+# The reload states whose end loads the magazine (weapon_core_reload_state_base::on_animation_end_impl
+# 0x310E40): 303 one clip, 314 a tactical and an empty one, 311 a double barrel's two.
+RELOAD_COMMIT_STATES = (303, 311, 314)
+# A sound of the new ammunition going in: a magazine in or set (not its _ready or _start), a belt laid,
+# a shell loaded, a revolver's shells or a stripper's rounds in.
+SEAT_SOUND = re.compile(r'(mag_(in|set|slide_in|in_set|set_in|in_rnd|power_set)|belt_(set|on)|(^|_)load_\d'
+                        r'|shells_in|bullets_in)(_\d+)?$')
+
+
+def reload_sounds(config):
+    """The reload state's first-view sounds (their last path part), in the list's order."""
+    return [value_of(config, children(config, sound)[1]).rsplit('/', 1)[-1]
+            for sound in children(config, find(config, 'states/reload/sounds/first_view'))]
+
+
+def reload_seat(channels, sounds):
+    """The frame of a reload clip's seat: its last sound event whose sound is SEAT_SOUND's. A knot of
+    domain 255 plays the list's next sound (weapon_sound_effect::on_sound_event 0x297D11: the index
+    from 0FFh, a byte, then modulo the list), any other the sound of that index. None without one."""
+    events = [c for c in channels if c['name'] == 'sound_events']
+    if len(events) != 1 or not sounds:
+        return None
+    seat, index = None, 0xff
+    for knot, domain in zip(events[0]['knots'], events[0]['domains']):
+        index = ((index + 1) & 0xff) % len(sounds) if domain == 255 else domain
+        if index < len(sounds) and SEAT_SOUND.search(sounds[index]):
+            seat = knot
+    return seat
+
+
+def reload_commit_seats(config, read_clip):
+    """{item reload clip: its seat frame} of a magazine reload's config; {} for another reload."""
+    try:
+        state = value_of(config, find(config, 'states/reload/state_type'))
+    except KeyError:
+        return {}
+    if state not in RELOAD_COMMIT_STATES:
+        return {}
+    sounds = reload_sounds(config)
+    seats = {}
+    for off in children(config, find(config, 'states/reload/animations')):
+        clip = value_of(config, off).removeprefix('resources/') + '.b-spline'
+        _, _, tracks, channels, _ = clip_parse(read_clip(clip))
+        seat = reload_seat(channels, sounds)
+        if seat is None or not 0 <= seat < clip_end(tracks):
+            raise ValueError(f'{clip}: no seat sound in {sounds}')
+        seats[clip] = seat
+    return seats
+
+
 def f32(values):
     return [struct.unpack('<f', struct.pack('<f', v))[0] for v in values]
 
@@ -2226,6 +2440,44 @@ def vegetation_chunks(data):
     return chunks
 
 
+def mesh_chunks(data):
+    """{id: body} of a collision mesh file's sequential chunks (u32 id, u32 size)."""
+    chunks, at = {}, 0
+    while at < len(data):
+        if at + 8 > len(data):
+            raise ValueError('mesh: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, at)
+        if kind in chunks or at + 8 + size > len(data):
+            raise ValueError('mesh: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[at + 8:at + 8 + size]
+        at += 8 + size
+    return chunks
+
+
+def remove_faces(vertices, indices, face_data, faces):
+    """(indices, face_data) of a collision mesh (chunks 0x19 vertices, 0x1a indices, 0x1b face names,
+    0x1c a u16 per triangle) without the triangles whose corners are `faces`."""
+    v, i, f = mesh_chunks(vertices), mesh_chunks(indices), mesh_chunks(face_data)
+    if set(v) != {0x19} or set(i) != {0x1a} or set(f) != {0x1b, 0x1c}:
+        raise ValueError('mesh: unexpected chunks')
+    points = [p for p in struct.iter_unpack('<3f', v[0x19])]
+    tris = [t for t in struct.iter_unpack('<3I', i[0x1a])]
+    if len(f[0x1c]) != 2 * len(tris) or any(k >= len(points) for t in tris for k in t):
+        raise ValueError('mesh: %d triangles, %d face entries' % (len(tris), len(f[0x1c]) // 2))
+    near = lambda a, b: all(abs(x - y) <= 5e-4 for x, y in zip(a, b))
+    drop = set()
+    for face in faces:
+        hit = [n for n, t in enumerate(tris) if all(near(points[k], c) for k, c in zip(t, face))]
+        if len(hit) != 1:
+            raise ValueError('remove_faces: %d triangles at %r, not 1: the base is not the live data' % (len(hit), face))
+        drop |= set(hit)
+    keep = [n for n in range(len(tris)) if n not in drop]
+    body = b''.join(struct.pack('<3I', *tris[n]) for n in keep)
+    faces_body = b''.join(f[0x1c][2 * n:2 * n + 2] for n in keep)
+    return (struct.pack('<II', 0x1a, len(body)) + body,
+            struct.pack('<II', 0x1b, len(f[0x1b])) + f[0x1b] + struct.pack('<II', 0x1c, len(faces_body)) + faces_body)
+
+
 def runtime_vegetation(data):
     """Keep complete runtime chunks in original order, including their headers."""
     original = vegetation_chunks(data)
@@ -2352,6 +2604,9 @@ def main():
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_string', []):
+        set_string(buf(e['file']), e['path'], e['from'], e['to'])
+        allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('rename_key', []):
         n = 0
         for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
@@ -2385,7 +2640,6 @@ def main():
                 sys.exit('remove_key: no file of %s has %s' % (e['files'], key))
             print('remove %s: %d files' % (key, n))
     if 'localization' in edits:
-        from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
         from build_localization_026g import compile_catalog
         from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
@@ -2465,7 +2719,9 @@ def main():
                 if p not in pierced:
                     continue
                 values = dict(values, prop_value=pierced[p])
-            at = add_entry(b, e['list'], e['after'], e['like'], values)
+            if ('after' in e) == bool(e.get('at_end')):
+                raise ValueError('add_entry %s of %s: "after" or "at_end", one of them' % (e['list'], e['files']))
+            at = add_entry(b, e['list'], None if e.get('at_end') else e['after'], e['like'], values)
             if at is None:
                 continue
             bufs[p] = b
@@ -2477,7 +2733,10 @@ def main():
             added.setdefault(p, []).append('%s[%d]' % (lst, at))
             grown.setdefault(p, {}).setdefault(lst, 0)
             grown[p][lst] += 1
-        print('entry %s after %s: %d files' % (e['list'], e['after'], n))
+        if 'expected_files' in e and n != e['expected_files']:
+            raise ValueError('add_entry %s of %s after %s: %d files took it, not %d'
+                             % (e['list'], e['files'], e.get('after', 'its end'), n, e['expected_files']))
+        print('entry %s after %s: %d files' % (e['list'], e.get('after', 'its end'), n))
     for e in edits.get('append_entry', []):
         if 'files' in e:
             if len(e['files']) != len(e['expected_counts']):
@@ -2548,6 +2807,21 @@ def main():
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
+    resorts = {}
+    for e in edits.get('sort_entries', []):
+        lst = '/' + e['list']
+        touched = [q for q in list(allowed.get(e['file'], ())) + list(remade.get(e['file'], ()))
+                   + list(added.get(e['file'], ())) + list(grown.get(e['file'], {}))
+                   + [lst2 for lst2, _ in dropped.get(e['file'], ())] + [lst2 for lst2, _ in shifts.get(e['file'], ())]
+                   + ['/' + q2 for q2 in removed.get(e['file'], {})]
+                   if q == lst or q.startswith(lst + '[')]
+        if touched:
+            sys.exit('sort_entries: %s of %s is edited too (%s): sort a list nothing else edits'
+                     % (lst, e['file'], touched[0]))
+        moved = sort_entries(buf(e['file']), e['list'], e['key'])
+        resorts.setdefault(e['file'], []).append((lst, moved))
+        print('sort %s by %s: %d of %d entries moved' % (e['list'], e['key'],
+                                                          sum(new != old for old, new in enumerate(moved)), len(moved)))
     clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
     for e in edits.get('retime_reload', []):
         paths = sorted(fnmatch.filter(files, e['files']))
@@ -2565,6 +2839,27 @@ def main():
             allowed.setdefault(p, set()).update(written)
             clips.update(assets)
             print('retimed reload %s: %d private animation resources' % (p, len(assets)))
+    for e in edits.get('reload_commit', []):
+        paths = sorted(fnmatch.filter(files, e['files']))
+        if not paths:
+            raise ValueError('reload_commit: no matching weapons')
+        live_clip = lambda path: bytes(clips[path]) if path in clips else open(files[path], 'rb').read()
+        seats = {}  # clip: (its seat, the first config that reads it)
+        for p in paths:
+            config = bufs[p] if p in bufs else bytearray(open(files[p], 'rb').read())
+            for clip, seat in reload_commit_seats(config, live_clip).items():
+                first = seats.setdefault(clip, (seat, p))
+                if first[0] != seat:
+                    raise ValueError('reload_commit: %s seats at %g for %s, %g for %s' % (clip, first[0], first[1], seat, p))
+        if not seats:
+            raise ValueError('reload_commit: no magazine reload')
+        for clip, (seat, _) in sorted(seats.items()):
+            buf = bytearray(live_clip(clip))
+            live = clip_parse(buf)[3]
+            add_event_channel(buf, live, {'name': RELOAD_COMMIT, 'type': RELOAD_COMMIT_TYPE, 'knots': [seat],
+                                          'domains': [RELOAD_COMMIT_SEATED]})
+            clips[clip] = buf
+        print('reload commit: %d clips of %d configs' % (len(seats), len(paths)))
     for e in edits.get('make_held_flower', []):
         made = make_held_flower({p: open(files[p], 'rb').read() for p in e['files']}, e)
         for p, data in made.items():
@@ -2585,6 +2880,20 @@ def main():
         clips[stem + '.b-spline'] = make_pose_clip(source_bytes, names_bytes, e)
         clips[stem + '.bones_names'] = names_bytes
         print('pose clip %s: %g frames, %d authored bones' % (stem, e['frames'], len(e['end'])))
+    for e in edits.get('files_from_repo', []):
+        stem = e['output']
+        if not stem.startswith('animations/') or '..' in stem.split('/') or '\\' in stem:
+            raise ValueError('files_from_repo: output must be a new animations/ resource path')
+        if stem in files or stem in bufs or stem in clips:
+            raise ValueError('files_from_repo: output already exists: ' + stem)
+        source = Path(edits_file).resolve().parent / e['source']
+        data = source.read_bytes()
+        if hashlib.sha256(data).hexdigest() != e['sha256']:
+            raise ValueError('files_from_repo: %s differs from its pinned sha256' % e['source'])
+        if stem.endswith('.b-spline'):
+            clip_parse(data)
+        clips[stem] = data
+        print('file from the repo %s: %d bytes' % (stem, len(data)))
     for e in edits.get('add_event_channel', []):
         p = e['file']
         if p in bufs:
@@ -2611,11 +2920,32 @@ def main():
                 sys.exit('%s: %s' % (p, why))
             print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
                   (p, len(source), len(vegetation[p])))
+    for e in edits.get('remove_lines', []):
+        p = e['file']
+        if p in bufs or p in clips or p in vegetation:
+            sys.exit('remove_lines: %s is edited otherwise too' % p)
+        if p not in files:
+            sys.exit('%s: not in the live folder' % p)
+        source = open(files[p], 'rb').read()
+        try:
+            clips[p] = remove_lines(source, e['lines'])
+        except ValueError as why:
+            sys.exit('%s: %s' % (p, why))
+        print('lines out of %s: %s' % (p, ', '.join(e['lines'])))
 
     for e in edits.get('require_headwear_bind', []):
         source = open(files[e['file']], 'rb').read()
         require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
         print('character bind reference verified: ' + e['file'])
+
+    for e in edits.get('remove_faces', []):
+        vertices, indices, face_data = e['files']
+        for p in (indices, face_data):
+            if p in bufs or p in clips:
+                sys.exit('remove_faces: %s already edited' % p)
+        read = lambda p: open(files[p], 'rb').read()
+        clips[indices], clips[face_data] = remove_faces(read(vertices), read(indices), read(face_data), e['faces'])
+        print('remove_faces %s: %d triangles out' % (indices.rpartition('/')[0], len(e['faces'])))
 
     # Binary render assets: each operation checks its format and unchanged bytes.
     if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
@@ -2659,6 +2989,8 @@ def main():
             old = {shifted(q, lst, at): v for q, v in old.items()}
         for lst, at in dropped.get(p, ()):
             old = {unshifted(q, lst, at): v for q, v in old.items() if unshifted(q, lst, at) is not None}
+        for lst, moved in resorts.get(p, ()):
+            old = {resorted(q, lst, moved): v for q, v in old.items()}
         for lst, values in removed.get(p, {}).items():
             # A copied entry has no path in the original file. Compare with its
             # table just before removals, then follow any removed parent entries.
@@ -2690,6 +3022,8 @@ def main():
                                                            for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') or q.startswith(a + '[') for a in added.get(p, ()))) or \
                 (n is None and any(q == g or q.startswith(g + '/') or q.startswith(g + '[') for g in gone.get(p, ()))) or \
+                any((q == g or q.startswith(g + '/') or q.startswith(g + '[')) and g in added.get(p, ())
+                    for g in gone.get(p, ())) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))

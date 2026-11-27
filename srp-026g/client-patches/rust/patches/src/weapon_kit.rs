@@ -11,11 +11,14 @@
 //!   stay as they are. No kit, or a malformed one: the stock way;
 //! - `on_flash_upgrade` (the lobby's upgrades to Flash): a kit record's
 //!   object gets `kit_own` (its own slot) and `kit_camo`, `kit_muzzle`,
-//!   `kit_grip` (the dict ids it names, 0 none), which the lobby movie's
-//!   UpgradeWindow.kitUpgrades makes slots of;
+//!   `kit_grip`, `kit_second` (the dict ids it names, 0 none) and
+//!   `kit_side` (the second sight's side, 0 left, 1 right), which the lobby
+//!   movie's UpgradeWindow.kitUpgrades makes slots of;
 //! - `on_attached_pair` (setup_inventory_data): each dict id a kit names
-//!   marks the inventory's item of that dict id (the lowest item id) as on
-//!   the kit's weapon, as a record of its own would (its is_attached_to);
+//!   marks the inventory's item of that dict id (the lowest item id not
+//!   marked for the weapon already: a scope and a second sight of one optic
+//!   are two items) as on the kit's weapon, as a record of its own would
+//!   (its is_attached_to);
 //! - `on_preview_apply` (patch 48's queue of a window's changes, the entry
 //!   `weapon_kit.preview_apply`): applied on the logical slots as srp applies
 //!   them, packed again.
@@ -39,14 +42,18 @@ pub fn on_query(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// The members a kit record's object gets: its own slot, then the dict id
-/// it names for each of the camouflage, the muzzle device and the grip.
-pub fn kit_members(kit: &Kit) -> [(&'static core::ffi::CStr, u32); 4] {
+/// it names for each of the camouflage, the muzzle device, the grip and the
+/// second sight, and the second sight's side.
+pub fn kit_members(kit: &Kit) -> [(&'static core::ffi::CStr, u32); 6] {
     let named = |slot| kit.named().find(|(named, _)| *named == slot).map_or(0, |(_, dict)| u32::from(dict.get()));
+    let side = u32::from(kit.side() == weapon_kit::Side::Right);
     [
         (c"kit_own", u32::from(kit.own().slot().byte())),
         (c"kit_camo", named(KitSlot::Camo)),
         (c"kit_muzzle", named(KitSlot::Muzzle)),
         (c"kit_grip", named(KitSlot::Grip)),
+        (c"kit_second", named(KitSlot::SecondSight)),
+        (c"kit_side", side),
     ]
 }
 
@@ -68,9 +75,16 @@ pub fn on_attached_pair(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut pairs) = AttachedPairs::at(ctx) else { return Flow::Continue };
     let Some(record) = pairs.record() else { return Flow::Continue };
     if let Ok(Some(kit)) = Kit::of(&record) {
-        for (_, dict) in kit.named() {
-            if let Some(item) = pairs.item_of(dict.get()) {
+        // One optic can be the scope and the second sight: each name marks
+        // an item of its dict id the weapon's records have not marked yet,
+        // the kit's own item first among them.
+        let mut taken = [record.id, 0, 0, 0, 0];
+        for (n, (_, dict)) in kit.named().enumerate() {
+            if let Some(item) = pairs.item_of(dict.get(), &taken) {
                 pairs.push(item);
+                if let Some(place) = taken.get_mut(n + 1) {
+                    *place = item;
+                }
             }
         }
     }
@@ -139,7 +153,13 @@ mod tests {
         let kit = Kit::of(&record(3, 362, MAGIC | 3 << 48 | 2301 << 32 | 900, 3)).unwrap().unwrap();
         assert_eq!(
             kit_members(&kit).map(|(name, value)| (name.to_str().unwrap(), value)),
-            [("kit_own", 3), ("kit_camo", 900), ("kit_muzzle", 0), ("kit_grip", 2301)]
+            [("kit_own", 3), ("kit_camo", 900), ("kit_muzzle", 0), ("kit_grip", 2301), ("kit_second", 0), ("kit_side", 0)]
+        );
+        // a wide kit: the second sight on the right
+        let wide = Kit::of(&record(3, 362, 0xA8 << 56 | 1 << 55 | 3 << 48 | 2112 << 36 | 900, 3)).unwrap().unwrap();
+        assert_eq!(
+            kit_members(&wide).map(|(name, value)| (name.to_str().unwrap(), value)),
+            [("kit_own", 3), ("kit_camo", 900), ("kit_muzzle", 0), ("kit_grip", 0), ("kit_second", 2112), ("kit_side", 1)]
         );
     }
 }

@@ -37,6 +37,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use binary_config_parser::tree::ConfigValue;
+use resources_db::checked::{CHECKED, Checked};
 use resources_db::Archive;
 pub use resources_db::server::Provenance;
 use resources_db::server::{
@@ -93,6 +94,9 @@ pub struct GameData {
     /// clips); older data has none, and what needs a length goes by its
     /// constant.
     clip_lengths: Option<ClipLengths>,
+    /// The files a match asks the players' games to hash
+    /// ([`resources_db::checked`]); none in data made before it had them.
+    checked: Checked,
 }
 
 impl GameData {
@@ -133,12 +137,18 @@ impl GameData {
         } else {
             None
         };
+        let checked = match archive.read(CHECKED).map_err(|cause| error(cause.to_string()))? {
+            Some(text) => Checked::parse(&String::from_utf8_lossy(&text))
+                .map_err(|cause| error(cause.to_string()))?,
+            None => Checked::default(),
+        };
         Ok(Self {
             origin,
             provenance: data.provenance,
             files,
             projects,
             clip_lengths,
+            checked,
         })
     }
 
@@ -153,6 +163,10 @@ impl GameData {
         with_srp_tables(&mut data.files);
         with_pocket_units(&mut data.files);
         with_blackout_maps(&mut data.files);
+        with_free_for_all_maps(&mut data.files, &mut data.projects);
+        with_twists_only_map(&mut data.files);
+        with_faces(&mut data.files);
+        with_checks(&mut data);
         data
     }
 
@@ -192,6 +206,12 @@ impl GameData {
         self.projects.get(project).map(Vec::as_slice)
     }
 
+    /// The files a match asks the players' games to hash, and what each
+    /// should be ([`resources_db::checked`]).
+    pub fn checked(&self) -> &Checked {
+        &self.checked
+    }
+
     /// This data with `files` over it, as a patch lays its files: a file
     /// of `gameplay/` or a localization by its path, a project as
     /// `projects/<project>/client_project` (what the data keeps of one:
@@ -204,6 +224,7 @@ impl GameData {
             files: self.files.clone(),
             projects: self.projects.clone(),
             clip_lengths: self.clip_lengths.clone(),
+            checked: self.checked.clone(),
         };
         for (path, bytes) in files {
             let project = path
@@ -288,6 +309,23 @@ const BLACKOUT_EDITS: &str = include_str!("../../../../scripts/content-edit/blac
 /// whose battery config `files` has, a copy of that config at the entry's
 /// name, with the list's strings replaced and its values added, and the
 /// entry.
+/// What a match of the test data checks (`resources_db::checked`): every
+/// project its `client_project` as the data has it, and a `startup.cfg` of
+/// the tests' own; the test archive has no vegetation.
+fn with_checks(data: &mut GameData) {
+    use resources_db::checked::Sum;
+    const STARTUP: &str = "startup.cfg";
+    let mut checked = Checked::default();
+    checked.files.insert(STARTUP.to_owned(), Sum::of(b"test startup.cfg\n").expect("small"));
+    checked.always.insert(STARTUP.to_owned());
+    for (project, bytes) in &data.projects {
+        let path = format!("{PROJECTS}{project}{PROJECT_MARKER}");
+        checked.files.insert(path.clone(), Sum::of(bytes).expect("small"));
+        checked.projects.insert(project.clone(), [path].into());
+    }
+    data.checked = checked;
+}
+
 fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
     fn text(value: &serde_json::Value) -> String {
         value.as_str().expect("a text").to_owned()
@@ -364,6 +402,324 @@ fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
     }
     files.insert(path.to_owned(), dictionary.to_bytes().expect("a config"));
 }
+
+/// Free for all's maps as the content patch makes them of the live files
+/// (`docs/notes/ffa.md`): the test data's are this edit list laid over its
+/// own Team Deathmatch configs and its maps' own projects ([`FREE_FOR_ALL_PROJECTS`]).
+const FREE_FOR_ALL_EDITS: &str = include_str!("../../../../scripts/content-edit/ffa-1.json");
+/// Each free-for-all's own project, a copy of its Team Deathmatch map's
+/// (`<weather>_4` -> `<weather>_8`), made before [`FREE_FOR_ALL_EDITS`].
+const FREE_FOR_ALL_PROJECTS: &str = include_str!("../../../../scripts/content-edit/ffa-projects-1.json");
+/// The free-for-all configs pointed at their own projects: this list's
+/// `replace_string` of `match_making_params.map_name`, after
+/// [`FREE_FOR_ALL_EDITS`] (its crates' removal is not the test data's).
+const FREE_FOR_ALL_REPOINT: &str = include_str!("../../../../scripts/content-edit/no-ammo-crates-1.json");
+
+/// The live data's map played with a twist only (`MapMode::twists_only`): Military Warehouses'
+/// Free for All, maps_dict 43, by this edit list. The test data lacks it, so
+/// [`with_twists_only_map`] lays the list's one value on [`TEST_TWISTS_ONLY`]'s config instead.
+const TWISTS_ONLY_EDITS: &str = include_str!("../../../../scripts/content-edit/ffa-twists-only-1.json");
+/// The test data's map played with a twist only: level 8's Free for All before rain.
+pub const TEST_TWISTS_ONLY: super::dictionary::MapId = super::dictionary::MapId::new(162);
+const TEST_TWISTS_ONLY_CONFIG: &str = "gameplay/game_modes/ffa/level_08_prerain_8.options";
+
+/// `files` and `projects` with [`FREE_FOR_ALL_PROJECTS`]' copies, then
+/// [`FREE_FOR_ALL_EDITS`], then [`FREE_FOR_ALL_REPOINT`]'s `replace_string`,
+/// for each map of the list whose Team Deathmatch config and project the
+/// data has: the list's `copy`, `set`, `replace_string`, `remove_item`,
+/// `add_value` and `add_entry`, done on the configs' values as
+/// `content_edit.py` does them on their bytes. An edit of a file the data
+/// lacks is left out, and so is the `maps_dict` row of a config not made;
+/// any other edit of the list's that this does not know stops the tests.
+fn with_free_for_all_maps(
+    files: &mut BTreeMap<String, Vec<u8>>,
+    projects: &mut BTreeMap<String, Vec<u8>>,
+) {
+    use serde_json::Value;
+
+    const KNOWN: [&str; 7] = [
+        "copy",
+        "set",
+        "replace_string",
+        "remove_item",
+        "add_value",
+        "append_entry",
+        "add_entry",
+    ];
+
+    fn text(value: &Value) -> &str {
+        value.as_str().expect("a text")
+    }
+    /// One game path, or a list of them.
+    fn paths(value: &Value) -> Vec<&str> {
+        match value {
+            Value::Array(items) => items.iter().map(text).collect(),
+            one => vec![text(one)],
+        }
+    }
+    fn config(value: &Value) -> ConfigValue {
+        let float = |value: &Value| value.as_f64().expect("a number") as f32;
+        match value {
+            Value::Bool(flag) => ConfigValue::Boolean(*flag),
+            Value::Number(number) => match number.as_i64() {
+                Some(int) => ConfigValue::Integer(i32::try_from(int).expect("an int")),
+                None => ConfigValue::Float(float(value)),
+            },
+            Value::String(text) => ConfigValue::String(text.clone()),
+            Value::Array(items) => match items.as_slice() {
+                [a, b] => ConfigValue::Float2([float(a), float(b)]),
+                [a, b, c] => ConfigValue::Float3([float(a), float(b), float(c)]),
+                [a, b, c, d] => ConfigValue::Float4([float(a), float(b), float(c), float(d)]),
+                _ => panic!("a vector of 2 to 4 numbers"),
+            },
+            other => panic!("no config value: {other}"),
+        }
+    }
+    /// The value at `path` of `value` ("" the value itself).
+    fn at<'a>(value: &'a mut ConfigValue, path: &str) -> Option<&'a mut ConfigValue> {
+        path.split('/')
+            .filter(|key| !key.is_empty())
+            .try_fold(value, |value, key| match value {
+                ConfigValue::Named(entries) => entries
+                    .iter_mut()
+                    .find(|(name, _)| name == key)
+                    .map(|(_, value)| value),
+                _ => None,
+            })
+    }
+    fn put(value: &mut ConfigValue, key: &str, new: ConfigValue) {
+        let (table, key) = key.rsplit_once('/').unwrap_or(("", key));
+        let Some(ConfigValue::Named(entries)) = at(value, table) else {
+            panic!("no table for {key}")
+        };
+        match entries.iter_mut().find(|(name, _)| name == key) {
+            Some((_, old)) => *old = new,
+            None => entries.push((key.to_owned(), new)),
+        }
+    }
+    /// Whether `entry` has every key of `keys` with its value.
+    fn matches(entry: &ConfigValue, keys: &Value) -> bool {
+        let ConfigValue::Named(entries) = entry else {
+            return false;
+        };
+        keys.as_object().expect("keys").iter().all(|(key, value)| {
+            entries
+                .iter()
+                .any(|(name, held)| name == key && *held == config(value))
+        })
+    }
+    fn replace(value: &mut ConfigValue, from: &str, to: &str) {
+        match value {
+            ConfigValue::String(text) if text == from => *text = to.to_owned(),
+            ConfigValue::Named(entries) => {
+                entries.iter_mut().for_each(|(_, value)| replace(value, from, to));
+            }
+            ConfigValue::Indexed(items) => {
+                items.iter_mut().for_each(|value| replace(value, from, to));
+            }
+            _ => {}
+        }
+    }
+
+    // Each map's own project first: the list's edits are of the copies.
+    let copies: Value = serde_json::from_str(FREE_FOR_ALL_PROJECTS).expect("the copy list reads");
+    for copy in copies["copy"].as_array().expect("its copies") {
+        // A project's folder from and to, as Research's own project of Vostok v0.11.
+        let (from, to) = (text(&copy["from"]), text(&copy["to"]));
+        let project = |path: &str| {
+            path.strip_prefix(PROJECTS)
+                .and_then(|path| path.strip_suffix(PROJECT_MARKER))
+                .expect("a project")
+                .to_owned()
+        };
+        for path in paths(&copy["files"]) {
+            let rest = path.strip_prefix(from).expect("the copy's folder");
+            if let Some(bytes) = projects.get(&project(path)).cloned() {
+                projects.insert(project(&format!("{to}{rest}")), bytes);
+            }
+        }
+    }
+    let edits: Value = serde_json::from_str(FREE_FOR_ALL_EDITS).expect("the edit list reads");
+    let unknown: Vec<&String> = edits
+        .as_object()
+        .expect("the edit list is a table")
+        .keys()
+        .filter(|key| !key.starts_with('_') && !KNOWN.contains(&key.as_str()))
+        .collect();
+    assert!(unknown.is_empty(), "ffa-1.json has edits the test data does not make: {unknown:?}");
+    let list = |edit: &str| edits[edit].as_array().map_or(&[][..], Vec::as_slice);
+
+    // The copies first, as the list's other edits are of them.
+    let mut made = std::collections::BTreeSet::new();
+    for copy in list("copy") {
+        let (from, to) = (text(&copy["from"]), text(&copy["to"]));
+        for path in paths(&copy["files"]) {
+            if let (Some(bytes), Some(rest)) = (files.get(path), path.strip_prefix(from)) {
+                files.insert(format!("{to}{rest}"), bytes.clone());
+                made.insert(format!("{to}{rest}"));
+            }
+        }
+    }
+    // Every file an edit names, read once: a project by its folder.
+    let project_of = |path: &str| {
+        path.strip_prefix(PROJECTS)
+            .and_then(|path| path.strip_suffix(PROJECT_MARKER))
+            .map(str::to_owned)
+    };
+    let mut open: BTreeMap<String, ConfigValue> = BTreeMap::new();
+    let mut edit = |path: &str, change: &mut dyn FnMut(&mut ConfigValue)| {
+        if !open.contains_key(path) {
+            let bytes = match project_of(path) {
+                Some(project) => projects.get(&project),
+                None => files.get(path),
+            };
+            let Some(bytes) = bytes else {
+                return false;
+            };
+            let value = ConfigValue::parse(bytes).unwrap_or_else(|cause| panic!("{path}: {cause}"));
+            open.insert(path.to_owned(), value);
+        }
+        change(open.get_mut(path).expect("just opened"));
+        true
+    };
+    for set in list("set") {
+        edit(text(&set["file"]), &mut |value| {
+            let held = at(value, text(&set["path"])).expect("the set's path");
+            assert_eq!(*held, config(&set["from"]), "a stale `from` in ffa-1.json");
+            *held = config(&set["to"]);
+        });
+    }
+    for each in list("replace_string") {
+        for path in paths(&each["files"]) {
+            edit(path, &mut |value| replace(value, text(&each["from"]), text(&each["to"])));
+        }
+    }
+    // The configs' projects, their maps' own (`no-ammo-crates-1.json`).
+    let repoint: Value = serde_json::from_str(FREE_FOR_ALL_REPOINT).expect("the repoint list reads");
+    for each in repoint["replace_string"].as_array().expect("its repoints") {
+        for path in paths(&each["files"]) {
+            edit(path, &mut |value| replace(value, text(&each["from"]), text(&each["to"])));
+        }
+    }
+    for each in list("remove_item") {
+        edit(text(&each["file"]), &mut |value| {
+            let Some(ConfigValue::Indexed(items)) = at(value, text(&each["path"])) else {
+                panic!("remove_item: no list")
+            };
+            let gone = config(&each["value"]);
+            let index = items.iter().position(|item| *item == gone).expect("the item");
+            items.remove(index);
+        });
+    }
+    for each in list("add_value") {
+        for path in paths(&each["files"]) {
+            edit(path, &mut |value| {
+                let Some(ConfigValue::Named(entries)) = at(value, text(&each["table"])) else {
+                    panic!("add_value: no table")
+                };
+                entries.push((text(&each["key"]).to_owned(), config(&each["value"])));
+            });
+        }
+    }
+    for each in list("append_entry") {
+        // A map's row only with its config.
+        let name = text(&each["value"]["cfg_mode_name"]);
+        if !made.contains(&format!("{}{name}", super::maps::GAME_MODES_DIR)) {
+            continue;
+        }
+        edit(text(&each["file"]), &mut |value| {
+            let Some(ConfigValue::Indexed(entries)) = at(value, text(&each["list"])) else {
+                panic!("append_entry: no list {}", each["list"])
+            };
+            let entry = each["value"]
+                .as_object()
+                .expect("an entry")
+                .iter()
+                .map(|(key, value)| (key.clone(), config(value)))
+                .collect();
+            entries.push(ConfigValue::Named(entry));
+        });
+    }
+    for each in list("add_entry") {
+        for path in paths(&each["files"]) {
+            edit(path, &mut |value| {
+                let Some(ConfigValue::Indexed(entries)) = at(value, text(&each["list"])) else {
+                    panic!("add_entry: no list {}", each["list"])
+                };
+                let mut entry = entries
+                    .iter()
+                    .find(|entry| matches(entry, &each["like"]))
+                    .expect("the entry to make it like")
+                    .clone();
+                for (key, new) in each["values"].as_object().expect("values") {
+                    put(&mut entry, key, config(new));
+                }
+                let after = entries.iter().position(|entry| matches(entry, &each["after"]));
+                entries.insert(after.map_or(entries.len(), |index| index + 1), entry);
+            });
+        }
+    }
+    for (path, value) in open {
+        let bytes = value.to_bytes().expect("a config");
+        match project_of(&path) {
+            Some(project) => projects.insert(project, bytes),
+            None => files.insert(path, bytes),
+        };
+    }
+}
+
+/// [`TWISTS_ONLY_EDITS`]' one `add_value` (`mode.srp_twists_only = true`) on
+/// [`TEST_TWISTS_ONLY_CONFIG`], made by [`with_free_for_all_maps`].
+fn with_twists_only_map(files: &mut BTreeMap<String, Vec<u8>>) {
+    let edits: serde_json::Value =
+        serde_json::from_str(TWISTS_ONLY_EDITS).expect("the edit list reads");
+    let [add] = edits["add_value"].as_array().expect("its add_value").as_slice() else {
+        panic!("ffa-twists-only-1.json adds one value")
+    };
+    let text = |key: &str| add[key].as_str().expect("a text").to_owned();
+    let path = TEST_TWISTS_ONLY_CONFIG;
+    let mut config = ConfigValue::parse(&files[path]).expect("the config parses");
+    let ConfigValue::Named(sections) = &mut config else {
+        panic!("{path} is a named table")
+    };
+    let Some((_, ConfigValue::Named(table))) =
+        sections.iter_mut().find(|(name, _)| *name == text("table"))
+    else {
+        panic!("{path} has its table")
+    };
+    let value = add["value"].as_bool().expect("a bool");
+    table.push((text("key"), ConfigValue::Boolean(value)));
+    files.insert(path.to_owned(), config.to_bytes().expect("a config"));
+}
+
+/// The faces the test data has: [`TEST_FACES`] entries of `body_parts.heads`,
+/// each today's `body_parts.head` (until the faces pack ships, its form:
+/// `face-choice.md`), so tests choose and send faces other than 0.
+fn with_faces(files: &mut BTreeMap<String, Vec<u8>>) {
+    let path = super::faces::PATH;
+    let mut config = ConfigValue::parse(&files[path]).expect("the body parts parse");
+    let ConfigValue::Named(sections) = &mut config else {
+        panic!("{path} is a named table")
+    };
+    let Some((_, ConfigValue::Named(parts))) =
+        sections.iter_mut().find(|(name, _)| name == "body_parts")
+    else {
+        panic!("{path} has body_parts")
+    };
+    let head = parts
+        .iter()
+        .find(|(name, _)| name == "head")
+        .map(|(_, head)| head.clone())
+        .expect("today's head");
+    parts.push((
+        "heads".into(),
+        ConfigValue::Indexed(vec![head; TEST_FACES]),
+    ));
+    files.insert(path.to_owned(), config.to_bytes().expect("a config"));
+}
+
+/// How many faces [`with_faces`] gives the test data.
+pub const TEST_FACES: usize = 3;
 
 /// `files` with `parameters.pocket_units` where [`THROWABLES_TABLE`] has
 /// one: a float in the config of the row's name (`<name>.options` under
@@ -605,6 +961,9 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     super::new_account::check_data(data)?;
     super::golden::check(data)?;
     super::keeper::check(data)?;
+    super::racket::check(data)?;
+    super::cowboy::check(data)?;
+    super::roulette::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \
          /patches)",
@@ -614,8 +973,9 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
         data.made_of(),
         data.provenance.patches.len()
     );
-    // The scope pairs and why any variant was left out, in the log at start.
-    super::scopes::ScopeFits::shared();
+    // The modules table and its scope pairs, in the log at start.
+    super::weapon_modules::Modules::shared();
+    super::scopes::log_shared();
     Ok(data)
 }
 

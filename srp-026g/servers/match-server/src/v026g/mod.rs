@@ -6,7 +6,7 @@
 //! each client through the handshake, keeps the match clock, relays the
 //! inputs, compares the clients' world hashes, gets world snapshots from
 //! patched clients and starts or resyncs clients from them, and ends the
-//! match. The 0.21d server (`crate::game`, `crate::server`) is the model;
+//! match. The 0.21d server (`srp-021d/servers/match-server`) is the model;
 //! `game.rs` here says what was carried over and what was not.
 //!
 //! - [`MatchRegistry`]: the lobby makes a match ([`MatchSetup`]) and gets
@@ -35,16 +35,14 @@
 //!   the address, as for 0.21d (`vostok::config`);
 //! - `SRP_SNAPSHOT_DIR`: where uploaded worlds are saved (default
 //!   `logs/snapshots`; `off` or empty for none), as for 0.21d;
+//! - `SRP_CAPTURE_MAX_MB` (default 200): the desync captures kept in
+//!   `<SRP_SNAPSHOT_DIR>/captures` together at most, the oldest deleted
+//!   first (`game/desync_capture.rs`);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log;
-//! - `SRP_LATE_INPUTS=discard|move` (default `discard`, what 0.21d does):
-//!   what becomes of an input that comes after its tick is final: dropped
-//!   (0xF1 / 0xF2), or moved to an open tick (0xEF / 0xF0, new in 0.26g);
-//! - `SRP_RESYNC_WORLD_ONLY=on|off` (default `off`): resync a playing
-//!   client with the world alone (0xE8 of the next generation, its clock
-//!   left as it is) instead of the time and the world (0xE5, 0xE8);
-//! - `SRP_RESTORE_LIMIT=<n>` (default 0, no limit): disconnect a client
-//!   that is out of sync again after `n` resyncs in a row with no report
-//!   of its that agreed in between;
+//! - `SRP_LATE_INPUTS=relay|discard|move` (default `relay`): what becomes
+//!   of an input that comes after its tick is final: relayed at its own
+//!   tick, dropped (0xF1 / 0xF2, what 0.21d does), or moved to an open tick
+//!   (0xEF / 0xF0, new in 0.26g); [`LateInputs`];
 //! - `SRP_RESYNC_AFTER_AGREED_SECONDS` (default 5, 3 to 15; 15 = the old
 //!   rule): the least time between two resyncs of a client when its last
 //!   one was agreed with; after one that was not, it stays 15 s, and a
@@ -107,11 +105,27 @@
 //! - `SRP_PVB_WORLD_MS` (default 2000, 250 to 2000): while the server's
 //!   bots play, a world is asked for this often (a client-test play sets
 //!   it lower so its recording carries denser worlds for the drift lab).
+//! - `SRP_ANTI_AFK` (default 180, at least 60; `off` or `0`): a player who gives
+//!   no input for that many seconds of play is removed from the match, as
+//!   one who leaves; never in a private room's match nor one against
+//!   bots ([`afk`], `docs/notes/anti-afk.md`);
+//! - `SRP_RELEASED_EXE_SHA256` (default none; the release sets it): the
+//!   SHA-256 of the game executable in the players' download. A game that
+//!   reports it is not asked for its file; every other executable the
+//!   server has not stored is collected ([`executable`],
+//!   `docs/notes/module-report.md`).
 
+/// Anti-AFK: a player without input for three minutes of play is removed.
+mod afk;
+/// A player's Artifact Hunt deliveries pay within a match's own and a
+/// combat-adjusted allowance (`artefact_hunt.md`, "srp").
+mod artefact_hunt_cap;
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
 mod client_report;
+mod resource_checks;
+mod executable;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;
 /// The upload check of a recorded match, for `examples/world_check_bench.rs`.
@@ -125,8 +139,14 @@ mod game;
 pub mod world_validation;
 /// Recorded and dumped worlds checked as uploads are (`srp-world-check`).
 pub mod world_check;
+/// What differs between two worlds of one tick (`world_diff::diff`): the
+/// desync capture's summary and `srp-world-diff`.
+pub mod world_diff;
 /// A player's kills of one enemy pay at most 10 times a match.
 mod kill_cap;
+/// Matches of before the history made again from their recordings
+/// (`srp-history-backfill`).
+pub mod backfill;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;
@@ -159,9 +179,9 @@ use std::time::Duration;
 use udp_transport::{Config, Table};
 
 pub use registry::{
-    CreateError, DRAW, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd, MatchPlayer,
-    MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink, Seat,
-    VoiceSeat, static_id,
+    CreateError, DRAW, IdleRemoved, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd,
+    MatchPlayer, MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink,
+    Seat, VoiceSeat, static_id,
 };
 pub use replay::{replays_from_env, replays_of};
 pub use bots::tuning::LiveTuning;
@@ -233,7 +253,7 @@ pub(crate) struct Timing {
     /// way before the sync starts over (`SRP_ENTRY_STATE_SECONDS`). A game
     /// that plays is resynced within the 1.75 s of the client's own table.
     pub entry_state: Duration,
-    /// A match against the server's bots ([`MatchSetup::vs_bots`]) whose
+    /// A match against the server's bots ([`MatchSetup::kind`]) whose
     /// only player has been asked for its world this long and sent none
     /// is over (`SRP_PVB_STALL_S`): its bots see the world through that
     /// player's uploads alone.
@@ -274,17 +294,15 @@ pub(crate) const DEFAULT_PVB_WORLD_MS: u32 = 2_000;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Settings {
     pub late_inputs: LateInputs,
-    /// Resync a playing client with 0xE8 alone.
-    pub resync_world_only: bool,
-    /// Resyncs in a row without agreement after which a client is
-    /// disconnected; 0 for no limit.
-    pub restore_limit: u32,
     pub clock_correction: bool,
     pub check_initial_world: bool,
     /// The world goes to the clients as LZMA2 where that is smaller
     /// (`SRP_COMPRESS_STATE`).
     pub compress_state: bool,
     pub snapshot_dir: Option<PathBuf>,
+    /// `SRP_CAPTURE_MAX_MB`: the desync captures kept under the snapshot
+    /// folder (`game/desync_capture.rs`) together at most; the oldest go.
+    pub capture_max_bytes: u64,
     /// `SRP_RECORD_DIR`: the match recordings, if any.
     pub record: Option<record::RecordSettings>,
     /// `SRP_RELAY_PACK_MS`: the match link's `Config::gather`.
@@ -294,6 +312,11 @@ pub(crate) struct Settings {
     /// `SRP_BOT_TUNING` and the admin page's changes: what each match's bots run on, taken when the match starts
     /// ([`bots::tuning::LiveTuning::for_match`]); the maps are made with the tuning the server started on.
     pub bot_tuning: Arc<bots::tuning::LiveTuning>,
+    /// `SRP_ANTI_AFK`: when an idle player is removed, if ever.
+    pub anti_afk: afk::Setting,
+    /// `SRP_RELEASED_EXE_SHA256`: the release's own game executable, which
+    /// no game is asked for; `None`: every unknown one is collected.
+    pub released_executable: Option<executable::Released>,
     pub timing: Timing,
 }
 
@@ -301,20 +324,24 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             late_inputs: LateInputs::Relay,
-            resync_world_only: false,
-            restore_limit: 0,
             clock_correction: true,
             check_initial_world: true,
             compress_state: true,
             snapshot_dir: None,
+            capture_max_bytes: DEFAULT_CAPTURE_MAX_MB << 20,
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
             bot_tuning: Arc::default(),
+            anti_afk: afk::Setting::default(),
+            released_executable: None,
             timing: Timing::default(),
         }
     }
 }
+
+/// `SRP_CAPTURE_MAX_MB` when unset: some 1000 captures of 0.1 to 0.2 MB.
+const DEFAULT_CAPTURE_MAX_MB: u64 = 200;
 
 /// Where accepted snapshots are kept unless `SRP_SNAPSHOT_DIR` says
 /// otherwise: the 0.21d server's place.
@@ -327,16 +354,15 @@ impl Settings {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
-            resync_world_only: session::switch("SRP_RESYNC_WORLD_ONLY", false),
-            restore_limit: parse_number(
-                "SRP_RESTORE_LIMIT",
-                var("SRP_RESTORE_LIMIT").as_deref(),
-                0,
-            ),
             clock_correction: session::switch("SRP_CLOCK_CORRECTION", true),
             check_initial_world: session::switch("SRP_CHECK_INITIAL_WORLD", true),
             compress_state: session::switch("SRP_COMPRESS_STATE", true),
             snapshot_dir: parse_snapshot_dir(var("SRP_SNAPSHOT_DIR").as_deref()),
+            capture_max_bytes: u64::from(parse_number(
+                "SRP_CAPTURE_MAX_MB",
+                var("SRP_CAPTURE_MAX_MB").as_deref(),
+                DEFAULT_CAPTURE_MAX_MB as u32,
+            )) << 20,
             record: record::RecordSettings::from_env(),
             pack: match var("SRP_RELAY_PACK_MS") {
                 Some(value) => Duration::from_millis(u64::from(
@@ -372,6 +398,10 @@ impl Settings {
                 }),
             ),
             bot_tuning,
+            anti_afk: afk::Setting::parse(var("SRP_ANTI_AFK").as_deref()),
+            released_executable: executable::Released::parse(
+                var("SRP_RELEASED_EXE_SHA256").as_deref(),
+            ),
             timing: {
                 let client_timeout = Duration::from_secs(u64::from(
                     parse_number(

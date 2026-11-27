@@ -47,6 +47,7 @@
 //! patch, an archive of the files of a folder.
 
 pub mod clips;
+pub mod checked;
 pub mod overlay;
 pub mod pack;
 pub mod server;
@@ -244,7 +245,12 @@ impl Table<'_> {
 
 impl<R: Read + Seek> Archive<R> {
     /// Reads the header and the file table of `reader`.
-    pub fn new(mut reader: R) -> Result<Self, Error> {
+    pub fn new(reader: R) -> Result<Self, Error> {
+        Self::with_table(reader).map(|(archive, _)| archive)
+    }
+
+    /// The build also fingerprints the original file table, including every entry's CRC.
+    fn with_table(mut reader: R) -> Result<(Self, Vec<u8>), Error> {
         let len = reader.seek(SeekFrom::End(0))?;
         if len < HEADER_SIZE {
             return Err(format(format!(
@@ -272,12 +278,7 @@ impl<R: Read + Seek> Archive<R> {
             }
         })?;
         let (files, empty_folders) = index(&Table(&table))?;
-        Ok(Self {
-            reader,
-            len,
-            files,
-            empty_folders,
-        })
+        Ok((Self { reader, len, files, empty_folders }, table))
     }
 
     /// The bytes of the file at `path`; `None` if the archive has none.

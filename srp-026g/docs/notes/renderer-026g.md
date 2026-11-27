@@ -568,10 +568,17 @@ accum_diffuse and RT1 accum_specular. Constants (0x18137B..0x181609): `light_ran
 `world_to_inner_probe`, `probe_index`, `probes_blend_factor` (scene+126154h; blend_to used when
 0 < f < 0.999, the blend_to textures alone when f >= 0.999). PROVEN.
 
-Shader `environment_probe_lighting.ps`, 32 permutations; path digits: pos 3 lighting model (0 in
-all 16 effects), pos 5 TDIFFUSE = affect_diffuse, pos 26-27 TALPHABLENDED_DIFFUSE = blend,
-pos 31 LOD_INDEX = smart_attenuation, pos 41 ENV_PROBE_GEOMETRY_TYPE (macro bits from the
-config setter around 0x3D936B; effect configs 0x18A310.. set exactly these bits). Read:
+Shader `environment_probe_lighting.ps`, 32 permutations; its mask (`shaders/masks`):
+CONFIG_ENV_PROBE_GEOMETRY_TYPE, CONFIG_LOD_INDEX, CONFIG_TALPHABLENDED_DIFFUSE, CONFIG_TDIFFUSE,
+GLOBAL_LIGHTING_QUALITY, CONFIG_SHADOWED_LIGHT; path digits: pos 3 GLOBAL_LIGHTING_QUALITY (0 or
+3: the db holds both sets of 16, and the quality setting picks one at every compile; the 3 set
+interpolates two specular mips, the 0 set takes the nearest one), pos 5 TDIFFUSE = affect_diffuse,
+pos 27 TALPHABLENDED_DIFFUSE = blend (pos 26 CONFIG_SHADOWED_LIGHT, always 0), pos 31 LOD_INDEX =
+smart_attenuation, pos 41 ENV_PROBE_GEOMETRY_TYPE (macro bits from the config setter around
+0x3D936B; effect configs 0x18A310.. set exactly these bits; corrected 2026-11-23, earlier this
+said "pos 3 lighting model, 0 in all 16 effects"). The box programs (geometry 1, LOD_INDEX 0) are
+reconstructed as HLSL in `srp-026g/shaders/sm_4_0/environment_probe_lighting.ps` (`probes.sh
+check`: 6 of the 8 byte-identical, the other two one mul's operands apart). Read:
 
 ```
 sphere alpha  (91f1723c...47c5df)  t = sat((|P - probe_location| - inner_radius)
@@ -635,10 +642,11 @@ Differs from 0.10b: 0.10b sorted inside the ambient stage; same predicate and sa
 ### 5.4 Ambient lights (0x181EB0, per-list body 0x181660)
 
 Properties (`object_ambient_light::load` 0x2907A0): `radius`, `enabled`, `color` (packed,
-linearized with pow 2.2 at insert 0x2909C0), `intensity` (clamped >= 0), `attenuation_power`,
+ABGR: red in the low byte, green in bits 8..15, blue in bits 16..23, extracted
+at 0x29094F..0x2909BC; linearized with pow 2.2 at insert 0x2909C0), `intensity` (clamped >= 0), `attenuation_power`,
 `dot_normal`, `affect_specular` (default 0), `geometry` (0 sphere, 1 box), `side_width`
 (default 0.1, 0x921948), `smart_attenuation`. Render light: +44h location, +50h colour, +5Ch
-intensity, +60h attenuation power, +64h radius, +68h side width, +6Ch geometry, +71h dot_normal,
+intensity, +60h radius, +64h attenuation power (its bits as the object has them: 0x290856, set_properties 0x1C4745, cb0[12].w at 0x181AEF), +68h side width, +6Ch geometry, +71h dot_normal,
 +72h smart_attenuation, +73h affect_specular. PROVEN.
 
 The visible list (scene_view+1CD24h) is split by intensity (0x1858E0): lights with intensity <= 1
@@ -705,6 +713,69 @@ diffuse (5.5) and the probe specular (5.3); nothing else. `t_ssdo_result` (rt 29
 RGBA8, a direction in rgb (x2-1) and occlusion in a) is read by the composition sun term (6.1)
 and by the point and spot light shaders (4.4). Only with `r_ambient_occlusion_quality` = 3 and
 `r_ssdo`. Both options are user graphics settings (`st_options_ssao`, `st_options_ssdo` strings).
+
+### 5.7 The hi-Z occlusion answers (`stage_visibility::execute_stage` 0x1B6A10)
+
+With the hi-Z option on (render options +12Dh), each frame first asks for the last query's
+results (`quary_and_get_results_if_ready` 0x1D7E30: the staging copy mapped into [stage+1Ch], a
+byte per bound, 0 occluded; AL 0 while not ready), then frustum-culls (0x1B74D0). Only in a frame
+whose results came in, `occlusion_culling` (0x1B79A0) runs the `get_results_and_prepare_bounds_*`
+of every kind in view (models, lights, grass, decals, ambient lights, environment probes, ambient
+volumes, particles, portals): each object stores the result at the index it had in the last query
+(light +2ACh -> +270h at 0x1B7C2B, ambient light +9Ch -> +A4h at 0x1B8043, probe +37Ch -> +384h at
+0x1B81E3; -1, never queried, stores 0), takes the next index of the query sent now (one counter for
+every kind) and adds its bound: the sphere around its world box. `process_culling` (0x1D73C0)
+then copies the scene depth, which at stage_visibility is still the frame before's, downsamples
+it, tests the bounds and copies the results for a later frame. In a frame without results the
+stored answers stay. PROVEN (instructions read).
+
+So an answer is acted on a frame or more after its query, against a depth a frame older still:
+while the camera moves, objects in sight are called occluded, and one back in view reads, once,
+the result at the index it had when last in view, another object's. Patch 189's log (a
+diagnostic, `SKHID_LIGHT_SET_LOG`, on the branch `diag/light-set-log`, not merged) of four
+minutes in London (v0.42, 2026-11-22): per frame on average 64 probes in view, 24 of them left out;
+75 ambient lights, 39 left out; 17 lights, 11 left out. 5,080 drops of a probe or ambient light,
+1,269 of them back within a frame (20 ms); 552 of a light, 77 within a frame. A probe left out lets
+the one under it light its surfaces; an ambient light left out takes its light away.
+
+Patch 190 (`light_occlusion`) stores every probe's and ambient light's answer as visible: drawn
+hidden, it costs its draws (the light mask and two techniques, 5.3, 5.4) over its volume's
+screen area at most. A point or spot light is stored occluded only after four occluded answers
+in a row: a hidden one would render its shadow map.
+
+**Model surfaces, the first person's too.** `frustum_culling` puts every surface instance in the
+camera's frustum into the camera's list (scene view +44A0h, `scene::select_models` 0x150560 with
+mask 1, at 0x1B790D); nothing there tells a first-person surface from the world's. In a frame
+with results, `get_results_and_prepare_bounds_models` (0x1B7A70) stores each surface's answer at
+its +61h (0x1B7AB7, 1 occluded; never queried, +40h -1, stores 0), takes the next index into +40h
+and adds the sphere around its render surface's box (+38h, box at +20h) under its world matrix
+(+50h). `filter_and_sort_models` (0x1B7360) then removes every surface with +61h set while the
+option is on (its remove_if 0x1B8F10, 0x1B8F41), before the list is copied to the forward list
+(+C4B8h, which `stage_forward::execute_foreground` 0x1AB82C also draws the first person from) and
+the G-buffer's; `stage_visibility::execute_stage` marks the models of the surfaces kept as seen
+this frame (their +110h, 0x1B6AA0), which `player::mt_draw` reads for its cull. So a first-person
+surface is tested like a wall: its sphere projected with the world's camera, against the world's
+linear depth of a frame before. PROVEN (instructions read).
+
+The test (`hiz_fill_culling_results_buffer.ps`, the 0.26g blob): `$user$position` (linear view
+depth) with each texel the maximum of its 3x3 (`hiz_copy_scene_depth.ps`), then 2x2 maxima down
+the mips (`hiz_downsample_depth.ps`); a sphere in front of the near plane takes the mip
+ceil(log2(its projected size)), four samples at the corners of its projected square (a 4x4 grid
+from mip 4 on, visible past mip 8), and is occluded when their maximum is below its nearest view
+depth. 0.10b's shader called a sphere occluded only when the depth was more than 20 m nearer
+(`depth + 20.f < nearest`); 0.26g dropped the 20 m. PROVEN (both shaders' code). A first-person
+surface is 0.05 to 1 m away, drawn over whatever the world has in front of it; a collimator's dot
+is a disk 0.66 mm across (`collimator_glowing_dot_s` of the 0.69d0 collimators, its box 0.33 mm
+around), the smallest sphere the query has, at the screen's centre, and its own housing (another
+surface, another answer) stays when it goes. A test from the depth of a frame before, read a
+frame or more late at an index that is another object's whenever the surface was out of the last
+query (re-added when an aimed optic comes in, the `+40h` of its last time in view), can only
+lose it.
+
+Patch 213 (`first_person_occlusion`) stores every first-person surface's answer as visible (its
+model's foreground byte +114h, or its own +63h: what `render_forward_models` 0x1AB412 and
+`stage_lights::execute_foreground` 0x192DC4 draw in the first-person pass); a world surface keeps
+its answer. The first person is a handful of surfaces, drawn every frame they are in the frustum.
 
 ## 6. Composition and emission
 
@@ -828,13 +899,17 @@ moon textures were not read.
 
 Copies the normal target (t 10 -> 11 `normal_copy`, 0x178AA5) then binds the three G-buffer
 targets normal (10), albedo (13), surface_parameters (15) (0x178AEF..0x178B34) and draws each
-decal box (`decal_instance::draw` 0x14DEB0) with `decal_default_material_effect` (0x1E3070,
+decal box, lowest `draw_priority` first (`std::sort` 0x179650 on the decal's +0x6C; 0.31a2 sorts the same, 0x78D8A9), (`decal_instance::draw` 0x14DEB0) with `decal_default_material_effect` (0x1E3070,
 shader `decal_base`, depth test LESS_EQUAL no write, stencil test against the geometry bits,
 0x1E3288..0x1E3394). So decals modify the G-buffer before any lighting; they are lit like the
 surface. PROVEN. Blend: `deferred_decal.ps` writes the albedo with the decal alpha in o1.w and
 zeros elsewhere (e.g. 00adf4b1...d29172), consistent with per-target SRC_ALPHA blending from the
 material `blend_mode` (`effect_material_base::compile_begin` 0x1CD0B0): LIKELY, the per-target
 blend values were not read.
+
+0.31a2's stage (0x78AE40, vtable slot 1) does the same: the copy (0x78AF2E), the three targets, the
+same per-decal effect choice from the instance's +0x4C/+0x50/+0x54. Target ids are the same in both
+builds (`rt_index_to_name`: 0.26g table 0x16272C, 0.31a2 0x771ED4).
 
 ### 9.2 Other passes, one line each
 
@@ -854,6 +929,64 @@ blend values were not read.
   constant; lerp. PROVEN (shader tail).
 - Foreground (slot 22): first-person models via `stage_forward::execute_foreground` and
   `stage_lights::execute_foreground` (vtable slot +8). LIKELY.
+
+### 9.3 One-layer transparency (OLTA, `use_olta`)
+
+A G-buffer material with `use_olta` is see-through by a one-bit stipple, resolved later. Read for
+the 0.21d and 0.11e Radar ports' glass bricks (`ported/v0xxx/tiled/window/glass_tile`,
+2026-11-09).
+
+**Write** (`gbuffer_pass.ps` with `CONFIG_USE_OLTA`, 354 of the 5918 blobs, all checked): with
+a = `t_transparency.a`, a pixel with 0.025 < a < 0.975 is discarded on even rows
+(`(uint)SV_Position.y & 1 == 0`), and albedo.a (rt 13) = a. Every other `gbuffer_pass` blob and
+every `terrain_gbuffer_pass` blob writes albedo.a = 1; `gbuffer_nomaterial_pass` writes 0.5.
+PROVEN (bytecode). So the even rows show what is behind the first OLTA surface, and every OLTA
+surface behind it is gone there too: one layer only.
+
+**Resolve** (slot 19, `stage_apply_distortion::execute` 0x1AE3B0): when both effects exist
+(`is_effects_ready` 0x1AE390), opt+11Ch is set (1 by `set_default_values` 0x3CD5BF, no console
+command) and the stage is enabled (`stage::is_enabled` 0x1BD6A0, +0Ch, 1 from the constructor
+0x1AE2C8), `effect_olta` (stage +14h, one technique: `olta_blend`, `t_frame_color` = generic0,
+`t_diffuse` = albedo, 0x1D4210) draws generic0 into generic1, then `effect_apply_distortion`'s
+technique 1 (stage +10h) draws generic1 back into generic0. 0.21d's stage is the same
+(0x12393D); 0.10b resolved in the post-process instead, from its own R8 target cleared to 1 each
+frame. PROVEN (code). The captured frame (section 11) has the pass. OBSERVED.
+
+`olta_blend.ps` is keyed by `GLOBAL_SHADING_QUALITY` alone (`shaders/masks`) and the db has only
+`_0` and `_3`; the options' macro writer turns every value but 0 into 3 (0x3CD3B7..0x3CD3F9), so
+`r_shading_quality` 1..3 give `_3`. PROVEN. With n = albedo.a one row down, c = albedo.a here:
+
+```
+_0 (0.21d's only program):  n < 1: here*(1-n) + below*n     else c < 1: here*c + below*(1-c)
+_3:                          n < 1: blur(below)*(1-n) + below*n
+                             else c < 1: here*c + blur(here)*(1-c)
+     blur(t) = mean of 9 taps at x-1..x+1, rows t-3, t-1, t+1 (the rows of the other layer)
+```
+
+So `_3` gives the two rows of a pair the same value: the glass and what is behind it both at half
+the vertical resolution, in two-row steps fixed to the screen. PROVEN (bytecode). In the owner's
+screenshot of the 0.21d Radar's glass (2026-11-09 15:21, 2560x1440) the glass has that structure
+(mean |v(y) - v(y+1)| 2.47 inside a pair against 6.44 across pairs, the wall beside it 3.6/3.5):
+the resolve runs there. OBSERVED.
+
+**The carrier is not reset.** `stage_gbuffer::execute` binds normal, albedo and surface parameters
+(0x177C4E) and clears none of them; after the resolve the post-process uses albedo as scratch
+(TAA: `CopyResource(albedo, present)` 0x1B2EAE; the aberration/sharpen pass drawn into albedo
+0x1B3476, then copied to present), and the aberration, sharpen and TAA programs write alpha 0.
+So where no G-buffer geometry was drawn (the sky), the resolve finds albedo.a from the previous
+frame's post-process, 0 with those passes, and takes the "n < 1" branch: the sky gets the 9-tap
+blur, the row above the sky too, and an OLTA row with sky below it shows only itself. PROVEN
+(code and bytecode); which post-process branch a frame takes depends on the options and the
+scene; not seen in a game.
+
+**Live OLTA materials** (stock db and the live patches, 2026-11-09): `tiled/window/` glass,
+glass_det_test, glass_tile, window, window_tiles, windows_broken, windows_factory;
+`props/light/` lamp_lights_glass, lamp_lights_glass_light, light_emitters_glass;
+`props/chemicalflaskcentre/` capsuleglass, flaskglass; `props/plantflask/plantflaskglass`;
+`level/lobby/glass`; `vehicle/vaz_2109_alpha`; `editor/victory_item_spawner`;
+`test/taras_fx/fly1`; patch 14 `level/level_09/church_glass`, `gherkin_ts`,
+`vehicle/military/ocelot/ocelot_glass`; patch 20 `ported/v021d/` glass, glass_tile, window,
+`props/light/lamp_lights_glass_light`; patch 22 `ported/v011e/` glass, glass_tile.
 
 ## 10. Post-process (`stage_postprocess::execute` 0x1B2270)
 
@@ -898,6 +1031,48 @@ PROVEN for the shaders quoted and the label order; which branches run (AA method
 at 0x1B2D20, motion blur `r_motion_blur_quality` opt+E4h, lens flares, radial blur,
 `effect_aberration_and_sharpen<a,b,c>`) depends on the user options and was not traced branch by
 branch. There is no separate gamma pass: the encode is in the sharpen / copy shaders.
+
+### 10.1 Motion vectors and TAA
+
+**The surfaces.** `accumulate_motion_vectors` (0x1B1B50) draws into `$user$object_motion_vectors`
+the surfaces of two lists of the scene view (+4170h), each filtered by
+`is_not_motion_vector_surface` (0x1B1840): from the G-buffer's surfaces (+84ACh) the skinned ones
+(render surface key +48h 8, 10h, 20h, 40h), from the models the scene moved since the last frame
+(+494h: `select_models`' second query, 0x150220, takes a tree item whose moved flag +2Ch is set; the
+loose octree sets it at every insert and move, 0x39509, 0x3A6DC..0x3A711, and `unmove_all` 0x396C0
+clears it at the end of every `renderer::render`, 0x13DE6B) the rest. `render_models` (0x1B18B0)
+draws the world's, then `foreground_begin` and the first person's (the model's foreground byte
++114h or the surface's +63h against its second argument). The first person's static surfaces are in
+the lists every frame: a weapon's draw moves them. PROVEN (code; counted in a capture, an AK-12
+with an ACOG and a side sight: 10 first-person surfaces, 6 static, in every frame's list). The
+model's `movable` byte (+115h) is read only by the shadow cache (0x172C4B), not here.
+
+**What each writes** (`motion_vectors_accumulation.ps`, the 0.26g blobs): a skinned surface's
+permutation writes (0, 0, 1, 0): no motion, the object flag. A static one's projects its
+model-space position through the previous transform (cb0, the constant [view+138h]: its world
+matrix of the frame before, kept in the scene view's map +25374h by surface, times the view matrix
+of the frame before, stage +10h, copied from context +4E18h at the end of each post-process,
+0x1B34ED) with this frame's projection, and writes the pixel's position less that, with the object
+flag. PROVEN (bytecode, code).
+
+**TAA** (`temporal_antialiasing.ps`): the camera's motion from the linear depth and the view of the
+frame before, or, where the object flag is set, minus the object's motion (and the object's where
+the reprojected pixel lands on one); then half of the history there while the motion is under 1 %
+of the screen (weight 0.5 x (1 - 100 |motion|), 0 off the screen), nothing past it. There is no
+clamp of the history to the pixel's neighbours. PROVEN (bytecode).
+
+**First person** (patch 215, `first_person_motion`). The gun and the hands are skinned: no motion,
+their own pixel's history. 0.69d0's modules (patch 161's optics and parts) are static models, and
+their written motion was a share of the view's: in turns, steps and the gun's sway TAA took half
+of their pixels from the world beside them (the optic half see-through, the motion blur smearing it
+the same way). OBSERVED (headless captures of an AK-12 with an ACOG TA01 and a DeltaPoint second
+sight, revision 74 content: see-through with TAA and no motion blur, whole with motion blur and no
+TAA; an SVD's own PSO-1, also static, drawn at the world's projection, whole). Why the static path's
+motion is wrong for them was not found: the previous transform's formula holds for a model fixed
+to the view. The patch gives a first-person surface's previous transform its world and view
+matrices of this frame (site `motion_vectors.previous`, 0x1B1A1D): a motion of 0 with the object
+flag, the gun's. A first-person thing that moves on the screen (the gun's bob in a strafe) then
+keeps half of its last frame's image in TAA, as the gun always has.
 
 ## 11. The captured frame
 
@@ -1187,3 +1362,62 @@ PROVEN for the 0.26g column (sections 1, 4, 5, 6); the 0.10b column is the sourc
 - The order of ambient lights (no sort found on the render path).
 - The sun's shadow map (`stage_shadow_direct`, cascades) and `stage_shadow_mask` beyond their
   output target.
+
+### Original 0.21 local-light compatibility (candidate, 2026-11-17)
+
+The original point/spot pixel programs differ from native in diffuse and
+specular arithmetic and shadow sampling. Scaling a local light's intensity
+cannot reproduce those direction- and material-dependent differences.
+Resource-porter `weather_fog_021/local_lights.rs` adapts the original retail
+program to each of the 32 native permutations; `local_lights.tsv` pins both
+inputs. Original quality selectors 0/3 map to native SSDO disabled/enabled
+permutations, and shadow quality 0–3 and shadowed/unshadowed remain paired.
+The original programs do not sample the native SSDO texture.
+
+The only arithmetic-boundary adaptation is screen UV: original
+`v1.xy / v1.w` becomes native `SV_Position.xy * screen_res.zw`. The complete
+original remainder survives instruction-for-instruction, including shadows.
+Reflection maps constant buffers/samplers/textures by name and verifies each
+used constant's byte offset and size. In unshadowed variants the positional
+constant buffer moves b1→b2; native SSDO+shadow variants move the original
+shadow comparison sampler s3→s4. Native declarations and bindings remain;
+the static buffer grows from 15 to 19 registers to read the marker.
+
+The exact day-map markers select these programs; all unmarked scenes execute
+the complete native body. An independent disassembly check passed all 32
+original programs for all three markers. The broader fallback check passed
+all 88 shaders in the pack. In-game visual acceptance is still pending.
+
+### Original particle-light intensity (2026-11-17; candidate)
+
+Native `scene::particle_engine::update_light` (0x14F260) multiplies its
+authored intensity argument (entry ESP+96) by 3.0 at 0x14F30A before storing
+`light_props+44h`. `fill_light` passes that field unchanged to
+`set_color_and_intensity`, which stores `light+210h`. Original 0xF2CE0
+copies the same argument unchanged at 0xF2D6D; original `fill_light`
+0x12FCCF stores it at `light+210h` at 0x130039. The constant at native
+0xA2D73C is exactly 3.0. This is an engine-wide particle-light conversion
+difference, not evidence for a per-torch artistic intensity adjustment.
+The original-program candidate shows Fort's torch and Mamayev's dugout fire
+too bright. The hook at 0x14F305 skips that multiplication only when the
+particle engine's actual scene (+8, verified by `get_scene` 0x14F080) equals
+the active game world's render scene (game+18h+4). Native
+`object_ambient_light::insert` passes scene+4 at 0x290ABE;
+`scene_renderer::update_ambient_light` copies the resource pointer at
+0x23AB4/0x23AC3, and `engine::world::update_ambient_light` dereferences it
+at 0x118C3D/0x118C3E. No resource-base adjustment is involved.
+
+The engine-world global at 0x1F1D310 and its game at +2D0 are the existing
+native `message_processor` path (0x18359/0x1835F). Both must exist, the
+actual render-scene pointers must match and be non-null, and the game
+project must be one of the five exact day-map aliases. The hook has no
+cached flags or scene ownership. Every other scene executes the original
+MULSS instruction. The focused check passed 264 ambient and 1,152 particle
+cases, including actual-scene mismatches, map transitions, missing owners,
+teardown, preserved registers/frame and the native gain. In the flagged
+Fort torch view, mean brightness fell from 44.0 to 30.0 (original 28.8),
+and the lower-frame RGB MAE from 18.21 to 3.95. Mamayev's dugout fell from
+39.0 to 32.0 (original 30.6), full-frame MAE 12.66 to 5.24. Both lost their
+serious colour flags; geometry and authored curves remain unchanged.
+Mamayev's sun control stayed at brightness 105.5 versus original 106.5.
+The broader five-map review remains incomplete.

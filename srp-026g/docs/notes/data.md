@@ -516,7 +516,7 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
   may be listed under several sellers. Which level an item needs is not in the client; srp
   uses `item_level` (Scavengers, Black Market) and `item_level - 5` (Renaissance, Edge)
   [LIKELY: gear levels are 1..5 and 6..15, the factions have 5 and 10 levels above 0, and it
-  reproduces the January 2015 wiki ranks in `v021d/shop_ranks.md`].
+  reproduces the January 2015 wiki ranks in `srp-021d/docs/notes/shop_ranks.md`].
 - **Who decides the seller and the rank: the server alone (2026-10-12).** The exe keeps the
   0x8A records as a flat array and gives each to the lobby as `{faction_id, level, dictId,
   cost}` (0x223190); `setupShopItems` files the item under the record's seller with the
@@ -658,11 +658,13 @@ raise it. With no other modifiers:
   eligibility check rejects it. Modifier 31 (`can_sprint`, skill 213) bypasses
   this weight gate, but retains both weight penalties and the other sprint gates.
 - Both penalties stop growing at M: extra weight does not slow movement further.
-- Skill 202 (`overweight_penalty`) is -5% per rank, multiplicative on the
-  -0.20 coefficient: at five ranks the maximum speed loss is 15%, not zero.
+- Skill 202 (`overweight_penalty`) is -3% per rank (stock -5%; the owner, 2026-11-23,
+  `skill-ranks-1.json`), multiplicative on the -0.20 coefficient: at five ranks the
+  maximum speed loss is 17% (stock 15%), not zero.
   It does not reduce weight's extra stamina spending.
-- Skill 209 is +2 kg capacity per rank. At five ranks M=40: 30 kg has -10%
-  movement and +75% stamina spending, and still permits sprinting.
+- Skill 209 is +1 kg capacity per rank (stock +2 kg; the owner, 2026-11-23). At five
+  ranks M=35: 30 kg has -13% movement and +100% stamina spending, and still permits
+  sprinting.
 - Skill 214 (`max_carried_weight_ultimate`, Heavyweight) makes the movement
   penalty zero; `base_player::can_sprint` separately forbids sprinting entirely.
 
@@ -828,10 +830,10 @@ limit beside the weight ("/ 30"):
   each kit item's parameter and modifications (0x2F7470), the armour's and the
   pockets' alike.
 - **Base limit**: the menu's +3118h, from the exe's callback.
-- **Skills**: the kit's float of modifier 5 (Athlete, skill 209, +2 kg a rank),
+- **Skills**: the kit's float of modifier 5 (Athlete, skill 209, +1 kg a rank),
   from the exe's callback.
 - **Bonuses**: the armour's (HEAD..FOOT) weight-limit modifications (prop 106,
-  1120..1124: +1..+5 kg; the Duty suit's built-in 1124).
+  1120..1124: +1, +1, +2, +2, +3 kg since 2026-11-23 (whole numbers: the stock values are ints); the Duty suit's built-in 1124).
 - **Boosters**: the pockets' (the Anomalous Force Protein, `weight_booster`,
   built-in 1124: +5 kg while carried, as every booster).
 - The items' own parameters (beyond their modifications) are 0 in every
@@ -842,7 +844,7 @@ limit beside the weight ("/ 30"):
   `movement_speed_name` showed "#movement_speed_name" in the game). Before the
   exe has given them a row says "Skills".
 - **Packrat** (skill 202):
-  the kit's float of modifier 26, -5 % of the weight's movement penalty a rank.
+  the kit's float of modifier 26, -3 % of the weight's movement penalty a rank.
 - Green raises the limit (or lowers the penalty), red lowers it, as the rows;
   the weight-limit modifications' icon (12), Packrat's the speed icon (11).
 

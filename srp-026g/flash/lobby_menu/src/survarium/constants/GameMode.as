@@ -19,6 +19,14 @@ package survarium.constants
       // matches the plain battery mode with no interface but the players' markers
       public static const BLACKOUT:int = 6;
       
+      // Free for all: everyone for themselves, most kills wins (docs/notes/ffa.md); 7 is kept for
+      // another mode
+      public static const FREE_FOR_ALL:int = 8;
+      public static const FREEZE_TAG:int = 12;
+      
+      // Artifact Hunt: bring the one artefact to your base, first to 5 (docs/notes/artefact_hunt.md)
+      public static const ARTEFACT_HUNT:int = 13;
+      
       public function GameMode()
       {
          super();

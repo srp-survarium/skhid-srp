@@ -31,9 +31,6 @@ The replaced bytes are derived (a call/jump to the callee) or read from the
 original exe (a span); patch_026g.py's apply() checks every write against the
 exe, so a site that drifted fails the build. Nothing is looked up at run time.
 
-    python hooks_026g.py --write     writes hook_entries_026g.asm and hooks_026g.rs
-    python hooks_026g.py --check     says whether they are current (the self-test runs the same)
-
 A `lohook` row with `only = { <held> = "<CONST>" }` calls its handler only
 while the site's register `<held>` (a `name=REGISTER:u32` of the site's
 `holds`) is one of the values of the patch module's `CONST` (a `[u32; N]`,
@@ -52,15 +49,13 @@ from the generated `<patch>_on_demand()`: the site, its bytes, the entry),
 so a game that never asks runs the original code byte for byte.
 
 A span hook (lohook, splice, code) needs the original exe for its bytes: the
-caller's reader, else the file `--exe` or SRP_026G_EXE names (sha256
+caller's reader, else the file SRP_026G_EXE names (sha256
 checked); patch_026g.py passes the exe it builds from.
 """
-import argparse
 import os
 import re
 import struct
 import subprocess
-import sys
 import tomllib
 from pathlib import Path
 
@@ -125,7 +120,8 @@ TYPES["f32"] = {
 }
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
-for _view in ("RenderVisual", "GameScene", "ObjectLight"):
+for _view in ("RenderVisual", "GameScene", "ObjectLight", "ObjectAmbientLight", "ObjectParticleVisual",
+              "ObjectEnvironmentProbe"):
     TYPES[_view] = {
         "raw": f"Option<{_view}>", "fallible": True,
         "build": f"{_view}::from_raw(&thread, {{a}})",
@@ -145,6 +141,76 @@ TYPES["ConsoleArguments"] = {
     "raw": "*const u8",
     "binding": "let {n} = unsafe {{ ConsoleArguments::from_raw(&thread, {a}) }};",
     "orig_type": "&ConsoleArguments", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+
+# Patch 156's triangle callback (vostok::shape): our copy of a
+# btTriangleCallback's vtable, the triangle the BVH found (three btVector3)
+# and its part and index.
+TYPES["TriangleSink"] = {
+    "raw": "Option<TriangleCallback>", "fallible": True,
+    "build": "TriangleSink::from_raw(&thread, {a})",
+    "orig_type": "&mut TriangleSink", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["Triangle"] = {
+    "raw": "*const f32",
+    "binding": "let {n} = unsafe {{ Triangle::from_raw(&thread, {a}) }};",
+    "orig_type": "&Triangle", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+TYPES["u32"] = {
+    "raw": "u32", "binding": "let {n} = {a};", "orig_type": "u32", "orig_raw": "{n}", "pass": "{n}", "null": "{a}",
+}
+
+# Patch 143's battery swing (vostok::battery): the state its finalize gets,
+# and the buffer its carry -> swing predicate is entered with.
+TYPES["BatteryState"] = {
+    "raw": "Option<BatteryState>", "fallible": True,
+    "build": "BatteryState::from_raw(&thread, {a})",
+    "orig_type": "&mut BatteryState", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+# Patch 171's rule and cook (vostok::artefact_hunt): the objects the slots
+# of our vtable copies are called on (made only by us: fallible, the null
+# path never taken), and what the game passes them: a query, a kill's data
+# (none for a match's start), the core, the world's writer and reader, the
+# hud state.
+for _view in ("HuntCook", "HuntRule"):
+    TYPES[_view] = {
+        "raw": f"Option<{_view}>", "fallible": True,
+        "build": f"{_view}::from_raw(&thread, {{a}})",
+        "orig_type": f"&mut {_view}", "orig_raw": "Some({n}.raw())",
+        "pass": "&mut {n}", "null": "{a}",
+    }
+for _view, _kind in (("RuleQuery", "RuleQuery"), ("TickRule", "HuntRule"), ("RuleEvent", "KillEvent"), ("RuleCore", "CoreWorld"),
+                     ("RuleWriter", "BufferWriter"), ("RuleReader", "BufferReader"), ("HudState", "MatchHudState")):
+    TYPES[_view] = {
+        "raw": f"Option<{_kind}>",
+        "binding": f"let {{n}} = unsafe {{{{ {_view}::from_raw(&thread, {{a}}) }}}};",
+        "orig_type": f"&{_view}", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+    }
+# Patch 161's refill of a weapon's finger corrector (vostok::attachments).
+TYPES["FingerCorrector"] = {
+    "raw": "Option<FingersCorrector>", "fallible": True,
+    "build": "FingerCorrector::from_raw(&thread, {a})",
+    "orig_type": "&mut FingerCorrector", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+# Patch 205's reload commit (vostok::reload): the state a reload_commit event is
+# delivered to (its subscription's object: only a magazine reload's) and the event.
+TYPES["ReloadEventState"] = {
+    "raw": "Option<AnimationEndAwareState>",
+    "binding": "let {n} = unsafe {{ ReloadEventState::from_raw(&thread, {a}) }};",
+    "orig_type": "&ReloadEventState", "orig_raw": "-", "pass": "&{n}", "null": "{a}",
+}
+TYPES["AnimationEvent"] = {
+    "raw": "Option<AnimationCallbackParams>",
+    "binding": "let {n} = unsafe {{ AnimationEvent::from_raw(&thread, {a}) }};",
+    "orig_type": "&AnimationEvent", "orig_raw": "-", "pass": "&{n}", "null": "{a}",
+}
+TYPES["PredicateBuffer"] = {
+    "raw": "Option<PredicateBuffer>",
+    "binding": "let {n} = unsafe {{ PredicateBuffer::from_raw(&thread, {a}) }};",
+    "orig_type": "&PredicateBuffer", "orig_raw": "-", "pass": "{n}", "null": "{a}",
 }
 
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
@@ -380,8 +446,8 @@ def original_reader(data):
 
 
 def default_exe():
-    """A reader of the original exe the environment names (SRP_026G_EXE, or
-    `--exe`), its sha256 checked; None without one."""
+    """A reader of the original exe SRP_026G_EXE names, its sha256 checked;
+    None without one."""
     if not _DEFAULT_EXE:
         path = os.environ.get("SRP_026G_EXE")
         reader = None
@@ -405,7 +471,7 @@ def span_bytes(patch_name, site, exe):
     exe = exe or default_exe()
     if exe is None:
         raise Bad(f"{patch_name}: site {site['site']} ({site['kind']}) needs the original exe to read its "
-                  f"{site['span']} bytes")
+                  f"{site['span']} bytes (SRP_026G_EXE names it)")
     return bytes(exe(site["va"], site["span"]))
 
 
@@ -577,11 +643,12 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
     # mixed kinds and implicit order remain errors. One machine save/replay
     # wraps the chain; the first non-Continue result ends it.
-    # A callback rewrites nothing (the patch hands its own entry to the
-    # game), so the handlers of one callback site are never a chain.
+    # A callback or a vtable slot rewrites nothing (the patch hands its own
+    # entry to the game, or puts it in its own copy of the vtable), so the
+    # handlers of one such site are never a chain.
     grouped = {}
     for h in out:
-        key = (h["entry"] if h["kind"] == "callback"
+        key = (h["entry"] if h["kind"] in ("callback", "vtable")
                else h["site_name"] if h["site"] is None else h["site"])
         grouped.setdefault(key, []).append(h)
     out = []
@@ -608,7 +675,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
     spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out
-                   if h["site"] is not None and h["kind"] != "callback")
+                   if h["site"] is not None and h["kind"] not in ("callback", "vtable"))
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")
@@ -669,7 +736,7 @@ def runtime_vtables(tomls=None, hs=None, fields=None):
 def vtable_words(table, exe=None):
     exe = exe or default_exe()
     if exe is None:
-        raise Bad(f"{table['symbol']}: runtime vtable needs the original exe")
+        raise Bad(f"{table['symbol']}: runtime vtable needs the original exe (SRP_026G_EXE names it)")
     size = (table["count"] + 1) * 4
     data = bytes(exe(table["source"] - 4, size))
     if len(data) != size:
@@ -939,9 +1006,34 @@ def asm_text(hs, tables=(), exe=None):
 
 
 def outputs(tomls=None, functions=None, sites=None, exe=None):
+    tomls = read_tomls() if tomls is None else tomls
     hs = hooks(tomls, functions, sites, exe)
     tables = runtime_vtables(tomls, hs)
-    return {RS: rs_text(hs, tables).encode(), ASM: asm_text(hs, tables, exe).encode()}
+    rust, asm = rs_text(hs, tables), asm_text(hs, tables, exe)
+    # Windows calls these on a 4-byte-aligned stack. RUST_CALL aligns it for
+    # Rust, preserves EAX as the result and pops the stdcall arguments.
+    signatures = {"ThreadProc": ["*mut c_void"], "LowLevelHookProc": ["i32", "u32", "*const c_void"]}
+    for patch in tomls:
+        for row in patch.get("windows_callback", ()):
+            name, handler = patch["name"], row["handler"]
+            params = signatures.get(row["signature"])
+            if params is None or not re.fullmatch(r"[a-z][a-z0-9_]*", handler):
+                raise Bad(f"{name}: invalid Windows callback {row}")
+            entry = f"{name}_{handler}"
+            args = ", ".join(f"a{i}: {ty}" for i, ty in enumerate(params))
+            passed = ", ".join(f"a{i}" for i in range(len(params)))
+            asm += f"\nsection .text\nglobal {entry}\n{entry}:\n    RUST_CALL hook_{entry}, {len(params)}, {4 * len(params)}\n"
+            rust += f'''
+unsafe extern "stdcall" {{ pub(super) fn {entry}({args}) -> u32; }}
+/// # Safety
+/// Only the aligned Windows callback entry above may call this shim.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn hook_{entry}({args}) -> u32 {{
+    // SAFETY: the entry forwards the OS callback's original arguments.
+    unsafe {{ super::{name}::{handler}({passed}) }}
+}}
+'''
+    return {RS: rust.encode(), ASM: asm.encode()}
 
 
 def installs(exe=None, tomls=None, functions=None, sites=None):
@@ -1004,11 +1096,6 @@ def install_sites(tomls=None, sites=None):
             and row.get("install") != "on_demand"]
 
 
-def stale():
-    return [path.name for path, content in outputs().items()
-            if not path.exists() or path.read_bytes() != content]
-
-
 def strip_rust(text):
     """Rust source without its comments and string insides (so the layer
     check does not trip over them)."""
@@ -1047,29 +1134,5 @@ def check_layers():
                 raise Bad(f"{where}: a patch module uses `vostok` alone, never `raw`")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--write", action="store_true")
-    parser.add_argument("--check", action="store_true")
-    parser.add_argument("--exe", help="the original survarium.exe (a span hook's bytes)")
-    args = parser.parse_args()
-    if args.exe:
-        os.environ["SRP_026G_EXE"] = args.exe
-    if args.write == args.check:
-        parser.error("--write or --check")
-    try:
-        files = outputs()
-    except Bad as error:
-        sys.exit(f"hooks_026g: {error}")
-    if args.write:
-        for path, content in files.items():
-            path.write_bytes(content)
-        print(f"{RS.name} and {ASM.name}: {len(hooks())} hook(s)")
-        return
-    bad = [path.name for path, content in files.items() if not path.exists() or path.read_bytes() != content]
-    print("hooks_026g: " + ("current" if not bad else "NOT what the TOML gives: " + ", ".join(bad)))
-    raise SystemExit(1 if bad else 0)
-
-
 if __name__ == "__main__":
-    main()
+    raise SystemExit(f"{__file__}: its files are written by every build (python link_026g.py --generate)")

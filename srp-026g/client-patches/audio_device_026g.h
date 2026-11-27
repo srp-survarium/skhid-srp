@@ -33,7 +33,7 @@ ad_hresult ad_mm_enumerator(void **enumerator);
 /* The performance counter and its counts a second. */
 ad_u64 ad_now(void);
 ad_u64 ad_frequency(void);
-/* A line `srp: audio_device: <what> <value>` to srp_patches.log. */
+/* A line `srp: audio_device: <what> 0x<value>` to the patches' log (the run's file, through the Rust entry log.c_line). */
 void ad_log(const char *what, ad_u32 value);
 
 /* -- the core's entries -- */

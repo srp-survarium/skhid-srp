@@ -1,0 +1,11 @@
+# Patch 149: a key per item type uses it (item_hotkeys.rs). The input
+# builder's end is patch 78's site too (artefact_carry.toml): this patch's
+# quick-use bits go in first (order 0), so that its chord reads them as a
+# quick key's (order 1).
+name = "item_hotkeys"
+patch = 149
+
+[[hook]]
+site = "input_builder.end"
+handler = "on_input_end"
+order = 0

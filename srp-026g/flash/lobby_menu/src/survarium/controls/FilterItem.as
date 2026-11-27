@@ -1,5 +1,6 @@
 package survarium.controls
 {
+   import flash.display.Bitmap;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
@@ -25,6 +26,15 @@ package survarium.controls
       public var spriteAnchor:Sprite = new Sprite();
       
       public var itemIcon:MovieClip;
+
+      // Skhid: the attachment kinds' icons (ShopFilters 21 scopes, 22 muzzle devices, 23 grips): bitmaps
+      // of the tree (flash/lobby_menu/art) on itemIcon's empty frames, centred where the stock icons
+      // stand (34.75, 12), under the button's own colour states as they are.
+      private static const DRAWN:Object = {21:FilterIconScope,22:FilterIconMuzzle,23:FilterIconGrip};
+
+      private var _drawn:Bitmap;
+
+      private var _drawnIcon:int = -1;
       
       public function FilterItem()
       {
@@ -143,15 +153,40 @@ package survarium.controls
             {
                this.itemIcon.visible = true;
                this.itemIcon.gotoAndStop(300 + _data.icon);
+               this.showDrawn(int(_data.icon));
             }
             else
             {
                this.itemIcon.gotoAndStop(1);
                this.itemIcon.visible = false;
+               this.showDrawn(-1);
             }
          }
       }
       
+      private function showDrawn(icon:int) : void
+      {
+         if(icon == this._drawnIcon)
+         {
+            return;
+         }
+         this._drawnIcon = icon;
+         if(this._drawn && this._drawn.parent)
+         {
+            this._drawn.parent.removeChild(this._drawn);
+         }
+         this._drawn = null;
+         var art:Class = DRAWN[icon] as Class;
+         if(!art)
+         {
+            return;
+         }
+         this._drawn = new Bitmap(new art(),"auto",true);
+         this._drawn.x = Math.round(34.75 - (this._drawn.width - 1) / 2);
+         this._drawn.y = Math.round(12 - (this._drawn.height - 1) / 2);
+         this.itemIcon.addChild(this._drawn);
+      }
+
       public function setData(newData:Object) : void
       {
          focusable = false;
@@ -197,11 +232,13 @@ package survarium.controls
             {
                this.itemIcon.visible = true;
                this.itemIcon.gotoAndStop(300 + _data.icon);
+               this.showDrawn(int(_data.icon));
             }
             else
             {
                this.itemIcon.gotoAndStop(1);
                this.itemIcon.visible = false;
+               this.showDrawn(-1);
             }
          }
       }

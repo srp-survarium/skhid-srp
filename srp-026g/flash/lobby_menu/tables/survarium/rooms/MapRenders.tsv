@@ -1,0 +1,33 @@
+# The picture a map is drawn with, by its level (match_making_params.map_id) and weather
+# (map_weather_id). The lobby build makes it the class survarium.rooms.MapRenders
+# (tools/actionscript/README.md, "Tables"): the rooms draw their cards by it (RoomsLook.renderClass),
+# and the site cuts the same pictures by it for its match lists
+# (srp-026g/scripts/wiki/build_icons.py), so the two cannot part.
+# WEATHERS: a weather's word in a picture's name. A level's picture is the library bitmap
+# Level<level>_<weather>, its day one for a weather it has none of, but for:
+# LIKE: a level drawn as another's (name: that picture's name before its weather; the v0.21 ports,
+#   an older look of the same map, and London (v0.42) as London);
+# ONE: a level with one picture whatever the weather (the v0.11, v0.69 and STALKER maps' loading image).
+list	id:int	name:String
+WEATHERS	1	day
+WEATHERS	2	rain
+WEATHERS	3	evn
+WEATHERS	4	night
+WEATHERS	5	prerain
+LIKE	10	Level3
+LIKE	11	Level6
+LIKE	25	Level2
+LIKE	26	Level5
+LIKE	29	Level1
+LIKE	31	Level4
+LIKE	32	Level9
+ONE	12	Level_v011e_chemical
+ONE	13	Level_v011e
+ONE	14	Level_v069d_rudnya
+ONE	15	Level_cs_mp_bath
+ONE	16	Level_cs_mp_military_1
+ONE	17	Level_cs_training_camp
+ONE	18	Level_cs_mp_rembasa
+ONE	19	Level_soc_ug_station
+ONE	20	Level_soc_ug_depository
+ONE	23	Level_cs_mp_firestation

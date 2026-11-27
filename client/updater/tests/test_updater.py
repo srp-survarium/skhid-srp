@@ -29,11 +29,16 @@ import time
 import unittest
 import zipfile
 
+import run_logs
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-RELEASE = os.path.join("target", "i686-win7-windows-msvc", "release")
+RELEASE = os.path.join("target", "i686-pc-windows-msvc", "release")
 UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
+# Its BitTorrent, beside it as in the players' ZIP (build.sh puts it there).
+TORRENT_DLL = os.path.join(os.path.dirname(UPDATER), "skhid_torrent.dll")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")
+LOGS = "game/logs"
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel32.CreateMutexW.restype = ctypes.c_void_p
@@ -106,12 +111,10 @@ class Site:
         self.archive = b""
         self.manifest = None            # bytes to answer instead of the true manifest
         self.manifest_status = 200
+        self.manifest_delay = 0.0       # seconds before /api/client-files answers (a site that hangs)
         self.download_statuses = []     # statuses for the next downloads, then 200
         self.cut_downloads = 0          # the next N downloads end half way
         self.slow = 0.0                 # seconds between pieces of a download
-        self.blobs = {}                 # /resources/<sha256>: sha256 -> bytes (stock bytes, for the restore)
-        self.blob_statuses = {}         # sha256 -> another status than 200
-        self.blob_bodies = {}           # sha256 -> other bytes than the blob's
         self.patches = {}               # n -> bytes: listed at /patches, served at /store/patch_<n>
         self.patch_list = None          # bytes to answer /patches with instead of the true list
         self.patch_list_status = 200
@@ -123,7 +126,9 @@ class Site:
         self.patch_html = set()         # n: a web page (text/html) answered in the place of the file
         self.patch_urls = {}            # n -> the addresses the list gives it (default: one, on patch_base)
         self.old_list = False           # the list in the form before updater 0.3.0: one "url"
-        self.patch_cut = {}             # n -> bytes sent of the file, its whole length announced
+        self.patch_cut = {}             # n -> the file's byte its connection ends at, its whole length announced
+        self.patch_ranges = True        # `Range: bytes=<n>-` answered with a 206 (else the whole file, 200)
+        self.patch_ranges_asked = []    # (n, its Range header or None), each request of a patch file
         self.patch_slow = 0.0           # seconds between pieces of a patch file
         self.replays = {}               # /replays/<token>: token -> bytes
         self.replay_answers = {}        # token -> (status, headers, body) instead
@@ -144,8 +149,13 @@ class Site:
             def do_GET(self):
                 site.requests.append(self.path)
                 if self.path == "/api/client-files":
+                    time.sleep(site.manifest_delay)
                     body = site.manifest if site.manifest is not None else site.true_manifest()
                     self.answer(site.manifest_status, body if site.manifest_status == 200 else b"no\n")
+                elif self.path == "/api/stats":
+                    # The same server behind the same proxy: what the updater
+                    # asks to tell why the update check failed.
+                    self.answer(site.manifest_status, b"{}", "application/json")
                 elif self.path == "/download":
                     status = site.download_statuses.pop(0) if site.download_statuses else 200
                     if status != 200:
@@ -208,17 +218,6 @@ class Site:
                         # Google Drive's "cannot scan this file for viruses".
                         self.answer(200, b"<!DOCTYPE html><html><title>Google Drive - Virus scan warning"
                                          b"</title></html>", "text/html; charset=utf-8")
-                    elif number in site.patch_cut:
-                        # The connection ends before the file does.
-                        body = site.patch_bodies.get(number, site.patches[number])
-                        self.send_response(200)
-                        self.send_header("Content-Length", str(len(body)))
-                        self.end_headers()
-                        try:
-                            self.wfile.write(body[:site.patch_cut[number]])
-                        except OSError:
-                            pass
-                        self.close_connection = True
                     elif number in site.patch_lengths:
                         # A file larger than the disk: its length, a few bytes.
                         self.send_response(200)
@@ -229,28 +228,40 @@ class Site:
                         except OSError:
                             pass
                         self.close_connection = True
-                    elif site.patch_slow:
+                    else:
+                        # The file, or with `Range: bytes=<n>-` (when the
+                        # site gives parts) its bytes from n: a 206, or a
+                        # 416 when it has no byte n. A cut ends the
+                        # connection at that byte of the file.
                         body = site.patch_bodies.get(number, site.patches[number])
-                        self.send_response(200)
-                        self.send_header("Content-Length", str(len(body)))
+                        asked = self.headers.get("Range")
+                        site.patch_ranges_asked.append((number, asked))
+                        start = 0
+                        if site.patch_ranges and asked and asked.startswith("bytes=") and asked.endswith("-"):
+                            start = int(asked[len("bytes="):-1])
+                        if start >= len(body) and start > 0:
+                            self.send_response(416)
+                            self.send_header("Content-Range", f"bytes */{len(body)}")
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                            return
+                        self.send_response(206 if start else 200)
+                        if start:
+                            self.send_header("Content-Range", f"bytes {start}-{len(body) - 1}/{len(body)}")
+                        self.send_header("Content-Type", "application/octet-stream")
+                        self.send_header("Content-Length", str(len(body) - start))
                         self.end_headers()
+                        end = min(site.patch_cut.get(number, len(body)), len(body))
                         try:
-                            for at in range(0, len(body), 65536):
-                                self.wfile.write(body[at:at + 65536])
+                            for at in range(start, end, 65536):
+                                self.wfile.write(body[at:min(at + 65536, end)])
                                 self.wfile.flush()
-                                time.sleep(site.patch_slow)
+                                if site.patch_slow:
+                                    time.sleep(site.patch_slow)
                         except OSError:
                             pass
-                    else:
-                        self.answer(200, site.patch_bodies.get(number, site.patches[number]),
-                                    "application/octet-stream")
-                elif self.path.startswith("/resources/"):
-                    name = self.path[len("/resources/"):]
-                    status = site.blob_statuses.get(name, 200 if name in site.blobs else 404)
-                    if status != 200:
-                        self.answer(status, b"")
-                    else:
-                        self.answer(200, site.blob_bodies.get(name, site.blobs[name]), "application/octet-stream")
+                        if number in site.patch_cut:
+                            self.close_connection = True
                 elif self.path.startswith("/replays/"):
                     token = self.path[len("/replays/"):]
                     if token in site.replay_answers:
@@ -402,6 +413,8 @@ class UpdaterTest(unittest.TestCase):
         self.x86 = os.path.join(self.top, X86)
         os.makedirs(self.x86)
         shutil.copy(UPDATER, os.path.join(self.x86, "updater_skhid.exe"))
+        if os.path.isfile(TORRENT_DLL):
+            shutil.copy(TORRENT_DLL, os.path.join(self.x86, "skhid_torrent.dll"))
         # These scenarios exercise overlay updates over an existing game.
         self.write("game/resources.db", b"existing game resources")
         self.write(f"{X86}/survarium.exe", b"existing original game")
@@ -481,7 +494,7 @@ class UpdaterTest(unittest.TestCase):
         return launcher
 
     def log(self):
-        return self.read(f"{X86}/updater_skhid.log").decode("utf-8", "replace")
+        return run_logs.read(self.path(LOGS)).decode("utf-8", "replace")
 
     # --- the normal runs -------------------------------------------------
 
@@ -609,7 +622,7 @@ class UpdaterTest(unittest.TestCase):
         # By hand: with a launcher's pipe it would start the archive's real
         # launcher once that is installed.
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 0, self.log())
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 0, self.log())
         with zipfile.ZipFile(bundle) as archive:
             for info in archive.infolist():
                 # (The archive's own .url would send the next test run elsewhere.)
@@ -630,29 +643,31 @@ class UpdaterTest(unittest.TestCase):
         launcher = self.launcher()
         # The server not reached is said in the updater's own box, in the
         # launcher's language (English here unless this PC's launcher keeps
-        # another): its title (blocked on this network when Windows' own
-        # test site answers, else no connection), what happened, what to
-        # run, the log. Retry runs it all again.
+        # another): its title (no relay here: no connection, or no internet
+        # when Windows says it is offline), what to do, the log
+        # (updater_logic::diagnosis). Retry runs it all again.
         launcher.box_answers = [IDRETRY]
         launcher.wait_for(lambda l: len(l.boxes) == 2 and ERROR in l.states(), 90, "the updater's boxes")
         self.assertEqual(launcher.states(), ([CHECKING, CHECK_FAILED] * 2 + [CHECKING, ERROR]) * 2)
         for box in launcher.boxes:
             lines = box.splitlines()
-            self.assertEqual(len(lines), 4, box)
-            self.assertTrue(lines[-1].endswith("updater_skhid.log"), box)
-        if launcher.boxes[0].startswith(("Blocked", "No connection")):
+            self.assertEqual(len(lines), 3, box)
+            self.assertRegex(lines[-1], r"updater_skhid\.[0-9_-]+\.log$", box)
+        if launcher.boxes[0].startswith(("No internet", "No connection")):
             title = launcher.boxes[0].splitlines()[0]
-            self.assertIn(title, ("Blocked on this network: 127.0.0.1 did not answer (connection refused)",
+            self.assertIn(title, ("No internet connection: 127.0.0.1 did not answer (connection refused)",
                                   "No connection: 127.0.0.1 did not answer (connection refused)"))
-            self.assertIn("VPN.txt" if title.startswith("Blocked") else "Skhid-network-setup.cmd",
-                          launcher.boxes[0])
+            self.assertNotIn("VPN", launcher.boxes[0])
+            if title.startswith("No connection"):
+                self.assertIn("Skhid-network-setup.cmd", launcher.boxes[0])
         # The box said it: the launcher is not told again.
         self.assertEqual(launcher.texts(), [])
         self.assertEqual(launcher.finish(), 1)
         log = self.log()
         self.assertIn("the player asks to try again", log)
         self.assertRegex(log, r"The game's patches could not be checked: 127\.0\.0\.1 refused the connection\. "
-                              r".*VPN\.txt\. PLAY stays off until this is done\.")
+                              r"It may be restarting or offline, or a firewall or this network may block it\. "
+                              r"PLAY stays off until this is done\.")
         self.site = Site()
 
     def test_no_server_but_whole_files_lets_the_game_be_played(self):
@@ -848,18 +863,18 @@ class UpdaterTest(unittest.TestCase):
     def test_by_hand_it_updates_without_a_launcher(self):
         files = self.offer(self.bundle())
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], cwd=self.root, timeout=120).returncode, 0)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], cwd=self.root, timeout=120).returncode, 0)
         self.assertEqual(self.read("README.txt"), files["README.txt"])
         self.site.manifest_status = 500
         os.remove(self.path(f"{X86}/survarium_skhid.exe"))
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 1)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 1)
         self.assertIn("FAILED: x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: "
                       "127.0.0.1 answered /api/client-files with error 500", self.log())
         # Outside game\binaries\x86 it does nothing.
         stray = os.path.join(self.root, "updater_skhid.exe")
         shutil.copy(exe, stray)
-        self.assertEqual(subprocess.run([stray, "check", "quiet"], timeout=30).returncode, 1)
-        self.assertEqual(os.listdir(self.root).count("updater_skhid.log"), 0)
+        self.assertEqual(subprocess.run([stray, "check", "quiet", "direct"], timeout=30).returncode, 1)
+        self.assertEqual(run_logs.paths(self.root), [])
 
     def test_a_bad_server_address_is_refused(self):
         self.write(f"{X86}/updater_skhid.url", b"http://example.com")   # plain HTTP to another host

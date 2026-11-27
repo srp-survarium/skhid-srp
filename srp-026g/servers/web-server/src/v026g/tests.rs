@@ -69,6 +69,110 @@ fn world() -> World {
     world_with(GameAccounts::new())
 }
 
+#[test]
+fn admin_rename_targets_an_id_is_free_and_keeps_an_audit() {
+    let repository = session::v026g::persist::MemoryGameRepository::default();
+    let world = world_with(GameAccounts::with_repository(Box::new(repository.clone())).unwrap());
+    let id = world.player("Mamoru", "pw");
+    let other = world.player("Other", "pw");
+    let before = world.accounts.get(id).unwrap().locked().clone();
+    let response = world.admin(&[
+        ("tab", "rename"),
+        ("rename_id", &id.to_string()),
+        ("rename_name", "Mamoru_777"),
+        ("rename_reason", "duplicate name"),
+    ]);
+    assert!(response.contains(&format!("Account #{id} renamed: Mamoru → Mamoru_777.")));
+    let mut expected = before;
+    expected.name = "Mamoru_777".into();
+    assert_eq!(*world.accounts.get(id).unwrap().locked(), expected);
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Mamoru_777"
+    );
+    assert_eq!(
+        world.web.store.account(other).unwrap().locked().name(),
+        "Other"
+    );
+    assert_eq!(
+        world
+            .web
+            .store
+            .sign_in_with_digest_from(
+                "Mamoru",
+                &sha1_hex(b"pw"),
+                "127.0.0.1".parse().unwrap(),
+                Instant::now()
+            )
+            .unwrap()
+            .account_id(),
+        id
+    );
+    assert_eq!(*world.told.changed.locked(), vec![id]);
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(
+        (
+            actions[0].account_id,
+            actions[0].kind.as_str(),
+            actions[0].before.as_str(),
+            actions[0].after.as_str()
+        ),
+        (id, "nickname", "Mamoru", "Mamoru_777")
+    );
+}
+
+#[test]
+fn admin_rename_refuses_bad_auth_names_ids_and_lookalikes() {
+    let world = world();
+    let id = world.player("Alice", "pw");
+    world.player("sovspiranha", "pw");
+    for (target, name, reason, token) in [
+        (id.to_string(), "Alisa", "repair", "wrong"),
+        (id.to_string(), "sоvspiranha", "repair", "tok"),
+        (id.to_string(), "ab", "repair", "tok"),
+        (id.to_string(), "Alisa", "", "tok"),
+        ("Alice".into(), "Alisa", "repair", "tok"),
+        ("4294967295".into(), "Alisa", "repair", "tok"),
+    ] {
+        let response = world.web.route(
+            &post(
+                "/hidden",
+                &[
+                    ("tab", "rename"),
+                    ("rename_id", &target),
+                    ("rename_name", name),
+                    ("rename_reason", reason),
+                    ("token", token),
+                ],
+            ),
+            "t",
+        );
+        assert!(!response.body.contains(" renamed: "));
+        assert_eq!(
+            world.web.store.account(id).unwrap().locked().name(),
+            "Alice"
+        );
+    }
+    assert!(world.told.changed.locked().is_empty());
+    let mut request = post(
+        "/hidden",
+        &[
+            ("tab", "rename"),
+            ("rename_id", &id.to_string()),
+            ("rename_name", "Alisa"),
+            ("rename_reason", "repair"),
+            ("token", "tok"),
+        ],
+    );
+    request.client = Some("192.0.2.10".parse().unwrap());
+    assert_eq!(world.web.route(&request, "t").status, "404 Not Found");
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Alice"
+    );
+}
+
 /// The world with these 0.26g accounts (one kept in a repository: what is
 /// written, and the audit trail).
 fn world_with(accounts: GameAccounts) -> World {
@@ -83,11 +187,11 @@ fn world_with(accounts: GameAccounts) -> World {
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
+        replay_asks: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
-        game: Some(Game {
+        game: Game {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
@@ -96,7 +200,8 @@ fn world_with(accounts: GameAccounts) -> World {
             replays: None,
             bots: None,
             results: Arc::new(session::v026g::rewards::Results::new()),
-        }),
+            pools: crate::Pools::every_playable(),
+        },
     };
     World {
         web,
@@ -157,54 +262,6 @@ fn get(path: &str) -> Request {
         method: "GET".into(),
         ..post(path, &[])
     }
-}
-
-#[test]
-fn the_exchange_page_says_there_is_no_gold() {
-    let world = world();
-    let id = world.player("fighter", "secret");
-    let silver = world.balance(id);
-    // The launcher's SHOP button: `/exchange?lang=<its code>`.
-    let shop = |code: &str| {
-        let mut request = get("/exchange");
-        request.target = format!("/exchange?lang={code}");
-        request.lang = Lang::pick(code, "");
-        world.web.route(&request, "t")
-    };
-    for (code, lang, text) in [
-        ("en", "en", "There is no gold any more"),
-        ("ua", "uk", "Золота більше немає"),
-        ("ru", "ru", "Золота больше нет"),
-        ("de", "de", "Gold gibt es nicht mehr"),
-        ("pl", "pl", "Złota już nie ma"),
-    ] {
-        let answer = shop(code);
-        assert_eq!(answer.status, "200 OK", "{code}");
-        assert!(
-            answer
-                .body
-                .contains(&format!("<section class=card lang={lang}>")),
-            "{code}"
-        );
-        assert!(answer.body.contains(text), "{code}: {}", answer.body);
-        assert!(answer.body.contains("SURVARIUM 0.26G") && !answer.body.contains("<form"));
-    }
-    // Without a code: the page's own language.
-    let mut browser = get("/exchange");
-    browser.lang = Lang::Uk;
-    assert!(world.web.route(&browser, "t").body.contains("Лише срібло"));
-    // A form sent as the old page sent it is a page that is not there, and
-    // changes nothing.
-    let sent = world.web.route(
-        &post(
-            "/exchange",
-            &[("user", "fighter"), ("password", "secret"), ("gold", "1")],
-        ),
-        "t",
-    );
-    assert_eq!(sent.status, "404 Not Found");
-    assert_eq!(world.balance(id), silver);
-    assert!(world.told.changed.locked().is_empty());
 }
 
 #[test]
@@ -501,7 +558,7 @@ fn the_pages_are_the_026g_ones() {
     }
     let missing = world.web.route(&get("/nothing"), "t");
     assert_eq!(missing.status, "404 Not Found");
-    assert!(missing.body.contains("0.26G"));
+    assert!(missing.body.contains("Survarium 0.26g community server</title>"));
     let mut elsewhere = get("/hidden");
     elsewhere.client = "203.0.113.5".parse().ok();
     assert_eq!(world.web.route(&elsewhere, "t").status, "404 Not Found");
@@ -516,7 +573,7 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     let stats = || world.web.route(&get("/api/stats"), "t");
     assert_eq!(
         stats().body,
-        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     let account = world.player("player-a", "test-password");
     let session = world.web.store.create_session(account);
@@ -526,7 +583,7 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     // Multiple connections for one account count once.
     assert_eq!(
         stats().body,
-        r#"{"online":1,"registered":1,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":1,"registered":1,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     // The rooms as the lobby last counted them.
     world.web.store.set_room_counts(session::RoomCounts {
@@ -543,14 +600,14 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     assert_eq!(response.content_type.as_str(), "application/json");
     assert_eq!(
         response.body,
-        r#"{"online":1,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0}"#
+        r#"{"online":1,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     assert_eq!(world.web.store.match_count(), 0); // Use the host, not formed rosters.
     drop(hold);
     drop(second_hold);
     assert_eq!(
         stats().body,
-        r#"{"online":0,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     assert_eq!(
         world.web.route(&post("/api/stats", &[]), "t").status,
@@ -564,7 +621,8 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     let world = world();
     let stats = || world.web.route(&get("/api/stats"), "t").body;
     let live = |phase, time_left: Option<Duration>| crate::LiveMatch {
-        map_id: 117,
+        map_id: survarium::v026g::maps::MapId::new(117),
+        kind: crate::LiveKind::Normal,
         phase,
         players: [4, 3],
         played: None,
@@ -587,7 +645,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     ];
     assert_eq!(
         stats(),
-        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":300}"#
+        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":300,"normal_matches":3,"last_normal_match_ends_in":300}"#
     );
     // One that has its result is about to go; one still loading has its
     // whole wait, countdown and match time ahead (5 + 20 + 900 s).
@@ -595,25 +653,66 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
         live(crate::LivePhase::Over, Some(Duration::ZERO)),
         live(crate::LivePhase::Playing, Some(Duration::from_secs(60))),
     ];
-    assert!(stats().ends_with(r#""last_match_ends_in":60}"#));
+    assert!(stats().contains(r#""last_match_ends_in":60,"#));
     world
         .told
         .live
         .locked()
         .push(live(crate::LivePhase::Gathering, None));
-    assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
+    assert!(stats().contains(r#""last_match_ends_in":925,"#));
     // A map the client does not have: the time every playable mode has.
     *world.told.live.locked() = vec![crate::LiveMatch {
-        map_id: 0,
+        map_id: survarium::v026g::maps::MapId::new(0),
         ..live(crate::LivePhase::Gathering, None)
     }];
-    assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
+    assert!(stats().contains(r#""last_match_ends_in":925,"#));
     // Only an ended one: nothing to wait for.
     *world.told.live.locked() = vec![live(crate::LivePhase::Over, None)];
     assert_eq!(
         stats(),
-        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":1,"last_normal_match_ends_in":0}"#
     );
+}
+
+/// A release that ends the matches against bots and of private rooms
+/// waits for the normal ones alone: they are counted and timed apart.
+#[test]
+fn public_stats_say_the_normal_matches_apart() {
+    use crate::{LiveKind, LivePhase};
+    use std::time::Duration;
+    let world = world();
+    let stats = || world.web.route(&get("/api/stats"), "t").body;
+    let live = |kind, phase, left| crate::LiveMatch {
+        map_id: survarium::v026g::maps::MapId::new(117),
+        kind,
+        phase,
+        players: [4, 3],
+        played: None,
+        time_left: Some(Duration::from_secs(left)),
+        standing: None,
+    };
+    world
+        .told
+        .matches
+        .store(5, std::sync::atomic::Ordering::Relaxed);
+    *world.told.live.locked() = vec![
+        live(LiveKind::VsBots, LivePhase::Playing, 840),
+        live(LiveKind::Normal, LivePhase::Playing, 300),
+        live(LiveKind::PrivateRoom, LivePhase::Countdown, 900),
+        live(LiveKind::Normal, LivePhase::Over, 0),
+        live(LiveKind::Normal, LivePhase::Playing, 120),
+    ];
+    assert!(stats().ends_with(
+        r#""last_match_ends_in":900,"normal_matches":3,"last_normal_match_ends_in":300}"#
+    ));
+    // Only matches against bots and of private rooms: none to wait for.
+    *world.told.live.locked() = vec![
+        live(LiveKind::VsBots, LivePhase::Playing, 840),
+        live(LiveKind::PrivateRoom, LivePhase::Playing, 600),
+    ];
+    assert!(stats().ends_with(
+        r#""last_match_ends_in":840,"normal_matches":0,"last_normal_match_ends_in":0}"#
+    ));
 }
 
 #[test]
@@ -645,7 +744,7 @@ fn public_stats_http_has_json_headers_and_ignores_language() {
     assert!(headers.contains(&format!("\r\nContent-Length: {}\r\n", body.len())));
     assert_eq!(
         body,
-        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
 }
 
@@ -661,7 +760,8 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         .store(3, std::sync::atomic::Ordering::Relaxed);
     // A Team Deathmatch on Rudnya in play.
     *world.told.live.locked() = vec![crate::LiveMatch {
-        map_id: 117,
+        map_id: survarium::v026g::maps::MapId::new(117),
+        kind: crate::LiveKind::Normal,
         phase: crate::LivePhase::Playing,
         players: [4, 3],
         played: Some(Duration::from_secs(130)),
@@ -679,7 +779,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         "/launcher/places/uk",
         "/launcher/places/en",
         "/",
-        "/launcher/fresh/uk",
     ];
     let server = std::thread::spawn(move || {
         for _ in targets {
@@ -744,14 +843,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
     for part in &parts {
         assert!(page.1.contains(part));
     }
-    // A page opened before the matches' tab asks where it always did, and
-    // is given its three places in its order.
-    let before = &answers[4];
-    assert!(before.0.contains(&launchers));
-    assert_eq!(
-        before.1.split("<hr>").collect::<Vec<_>>(),
-        [parts[1], parts[5], parts[7]]
-    );
     // Every other page keeps the site's policy: no script at all.
     assert!(home.0.contains(&format!(
         "\r\nContent-Security-Policy: {}\r\n",
@@ -814,7 +905,7 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![
             offered(
                 14,
@@ -865,7 +956,7 @@ fn the_games_archive_is_offered_apart_from_the_patches() {
             "https://archive.org/download/x/survarium_full_026g0.7z".into(),
         ],
     };
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
         Some(archive),
         None,
@@ -936,7 +1027,7 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     assert!(page.body.contains("<nav><a href=\"/?lang=en\">Home</a>"));
     assert!(
         page.body
-            .contains("<a class=lang href=\"?lang=uk\">Українська</a>")
+            .contains("<a href=\"?lang=uk\" lang=uk hreflang=uk>Українська</a>")
     );
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     // Nothing inline runs and nothing is fetched from elsewhere.
@@ -1074,6 +1165,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/weapons",
         "/wiki/modifiers",
         "/wiki/equipment",
+        "/wiki/artefacts",
         "/wiki/calculator",
         "/wiki/maps",
         "/wiki/skills",
@@ -1095,26 +1187,102 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             )));
         }
     }
-    // The index leads to every section.
-    let index = world.web.route(&get("/wiki"), "t").body;
-    for section in [
-        "/wiki/weapons",
-        "/wiki/modifiers",
-        "/wiki/equipment",
-        "/wiki/calculator",
-        "/wiki/maps",
-        "/wiki/skills",
-        "/wiki/quests",
-    ] {
-        assert!(
-            index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
-            "{section}"
+    // The index leads to every section, in its order, each tile with its
+    // picture: files the site serves, or a drawing.
+    for lang in Lang::ALL {
+        let mut request = get("/wiki");
+        request.lang = lang;
+        let index = world.web.route(&request, "t").body;
+        let tiles: Vec<&str> = index.split("<a class=wiki-link href=\"").skip(1).collect();
+        let order: Vec<&str> = tiles
+            .iter()
+            .map(|tile| tile.split_once('?').unwrap().0)
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "/wiki/skills",
+                "/wiki/weapons",
+                "/wiki/equipment",
+                "/wiki/modifiers",
+                "/wiki/modes",
+                "/wiki/maps",
+                "/wiki/artefacts",
+                "/wiki/quests",
+                "/wiki/calculator",
+                "/wiki/simulators",
+            ],
+            "{lang:?}"
         );
+        for (path, tile) in order.iter().zip(&tiles) {
+            assert!(tile.starts_with(&format!("{path}?lang={}\">", lang.code())));
+            let picture = tile
+                .split_once("<div class=wiki-pic>")
+                .and_then(|(_, rest)| rest.split_once("<h2>"))
+                .unwrap_or_else(|| panic!("{path}: no picture box"))
+                .0;
+            let files: Vec<&str> = picture
+                .match_indices("?v=")
+                .map(|(at, _)| {
+                    // An address starts after a quote, or after the space
+                    // before it in a srcset.
+                    let start = picture[..at].rfind(['"', '\'', ' ']).unwrap() + 1;
+                    &picture[start..at]
+                })
+                .collect();
+            let drawn = picture.starts_with("<svg") && picture.ends_with("</svg>");
+            assert!(drawn || !files.is_empty(), "{path}: no picture");
+            if path == &"/wiki/modifiers" {
+                assert_eq!(files.len(), 6, "{path}: a glyph left out");
+            }
+            for file in files {
+                let (kind, bytes) = crate::static_file(file).expect(file);
+                assert!(
+                    kind.starts_with("image/") && !bytes.is_empty(),
+                    "{path}: {file}"
+                );
+            }
+            if picture.starts_with("<img") {
+                assert!(picture.contains(" loading=lazy"), "{path}");
+            }
+        }
     }
     assert_eq!(
         world.web.route(&get("/wiki/unknown"), "t").status,
         "404 Not Found"
     );
+}
+
+/// The stats are a tab of their own beside the wiki, on every page of the
+/// 0.26g site: a frame for their script, which may ask the site for JSON.
+#[test]
+fn the_stats_page_is_a_tab_of_its_own() {
+    let world = world();
+    for lang in [Lang::En, Lang::Uk] {
+        let mut request = get("/stats");
+        request.lang = lang;
+        let page = world.web.route(&request, "t");
+        assert_eq!(page.status, "200 OK");
+        let code = lang.code();
+        assert!(page.body.contains(&format!("<html lang=\"{code}\">")));
+        assert!(page.body.contains(&format!("href=\"/stats?lang={code}\" aria-current=page")));
+        assert!(!page.body.contains(&format!("href=\"/wiki?lang={code}\" aria-current=page")));
+        assert!(page.body.contains("<div id=stats data-locale="));
+        // Its words are the server's, in the page's language, handed to the script as data.
+        let text = page.body.split_once("<script type=application/json id=stats-text>").unwrap().1;
+        let text = text.split_once("</script>").unwrap().0;
+        assert!(!text.contains('<'));
+        let leaders = if lang == Lang::Uk { "\"today\":\"Лідери дня\"" } else { "\"today\":\"Daily leaders\"" };
+        assert!(text.contains(leaders), "{text}");
+        let script = page.body.split_once("<script src=\"").unwrap().1;
+        let script = script.split_once("?v=").unwrap().0;
+        assert!(crate::history::file(script).is_some_and(|(_, bytes)| !bytes.is_empty()));
+    }
+    for path in ["/", "/wiki", "/wiki/weapons"] {
+        assert!(world.web.route(&get(path), "t").body.contains("href=\"/stats?lang=en\">Stats</a>"), "{path}");
+    }
+    assert!(!world.web.route(&get("/wiki"), "t").body.contains("wiki-link href=\"/stats"));
+    assert!(crate::history::POLICY.contains("connect-src 'self'"));
 }
 
 #[test]
@@ -1165,7 +1333,8 @@ fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
 }
 
 /// A standalone local review of the real HTTP routes, with in-memory test
-/// accounts. Does not start or connect to login, lobby or match servers.
+/// accounts and a made-up match history (`history::tests::preview`). Does
+/// not start or connect to login, lobby or match servers.
 #[test]
 #[ignore = "local browser preview; serves until stopped"]
 fn serve_wiki_preview() {
@@ -1174,9 +1343,23 @@ fn serve_wiki_preview() {
     if std::env::var_os("SRP_GAME_DATA").is_some() {
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads as srp's game data");
     }
-    let world = world();
-    let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
-    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    // SRP_PREVIEW_CROWD: that many more players in the history, for long lists.
+    let crowd = std::env::var("SRP_PREVIEW_CROWD")
+        .map(|text| text.parse().expect("SRP_PREVIEW_CROWD is a number of players"))
+        .unwrap_or(0);
+    let mut world = world_with(crate::history::tests::preview(
+        &dir,
+        crate::unix_now(),
+        crowd,
+    ));
+    world.web.game.replays =
+        Some(Arc::new(crate::history::tests::preview_replays(&dir)));
+    // SRP_PREVIEW_PORT: another port, for two previews side by side.
+    let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());
+    let listener = std::net::TcpListener::bind(format!("127.0.0.1:{port}")).unwrap();
+    eprintln!("Wiki preview: http://127.0.0.1:{port}/wiki, stats: http://127.0.0.1:{port}/stats");
     for stream in listener.incoming() {
         world.web.serve(stream.unwrap());
     }
@@ -2090,7 +2273,7 @@ fn the_bots_tab_previews_a_save_sets_it_on_apply_and_resets_after_a_confirm() {
     let off = world.admin(&[("tab", "bots")]);
     assert!(off.contains("The bots' tuning is not on this server."), "{off}");
     let desk = Arc::new(Desk::new());
-    world.web.game.as_mut().unwrap().bots = Some(desk.clone());
+    world.web.game.bots = Some(desk.clone());
     // Before the token: the tab, and nothing of the desk.
     let page = world.web.route(&get("/hidden"), "t").body;
     assert!(page.contains("id=tab-bots") && page.contains("Shown once the token is right."));

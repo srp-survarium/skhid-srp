@@ -8,12 +8,15 @@ package survarium.controls
    import flash.events.Event;
    import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
+   import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextLineMetrics;
    import flash.ui.Keyboard;
    import flash.utils.Dictionary;
+   import flash.utils.Timer;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.DragSlot;
@@ -62,6 +65,7 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
+   import survarium.player.LocalPlayerProfile;
    import survarium.player.ReasonsTip;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
@@ -156,7 +160,7 @@ package survarium.controls
       
       // The lists' one order (the owner, 2026-11-02: "it should always be per level"; there is no sort
       // to choose): what can be bought first, then by level, the price last.
-      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","broken","price","factionId"];
+      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","price","factionId"];
 
       // The search box (docs/notes/item-search.md), always there under the grid: the grid is
       // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
@@ -211,15 +215,15 @@ package survarium.controls
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
-         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка"],group:SuperCategory.EQUIPMENT},
-         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы"],group:SuperCategory.ITEMS},
-         {words:["helmet","helmets","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
-         {words:["mask","masks","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
-         {words:["body","vest","vests","бронежилет","pancir","vesta","pancíř","liivi","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
+         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка","equipamento"],group:SuperCategory.EQUIPMENT},
+         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы","itens"],group:SuperCategory.ITEMS},
+         {words:["helmet","helmets","шолом","шлем","šlem","helma","sisak","kypärä","kypara","capacete"],category:ItemCategory.HELMETS},
+         {words:["mask","masks","маска","maska","maszk","naamari","máscara","mascara"],category:ItemCategory.MASKS},
+         {words:["body","vest","vests","бронежилет","pancir","vesta","pancíř","liivi","бронекамізэлька","colete"],category:ItemCategory.BODY_ARMOR},
          {words:["rig","rigs","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
-         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі"],category:ItemCategory.GLOVES},
-         {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut"],category:ItemCategory.PANTS},
-         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты"],category:ItemCategory.BOOTS}];
+         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі","luvas"],category:ItemCategory.GLOVES},
+         {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut","calças","calcas"],category:ItemCategory.PANTS},
+         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты","botas"],category:ItemCategory.BOOTS}];
       
       // SEARCH_KINDS' words as the search compares them (made once)
       private static var _kindForms:Array;
@@ -310,6 +314,37 @@ package survarium.controls
       // The shop's "not owned" check box (makeOwnedToggle).
       private var _ownedToggle:CheckBoxShared;
 
+      // The box is kept with the account (shop-owned-mark.md; the owner's of 2026-11-15: "if someone
+      // clicked it once, after restarting, it should be saved"): srp's wire, the ranking request
+      // (lobby.md 2.16.6). OWNED_FIRST asks for the account's choice, answered with one row at
+      // OWNED_FIRST, `H1;1` ticked (anything else unticked); OWNED_FIRST + 1 + (1 ticked, 0 not)
+      // keeps a click's, not answered.
+      public static const OWNED_FIRST:int = 2096000000;
+
+      private static const OWNED_TICKED:String = "H1;1";
+
+      // A sign-in's ask, again every OWNED_ASK_MS until answered, OWNED_ASKS in all (an older srp
+      // never answers: the box stays unticked).
+      private static const OWNED_ASKS:int = 5;
+
+      private static const OWNED_ASK_MS:int = 2000;
+
+      // The box's choice: OWNED_ASKING while the account's kept one is asked (the box unticked),
+      // OWNED_KNOWN once it came or the box was clicked (the box is the player's: a later answer is
+      // ignored). _ownedAccount: whose box it is, null before the first sign-in.
+      private static const OWNED_ASKING:int = 0;
+
+      private static const OWNED_KNOWN:int = 1;
+
+      private var _ownedState:int = OWNED_KNOWN;
+
+      private var _ownedAccount:String = null;
+
+      private var _ownedAsks:Timer;
+
+      // The inventory's Sell duplicates button (makeSellDuplicates).
+      private var _sellDuplicates:SrvButtonSkinned;
+
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
 
@@ -363,6 +398,10 @@ package survarium.controls
          if(this._ownedToggle != null)
          {
             this.placeOwnedToggle();
+         }
+         if(this._sellDuplicates != null)
+         {
+            this._sellDuplicates.visible = !value;
          }
       }
       
@@ -589,6 +628,68 @@ package survarium.controls
          var itemData:ItemData = this._inventoryItemsDict[itemId];
          this.sellObject(itemData);
       }
+
+      // The items Sell duplicates sells (the owner, 2026-11-14; docs/notes/sell-duplicates.md). Copies of
+      // an item (one dictionary id) are kept to be combined until one of them has all its modifications
+      // (rank ItemRank.MAX, its name gold: "gold means three modifiers"); then the others are spares
+      // ("people who got golden gun no longer care about duplicates"). Never sold: a copy of that rank
+      // (different rolls suit different play), a copy a loadout uses, a worn cosmetic or an item wearing
+      // one; stacks and ammo.
+      public function duplicates() : Array
+      {
+         var sold:Array = [];
+         if(this._inventoryItems == null)
+         {
+            return sold;
+         }
+         var item:ItemData;
+         var full:Object = {};
+         for each(item in this._inventoryItems)
+         {
+            if(item.rank >= ItemRank.MAX)
+            {
+               full[item.dictId] = true;
+            }
+         }
+         for each(item in this._inventoryItems)
+         {
+            if(full[item.dictId] && item.rank < ItemRank.MAX && !item.isStack && item.superCategory != SuperCategory.AMMO && !LocalPlayerProfile.inLoadout(item.itemId) && item.slotTarget == 0 && (item.upgrades == null || item.upgrades.length == 0))
+            {
+               sold.push(item);
+            }
+         }
+         return sold;
+      }
+
+      // The Sell duplicates button: one question, then a sale (`47 01`) of each; the list is
+      // made again on Yes, from the inventory then.
+      public function sellDuplicates() : void
+      {
+         var sold:Array = this.duplicates();
+         if(sold.length == 0)
+         {
+            return;
+         }
+         var silver:uint = 0;
+         for each(var item:ItemData in sold)
+         {
+            silver += uint(item.cost / ItemPrice.SELL_DIVISOR);
+         }
+         Message.showMessage("apply",{
+            text:LocalizationData.format("st_srp_inventory_sell_duplicates_ask",sold.length),
+            silver:silver,
+            label_ok:LocalizationData.getName("sell"),
+            onYes:this.onSellDuplicatesYes
+         },true);
+      }
+
+      private function onSellDuplicatesYes(data:Object = null) : void
+      {
+         for each(var item:ItemData in this.duplicates())
+         {
+            ExternalInterface.call("sell_ok_clicked",item.itemId,1);
+         }
+      }
       
       public function ignoreNextAttach(value:int) : void
       {
@@ -648,6 +749,7 @@ package survarium.controls
          this.itemControlPanel.mouseChildren = !value;
          this.checkboxCompareItems.mouseEnabled = !value;
          this._item_control.checkButtonEnabled();
+         this.updateSellDuplicates();
       }
       
       public function lock(elementId:uint, state:Boolean) : void
@@ -1346,6 +1448,7 @@ package survarium.controls
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
          dispatchEvent(new Event(Event.CHANGE));
          this.listSearchWords();
+         this.updateSellDuplicates();
          if((parent))
          {
             victory_screen = parent["victory_screen"];
@@ -1564,15 +1667,15 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
-      // The first item of the inventory of a dictionary id, or null (the weapon kit names its
-      // attachments by dictionary id: UpgradeWindow.kitUpgrades).
-      public function getInventoryItemOf(dictId:int) : ItemData
+      // The first item of the inventory of a dictionary id whose item id is not in `except`, or null
+      // (the weapon kit names its attachments by dictionary id: UpgradeWindow.kitUpgrades).
+      public function getInventoryItemOf(dictId:int, except:Array = null) : ItemData
       {
          var item:ItemData = null;
          var found:ItemData = null;
          for each(item in this._inventoryItemsDict)
          {
-            if(Boolean(item) && int(item.dictId) == dictId && (found == null || item.itemId < found.itemId))
+            if(Boolean(item) && int(item.dictId) == dictId && !(Boolean(except) && except.indexOf(uint(item.itemId)) != -1) && (found == null || item.itemId < found.itemId))
             {
                found = item;
             }
@@ -1965,6 +2068,29 @@ package survarium.controls
          this.openModifiersWindow();
       }
       
+      // The page the next window opens on (a weapon's Attachments or Appearance entry), -1 none; the
+      // lobby takes it when it opens the window (takeUpgradePage).
+      private var _upgradePage:int = -1;
+
+      public function takeUpgradePage() : int
+      {
+         var page:int = this._upgradePage;
+         this._upgradePage = -1;
+         return page;
+      }
+
+      protected function attachmentsElement(event:Event = null) : void
+      {
+         this._upgradePage = UpgradeWindow.PAGE_ATTACHMENTS;
+         this.upgradeElelemnt(event);
+      }
+
+      protected function appearanceElement(event:Event = null) : void
+      {
+         this._upgradePage = UpgradeWindow.PAGE_APPEARANCE;
+         this.upgradeElelemnt(event);
+      }
+
       private function openModifiersWindow() : void
       {
          dispatchEvent(new Event(Events.OPEN_MODIFIERS));
@@ -1980,15 +2106,18 @@ package survarium.controls
          dispatchEvent(new Event(Events.CRAFFT_ITEM));
       }
       
-      protected function sellElement(event:Event = null) : void
+      // The menu's Sell: the owned item the menu was opened on (a row of the inventory, a kit's
+      // item), as the inventory has it. Not the list's selected row: in the shop the list holds
+      // only the shop's entries and a kit item has no row there, so Sell sold nothing (as Buy
+      // bought another item, buyMenuItem).
+      protected function sellMenuItem(event:Event = null) : void
       {
-         var position:Number = itemsTileList.getActualScrollPosition();
-         var item:* = itemsTileList.getRendererAt(itemsTileList.selectedIndex,position);
-         if(!item || !item.data || !item.data.enabled)
+         var item:ItemData = this._menuItem;
+         if(item == null || item.descriptor > ItemPlace.INVENTORY || !this.owns(item.itemId))
          {
             return;
          }
-         this.sellObject(item.data);
+         this.sellObject(this.ownedCopy(item));
       }
       
       override protected function configureInventoryTab() : void
@@ -2034,13 +2163,73 @@ package survarium.controls
          this.checkboxCompareItems.addEventListener(ButtonEvent.CLICK,this.showCompareCheckbox);
          this.makeSearch();
          this.makeOwnedToggle();
+         this.makeSellDuplicates();
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
+      }
+
+      // Sell duplicates (sell-duplicates.md; the owner, 2026-11-14: "on the right in Comparing items
+      // band", the item row above being for the item selected): the lobby's own button
+      // (SrvButtonSkinned), at the right of the compare box's row; in the inventory only; greyed while
+      // there is nothing to sell or the inventory is locked.
+      private function makeSellDuplicates() : void
+      {
+         _sellDuplicates = new SrvButtonSkinned();
+         this._sellDuplicates.visible = !this.isShop;
+         this._sellDuplicates.addEventListener(ButtonEvent.CLICK,this.onSellDuplicatesClick);
+         addChild(this._sellDuplicates);
+         this.updateSellDuplicates();
+      }
+
+      // Its text's width and the row's right end, the window's margin as the compare box's from its
+      // left; its middle at the compare box's square's (the box without its label; the square sits in
+      // the row's middle, the label lower: the owner, 2026-11-14, "not aligned vertically"). Placed when
+      // the texts come.
+      private function placeSellDuplicates() : void
+      {
+         var compare:Button = this.checkboxCompareItems;
+         this._sellDuplicates.label = LocalizationData.getName("st_srp_inventory_sell_duplicates");
+         this._sellDuplicates.validateNow();
+         this._sellDuplicates.width = Math.ceil(this._sellDuplicates.textField.textWidth) + SELL_DUPLICATES_PADDING;
+         this._sellDuplicates.x = Math.round(background.width - compare.x - this._sellDuplicates.width);
+         var square:Rectangle = null;
+         for(var i:int = 0; i < compare.numChildren; i++)
+         {
+            var part:DisplayObject = compare.getChildAt(i);
+            if(part != compare.textField && part.visible)
+            {
+               square = square == null ? part.getBounds(this) : square.union(part.getBounds(this));
+            }
+         }
+         var button:Rectangle = this._sellDuplicates.getBounds(this);
+         var middle:Number = square != null ? square.y + square.height / 2 : compare.y + compare.height / 2;
+         this._sellDuplicates.y = Math.round(this._sellDuplicates.y + middle - (button.y + button.height / 2)) - SELL_DUPLICATES_RAISE;
+      }
+
+      // The room left and right of the button's text, together.
+      private static const SELL_DUPLICATES_PADDING:int = 40;
+
+      // Pixels above the square's middle, set by look in the game (the owner,
+      // 2026-11-14, in the game: "a pixel up", "one more up").
+      private static const SELL_DUPLICATES_RAISE:int = 2;
+
+      private function updateSellDuplicates() : void
+      {
+         if(this._sellDuplicates != null)
+         {
+            this._sellDuplicates.enabled = !this._inventoryLocked && this.duplicates().length > 0;
+         }
+      }
+
+      private function onSellDuplicatesClick(event:ButtonEvent) : void
+      {
+         this.sellDuplicates();
       }
 
       // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
       // (CheckBoxShared; the character panel's CheckBoxSharedPD fills its bitmaps unsmoothed, pixelated
       // once the lobby is scaled to the screen), its label as long as its text, with a tooltip; on the compare box's
-      // row, at its right (placeOwnedToggle); shown in the shop only. Off when the lobby opens.
+      // row, at its right (placeOwnedToggle); shown in the shop only. As the account last set it
+      // (signedIn): unticked until its kept choice is in.
       private function makeOwnedToggle() : void
       {
          _ownedToggle = new CheckBoxShared();
@@ -2050,8 +2239,101 @@ package survarium.controls
          this._ownedToggle.x = this.checkboxCompareItems.x;
          this._ownedToggle.y = this.checkboxCompareItems.y;
          this._ownedToggle.visible = this.isShop;
-         this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.changeInventoryFilterFromFilters);
+         this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.onOwnedClick);
          addChild(this._ownedToggle);
+      }
+
+      // LobbyMenu.set_account_name: a lobby sign-in (`8F`; again when the ranked count changes).
+      // Another account's box (the first sign-in, or another account in the same game) is unticked
+      // until its kept choice is in.
+      public function signedIn(account:String) : void
+      {
+         if(account == this._ownedAccount)
+         {
+            return;
+         }
+         this._ownedAccount = account;
+         this._ownedState = OWNED_ASKING;
+         this.showOwned(false);
+         if(this._ownedAsks == null)
+         {
+            this._ownedAsks = new Timer(OWNED_ASK_MS,OWNED_ASKS - 1);
+            this._ownedAsks.addEventListener(TimerEvent.TIMER,this.onOwnedAsk);
+         }
+         this._ownedAsks.reset();
+         this._ownedAsks.start();
+         this.sendOwned(OWNED_FIRST);
+      }
+
+      private function onOwnedAsk(e:TimerEvent) : void
+      {
+         if(this._ownedState == OWNED_ASKING)
+         {
+            this.sendOwned(OWNED_FIRST);
+         }
+         else
+         {
+            this._ownedAsks.stop();
+         }
+      }
+
+      // PlayerRanking.fillPlayers, first: the answer at OWNED_FIRST (true: taken).
+      public static function ownedTake(rows:Array) : Boolean
+      {
+         if(rows == null || rows.length == 0 || rows[0] == null || Number(rows[0].place) != OWNED_FIRST)
+         {
+            return false;
+         }
+         if(me != null)
+         {
+            me.takeOwned(String(rows[0].nickname));
+         }
+         return true;
+      }
+
+      private function takeOwned(name:String) : void
+      {
+         if(this._ownedState != OWNED_ASKING)
+         {
+            return;
+         }
+         this._ownedState = OWNED_KNOWN;
+         this._ownedAsks.stop();
+         this.showOwned(name == OWNED_TICKED);
+      }
+
+      // A click: the box is the player's now, and srp keeps it.
+      private function onOwnedClick(e:ButtonEvent) : void
+      {
+         this._ownedState = OWNED_KNOWN;
+         if(this._ownedAsks != null)
+         {
+            this._ownedAsks.stop();
+         }
+         this.sendOwned(OWNED_FIRST + 1 + (this._ownedToggle.selected ? 1 : 0));
+         this.changeInventoryFilterFromFilters(null);
+      }
+
+      private function showOwned(ticked:Boolean) : void
+      {
+         if(this._ownedToggle == null || this._ownedToggle.selected == ticked)
+         {
+            return;
+         }
+         this._ownedToggle.selected = ticked;
+         this.changeInventoryFilterFromFilters(null);
+      }
+
+      // The start an int, as the game reads it (lobby.md 2.16.1).
+      private function sendOwned(start:int) : void
+      {
+         try
+         {
+            ExternalInterface.call("request_players_range",start,1);
+         }
+         catch(e:Error)
+         {
+         }
       }
 
       // The window's last row in the shop (shop-owned-mark.md, the owner's of 2026-11-02): [Comparing
@@ -2099,6 +2381,7 @@ package survarium.controls
          this.fillSearchTip();
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
          this.placeOwnedToggle();
+         this.placeSellDuplicates();
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,
@@ -2524,8 +2807,32 @@ package survarium.controls
          {
             return 0;
          }
+         var best:int = this.nameScore(item.name == null ? "" : String(item.name));
+         var loose:Boolean = _searchLoose;
+         // a scope, muzzle device or grip is found by the name of a gun it fits too (the owner,
+         // 2026-11-22: "vikhr ... I should see all attachments that fit that weapon")
+         if(int(item.category) == ItemCategory.SCOPES)
+         {
+            for each(var gun:String in this.fitNames(int(item.dictId)))
+            {
+               var score:int = this.nameScore(gun);
+               if(score > best || score == best && score > 0 && loose && !_searchLoose)
+               {
+                  best = score;
+                  loose = _searchLoose;
+               }
+            }
+         }
+         _searchLoose = loose;
+         return best;
+      }
+
+      // The search's score of one name: 0 when a word of the search is not in it; _searchLoose set
+      // when a word matched only loosely.
+      private function nameScore(text:String) : int
+      {
+         _searchLoose = false;
          var words:Array = this._search.words;
-         var text:String = item.name == null ? "" : String(item.name);
          var form:Array = this._searchNames[text] as Array;
          if(form == null)
          {
@@ -2535,16 +2842,38 @@ package survarium.controls
          var total:int = 1;
          for(var i:int = 0; i < words.length; i++)
          {
-            var word:String = words[i];
-            var score:int = wordScore(word,form[0],form[1]);
+            var score:int = wordScore(words[i],form[0],form[1]);
             if(score == 0)
             {
+               _searchLoose = false;
                return 0;
             }
             _searchLoose ||= score < MATCH_PART;
             total += score;
          }
          return total;
+      }
+
+      // The names of the guns an attachment fits (its card's "Can be installed on"), by its dict id.
+      private var _fitNames:Object = {};
+
+      private function fitNames(dictId:int) : Array
+      {
+         var names:Array = this._fitNames[dictId] as Array;
+         if(names == null)
+         {
+            names = [];
+            for each(var weaponId:int in UpgradeWindow.weaponsFor(dictId))
+            {
+               var description:Object = Boolean(_itemDescriptor) ? _itemDescriptor.getItemDescription(weaponId) : null;
+               if(Boolean(description) && Boolean(description.name) && names.indexOf(String(description.name)) == -1)
+               {
+                  names.push(String(description.name));
+               }
+            }
+            this._fitNames[dictId] = names;
+         }
+         return names;
       }
       
       // The kinds a "+" word names (SEARCH_KINDS' indexes): a kind's word starts with it.
@@ -3299,10 +3628,31 @@ package survarium.controls
                   }
                   if(owned && this.isUpgradeable(itemData))
                   {
-                     options.push({
-                        name:LocalizationData.getName(this.upgradeLabelKey(itemData)),
-                        click_function:this.upgradeElelemnt
-                     });
+                     if(!UpgradeWindow.isWeaponCategory(int(itemData.category)))
+                     {
+                        options.push({
+                           name:LocalizationData.getName("btn_upgrade_label"),
+                           click_function:this.upgradeElelemnt
+                        });
+                     }
+                     else
+                     {
+                        // a weapon: its window's two pages, each its own entry (the owner, 2026-11-22)
+                        if(UpgradeWindow.hasAttachments(int(itemData.dictId)))
+                        {
+                           options.push({
+                              name:LocalizationData.getName("scope_window_title"),
+                              click_function:this.attachmentsElement
+                           });
+                        }
+                        if(UpgradeWindow.hasAppearance(itemData))
+                        {
+                           options.push({
+                              name:LocalizationData.getName("btn_upgrade_label"),
+                              click_function:this.appearanceElement
+                           });
+                        }
+                     }
                   }
                }
             }
@@ -3325,11 +3675,17 @@ package survarium.controls
                   });
                }
             }
-            if((itemData.descriptor <= ItemPlace.INVENTORY && itemData.enabled || itemData.isStack) && !this.isShop)
+            // Sell: every owned item, a row of the inventory or a kit's item, in the inventory and in
+            // the shop alike (the owner, 2026-11-27: "when in shop rmb on equipment there is no sell
+            // button"; the shop shows the kits since shop-character-menu.md, and the menu left Sell
+            // out there). A shop entry or a bundle (not owned: the shop's list holds only those)
+            // offers Buy only. An item a kit wears is sold as from the inventory: the server takes
+            // it off every kit (rules::sell), and the sale's question names the loadouts using it.
+            if(owned && itemData.descriptor <= ItemPlace.INVENTORY)
             {
                options.push({
                   name:LocalizationData.getName("sell"),
-                  click_function:this.sellElement
+                  click_function:this.sellMenuItem
                });
             }
             if((options.length))
@@ -3458,7 +3814,7 @@ package survarium.controls
                filteredItems.push(itemData);
             }
          }
-         filteredItems.sortOn(["buyValue","superCategory","category","dictId","rank","value","broken","factionId"],Array.NUMERIC);
+         filteredItems.sortOn(["buyValue","superCategory","category","dictId","rank","value","factionId"],Array.NUMERIC);
          trace("fillItems::",filteredItems.length);
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();
@@ -3521,7 +3877,7 @@ package survarium.controls
          function checkBaseOptions(value:ItemData):Boolean
          {
             var isWeapon:Boolean = options.weapons == WeaponHands.ALL || ItemFactory.getCategory(value.category) != SuperCategory.WEAPONS || (value.oneHanded && options.weapons == WeaponHands.ONE_HANDED || value.oneHanded == false && options.weapons == WeaponHands.TWO_HANDED);
-            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value))) && !leftOutAsOwned(value);
+            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value))) && !leftOutAsOwned(value) && UpgradeWindow.listsItem(value);
          }
          var leftOutAsOwned:Function = this.hiddenAsOwned;
          if((this._filterItems))
@@ -3622,7 +3978,7 @@ package survarium.controls
                for(j = 0; j < categoryes.length; j++)
                {
                   cat = (categoryes[j]);
-                  if(cat == itemData.category && (checkBaseOptions(itemData)))
+                  if(cat == UpgradeWindow.filterCategory(itemData) && (checkBaseOptions(itemData)))
                   {
                      filteredItemsShop.push(itemData);
                      break;
@@ -3638,7 +3994,7 @@ package survarium.controls
                   for(j = 0; j < categoryes.length; j++)
                   {
                      cat = (categoryes[j]);
-                     if(cat == itemData.category && (checkBaseOptions(itemData)))
+                     if(cat == UpgradeWindow.filterCategory(itemData) && (checkBaseOptions(itemData)))
                      {
                         relativeItem = shopDict[itemData.dictId];
                         if((relativeItem))
@@ -3698,11 +4054,6 @@ package survarium.controls
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();
          trace("items:Filled::");
-      }
-      
-      private function upgradeLabelKey(value:Object) : String
-      {
-         return UpgradeWindow.isWeaponCategory(int(value.category)) ? "scope_window_title" : "btn_upgrade_label";
       }
       
       // The craft window ("Upgrade": two items of a kind make a better one)

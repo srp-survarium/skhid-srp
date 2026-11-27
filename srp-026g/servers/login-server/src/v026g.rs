@@ -1,5 +1,5 @@
-//! The login server of the 0.26g client (build 2777, January 2015), beside
-//! 0.21d's in `lib.rs`. What differs (`docs/notes/login_chat.md`
+//! The login server of the 0.26g client (build 2777, January 2015). What
+//! differs from 0.21d's (`srp-021d`; `docs/notes/login_chat.md`
 //! §4): the version, the password message (a SHA-1 digest, with the password
 //! itself only when it was typed), the answer (the session and the lobby's
 //! UDP address, no browser server) and the numbers of the refusals. The
@@ -16,6 +16,7 @@ use session::{SESSION_IDLE_LIMIT, SessionStore, SignInError};
 use vostok::config::{self, ServerConfig};
 
 use super::sealed::{self, Sealed, ServerKey};
+use udp_transport::relay::{Peer, Relays, Route};
 use super::{COLLECT_INTERVAL, GONE_CHECK_INTERVAL, parse_sign_in, read_message, sign_in_length};
 
 /// The version field of a 0.26g sign-in (`sign_in_on_connected` 0x3807D0
@@ -212,6 +213,13 @@ impl Lobby {
         })
     }
 
+    fn address_for_origin(&self, origin: Peer, reached: Option<IpAddr>) -> (Ipv4Addr, u16) {
+        match origin.route() {
+            Route::Direct => self.address_for(origin.ip(), reached),
+            Route::Relay(relay) => (relay.public(), self.lobby.port),
+        }
+    }
+
     /// The lobby's address for a client at `peer` that reached the login
     /// server at `reached`: see `ServerConfig::host_for`.
     fn address_for(&self, peer: IpAddr, reached: Option<IpAddr>) -> (Ipv4Addr, u16) {
@@ -246,7 +254,7 @@ pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
     let config = config::get();
     let lobby = Lobby::new(&config.login_server, &config.lobby_server)?;
     let listener = TcpListener::bind(config.login_server.bind_addr())?;
-    accept(&listener, store, key, lobby, RevisionGate::default())
+    accept(&listener, store, key, lobby, RevisionGate::default(), Relays::from_env()?)
 }
 
 /// Where a login server started with [`serve`] sends its clients, and the
@@ -267,6 +275,9 @@ pub struct Endpoint {
     pub key: ServerKey,
     /// The games refused for their patch revision (the default: none).
     pub revision_gate: RevisionGate,
+    /// The relays whose tunnel addresses may say a sign-in's own address
+    /// (`SRP_RELAYS`, parsed once by the caller).
+    pub relays: Relays,
 }
 
 /// [`run`] on a listener already bound (a caller that picks the address
@@ -299,6 +310,7 @@ pub fn serve(
         Arc::new(key),
         lobby,
         endpoint.revision_gate.clone(),
+        endpoint.relays.clone(),
     )
 }
 
@@ -309,6 +321,7 @@ fn accept(
     key: Arc<ServerKey>,
     lobby: Lobby,
     gate: RevisionGate,
+    relays: Relays,
 ) -> io::Result<()> {
     log::info!(
         "0.26g sign-ins on TCP {}; the lobby is at UDP {}:{}",
@@ -323,6 +336,7 @@ fn accept(
         );
     }
     let gate = Arc::new(gate);
+    let relays = Arc::new(relays);
 
     for stream in listener.incoming() {
         let stream = match stream {
@@ -334,8 +348,9 @@ fn accept(
             }
         };
         let (store, key, gate) = (store.clone(), key.clone(), gate.clone());
+        let relays = relays.clone();
         std::thread::spawn(move || {
-            if std::panic::catch_unwind(|| handle_client(&store, &key, lobby, &gate, stream))
+            if std::panic::catch_unwind(|| handle_client(&store, &key, lobby, &gate, &relays, stream))
                 .is_err()
             {
                 log::error!("Connection handler panicked; dropped the connection");
@@ -346,9 +361,9 @@ fn accept(
 }
 
 /// End the sessions nothing was seen of for too long, as 0.21d's
-/// `run_presence` does between its pings. The 0.26g client sends the login
-/// server nothing once signed in, so a session is seen only through its
-/// lobby and match connections (`SessionStore::hold`, `touch`,
+/// `run_presence` (`srp-021d`) does between its pings. The 0.26g client
+/// sends the login server nothing once signed in, so a session is seen only
+/// through its lobby and match connections (`SessionStore::hold`, `touch`,
 /// `seen_in_match`); one whose client never reached the lobby ends here.
 pub fn run_collector(store: Arc<SessionStore>) {
     let mut next_collect = Instant::now() + COLLECT_INTERVAL;
@@ -381,22 +396,119 @@ fn handle_client(
     key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
+    relays: &Relays,
     mut stream: TcpStream,
 ) {
+    let peer = match relays.accept(&mut stream) {
+        Ok(peer) => peer,
+        Err(error) => {
+            log::warn!("Login relay header refused: {error}");
+            return;
+        }
+    };
+    if stream.set_read_timeout(Some(std::time::Duration::from_secs(10))).is_err() {
+        return;
+    }
     let mut request_type = [0_u8];
     if let Err(error) = io::Read::read_exact(&mut stream, &mut request_type) {
         log::info!("Login connection closed before its request: {error}");
         return;
     }
+    if request_type[0] == udp_transport::relay::PROBE_PREFIX[0] {
+        let start = Instant::now();
+        let probe = echo_probe(stream, request_type[0]);
+        let seconds = start.elapsed().as_secs_f64();
+        log::info!("Route check from {peer}: {seconds:.1} s, {probe}");
+        return;
+    }
     // The 0.26g client connects only to sign in: it signs out without a word
     // (`login_client_impl::sign_out` 0x385860 just closes).
     if request_type[0] == SIGN_IN {
-        handle_sign_in(store, key, lobby, gate, stream);
+        handle_sign_in(store, key, lobby, gate, peer, stream);
     } else {
         log::warn!(
             "Unknown login request type {}; dropped the connection",
             request_type[0]
         );
+    }
+}
+
+const PROBE_TIME: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// A route check's bytes echoed and how it ended.
+struct Probe {
+    echoed: u64,
+    end: ProbeEnd,
+}
+enum ProbeEnd {
+    /// All of `PROBE_BYTES`, the check's whole.
+    Whole,
+    /// The client closed before.
+    Closed,
+    /// Its first bytes are not the check's.
+    NotAProbe,
+    /// A read or write failed, or `PROBE_TIME` passed.
+    Failed(io::Error),
+}
+impl std::fmt::Display for Probe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} bytes echoed, ", self.echoed)?;
+        match &self.end {
+            ProbeEnd::Whole => f.write_str("whole"),
+            ProbeEnd::Closed => f.write_str("closed by the client before the whole"),
+            ProbeEnd::NotAProbe => f.write_str("not a route check"),
+            // The deadline, or a socket timeout set to the time left to it.
+            ProbeEnd::Failed(error)
+                if matches!(error.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) =>
+            {
+                write!(f, "cut at {} s", PROBE_TIME.as_secs())
+            }
+            ProbeEnd::Failed(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+/// The updater's route check: its bytes echoed as they come, so never more
+/// than were sent, up to `PROBE_BYTES` and for `PROBE_TIME` at most.
+fn echo_probe(stream: TcpStream, first: u8) -> Probe {
+    let mut echoed = 0;
+    let end = match echo_probe_counted(stream, first, &mut echoed) {
+        Ok(end) => end,
+        Err(error) => ProbeEnd::Failed(error),
+    };
+    Probe { echoed, end }
+}
+fn echo_probe_counted(mut stream: TcpStream, first: u8, echoed: &mut u64) -> io::Result<ProbeEnd> {
+    use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+    let deadline = Instant::now() + PROBE_TIME;
+    // The time left, or a timed-out error once there is none.
+    let wait = || {
+        Some(deadline.saturating_duration_since(Instant::now()))
+            .filter(|wait| !wait.is_zero())
+            .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))
+    };
+    let mut buffer = [0; 16384];
+    buffer[0] = first;
+    io::Read::read_exact(&mut stream, &mut buffer[1..PROBE_PREFIX.len()])?;
+    if &buffer[..PROBE_PREFIX.len()] != PROBE_PREFIX {
+        return Ok(ProbeEnd::NotAProbe);
+    }
+    let mut length = PROBE_PREFIX.len();
+    let mut left = PROBE_BYTES;
+    loop {
+        stream.set_write_timeout(Some(wait()?))?;
+        stream.write_all(&buffer[..length])?;
+        left -= length as u64;
+        *echoed += length as u64;
+        if left == 0 {
+            return Ok(ProbeEnd::Whole);
+        }
+        stream.set_read_timeout(Some(wait()?))?;
+        let want = buffer.len().min(usize::try_from(left).unwrap_or(usize::MAX));
+        length = io::Read::read(&mut stream, &mut buffer[..want])?;
+        if length == 0 {
+            return Ok(ProbeEnd::Closed);
+        }
     }
 }
 
@@ -531,16 +643,10 @@ fn handle_sign_in(
     key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
+    peer: Peer,
     mut stream: TcpStream,
 ) {
     let mut buffer = [0; 1024];
-    let peer = match stream.peer_addr() {
-        Ok(peer) => peer,
-        Err(error) => {
-            log::info!("Sign-in dropped: {error}");
-            return;
-        }
-    };
     let reached = stream.local_addr().ok().map(|reached| reached.ip());
     let len = match read_message(&mut stream, &mut buffer, sign_in_length) {
         Ok(len) => len,
@@ -673,7 +779,7 @@ fn handle_sign_in(
         return;
     };
     store.signed_in_from(account_id, peer.ip());
-    let (lobby_ip, lobby_port) = lobby.address_for(peer.ip(), reached);
+    let (lobby_ip, lobby_port) = lobby.address_for_origin(peer, reached);
     log::info!(
         "Sign-in: account={account_id:#x} from {peer} session={session_id:#x}, \
          sent to the lobby at UDP {lobby_ip}:{lobby_port}"
@@ -694,6 +800,35 @@ mod tests {
     /// SHA-1 of `test-password-1`, and a digest of no password used here.
     const DIGEST_1: &[u8; 40] = b"f5358b98af5ac658c4a219f518bd0fa5ed2ffd65";
     const DIGEST_2: &[u8; 40] = b"0000000000000000000000000000000000000000";
+
+    #[test]
+    fn the_route_check_is_echoed_whole_and_then_ends() {
+        use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut sent = PROBE_PREFIX.to_vec();
+        sent.extend((0..PROBE_BYTES - PROBE_PREFIX.len() as u64).map(|i| i as u8));
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut first = [0];
+                stream.read_exact(&mut first).unwrap();
+                let probe = echo_probe(stream, first[0]);
+                assert_eq!(probe.to_string(), "65536 bytes echoed, whole");
+            });
+            let mut stream = TcpStream::connect(address).unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let (mut writer, sent) = (stream.try_clone().unwrap(), &sent);
+            let sending = scope.spawn(move || writer.write_all(sent));
+            // The server ends the connection once it has echoed the check.
+            let mut echo = Vec::new();
+            stream.read_to_end(&mut echo).unwrap();
+            sending.join().unwrap().unwrap();
+            assert!(echo == *sent);
+        });
+    }
 
     /// A 0.26g sign-in after its type byte, as `sign_in_on_connected` writes it.
     fn sign_in_message(email: &[u8], version: &[u8], eula: u8, queue: u32) -> Vec<u8> {
@@ -728,6 +863,21 @@ mod tests {
         message
     }
 
+    #[test]
+    fn relay_sign_in_advertises_its_lobby_without_changing_the_client_ip() {
+        let lobby = Lobby::new(server("203.0.113.67", 1234, false),
+                               server("203.0.113.67", 1235, false)).unwrap();
+        let address: std::net::SocketAddrV4 = "198.51.100.9:45000".parse().unwrap();
+        let relay = Relays::parse("10.77.0.2=203.0.113.8").unwrap()
+            .relay("10.77.0.2".parse().unwrap()).unwrap();
+        let peer = Peer::relayed(address, relay);
+        assert_eq!(lobby.address_for_origin(peer, Some("10.77.0.1".parse().unwrap())),
+                   ("203.0.113.8".parse().unwrap(), 1235));
+        assert_eq!(peer.address(), std::net::SocketAddr::V4(address));
+        assert_eq!(lobby.address_for_origin(Peer::direct(std::net::SocketAddr::V4(address)), None),
+                   ("203.0.113.67".parse().unwrap(), 1235));
+    }
+
     fn server(public_host: &str, port: u16, local_peers: bool) -> &'static ServerConfig {
         Box::leak(Box::new(ServerConfig {
             bind_host: "127.0.0.1".into(),
@@ -758,7 +908,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
-                handle_client(&store, &key, lobby, &gate, stream);
+                handle_client(&store, &key, lobby, &gate, &Relays::default(), stream);
             }
         });
         addr

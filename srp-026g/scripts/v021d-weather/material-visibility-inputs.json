@@ -1,0 +1,3957 @@
+{
+  "about": "Exact original0.21 visibility selectors lost by native material template selection. Keep day-port native finish values, texture bindings and other schema conversions. Private copies isolate formerly shared native materials; existing port-only materials change in place.",
+  "donor_sha256": "e28cc2878e0e2f04ab9ab0a1861034622af487a491bf230ea24f44e9af9715a4",
+  "audited_projects": 15,
+  "audited_models": 912,
+  "audited_materials": 618,
+  "selectors": [
+    "is_cast_shadow",
+    "texture_alpha_multiply_vertex_alpha",
+    "two_sided",
+    "use_alpha_test",
+    "use_alphablended_diffuse",
+    "use_alphablended_normal",
+    "use_soft_edges",
+    "use_vertex_alpha_test"
+  ],
+  "materials": [
+    {
+      "original_material": "anomaly/gas_hole_tile_burned_vc",
+      "current_material": "ported/v021d/anomaly/gas_hole_tile_burned_vc",
+      "target_material": "ported/v021d/anomaly/gas_hole_tile_burned_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "b0e12babfbae6efbb1477578e52e95fbe23e0a5e932daba53321549f272a786d",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_gas_hole_tile_burned_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.gas_hole_tile_burned_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/hole_wrecks",
+          "settings": "models/ported/v021d/level/06/hole_wrecks.model/settings",
+          "key": "material_settings.lod1_gas_hole_tile_burned_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.gas_hole_groun_s_burned_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_gas_hole_groun_s_burned_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "flora/spanish_moss",
+      "current_material": "ported/v021d/flora/spanish_moss",
+      "target_material": "ported/v021d/flora/spanish_moss",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "34faf01a4e851329f8e5b6236b00348c3c938dc3bce90f6102c69b5fb98f61b6",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/center_part_01_veg",
+          "settings": "models/ported/v021d/level/05/center_part_01_veg.model/settings",
+          "key": "material_settings.from_lvl_06_base_b_spanish_moss_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/moss_2",
+          "settings": "models/ported/v021d/level/06/moss_2.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/moss_1",
+          "settings": "models/ported/v021d/level/06/moss_1.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/moss_3",
+          "settings": "models/ported/v021d/level/06/moss_3.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.lod1_spanish_moss_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.lod1_spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_spanish_moss_alfa_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "fx/level_1_anomaly/cloud_mesh",
+      "current_material": "ported/v021d/fx/level_1_anomaly/cloud_mesh",
+      "target_material": "ported/v021d/fx/level_1_anomaly/cloud_mesh",
+      "changes": {
+        "material.forward.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "5c7222efd14a8730b6ea37cc996e890a48b1143b1f3dca6a45dbef25b94a0186",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terr_anom_pole",
+          "settings": "models/ported/v021d/level/01/terr_anom_pole.model/settings",
+          "key": "material_settings.top1_sg_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "fx/level_5_anomaly/uran_crystals",
+      "current_material": "ported/v021d/fx/level_5_anomaly/uran_crystals",
+      "target_material": "ported/v021d/fx/level_5_anomaly/uran_crystals",
+      "changes": {
+        "material.forward.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "3d430e4f3c2ff1c24dc9d22c9db7041f78acd49457c5f49a1a851d87d0b1a134",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/anomaly/uranium_crystal_center",
+          "settings": "models/ported/v021d/level/05/anomaly/uranium_crystal_center.model/settings",
+          "key": "material_settings.uranium_crystal_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/anomaly/uranium_crystal_04",
+          "settings": "models/ported/v021d/level/05/anomaly/uranium_crystal_04.model/settings",
+          "key": "material_settings.uranium_crystal_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/anomaly/uranium_crystal_02",
+          "settings": "models/ported/v021d/level/05/anomaly/uranium_crystal_02.model/settings",
+          "key": "material_settings.uranium_crystal_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/anomaly/uranium_crystal_01",
+          "settings": "models/ported/v021d/level/05/anomaly/uranium_crystal_01.model/settings",
+          "key": "material_settings.uranium_crystal_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/anomaly/uranium_crystal_03",
+          "settings": "models/ported/v021d/level/05/anomaly/uranium_crystal_03.model/settings",
+          "key": "material_settings.uranium_crystal_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/anomaly/uranium_crystal_05",
+          "settings": "models/ported/v021d/level/05/anomaly/uranium_crystal_05.model/settings",
+          "key": "material_settings.uranium_crystal_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "item/light_conductor",
+      "current_material": "ported/v021d/item/light_conductor",
+      "target_material": "ported/v021d/item/light_conductor",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "a0edd1ba9ea36c03a89e285a5cfca3e19b261c630a7f0fae997bedc1bde368b4",
+      "bindings": [
+        {
+          "model": "ported/v021d/item/quest/quest_stellage/light_conuctor/light_conductor_01",
+          "settings": "models/ported/v021d/item/quest/quest_stellage/light_conuctor/light_conductor_01.model/settings",
+          "key": "material_settings.material #184.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/item/quest/quest_stellage/transmitter/transmitter_base_no_pipe",
+          "settings": "models/ported/v021d/item/quest/quest_stellage/transmitter/transmitter_base_no_pipe.model/settings",
+          "key": "material_settings.material #184.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "item/transmitter",
+      "current_material": "ported/v021d/item/transmitter",
+      "target_material": "ported/v021d/item/transmitter",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "7b78ec322107788c85fd84223a8bc2af6447d02c595cf4ec6648683cdb940e5f",
+      "bindings": [
+        {
+          "model": "ported/v021d/item/quest/quest_stellage/transmitter/transmitter_mid_no_pipe",
+          "settings": "models/ported/v021d/item/quest/quest_stellage/transmitter/transmitter_mid_no_pipe.model/settings",
+          "key": "material_settings.material #17503974.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/item/quest/quest_stellage/transmitter/transmitter",
+          "settings": "models/ported/v021d/item/quest/quest_stellage/transmitter/transmitter.model/settings",
+          "key": "material_settings.transmiter_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/item/quest/quest_stellage/transmitter/transmitter",
+          "settings": "models/ported/v021d/item/quest/quest_stellage/transmitter/transmitter.model/settings",
+          "key": "material_settings.lod1_transmiter_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/item/quest/quest_stellage/transmitter/transmitter_base_no_pipe",
+          "settings": "models/ported/v021d/item/quest/quest_stellage/transmitter/transmitter_base_no_pipe.model/settings",
+          "key": "material_settings.material #17503974.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "props/light/bonefire_fire",
+      "current_material": "ported/v021d/props/light/bonefire_fire",
+      "target_material": "ported/v021d/props/light/bonefire_fire",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "34fbe05613df855cfcce46fcfcae743f595196f41721bedbeb99466bd87decb9",
+      "bindings": [
+        {
+          "model": "ported/v021d/props/light/bonefire_01_on",
+          "settings": "models/ported/v021d/props/light/bonefire_01_on.model/settings",
+          "key": "material_settings.bonefire_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain",
+            "05/day",
+            "05/evening",
+            "05/rain",
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/bonefire_01_on",
+          "settings": "models/ported/v021d/props/light/bonefire_01_on.model/settings",
+          "key": "material_settings.lod2_bonefire_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain",
+            "05/day",
+            "05/evening",
+            "05/rain",
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/bonefire_01_on",
+          "settings": "models/ported/v021d/props/light/bonefire_01_on.model/settings",
+          "key": "material_settings.lod1_bonefire_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain",
+            "05/day",
+            "05/evening",
+            "05/rain",
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/bonefire_02_on",
+          "settings": "models/ported/v021d/props/light/bonefire_02_on.model/settings",
+          "key": "material_settings.bonefire_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain",
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/bonefire_02_on",
+          "settings": "models/ported/v021d/props/light/bonefire_02_on.model/settings",
+          "key": "material_settings.lod2_bonefire_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain",
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/bonefire_02_on",
+          "settings": "models/ported/v021d/props/light/bonefire_02_on.model/settings",
+          "key": "material_settings.lod1_bonefire_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain",
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "props/light/light_emitters_glass_emissive",
+      "current_material": "ported/v021d/props/light/light_emitters_glass_emissive",
+      "target_material": "ported/v021d/props/light/light_emitters_glass_emissive",
+      "changes": {
+        "material.distortion.two_sided.value": {
+          "original": true,
+          "port": false
+        },
+        "material.forward.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "9bcd6ee0408f13435d81f38f7a4859ea2089ff2dbcac1d722098425f52ce4b11",
+      "bindings": [
+        {
+          "model": "ported/v021d/props/light/stand_group_batlamp_glass_emit",
+          "settings": "models/ported/v021d/props/light/stand_group_batlamp_glass_emit.model/settings",
+          "key": "material_settings.lod2_light_emitters_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/stand_group_batlamp_glass_emit",
+          "settings": "models/ported/v021d/props/light/stand_group_batlamp_glass_emit.model/settings",
+          "key": "material_settings.lod1_light_emitters_glass_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/stand_group_batlamp_glass_emit",
+          "settings": "models/ported/v021d/props/light/stand_group_batlamp_glass_emit.model/settings",
+          "key": "material_settings.light_emitters_glass_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/wall_group_nailed_batlamp_glass_emit",
+          "settings": "models/ported/v021d/props/light/wall_group_nailed_batlamp_glass_emit.model/settings",
+          "key": "material_settings.lod2_light_emitters_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/wall_group_nailed_batlamp_glass_emit",
+          "settings": "models/ported/v021d/props/light/wall_group_nailed_batlamp_glass_emit.model/settings",
+          "key": "material_settings.lod1_light_emitters_glass_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/light/wall_group_nailed_batlamp_glass_emit",
+          "settings": "models/ported/v021d/props/light/wall_group_nailed_batlamp_glass_emit.model/settings",
+          "key": "material_settings.light_emitters_glass_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "terrain/ground_02_tile_vc",
+      "current_material": "ported/v021d/terrain/ground_02_tile_vc",
+      "target_material": "ported/v021d/terrain/ground_02_tile_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "26f30cbd8a1ccd8abdbfe4723f4426be38e6aabbaa48ccc409dd1dc34971ae16",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.ground_02_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.lod1_ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.ground_02_s_alphs_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_ground_02_s_alphs_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "terrain/ground_moss_op_vc",
+      "current_material": "ported/v021d/terrain/ground_moss_op_vc",
+      "target_material": "ported/v021d/terrain/ground_moss_op_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "1ba9b8d5a2d32059add22a754f3dca565986314df0c174d2634e59eac1d39e71",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.ground_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.ground_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "terrain/ground_moss_s_alpha_vc",
+      "current_material": "ported/v021d/terrain/ground_moss_s_alpha_vc",
+      "target_material": "ported/v021d/terrain/ground_moss_s_alpha_vc",
+      "changes": {
+        "material.g_stage.effect.use_alphablended_diffuse.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "29b3098ecf611d55fb0d6cc3836e2e0b9178be1db0e0d6f164b66e712a3dac48",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.lod1_ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.lod1_ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.lod1_ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "terrain_tiled/dirt_vc",
+      "current_material": "ported/v021d/terrain_tiled/dirt_vc",
+      "target_material": "ported/v021d/terrain_tiled/dirt_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "df28b6e8aaf70da2288ca55ee14f4b0e7580df971babce8ac5037f90bac6a9cf",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.dirt_01_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.dirt_01_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "terrain_tiled/grass_vc",
+      "current_material": "ported/v021d/terrain_tiled/grass_vc",
+      "target_material": "ported/v021d/terrain_tiled/grass_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "f9b8310147aa6aece93c5ef7bfcc1f08b38a7004de2434c9272d9c8c1c234561",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.grass_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "terrain_tiled/sand_grass_vc",
+      "current_material": "ported/v021d/terrain_tiled/sand_grass_vc",
+      "target_material": "ported/v021d/terrain_tiled/sand_grass_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "738d88765a35a43f4d595e518b94fe55e58ad4386765eff253c6b0dd5b7909c1",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.sand_grass_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/bricks/brick_05_trash_vc",
+      "current_material": "ported/v021d/tiled/bricks/brick_05_trash_vc",
+      "target_material": "ported/v021d/tiled/bricks/brick_05_trash_vc",
+      "changes": {
+        "material.g_stage.effect.use_alphablended_normal.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "0c2b772daa30698b8b1a86eb7a3ea4b5d97a92bd4c70599ed4f5e847558bd2cf",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/base_a",
+          "settings": "models/ported/v021d/level/05/base_a.model/settings",
+          "key": "material_settings.bricks_05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/base_b",
+          "settings": "models/ported/v021d/level/05/base_b.model/settings",
+          "key": "material_settings.bricks_05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/concrete/concrete_01_floor_burned_vc",
+      "current_material": "ported/v021d/tiled/concrete/concrete_01_floor_burned_vc",
+      "target_material": "ported/v021d/tiled/concrete/concrete_01_floor_burned_vc",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "a595bf4440346f23069dc145d2096ca1cc19cbb7f876a34d7b08f72a7e635f49",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/hole_wrecks",
+          "settings": "models/ported/v021d/level/06/hole_wrecks.model/settings",
+          "key": "material_settings.lod1_concrete_01_burn_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/hole_wrecks",
+          "settings": "models/ported/v021d/level/06/hole_wrecks.model/settings",
+          "key": "material_settings.concrete_01_burn_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.concrete_01_s_floor_burned_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.lod1_concrete_01_s_floor_burned_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/concrete/concrete_black_crack_vc",
+      "current_material": "ported/v021d/tiled/concrete/concrete_black_crack_vc",
+      "target_material": "ported/v021d/tiled/concrete/concrete_black_crack_vc",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "304d7ac1f86b5401bca2c1fafe804f06c9b000df180290ab33284ab2eeb44288",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/props/out_wall_props_5",
+          "settings": "models/ported/v021d/level/05/props/out_wall_props_5.model/settings",
+          "key": "material_settings.concrete_black_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/props/out_wall_props_3",
+          "settings": "models/ported/v021d/level/05/props/out_wall_props_3.model/settings",
+          "key": "material_settings.concrete_black_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/props/out_wall_props_7",
+          "settings": "models/ported/v021d/level/05/props/out_wall_props_7.model/settings",
+          "key": "material_settings.concrete_black_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/props/out_wall_props_6",
+          "settings": "models/ported/v021d/level/05/props/out_wall_props_6.model/settings",
+          "key": "material_settings.concrete_black_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/props/out_wall_props_1",
+          "settings": "models/ported/v021d/level/05/props/out_wall_props_1.model/settings",
+          "key": "material_settings.concrete_black_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.concrete_black_s_crack_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.lod1_concrete_black_s_crack_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/concrete/concrete_blocks_destr_vc",
+      "current_material": "ported/v021d/tiled/concrete/concrete_blocks_destr_vc",
+      "target_material": "ported/v021d/tiled/concrete/concrete_blocks_destr_vc",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        },
+        "material.g_stage.effect.use_alphablended_diffuse.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "0bea9653ecbb890c59d7e2e9e951c543f20c5715f2dc5ce0f8999c0631bdc46a",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.concrete_blocks_destr_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_destr_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/concrete/concrete_column_break_vc",
+      "current_material": "ported/v021d/tiled/concrete/concrete_column_break_vc",
+      "target_material": "ported/v021d/tiled/concrete/concrete_column_break_vc",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "3ee59becf9b8af88acbe2842667351c565757e0a06ccb37d1e307ad0aa7c92f4",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/atp_top",
+          "settings": "models/ported/v021d/level/01/atp_top.model/settings",
+          "key": "material_settings.concrete_column_s_broken_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/atp_top",
+          "settings": "models/ported/v021d/level/01/atp_top.model/settings",
+          "key": "material_settings.lod1_concrete_column_s_broken_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/hangar",
+          "settings": "models/ported/v021d/level/03/hangar.model/settings",
+          "key": "material_settings.concrete_column_break_s_vc.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_3",
+          "settings": "models/ported/v021d/level/06/object_3.model/settings",
+          "key": "material_settings.lod1_concrete_column_broken_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_3",
+          "settings": "models/ported/v021d/level/06/object_3.model/settings",
+          "key": "material_settings.concrete_column_broken_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.lod1_concrete_column_broken_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.concrete_column_broken_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.concrete_column_s_concrete_03_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_concrete_column_s_concrete_03_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/concrete/concrete_old_brick_vc",
+      "current_material": "ported/v021d/tiled/concrete/concrete_old_brick_vc",
+      "target_material": "ported/v021d/tiled/concrete/concrete_old_brick_vc",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "a64a77aeb6de0dd7fb5ccfa87057e10cf7fc68196e73471945d9fb071a479be8",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/atp_top",
+          "settings": "models/ported/v021d/level/01/atp_top.model/settings",
+          "key": "material_settings.lod1_concrete_old_s_brick_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/atp_top",
+          "settings": "models/ported/v021d/level/01/atp_top.model/settings",
+          "key": "material_settings.concrete_old_s_brick_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/culture_center_top",
+          "settings": "models/ported/v021d/level/01/culture_center_top.model/settings",
+          "key": "material_settings.lod1_concrete_old_s_brick_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/culture_center_top",
+          "settings": "models/ported/v021d/level/01/culture_center_top.model/settings",
+          "key": "material_settings.concrete_old_s_brick_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/floor/floor_burned_ground_vc",
+      "current_material": "ported/v021d/tiled/floor/floor_burned_ground_vc",
+      "target_material": "ported/v021d/tiled/floor/floor_burned_ground_vc",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "ecae7a35291a7bb60be64d730d602cdc488cc11fc62fa24d0ad50ad8c319e548",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.floor_burned_ground_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_floor_burned_ground_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/hole_wrecks",
+          "settings": "models/ported/v021d/level/06/hole_wrecks.model/settings",
+          "key": "material_settings.floor_burned_ground_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/hole_wrecks",
+          "settings": "models/ported/v021d/level/06/hole_wrecks.model/settings",
+          "key": "material_settings.lod1_floor_burned_ground_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/floor/floor_trash_vc_1",
+      "current_material": "ported/v021d/tiled/floor/floor_trash_vc_1",
+      "target_material": "ported/v021d/tiled/floor/floor_trash_vc_1",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "e572d35cdb66d16b93f9f999e86820c22a117d2475468855654e05fdcd9c2762",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/house_7",
+          "settings": "models/ported/v021d/level/01/house_7.model/settings",
+          "key": "material_settings.lod1_trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_7",
+          "settings": "models/ported/v021d/level/01/house_7.model/settings",
+          "key": "material_settings.lod2_trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_7",
+          "settings": "models/ported/v021d/level/01/house_7.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/background/back_house_7",
+          "settings": "models/ported/v021d/level/01/background/back_house_7.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/roof/roof_overhead",
+      "current_material": "ported/v021d/tiled/roof/roof_overhead",
+      "target_material": "ported/v021d/tiled/roof/roof_overhead",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "e7976877b6c95551a66a8cb41a3d8be14098bd78fc238d0b49d836a16b4abf09",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/02/school_part_03_indoor",
+          "settings": "models/ported/v021d/level/02/school_part_03_indoor.model/settings",
+          "key": "material_settings.wall_overhead_1sg.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/02/school_p04_indoor",
+          "settings": "models/ported/v021d/level/02/school_p04_indoor.model/settings",
+          "key": "material_settings.wall_overhead_1sg.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/stucco/stucco_04_stucco_wood_vc_alpha",
+      "current_material": "ported/v021d/tiled/stucco/stucco_04_stucco_wood_vc_alpha",
+      "target_material": "ported/v021d/tiled/stucco/stucco_04_stucco_wood_vc_alpha",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "7c2a13c75db5da27366334f56388e37250ee16d3af83047388f7452930c5c5d1",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/house_5",
+          "settings": "models/ported/v021d/level/01/house_5.model/settings",
+          "key": "material_settings.stucco_04_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5_2",
+          "settings": "models/ported/v021d/level/01/house_5_2.model/settings",
+          "key": "material_settings.stucco_04_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_6",
+          "settings": "models/ported/v021d/level/01/house_6.model/settings",
+          "key": "material_settings.stucco_04_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/stucco/stucco_mask_03_stocco_wood_vc_alpha",
+      "current_material": "ported/v021d/tiled/stucco/stucco_mask_03_stocco_wood_vc_alpha",
+      "target_material": "ported/v021d/tiled/stucco/stucco_mask_03_stocco_wood_vc_alpha",
+      "changes": {
+        "material.g_stage.effect.use_alphablended_diffuse.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "a6e2e3add4cbeccd64843ff1b0e1c2da9eea8ae0816c37e9231c2a3aa0328456",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/house_5",
+          "settings": "models/ported/v021d/level/01/house_5.model/settings",
+          "key": "material_settings.lod2_stucco_mask_03_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5",
+          "settings": "models/ported/v021d/level/01/house_5.model/settings",
+          "key": "material_settings.lod1_stucco_mask_03_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5",
+          "settings": "models/ported/v021d/level/01/house_5.model/settings",
+          "key": "material_settings.stucco_mask_03_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5_2",
+          "settings": "models/ported/v021d/level/01/house_5_2.model/settings",
+          "key": "material_settings.lod2_stucco_mask_03_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5_2",
+          "settings": "models/ported/v021d/level/01/house_5_2.model/settings",
+          "key": "material_settings.lod1_stucco_mask_03_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5_2",
+          "settings": "models/ported/v021d/level/01/house_5_2.model/settings",
+          "key": "material_settings.stucco_mask_03_s_stucco_wood_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/stucco/stucco_wood_alpha",
+      "current_material": "ported/v021d/tiled/stucco/stucco_wood_alpha",
+      "target_material": "ported/v021d/tiled/stucco/stucco_wood_alpha",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "686e74937f125185949f35f72f2ec896671f3b6d963a6ebdda2706e0993a5ad7",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/house_5",
+          "settings": "models/ported/v021d/level/01/house_5.model/settings",
+          "key": "material_settings.lod1_stucco_wood_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5",
+          "settings": "models/ported/v021d/level/01/house_5.model/settings",
+          "key": "material_settings.stucco_wood_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5_2",
+          "settings": "models/ported/v021d/level/01/house_5_2.model/settings",
+          "key": "material_settings.lod1_stucco_wood_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_5_2",
+          "settings": "models/ported/v021d/level/01/house_5_2.model/settings",
+          "key": "material_settings.stucco_wood_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_6",
+          "settings": "models/ported/v021d/level/01/house_6.model/settings",
+          "key": "material_settings.stucco_wood_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_1",
+          "settings": "models/ported/v021d/level/01/house_1.model/settings",
+          "key": "material_settings.stucco_wood_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/trash/debrisstone_alpha_vc",
+      "current_material": "ported/v021d/tiled/trash/debrisstone_alpha_vc",
+      "target_material": "ported/v021d/tiled/trash/debrisstone_alpha_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "a0cef64b12e747839b7f9177a3b9ff2b187dd71c530a1a047be4ee68354acc06",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.trash_debrisstone_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.lod1_trash_debrisstone_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.trash_debrisstone_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.trash_debrisstone_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_trash_debrisstone_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/trash/trash_brick_vc",
+      "current_material": "ported/v021d/tiled/trash/trash_brick_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_brick_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "12148e57b737da5d98dda67a3394de00d3fda997aee256c3b04e39093c0685f2",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/03/arsenal",
+          "settings": "models/ported/v021d/level/03/arsenal.model/settings",
+          "key": "material_settings.trash_brick_s_vc.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/barracks_x3",
+          "settings": "models/ported/v021d/level/03/barracks_x3.model/settings",
+          "key": "material_settings.trash_brick_alpha_s_vc.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/trash/trash_dirt_moss_alpha_vc",
+      "current_material": "ported/v021d/tiled/trash/trash_dirt_moss_alpha_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_dirt_moss_alpha_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "1355f0efd677f9318b77714de0907544aed66d6932c65e14eb873a957d509710",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_4_obj2",
+          "settings": "models/ported/v021d/level/06/ground_4_obj2.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.trash_dirt_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/trash/trash_foliage_vc",
+      "current_material": "ported/v021d/tiled/trash/trash_foliage_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_foliage_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "1738c19ef2cfd093e669825cd2e12f6117e2a131a0767ec2ab865b679886b3e7",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.trash_foliage_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.trash_foliage_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.trash_foliage_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_4_obj2",
+          "settings": "models/ported/v021d/level/06/ground_4_obj2.model/settings",
+          "key": "material_settings.trash_foliage_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.trash_dirt_folique_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_trash_dirt_folique_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.trash_foliage_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/trash/trash_vc",
+      "current_material": "ported/v021d/tiled/trash/trash_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_vc",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        },
+        "material.g_stage.is_cast_shadow.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "4223b30aebedbfe13ec9016b59d03e6ec8f4e86dfc8c636ff65c47d63c4d6516",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/house_3",
+          "settings": "models/ported/v021d/level/01/house_3.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/culture_center_top",
+          "settings": "models/ported/v021d/level/01/culture_center_top.model/settings",
+          "key": "material_settings.lod1_trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/culture_center_top",
+          "settings": "models/ported/v021d/level/01/culture_center_top.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/wall/died_bricks_vc",
+      "current_material": "ported/v021d/tiled/wall/died_bricks_vc",
+      "target_material": "ported/v021d/tiled/wall/died_bricks_vc",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "fd30dbd7f9ba51de8f8e15f5c030e9d6442e7c2a36a69c51a4224afdaadb9ded",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/02/school_part_01",
+          "settings": "models/ported/v021d/level/02/school_part_01.model/settings",
+          "key": "material_settings.lod1_dyed_bricks_s_vc.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/02/school_part_01",
+          "settings": "models/ported/v021d/level/02/school_part_01.model/settings",
+          "key": "material_settings.dyed_bricks_s_vc.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "vehicle/construct&utility/plug",
+      "current_material": "ported/v021d/vehicle/construct&utility/plug",
+      "target_material": "ported/v021d/vehicle/construct&utility/plug",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        },
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "5c8f3b500fc860218255a2dfe62b11e55dbe077e1c3c27189e576cdccd13dad3",
+      "bindings": [
+        {
+          "model": "ported/v021d/vehicle/construct&utility/plug",
+          "settings": "models/ported/v021d/vehicle/construct&utility/plug.model/settings",
+          "key": "material_settings.hp2.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/trailer_2pts",
+          "settings": "models/ported/v021d/vehicle/construct&utility/trailer_2pts.model/settings",
+          "key": "material_settings.plug.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "vehicle/construct&utility/tractor_umz",
+      "current_material": "ported/v021d/vehicle/construct&utility/tractor_umz",
+      "target_material": "ported/v021d/vehicle/construct&utility/tractor_umz",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        },
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "42f37f2e215e03f7e26d0798fb72ed2e3dcfc6ef062605efb5e1b7a54c5789ce",
+      "bindings": [
+        {
+          "model": "ported/v021d/vehicle/construct&utility/shovel_rear",
+          "settings": "models/ported/v021d/vehicle/construct&utility/shovel_rear.model/settings",
+          "key": "material_settings.4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/shovel_rear",
+          "settings": "models/ported/v021d/vehicle/construct&utility/shovel_rear.model/settings",
+          "key": "material_settings.lod1_4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/fueltank_2",
+          "settings": "models/ported/v021d/vehicle/construct&utility/fueltank_2.model/settings",
+          "key": "material_settings.4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/fueltank_2",
+          "settings": "models/ported/v021d/vehicle/construct&utility/fueltank_2.model/settings",
+          "key": "material_settings.lod1_4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/excavator",
+          "settings": "models/ported/v021d/vehicle/construct&utility/excavator.model/settings",
+          "key": "material_settings.4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/excavator",
+          "settings": "models/ported/v021d/vehicle/construct&utility/excavator.model/settings",
+          "key": "material_settings.lod1_4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/excavator_broken",
+          "settings": "models/ported/v021d/vehicle/construct&utility/excavator_broken.model/settings",
+          "key": "material_settings.4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/excavator_broken",
+          "settings": "models/ported/v021d/vehicle/construct&utility/excavator_broken.model/settings",
+          "key": "material_settings.lod1_4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/trailer_2pts",
+          "settings": "models/ported/v021d/vehicle/construct&utility/trailer_2pts.model/settings",
+          "key": "material_settings.lod1_tractor.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/trailer_2pts",
+          "settings": "models/ported/v021d/vehicle/construct&utility/trailer_2pts.model/settings",
+          "key": "material_settings.tractor.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/beam",
+          "settings": "models/ported/v021d/vehicle/construct&utility/beam.model/settings",
+          "key": "material_settings.4x4.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "vehicle/construct&utility/trailer_2pts",
+      "current_material": "ported/v021d/vehicle/construct&utility/trailer_2pts",
+      "target_material": "ported/v021d/vehicle/construct&utility/trailer_2pts",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        },
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "e50311a2f22b6e9e2bd9f621786ab613d8959f4a2f93212b2033a18f34602ddc",
+      "bindings": [
+        {
+          "model": "ported/v021d/vehicle/construct&utility/trailer_2pts",
+          "settings": "models/ported/v021d/vehicle/construct&utility/trailer_2pts.model/settings",
+          "key": "material_settings.pritstp.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/construct&utility/trailer_2pts",
+          "settings": "models/ported/v021d/vehicle/construct&utility/trailer_2pts.model/settings",
+          "key": "material_settings.lod1_pritstp.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "vehicle/interior_fwd",
+      "current_material": "ported/v021d/vehicle/interior_fwd",
+      "target_material": "ported/v021d/vehicle/interior_fwd",
+      "changes": {
+        "material.forward.effect.use_soft_edges.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "c8ff746fa395653c9d79e7cfffefd3c8f2680e265fea3c2ade403ea0a1774290",
+      "bindings": [
+        {
+          "model": "ported/v021d/vehicle/niva",
+          "settings": "models/ported/v021d/vehicle/niva.model/settings",
+          "key": "material_settings.glass.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/niva",
+          "settings": "models/ported/v021d/vehicle/niva.model/settings",
+          "key": "material_settings.lod1_glass.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/uaz_452",
+          "settings": "models/ported/v021d/vehicle/uaz_452.model/settings",
+          "key": "material_settings.material #825364.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/uaz_452",
+          "settings": "models/ported/v021d/vehicle/uaz_452.model/settings",
+          "key": "material_settings.lod1_material #825364.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/uaz_452_med",
+          "settings": "models/ported/v021d/vehicle/uaz_452_med.model/settings",
+          "key": "material_settings.material #825364.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/uaz_452_med",
+          "settings": "models/ported/v021d/vehicle/uaz_452_med.model/settings",
+          "key": "material_settings.lod1_material #825364.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "vehicle/uaz_452",
+      "current_material": "ported/v021d/vehicle/uaz_452",
+      "target_material": "ported/v021d/vehicle/uaz_452",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "2fc28051ec6a15b8f2616aa04a1da1bc3ace100fea9a80920c479fbcc81b051a",
+      "bindings": [
+        {
+          "model": "ported/v021d/vehicle/uaz_452",
+          "settings": "models/ported/v021d/vehicle/uaz_452.model/settings",
+          "key": "material_settings.uaz.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/uaz_452",
+          "settings": "models/ported/v021d/vehicle/uaz_452.model/settings",
+          "key": "material_settings.lod1_uaz.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "vehicle/uaz_452_med",
+      "current_material": "ported/v021d/vehicle/uaz_452_med",
+      "target_material": "ported/v021d/vehicle/uaz_452_med",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "a63ca6a2453cf8a4d3866a70f4b16b26b15b125de7d542350c7e4b59d98e677c",
+      "bindings": [
+        {
+          "model": "ported/v021d/vehicle/uaz_452_med",
+          "settings": "models/ported/v021d/vehicle/uaz_452_med.model/settings",
+          "key": "material_settings.uaz.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/vehicle/uaz_452_med",
+          "settings": "models/ported/v021d/vehicle/uaz_452_med.model/settings",
+          "key": "material_settings.lod1_uaz.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "props/furniture/shelve_stand",
+      "current_material": "props/furniture/shelve_stand",
+      "target_material": "ported/v021d/original_visibility/props/furniture/shelve_stand",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "b586eef211af797fb9d799b0ef0b258ec969a19c1db79ad4594a4038784e0d3d",
+      "bindings": [
+        {
+          "model": "ported/v021d/props/furniture/logjam_01",
+          "settings": "models/ported/v021d/props/furniture/logjam_01.model/settings",
+          "key": "material_settings.shelve_stand_shelve_stand_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/shelve_stand_02",
+          "settings": "models/ported/v021d/props/furniture/shelve_stand_02.model/settings",
+          "key": "material_settings.lod1_shelve_stand_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/shelve_stand_02",
+          "settings": "models/ported/v021d/props/furniture/shelve_stand_02.model/settings",
+          "key": "material_settings.shelve_stand_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/shelve_stand_01",
+          "settings": "models/ported/v021d/props/furniture/shelve_stand_01.model/settings",
+          "key": "material_settings.lod1_shelve_stand_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/shelve_stand_01",
+          "settings": "models/ported/v021d/props/furniture/shelve_stand_01.model/settings",
+          "key": "material_settings.shelve_stand_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/concrete/concrete_blocks",
+      "current_material": "tiled/concrete/concrete_blocks",
+      "target_material": "ported/v021d/original_visibility/tiled/concrete/concrete_blocks",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "019e680196cfe484b0521ffdd17bddfc04a0adaad07c768e1c6d37a5a384fb5a",
+      "bindings": [
+        {
+          "model": "ported/v021d/generic/fence/fence_broken_01",
+          "settings": "models/ported/v021d/generic/fence/fence_broken_01.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/fence/fence_broken_01",
+          "settings": "models/ported/v021d/generic/fence/fence_broken_01.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/fence/fence_long",
+          "settings": "models/ported/v021d/generic/fence/fence_long.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/fence/fence_long",
+          "settings": "models/ported/v021d/generic/fence/fence_long.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/fence/fence_broken_02",
+          "settings": "models/ported/v021d/generic/fence/fence_broken_02.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/fence/fence_broken_02",
+          "settings": "models/ported/v021d/generic/fence/fence_broken_02.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/cover/concrete_tray_group",
+          "settings": "models/ported/v021d/props/cover/concrete_tray_group.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/cover/concrete_tray_group",
+          "settings": "models/ported/v021d/props/cover/concrete_tray_group.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/cover/concrete_tray_group",
+          "settings": "models/ported/v021d/props/cover/concrete_tray_group.model/settings",
+          "key": "material_settings.lod2_concrete_blocks_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain",
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/kpp",
+          "settings": "models/ported/v021d/level/03/kpp.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/kpp",
+          "settings": "models/ported/v021d/level/03/kpp.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/kpp",
+          "settings": "models/ported/v021d/level/03/kpp.model/settings",
+          "key": "material_settings.lod2_concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/blocks",
+          "settings": "models/ported/v021d/level/03/blocks.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/blocks",
+          "settings": "models/ported/v021d/level/03/blocks.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/cover/cover_concrete_block_03",
+          "settings": "models/ported/v021d/props/cover/cover_concrete_block_03.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/cover/cover_concrete_block_03",
+          "settings": "models/ported/v021d/props/cover/cover_concrete_block_03.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/cover/cover_concrete_block_03",
+          "settings": "models/ported/v021d/props/cover/cover_concrete_block_03.model/settings",
+          "key": "material_settings.lod2_concrete_blocks_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_concrete_blocks_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.concrete_blocks_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/floor/floor_tiles_01",
+      "current_material": "tiled/floor/floor_tiles_01",
+      "target_material": "ported/v021d/original_visibility/tiled/floor/floor_tiles_01",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "897dd7ae1005910893f3f5c0831098194ad966482aa130478b9876e892e366e0",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.floor_tiles_01_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_floor_tiles_01_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/metal/metal_02",
+      "current_material": "tiled/metal/metal_02",
+      "target_material": "ported/v021d/original_visibility/tiled/metal/metal_02",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "8ff8d6b5f10a503876b0b672209bcc561cdaadbe8a5af58e92e8d46ce46972f3",
+      "bindings": [
+        {
+          "model": "ported/v021d/generic/tower/streetlight_single",
+          "settings": "models/ported/v021d/generic/tower/streetlight_single.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/tower/streetlight_br1",
+          "settings": "models/ported/v021d/generic/tower/streetlight_br1.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/tower/streetlight_dual",
+          "settings": "models/ported/v021d/generic/tower/streetlight_dual.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/tower/streetlight_br2",
+          "settings": "models/ported/v021d/generic/tower/streetlight_br2.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_1lvl_01",
+          "settings": "models/ported/v021d/props/furniture/bed_1lvl_01.model/settings",
+          "key": "material_settings.lod2_metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_1lvl_01",
+          "settings": "models/ported/v021d/props/furniture/bed_1lvl_01.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_1lvl_01",
+          "settings": "models/ported/v021d/props/furniture/bed_1lvl_01.model/settings",
+          "key": "material_settings.lod1_metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_2lvl_01",
+          "settings": "models/ported/v021d/props/furniture/bed_2lvl_01.model/settings",
+          "key": "material_settings.lod2_metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_2lvl_01",
+          "settings": "models/ported/v021d/props/furniture/bed_2lvl_01.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_2lvl_01",
+          "settings": "models/ported/v021d/props/furniture/bed_2lvl_01.model/settings",
+          "key": "material_settings.lod1_metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_1lvl_br_01",
+          "settings": "models/ported/v021d/props/furniture/bed_1lvl_br_01.model/settings",
+          "key": "material_settings.lod2_metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_1lvl_br_01",
+          "settings": "models/ported/v021d/props/furniture/bed_1lvl_br_01.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/furniture/bed_1lvl_br_01",
+          "settings": "models/ported/v021d/props/furniture/bed_1lvl_br_01.model/settings",
+          "key": "material_settings.lod1_metal_02_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_3",
+          "settings": "models/ported/v021d/level/06/object_3.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.metal_02_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.lod1_metal_02_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/metal/metal_balls_noalpha",
+      "current_material": "tiled/metal/metal_balls_noalpha",
+      "target_material": "ported/v021d/original_visibility/tiled/metal/metal_balls_noalpha",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "f99ec318563f960a4f20c0d83ce14888029e66b5b75434dd2bc0138f31edc030",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_metal_balls_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.metal_balls_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/metal/metal_column_03",
+      "current_material": "tiled/metal/metal_column_03",
+      "target_material": "ported/v021d/original_visibility/tiled/metal/metal_column_03",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "c8cbee12992047ee8488b2e8619f7770f3e3f79df63d084f4791e90bdffe4c67",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/04/bg_pipe_05",
+          "settings": "models/ported/v021d/level/04/bg_pipe_05.model/settings",
+          "key": "material_settings.metal_column_03_1sg.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/fence_inner_part1",
+          "settings": "models/ported/v021d/level/03/fence_inner_part1.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/watch_tower_03",
+          "settings": "models/ported/v021d/level/03/watch_tower_03.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/arsenal",
+          "settings": "models/ported/v021d/level/03/arsenal.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/arsenal",
+          "settings": "models/ported/v021d/level/03/arsenal.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/barracks_x3",
+          "settings": "models/ported/v021d/level/03/barracks_x3.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/hangar",
+          "settings": "models/ported/v021d/level/03/hangar.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/hangar",
+          "settings": "models/ported/v021d/level/03/hangar.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/watch_tower_04",
+          "settings": "models/ported/v021d/level/03/watch_tower_04.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/garage",
+          "settings": "models/ported/v021d/level/03/garage.model/settings",
+          "key": "material_settings.metal_column_03_s_0.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/garage",
+          "settings": "models/ported/v021d/level/03/garage.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/garage",
+          "settings": "models/ported/v021d/level/03/garage.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/kpp",
+          "settings": "models/ported/v021d/level/03/kpp.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/kpp",
+          "settings": "models/ported/v021d/level/03/kpp.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/watch_tower_01",
+          "settings": "models/ported/v021d/level/03/watch_tower_01.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/watch_tower_01",
+          "settings": "models/ported/v021d/level/03/watch_tower_01.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/watch_tower_02",
+          "settings": "models/ported/v021d/level/03/watch_tower_02.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/antenna/antenna_fuse_boxes",
+          "settings": "models/ported/v021d/level/03/antenna/antenna_fuse_boxes.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/antenna/antenna_fuse_boxes",
+          "settings": "models/ported/v021d/level/03/antenna/antenna_fuse_boxes.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/antenna/antenna_ladder_machines",
+          "settings": "models/ported/v021d/level/03/antenna/antenna_ladder_machines.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/bunker_chemical",
+          "settings": "models/ported/v021d/level/03/bunker_chemical.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/bunker_chemical",
+          "settings": "models/ported/v021d/level/03/bunker_chemical.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/tower/streetlight_military",
+          "settings": "models/ported/v021d/generic/tower/streetlight_military.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/tower/streetlight_military_br",
+          "settings": "models/ported/v021d/generic/tower/streetlight_military_br.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_02",
+          "settings": "models/ported/v021d/props/garage/rack_02.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_02",
+          "settings": "models/ported/v021d/props/garage/rack_02.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_01",
+          "settings": "models/ported/v021d/props/garage/rack_01.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_01",
+          "settings": "models/ported/v021d/props/garage/rack_01.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_shot_01",
+          "settings": "models/ported/v021d/props/garage/rack_shot_01.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_shot_01",
+          "settings": "models/ported/v021d/props/garage/rack_shot_01.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_shot_02",
+          "settings": "models/ported/v021d/props/garage/rack_shot_02.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/garage/rack_shot_02",
+          "settings": "models/ported/v021d/props/garage/rack_shot_02.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/electric/satellite_comp_02",
+          "settings": "models/ported/v021d/props/electric/satellite_comp_02.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/electric/satellite_comp_02",
+          "settings": "models/ported/v021d/props/electric/satellite_comp_02.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/electric/satellite_comp_01",
+          "settings": "models/ported/v021d/props/electric/satellite_comp_01.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/electric/satellite_comp_01",
+          "settings": "models/ported/v021d/props/electric/satellite_comp_01.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/level_05_out_wall_l_corner",
+          "settings": "models/ported/v021d/level/05/level_05_out_wall_l_corner.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/out_wall_baseb_fasades",
+          "settings": "models/ported/v021d/level/05/out_wall_baseb_fasades.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/out_wall_baseb_4",
+          "settings": "models/ported/v021d/level/05/out_wall_baseb_4.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/base_a",
+          "settings": "models/ported/v021d/level/05/base_a.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/generic/tent/tent_1",
+          "settings": "models/ported/v021d/generic/tent/tent_1.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/razvod_open",
+          "settings": "models/ported/v021d/props/ventilation/razvod_open.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/povorot_open",
+          "settings": "models/ported/v021d/props/ventilation/povorot_open.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/razvod_open_crash",
+          "settings": "models/ported/v021d/props/ventilation/razvod_open_crash.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/truba_open_crash",
+          "settings": "models/ported/v021d/props/ventilation/truba_open_crash.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_3",
+          "settings": "models/ported/v021d/level/06/object_3.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/ulitka_open_crash",
+          "settings": "models/ported/v021d/props/ventilation/ulitka_open_crash.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/ulitka_open_crash",
+          "settings": "models/ported/v021d/props/ventilation/ulitka_open_crash.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/ulitka_open_crash",
+          "settings": "models/ported/v021d/props/ventilation/ulitka_open_crash.model/settings",
+          "key": "material_settings.lod2_metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/truba_open",
+          "settings": "models/ported/v021d/props/ventilation/truba_open.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/props/ventilation/povorot_open_crash",
+          "settings": "models/ported/v021d/props/ventilation/povorot_open_crash.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.lod1_metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.metal_column_03_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/stucco/stucco_06",
+      "current_material": "tiled/stucco/stucco_06",
+      "target_material": "ported/v021d/original_visibility/tiled/stucco/stucco_06",
+      "changes": {
+        "material.g_stage.effect.two_sided.value": {
+          "original": false,
+          "port": true
+        }
+      },
+      "unchanged_leaves_sha256": "f68472bf806c2b5dfa3031a5ed7fc5501eb4cff65cc592e56cc9f36169eeaca9",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/02/school_basement",
+          "settings": "models/ported/v021d/level/02/school_basement.model/settings",
+          "key": "material_settings.stucco_06_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/hangar",
+          "settings": "models/ported/v021d/level/03/hangar.model/settings",
+          "key": "material_settings.lod1_stucco_06_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/hangar",
+          "settings": "models/ported/v021d/level/03/hangar.model/settings",
+          "key": "material_settings.stucco_06_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/bunker_chemical",
+          "settings": "models/ported/v021d/level/03/bunker_chemical.model/settings",
+          "key": "material_settings.stucco_06_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/hospital",
+          "settings": "models/ported/v021d/level/03/hospital.model/settings",
+          "key": "material_settings.lod1_stucco_06_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/hospital",
+          "settings": "models/ported/v021d/level/03/hospital.model/settings",
+          "key": "material_settings.stucco_06_s.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        }
+      ]
+    },
+    {
+      "original_material": "tiled/wall/wall_tile06_small",
+      "current_material": "tiled/wall/wall_tile06_small",
+      "target_material": "ported/v021d/original_visibility/tiled/wall/wall_tile06_small",
+      "changes": {
+        "material.g_stage.effect.use_alpha_test.value": {
+          "original": true,
+          "port": false
+        }
+      },
+      "unchanged_leaves_sha256": "74d5727efd4b3056dab0b4d0cdbd21e10b8e9b22c8b5bfacaf1dc6b9a0305086",
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_wall_tilel06_small_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.wall_tilel06_small_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ]
+    }
+  ]
+}

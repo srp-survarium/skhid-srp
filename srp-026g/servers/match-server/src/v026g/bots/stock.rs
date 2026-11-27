@@ -73,11 +73,12 @@ impl Drug {
 /// [F65] The client's caps of modifier 43's three-bit rank fields, (first bit, most ranks): Painkiller, Fast Bandaging,
 /// Metabolism, Medical Training, Adrenalin, Bones, Brothers (`medical_skills.rs` `Field::new(shift, bits, most)`; the test
 /// `the_medical_numbers_are_the_client_patchs` reads them from that file).
-pub const MEDICAL_CAPS: [(u32, u32); 7] = [(0, 3), (3, 2), (6, 5), (9, 3), (12, 3), (17, 5), (21, 2)];
+pub const MEDICAL_CAPS: [(u32, u32); 7] = [(0, 3), (3, 2), (6, 4), (9, 3), (12, 3), (17, 5), (21, 1)];
 /// [F65] Fast Bandaging's activation delay off a rank (`Skills::use_time`: native x (1 - rank x 0.05)).
 pub const BANDAGING_PER_RANK: f32 = 0.05;
-/// [F65] Metabolism's head start a rank, ms (`Skills::regeneration_delay_ms`: native - rank x 500).
-pub const METABOLISM_PER_RANK_MS: u32 = 500;
+/// [F65] Metabolism's head start a rank, ms (`Skills::regeneration_delay_ms`: native - rank x 1000; 500 before the medical
+/// tree of 2026-11-19, which gave Metabolism 4 ranks of 1 s and Brothers in Arms 1 rank: the client's caps above).
+pub const METABOLISM_PER_RANK_MS: u32 = 1000;
 
 /// [A341] What a bot's medical skills do to its drugs, read once from its kit's modifiers (the client's own reading of
 /// them, so the bots' heal model times and sizes a drug as the game will):
@@ -88,7 +89,7 @@ pub const METABOLISM_PER_RANK_MS: u32 = 500;
 /// - `amount`: every amount times `max(0, 1 + drug_amount)` (modifier 57, Medical Training 312's
 ///   `drug_amount_modifier`; the getter's form `B x max(0, 1 + k S)`, 0x2D5AE0; k = 1 for it is LIKELY, the constructor
 ///   0x33CAC0's call of modifier 57 is the read that proves it: `docs/notes/bandages.md`);
-/// - `regeneration_sooner_ms`: natural regeneration starts this much sooner, Metabolism (311, bits 6..8) x 500 ms
+/// - `regeneration_sooner_ms`: natural regeneration starts this much sooner, Metabolism (311, bits 6..8) x 1000 ms ([`METABOLISM_PER_RANK_MS`])
 ///   (`Skills::regeneration_delay_ms`).
 ///
 /// A value modifier 43 cannot hold (not an exact integer of 24 bits, a rank over 5) is read as no skill, as the client
@@ -728,6 +729,8 @@ pub(crate) mod live_kit {
                 kits,
                 items,
                 squad: 0,
+                face: Default::default(),
+                notice: Default::default(),
             },
             state,
         }
@@ -1107,21 +1110,21 @@ mod tests {
         assert!(world_courses(7, &[(medkit, None)], &live.profile, dictionary).is_empty(), "a kit the profile lacks");
     }
 
-    /// [A341, F65] The client's reading of a kit's medical modifiers: 302 at 2 (bits 3..5), 311 at 5 (bits 6..8), 312 at 3
-    /// (bits 9..11, and `drug_amount` 0.24) give a delay x0.9, amounts x1.24 and regeneration 2.5 s sooner; a value the client
-    /// refuses (not an exact integer, a rank over its field's cap: 302 at 3, 311 at 6) is no skill; no skill is the identity.
+    /// [A341, F65] The client's reading of a kit's medical modifiers: 302 at 2 (bits 3..5), 311 at 4 (bits 6..8), 312 at 3
+    /// (bits 9..11, and `drug_amount` 0.24) give a delay x0.9, amounts x1.24 and regeneration 4 s sooner; a value the client
+    /// refuses (not an exact integer, a rank over its field's cap: 302 at 3, 311 at 5) is no skill; no skill is the identity.
     #[test]
     fn the_drug_factors_are_the_clients_reading_of_the_medical_ranks() {
         use survarium::v026g::skills::{MODIFIERS, modifier_index};
         let at = |name| modifier_index(name).unwrap();
         let mut m = [0.0f32; MODIFIERS];
         assert_eq!(DrugFactors::of_modifiers(&m), DrugFactors::NONE);
-        m[at("armored_trap")] = (1 + 2 * 8 + 5 * 64 + 3 * 512) as f32;
+        m[at("armored_trap")] = (1 + 2 * 8 + 4 * 64 + 3 * 512) as f32;
         m[at("drug_amount")] = 0.24;
         let f = DrugFactors::of_modifiers(&m);
         assert!((f.delay - 0.9).abs() < 1e-6 && (f.amount - 1.24).abs() < 1e-6, "{f:?}");
-        assert_eq!(f.regeneration_sooner_ms, 2_500);
-        for refused in [0.5, 7.0 * 8.0, 3.0 * 8.0 + 5.0 * 64.0, 6.0 * 64.0, -8.0, f32::NAN] {
+        assert_eq!(f.regeneration_sooner_ms, 4_000);
+        for refused in [0.5, 7.0 * 8.0, 3.0 * 8.0 + 4.0 * 64.0, 5.0 * 64.0, 6.0 * 64.0, -8.0, f32::NAN] {
             m[at("armored_trap")] = refused;
             let f = DrugFactors::of_modifiers(&m);
             assert_eq!((f.delay, f.regeneration_sooner_ms), (1.0, 0), "{refused}");
@@ -1148,7 +1151,7 @@ mod tests {
     }
 
     /// [F65, A372] The bots' medical block: each skill of its intent has its field (301 at bit 0, 302 at 3, 311 at 6, 312 at
-    /// 9), and each rank the bots' builds resolve ([`survarium::v026g::bot_skills::BotBuilds`]) is within the field's cap. On
+    /// 9, 342 at 21), and each rank the bots' builds resolve ([`survarium::v026g::bot_skills::BotBuilds`]) is within the field's cap. On
     /// the tests' data the tree has no medical tab and the builds hold none; the players' data: the ignored test below.
     fn medical_ranks_within_caps() {
         use survarium::v026g::bot_skills::{BOT_SKILL_TIERS, BotBuilds, MEDICAL};
@@ -1157,6 +1160,7 @@ mod tests {
             302 => 3,
             311 => 6,
             312 => 9,
+            342 => 21,
             _ => panic!("a medical skill of the block with no field here: {id}"),
         };
         let medical: Vec<u16> = MEDICAL.want.iter().chain(MEDICAL.open).copied().collect();
@@ -1175,7 +1179,7 @@ mod tests {
     }
 
     /// [A341] On the players' data (`SRP_GAME_DATA`): a bot's own profile of every tier carries the medical ranks, so its pantry's
-    /// factors are the skills' (delay x0.9, amounts x1.24, regeneration 2.5 s sooner).
+    /// factors are the skills' (delay x0.9, amounts x1.24, regeneration 4 s sooner: 311 at 4 on the tree of 2026-11-19).
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the players' game data with the medical tab"]
     fn a_bots_profile_on_the_players_data_gives_its_pantry_the_medical_factors() {
@@ -1188,7 +1192,7 @@ mod tests {
                 let f = Pantry::of_profile(&profile).factors();
                 eprintln!("{tier:?} {role:?}: {f:?}");
                 assert!((f.delay - 0.9).abs() < 1e-6 && (f.amount - 1.24).abs() < 1e-6, "{tier:?} {role:?} {f:?}");
-                assert_eq!(f.regeneration_sooner_ms, 2_500);
+                assert_eq!(f.regeneration_sooner_ms, 4_000);
             }
         }
     }
