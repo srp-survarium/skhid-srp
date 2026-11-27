@@ -18,7 +18,7 @@ package {
    411:"TechnicalSkill069411",412:"TechnicalSkill069412",413:"TechnicalSkill069413",414:"TechnicalSkill069414",
    422:"TechnicalSkill069422",423:"TechnicalSkill069423",431:"TechnicalSkill069431",432:"TechnicalSkill069432",
    433:"TechnicalSkill069433",441:"TechnicalSkill069441",442:"TechnicalSkill069442",443:"TechnicalSkill069443",
-   444:"TechnicalSkill069444"};
+   444:"TechnicalSkill069444",445:"TechnicalSkill069445"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
@@ -94,6 +94,18 @@ package {
    check(Info.pocketUnits(10,size.HALF)==4,"medicine bonus");
    check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one");
    check(Info.pocketUnits(11,size.HALF)==3,"nonmedicine unchanged");
+   // Bear Trap's trap and Toxic Smoke's grenade take 1.5 units (technical-skills.md, "Pocket units"):
+   // a pocket of 1..5 holds 1,1,2,2,3 of either; without the skills its size.
+   var held:Function=function(category:int):String {var n:Array=[];for(var s:int=1;s<=5;s++) n.push(Info.pocketUnits(category,size.HALF,s));return n.join(",");};
+   Info.committedSkills([]);
+   check(held(11)=="1,2,3,4,5" && held(24)=="1,2,3,4,5","traps and grenades without the skills");
+   Info.committedSkills([{id:444,value:1},{id:441,value:1}]);
+   check(held(11)=="1,1,2,2,3","Bear Trap: 1.5 units a trap, three in five");
+   check(held(24)=="1,1,2,2,3","Toxic Smoke: 1.5 units a grenade, three in five");
+   check(held(10)=="1,2,3,4,5","medicine unchanged by the trap and grenade skills");
+   check(Info.itemUnits(11,size.HALF)==1.5 && Info.itemUnits(24,size.HALF)==1.5,"the card's pocket units 1.5");
+   check(Info.itemUnits(24,size.PAIR)==2,"the RGD-5 keeps its own 2 with Toxic Smoke");
+   Info.committedSkills([{id:322,value:1}]);
    // A put fills the pocket (one-pocket-a-type.md): all it holds of the item, at most the units owned.
    var item:Object=new Data();item.dictId=67;item.category=10;item.quickSlotItemSize=size.HALF;
    item.value=10;check(Doll.pocketUnits(item)==4,"a put fills the pocket with the fourth medicine");

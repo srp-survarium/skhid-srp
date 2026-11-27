@@ -1,5 +1,5 @@
 //! One 0.26g match, the server's side of the clients' lockstep
-//! (`docs/notes/match.md`). The 0.21d `crate::game` carried over
+//! (`docs/notes/match.md`). The 0.21d server's `game.rs` (`srp-021d`) carried over
 //! to the 0.26g messages; the reasons behind most rules and numbers are in
 //! its comments and in `MATCH-SYNC-021D.md`.
 //!
@@ -110,6 +110,7 @@ use survarium::v026g::match_msgs::snapshot::{self, Rules, Standing, Statistics, 
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
     ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
+    UploadWanted,
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
@@ -131,14 +132,13 @@ use super::registry::{Formed, IdleRemoved, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
 mod afk_watch;
+mod desync_capture;
 mod driven;
 mod late_join;
 mod live;
 mod start;
+use desync_capture::{Captures, ReportLags};
 use late_join::{Admission, LoadingProfile};
-
-/// Freeze Tag's match ends this long after the snapshot of its final win at most.
-const FREEZE_TAG_END_DELAY_MS: u32 = 2_000;
 
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
@@ -329,11 +329,6 @@ const MAX_DOUBTFUL_DUMPS: u32 = 40;
 /// at most this many a player in a match, and as many a match.
 const WRONG_WORLDS_PER_PLAYER: u32 = 2;
 const WRONG_WORLDS_PER_MATCH: u32 = 8;
-/// The worlds of a split asked for (`capture_split`): one game wrong and
-/// one of the majority, at most this many times a match, one player once,
-/// and this long apart (the next split of the same cause adds nothing).
-const SPLITS_PER_MATCH: u32 = 3;
-const SPLIT_GAP: Duration = Duration::from_secs(20);
 /// Ticks a client is known to have missed, the latest ones.
 const MISSED_KEPT: usize = 64;
 /// A tie names a client out of step only for a tick it missed, or an own
@@ -631,6 +626,17 @@ enum Wanted {
     Look(WrongWorld),
 }
 
+impl Wanted {
+    /// What its 0xF6 asks for: a tick's world only for the desync capture of a
+    /// game that answers one.
+    fn request(self) -> UploadWanted {
+        match self {
+            Wanted::Look(WrongWorld::Capture(wanted)) => wanted,
+            Wanted::Vote(_) | Wanted::Look(WrongWorld::Resync) => UploadWanted::Horizon,
+        }
+    }
+}
+
 /// A request for a game's world that went and is not answered yet.
 #[derive(Clone, Copy, Debug)]
 struct Asked {
@@ -646,9 +652,10 @@ enum WrongWorld {
     /// It is resynced: the world it played (`ask_wrong_world`), saved as
     /// "wrong".
     Resync,
-    /// Its first report against a majority (`capture_split`), saved as
-    /// "split", beside a majority game's world asked for at once.
-    Split,
+    /// Its game is of one side of a split, asked for at its first
+    /// disagreeing report (`desync_capture`): saved with the other side's
+    /// world and what differs. Asked for the split's tick, or the horizon's.
+    Capture(UploadWanted),
 }
 
 /// A client whose hashes disagree with the right ones, in a row.
@@ -741,6 +748,10 @@ struct Peer {
     next_ping: Instant,
     /// It uploaded a snapshot, so it answers 0xF6.
     patched: bool,
+    /// Its 0xD8 said it answers 0xF6 for a tick from the worlds it hashed
+    /// (patch 211, `srp_validate::messages::EXACT_WORLDS`): the desync
+    /// capture asks it for the split's own tick.
+    exact_worlds: bool,
     resources_loaded: bool,
     installed_roster: usize,
     preparing: Option<LoadingProfile>,
@@ -820,9 +831,9 @@ struct Peer {
     entered_early: Option<u32>,
     /// How often its world was asked for as it was found out of step.
     wrong_worlds: u32,
-    /// The tick of its first report against the majority, for which its
-    /// world was asked for (`capture_split`): once a player.
-    split_at: Option<u32>,
+    /// How far behind the match clock its hash reports arrive, for the
+    /// desync capture's timing (`desync_capture`).
+    report_lags: ReportLags,
     /// The times of its inputs already handled.
     inputs_seen: HashSet<u32>,
     profiles_seen: HashSet<(u32, u8)>,
@@ -1030,9 +1041,8 @@ pub(crate) struct Game {
     doubtful_dumps: u32,
     /// Worlds of players out of step asked for (`ask_wrong_world`).
     wrong_worlds_asked: u32,
-    /// Splits whose worlds were asked for (`capture_split`), and the last.
-    splits_captured: u32,
-    split_captured_at: Option<Instant>,
+    /// The worlds asked for where the games split (`desync_capture`).
+    captures: Captures,
     pings_logged_at: u32,
     /// Since when a match with test bots has had no real client connected.
     bots_alone_since: Option<Instant>,
@@ -1110,8 +1120,7 @@ impl Game {
             respawn_points_logged: false,
             doubtful_dumps: 0,
             wrong_worlds_asked: 0,
-            splits_captured: 0,
-            split_captured_at: None,
+            captures: Captures::default(),
             pings_logged_at: 0,
             bots_alone_since: None,
             result: None,
@@ -1282,6 +1291,8 @@ impl Game {
     /// The match is dropped without having ended by itself (everyone left,
     /// or nobody came): its result, unless it gave one already.
     pub fn close(&mut self, now: Instant) -> Option<MatchResult> {
+        // A desync capture on its way is written with what came.
+        self.finish_capture();
         if self.result_made {
             return self.result.take();
         }
@@ -1427,6 +1438,7 @@ impl Game {
             ping: None,
             next_ping: now,
             patched: false,
+            exact_worlds: false,
             resources_loaded: false,
             installed_roster: 0,
             preparing: None,
@@ -1457,7 +1469,7 @@ impl Game {
             sync_sent_at: None,
             entered_early: None,
             wrong_worlds: 0,
-            split_at: None,
+            report_lags: ReportLags::default(),
             inputs_seen: HashSet::new(),
             profiles_seen: HashSet::new(),
             placed: VecDeque::new(),
@@ -1524,6 +1536,13 @@ impl Game {
     pub(super) fn enable_world_receipts(&mut self, index: usize) {
         if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
             peer.world_receipts.enable();
+        }
+    }
+
+    /// The game at `index` answers an upload request for a tick.
+    pub(super) fn enable_exact_worlds(&mut self, index: usize) {
+        if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
+            peer.exact_worlds = true;
         }
     }
 
@@ -1852,7 +1871,10 @@ impl Game {
                 return;
             }
             self.hashes.entry(time).or_default().insert(index, crc);
-            self.capture_split(time, now);
+            if let Some(peer) = self.peers[index].as_mut() {
+                peer.report_lags.push(clock, time);
+            }
+            self.watch_desync(time, now);
             // A tick two clients sent a hash for ends a run of ticks nobody
             // shared (`check_hash_phases`). Uploads do not count there: one
             // lands on the other client's ticks only by chance.
@@ -2565,7 +2587,7 @@ impl Game {
             if peer.stage != Stage::Live {
                 continue;
             }
-            send(peer, &ServerMessage::UploadRequest);
+            send(peer, &ServerMessage::UploadRequest(wanted.request()));
             peer.asked = Some(Asked {
                 at: now,
                 clock,
@@ -2600,7 +2622,7 @@ impl Game {
             return;
         }
         peer.wrong_worlds += 1;
-        send(peer, &ServerMessage::UploadRequest);
+        send(peer, &ServerMessage::UploadRequest(UploadWanted::Horizon));
         peer.asked = Some(Asked {
             at: now,
             clock,
@@ -2615,101 +2637,20 @@ impl Game {
         &mut self,
         index: usize,
         asked_at: u32,
-        why: WrongWorld,
         snapshot: &Snapshot,
     ) {
         let crc = snapshot::crc(&snapshot.body);
         let majority = self.majority(snapshot.time);
-        let kind = match why {
-            WrongWorld::Resync => "wrong",
-            WrongWorld::Split => "split",
-        };
         log::warn!(
             "Match {:#x}: player {index}, out of step, gave its world at {} ms ({} bytes, CRC \
              {crc:08x}; the majority's for that tick {}; asked at {asked_at} ms); saved as \
-             \"{kind}\"",
+             \"wrong\"",
             self.id,
             snapshot.time,
             snapshot.body.len(),
             majority.map_or("unknown".to_owned(), |majority| format!("{majority:08x}"))
         );
-        self.dump(snapshot, index, kind);
-    }
-
-    /// The first report of a game against more than half of the games in
-    /// the simulation, at `time`: its world and a majority game's are asked
-    /// for at once (aimed at one tick when both upload offsets are known),
-    /// saved as "split" and "checked". A world asked for at its resync is
-    /// seconds past the split (`hash_settle_ms`, `divergence_confirm_ms`),
-    /// when the two worlds differ in much more than its cause (live,
-    /// 2026-11-04: the games that had loaded a world split from the others
-    /// a few seconds after each load; MATCH-SYNC-026G.md).
-    fn capture_split(&mut self, time: u32, now: Instant) {
-        if self.splits_captured >= SPLITS_PER_MATCH
-            || self
-                .split_captured_at
-                .is_some_and(|at| now.saturating_duration_since(at) < SPLIT_GAP)
-            || self.installing()
-        {
-            return;
-        }
-        let Some(reports) = self.hashes.get(&time) else {
-            return;
-        };
-        let live = self.live();
-        let mut counts: HashMap<u32, usize> = HashMap::new();
-        for crc in reports.values() {
-            *counts.entry(*crc).or_default() += 1;
-        }
-        let Some((majority, _)) = counts.into_iter().find(|(_, count)| count * 2 > live) else {
-            return;
-        };
-        let askable =
-            |peer: &Peer| peer.patched && peer.stage == Stage::Live && !peer.is_asked(now);
-        let mut indices: Vec<usize> = reports.keys().copied().collect();
-        indices.sort_unstable();
-        let pick = |wrong: bool| {
-            indices.iter().copied().find(|index| {
-                (reports[index] != majority) == wrong
-                    && self.peers[*index].as_ref().is_some_and(|peer| {
-                        askable(peer)
-                            && (!wrong || (peer.diverged.is_none() && peer.split_at.is_none()))
-                    })
-            })
-        };
-        let (Some(wrong), Some(right)) = (pick(true), pick(false)) else {
-            return;
-        };
-        let clock = self.clock(now);
-        let middles: Option<Vec<i64>> = [wrong, right]
-            .iter()
-            .map(|index| {
-                let (low, high) = self.peers[*index].as_ref()?.upload_offset?;
-                Some((low + high) / 2)
-            })
-            .collect();
-        let at = middles
-            .and_then(|middles| aim_at(clock, &middles, None))
-            .unwrap_or_else(|| vec![clock, clock]);
-        log::warn!(
-            "Match {:#x}: player {wrong} splits from the majority at {time} ms (CRC {:08x}, the \
-             majority's {majority:08x}); its world and player {right}'s are asked for",
-            self.id,
-            reports[&wrong]
-        );
-        for (index, at) in [wrong, right].into_iter().zip(at) {
-            if let Some(peer) = self.peers[index].as_mut() {
-                peer.ask_at = Some(if index == wrong {
-                    peer.split_at = Some(time);
-                    (at, Wanted::Look(WrongWorld::Split))
-                } else {
-                    (at, Wanted::Vote(Round::at(now)))
-                });
-            }
-        }
-        self.splits_captured += 1;
-        self.split_captured_at = Some(now);
-        self.send_requests(now);
+        self.dump(snapshot, index, "wrong");
     }
 
     /// Where a client that starts from the snapshot at `time` has its clock
@@ -2733,18 +2674,13 @@ impl Game {
     /// their way ahead). Once a clock is assigned, its projection bounds
     /// every copy, including unanswered generations. The margin is for
     /// inputs on their way, newer than the newest seen; it is not added
-    /// again when a generation is retried. By
-    /// the world alone (`SRP_RESYNC_WORLD_ONLY`) the clock stays where it
-    /// is.
+    /// again when a generation is retried.
     ///
     /// Copies whose clocks disagree may arrive in any order. The bound
     /// retains the latest projection until a clock correction invalidates it.
     fn sync_start(&self, index: usize, time: u32, entering: bool, clock: u32, now: Instant) -> u32 {
         let others = self.others_live(index);
         if !entering {
-            if self.settings.resync_world_only && others {
-                return clock;
-            }
             let Some(peer) = self.peers[index].as_ref() else {
                 return clock;
             };
@@ -2871,18 +2807,6 @@ impl Game {
             // sync end it (`send_set_time`).
             let runs = now + takes + Duration::from_millis(u64::from(peer.round_trip));
             peer.correction_ends = Some(peer.correction_ends.map_or(runs, |end| end.max(runs)));
-        }
-        if self.settings.resync_world_only && !entering && self.others_live(index) {
-            // `SRP_RESYNC_WORLD_ONLY`: no 0xE5, the world of the next
-            // generation at once (the client takes a 0xE8 that is newer
-            // than its own generation).
-            if let Some(peer) = self.peers[index].as_mut() {
-                peer.generation = peer.generation.next();
-                peer.set_times.clear();
-                peer.time_confirmed = true;
-            }
-            self.send_sync(index, snapshot.clone(), entering, now);
-            return;
         }
         let Some(peer) = self.peers[index].as_mut() else {
             return;
@@ -3237,9 +3161,6 @@ impl Game {
     /// gets the 0xE5 once more and the world.
     fn send_sync(&mut self, index: usize, snapshot: Snapshot, entering: bool, now: Instant) {
         let clock = self.clock(now);
-        let others = self.others_live(index);
-        let resync = !entering && others;
-        let world_only = self.settings.resync_world_only && resync;
         let resync_from = self.peers[index].as_ref().and_then(|peer| peer.resync_from);
         // A client in a resync has had its replay (`send_replay`), and the
         // relays since as they came.
@@ -3325,9 +3246,7 @@ impl Game {
             .flatten();
         // The time once more, for this very moment: it travels ahead of
         // the inputs and the snapshot's first part.
-        if !world_only {
-            self.send_set_time(index, snapshot.time, entering, now);
-        }
+        self.send_set_time(index, snapshot.time, entering, now);
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -3736,14 +3655,13 @@ impl Game {
             let oldest = clock.saturating_sub(INPUT_MAX_AGE_MS);
             peer.inputs_seen.retain(|seen| *seen >= oldest);
         }
-        // Client patch 85: a pickup naming no place of the match. The
-        // client never sends one (`weapon_pickup::sane`, its twin).
-        // Use exactly the recipient's input check before any relay. In
-        // particular, unused action bit 30 must not enter another player's
-        // simulation or reach its native input reader.
-        let refused = match srp_validate::messages::input(input.rotation, input.actions) {
+        // Client patches 85 and 196: a pickup or a corpse shot naming no place
+        // of the match. The client never sends one (`weapon_pickup::sane`, its twin).
+        // Use exactly the recipient's input check before any relay: a turn
+        // no mouse makes must not enter another player's simulation.
+        let refused = match srp_validate::messages::input(input.rotation) {
             Err(reason) => Some(reason.to_string()),
-            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup of no place of the match".into()),
+            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup or corpse shot of no place of the match".into()),
             // Client patch 180: a throw-back (Return to Sender) from a player none of whose kits
             // has the skill; the client sends one only from a kit that has it
             // (`technical_skills::throw_back::sane`, its twin).
@@ -4141,9 +4059,12 @@ impl Game {
                 ..
             }) = asked
         {
-            // Asked for as it was found out of step: a world to look at,
-            // no vote (`ask_wrong_world`, `capture_split`).
-            self.wrong_world_uploaded(index, clock, why, &snapshot);
+            // A world to look at, no vote: asked for as it was found out
+            // of step (`ask_wrong_world`), or for the desync capture.
+            match why {
+                WrongWorld::Resync => self.wrong_world_uploaded(index, clock, &snapshot),
+                WrongWorld::Capture(_) => self.capture_world(index, snapshot),
+            }
             return;
         }
         if !initial && joiner {
@@ -4399,6 +4320,13 @@ impl Game {
             let rule = decoded.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params)?;
             rule.result().map(|(_, over)| over.at().ms())
         });
+        // Freeze Tag's is its rule's too, at the end of its last round's
+        // restart time, as Artifact Hunt's.
+        let freeze_end = decoded
+            .rules
+            .as_ref()
+            .and_then(|read| read.freeze_tag.as_ref()?.finished_at())
+            .map(|at| at.ms());
         let over = playing
             && match self.game_mode() {
                 RuleMode::TeamDeathmatch => decoded
@@ -4412,7 +4340,7 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
-                RuleMode::FreezeTag => decoded.rules.as_ref().and_then(|read| read.freeze_tag).is_some_and(|rule| rule.complete()),
+                RuleMode::FreezeTag => freeze_end.is_some(),
                 RuleMode::ArtefactHunt => hunt_end.is_some(),
                 RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
                     rules::ffa_finished(
@@ -4432,14 +4360,11 @@ impl Game {
         if over && self.mode_end_at.is_none() {
             // The rule's own end is at most the delay after the tick that
             // reached the goal, which is this snapshot's or an earlier one.
-            // Freeze Tag's last freeze is seen a moment, not the end delay's 3 s (the owner,
-            // 2026-11-22: "after a second or two").
-            let delay = match self.game_mode() {
-                RuleMode::FreezeTag => self.settings.timing.end_delay_ms.min(FREEZE_TAG_END_DELAY_MS),
-                _ => self.settings.timing.end_delay_ms,
-            };
-            let delayed = snapshot.time + delay;
-            let at = research_end.or(hunt_end).map_or(delayed, |end| end.min(delayed));
+            let delayed = snapshot.time + self.settings.timing.end_delay_ms;
+            let at = research_end
+                .or(hunt_end)
+                .or(freeze_end)
+                .map_or(delayed, |end| end.min(delayed));
             log::info!(
                 "Match {:#x}: the mode's rule has its end at {} ms (standing {standing:?}); the \
                  match is over at {at} ms",
@@ -5009,20 +4934,6 @@ impl Game {
                     divergence.first, divergence.last
                 )
             });
-            let limit = self.settings.restore_limit;
-            if limit != 0 && peer.restores_unagreed >= limit {
-                // `SRP_RESTORE_LIMIT`: so many restores in a row never
-                // brought it to agree; it is put out instead of restored
-                // for ever.
-                log::warn!(
-                    "Match {:#x}: player {index} is out of sync{wrong} after {} restores that \
-                     did not help",
-                    self.id,
-                    peer.restores_unagreed
-                );
-                self.remove(index, Removal::RestoresUnagreed, now);
-                continue;
-            }
             peer.last_resync = Some(now);
             if peer.resynced_at.len() >= RESYNCS_PER_MINUTE {
                 peer.resynced_at.pop_front();
@@ -5493,21 +5404,21 @@ impl Game {
         rules.and_then(|rules| rules.freeze_tag.as_ref()).map_or(0, |rule| rule.round_starts())
     }
 
-    /// Artifact Hunt's kit switches of the player at `index` in its rounds'
-    /// countdowns (patch 31's switch, a life for supplies each, as a kit
-    /// choice before play is), as its rule counts them in the last trusted
-    /// snapshot; 0 in the modes without rounds.
+    /// The kit switches of the player at `index` in the rounds' countdowns
+    /// (patch 31's switch, a life for supplies each, as a kit choice before
+    /// play is), as the rule with rounds counts them in the last trusted
+    /// snapshot (`artefact_hunt_rule::Lives`, Artifact Hunt's and Freeze
+    /// Tag's); 0 in the modes without rounds.
     fn round_kit_switches(&self, index: usize) -> u16 {
-        let Some(params) = self.formed.played.map().artefact_hunt else {
-            return 0;
-        };
-        let Some(place) = u8::try_from(index).ok().and_then(artefact_hunt_rule::Place::new) else {
-            return 0;
-        };
-        self.state
-            .as_ref()
-            .and_then(|state| state.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params))
-            .map_or(0, |rule| rule.kit_switches(place))
+        let rules = self.state.as_ref().and_then(|state| state.rules.as_ref());
+        if let Some(params) = self.formed.played.map().artefact_hunt {
+            return rules
+                .and_then(|rules| rules.artefact_hunt.as_ref()?.rule(params))
+                .map_or(0, |rule| rule.lives().kit_switches(index));
+        }
+        rules
+            .and_then(|rules| rules.freeze_tag.as_ref())
+            .map_or(0, |rule| rule.lives().kit_switches(index))
     }
 
     /// End the match: the result is kept for the lobby, and every client
@@ -5583,6 +5494,7 @@ impl Game {
         let timing = self.settings.timing.clone();
         self.check_candidates(now);
         self.check_hashes(now);
+        self.check_capture(now);
         self.settle_open_refusals(now);
         self.check_hash_phases(now);
         self.log_pings(clock);
@@ -6338,6 +6250,11 @@ fn observe_upload(bounds: &mut Option<(i64, i64)>, asked: u32, time: u32) {
 /// [`AIM_MS`] into `tick` on its own clock if its offset is the middle.
 /// `None`: no such tick within [`AIM_WAIT_MS`].
 fn aim_at(clock: u32, middles: &[i64], phase: Option<(u32, u32)>) -> Option<Vec<u32>> {
+    aim_tick(clock, middles, phase).map(|(_, times)| times)
+}
+
+/// [`aim_at`] with the tick the requests are timed for.
+fn aim_tick(clock: u32, middles: &[i64], phase: Option<(u32, u32)>) -> Option<(u32, Vec<u32>)> {
     let tick = i64::from(TICK_MS);
     let clock = i64::from(clock);
     let earliest = middles.iter().map(|middle| clock + middle - AIM_MS).max()?;
@@ -6361,7 +6278,7 @@ fn aim_at(clock: u32, middles: &[i64], phase: Option<(u32, u32)>) -> Option<Vec<
     times
         .iter()
         .all(|at| *at <= clock + AIM_WAIT_MS)
-        .then(|| times.into_iter().map(|at| at as u32).collect())
+        .then(|| (target as u32, times.into_iter().map(|at| at as u32).collect()))
 }
 
 /// The tick of the 0xEA that ends the match for `peer`: the match
@@ -7014,20 +6931,6 @@ impl Game {
                 peer.sync_pending.len() + peer.sync_relays.len(),
                 peer.sync_pending_most,
                 peer.gate_checks,
-            )
-        })
-    }
-
-    /// Whether the client's world was asked for at its first split from
-    /// the majority, and whether that world is still awaited
-    /// (`capture_split`).
-    pub fn split_world(&self, index: usize) -> (Option<u32>, bool) {
-        let look = Wanted::Look(WrongWorld::Split);
-        self.peers[index].as_ref().map_or((None, false), |peer| {
-            (
-                peer.split_at,
-                peer.ask_at.is_some_and(|(_, wanted)| wanted == look)
-                    || peer.asked.is_some_and(|asked| asked.wanted == look),
             )
         })
     }

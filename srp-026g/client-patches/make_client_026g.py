@@ -160,10 +160,9 @@ CONTENT
     New content reaches the players as patches of resources.db
     (game/resources.db.patch_<n>, which the server lists and the updater
     downloads: ../../client/updater/README.md, "Patches"), never in this
-    overlay. The overlay has no file of resources.db either: an archive that
-    did (updater_skhid.resources, a plan of entries rewritten in place) is
-    of before the patches; the updater gives a db changed by it its stock
-    bytes back, once.
+    overlay. The overlay has no file of resources.db either (an archive that
+    did, updater_skhid.resources, a plan of entries rewritten in place, is
+    of before the patches); the updater never changes the game's resources.db.
 
 A player unpacks the overlay into an empty folder, or into the game's folder
 (the one that holds `game`), and starts Skhid.bat (or play_skhid.bat: the game alone, no
@@ -812,7 +811,7 @@ def main():
         if not launcher_path.is_file():
             sys.exit(f"{launcher_path}: the game folder has no launcher (--no-launcher leaves it out)")
         launcher_exe, launcher_description = L.build(
-            launcher_path.read_bytes(), Path(L.default_bin()).read_bytes(), site=site,
+            launcher_path.read_bytes(), L.code(), site=site,
             game_exe="updater_skhid.exe" if relay else "survarium_skhid.exe",
             arguments=("play " if relay else "") + game_arguments(server, embedded))
         torrent_dll_path = torrent_dll_path or os.path.join(os.path.dirname(updater_path), TORRENT_DLL_NAME)

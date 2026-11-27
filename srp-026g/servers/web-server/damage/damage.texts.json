@@ -1,0 +1,96 @@
+[
+{
+"word": "Damage calculator",
+"context": "title"
+},
+{
+"word": "Damage calculator"
+},
+{
+"word": "health shown ×100 (body 100, head 40)"
+},
+{
+"word": "Shooter"
+},
+{
+"word": "fires"
+},
+{
+"word": "Weapon"
+},
+{
+"word": "Ammo"
+},
+{
+"word": "Distance to target"
+},
+{
+"word": "Wall in front of the target"
+},
+{
+"word": "Weapon bonuses"
+},
+{
+"word": "— — HIT — →"
+},
+{
+"word": "Target"
+},
+{
+"word": "takes the hit"
+},
+{
+"word": "Current pain"
+},
+{
+"word": "Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit."
+},
+{
+"word": "Armour bonuses"
+},
+{
+"word": "Artefacts, drugs & skills"
+},
+{
+"word": "Measure on a map"
+},
+{
+"word": "Map"
+},
+{
+"word": "Clear points"
+},
+{
+"word": "Result"
+},
+{
+"word": "Damage over distance"
+},
+{
+"word": "bullet before armour"
+},
+{
+"word": "after this armour"
+},
+{
+"word": "Every body part, this shot"
+},
+{
+"word": "Every weapon against this target"
+},
+{
+"word": "Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick \"default ammo\". Click a row to load that gun."
+},
+{
+"word": "Formula"
+},
+{
+"word": "Healing"
+},
+{
+"word": "Previous shot"
+},
+{
+"word": "Next shot"
+}
+]

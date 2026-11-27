@@ -225,6 +225,8 @@ pub enum Reason {
     /// with one that does not read.
     NoSpawnHistory,
     NoFreezeTagRule,
+    /// Freeze Tag's restart deadline or end against the world's time.
+    FreezeTagTime,
     /// A place's last spawn names a point past the map's team-2 group.
     SpawnPointPast {
         place: usize,
@@ -450,6 +452,9 @@ pub enum Reason {
     },
     /// The carry snapshot is of another version.
     TailCarry,
+    /// Bytes after the carry snapshot that are no second sights' record
+    /// (client patch 206, `second_sight::Record`).
+    TailSights,
     TailWeaponAmmo {
         ammo: u8,
         count: u8,
@@ -485,13 +490,13 @@ pub enum Reason {
     RotationNotSane {
         half: u16,
     },
-    /// An input's actions with bit 29 or 30, which no stock client sets.
-    UnusedActions {
-        actions: u32,
-    },
     /// 0xE8's compressed flag: srp sends 0 or 1.
     SnapshotFlag {
         flag: u8,
+    },
+    /// 0xF6 of two bytes whose first is not 1 (`messages::UploadRequest`).
+    UploadRequestForm {
+        first: u8,
     },
 
     // 0xE4's options.
@@ -671,6 +676,7 @@ impl fmt::Display for Reason {
             Reason::NoResearchRule => f.write_str("no research rule"),
             Reason::NoSpawnHistory => f.write_str("no free-for-all spawn history"),
             Reason::NoFreezeTagRule => f.write_str("invalid Freeze Tag state"),
+            Reason::FreezeTagTime => f.write_str("the Freeze Tag rule's time is not of the world's"),
             Reason::SpawnPointPast {
                 place,
                 point,
@@ -889,6 +895,7 @@ impl fmt::Display for Reason {
             Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
             Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
             Reason::TailCarry => f.write_str("a carry snapshot of another version"),
+            Reason::TailSights => f.write_str("bytes after the carry snapshot that are no second sights' record"),
             Reason::TailWeaponAmmo { ammo, count } => {
                 write!(
                     f,
@@ -910,12 +917,11 @@ impl fmt::Display for Reason {
                 f,
                 "a rotation half {half:#06x} that is no number under 1024"
             ),
-            Reason::UnusedActions { actions } => write!(
-                f,
-                "actions {actions:#010x} with bit 29 or 30, which no client sets"
-            ),
             Reason::SnapshotFlag { flag } => {
                 write!(f, "a compressed flag of {flag:#04x}, not 0 or 1")
+            }
+            Reason::UploadRequestForm { first } => {
+                write!(f, "an upload request of form {first:#04x}, not 1")
             }
             Reason::OptionsTooLarge { len } => {
                 write!(f, "{len} bytes, over the client's 0x578a0")

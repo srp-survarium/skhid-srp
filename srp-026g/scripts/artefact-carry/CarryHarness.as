@@ -49,6 +49,27 @@ package {
     if(!prompt.visible || prompt.contextText.text != "Pick up SVD (E)" || prompt.currentFrame != 1) throw new Error("weapon pickup prompt wrong: " + prompt.contextText.text);
     hud.show_artefact_offer("st_artefact_take_teammate");
     if(!prompt.visible || prompt.contextText.text != "Take artifact (E)") throw new Error("take message wrong");
+    // Exe patch 212: the prompts name the key bound to Use in the player's language, and the hud is
+    // handed its texts again when the bindings change: a shown prompt follows at once.
+    for(var language:String in CarryText.DATA) {
+     var texts:Object = CarryText.DATA[language];
+     for each(var binding:String in ["default","rebound","unbound"]) {
+      var key:String = texts.keys[binding];
+      var take:String = texts[binding].st_artefact_take_teammate;
+      if(take.indexOf("(" + key + ")") < 0 || take.indexOf("()") >= 0) throw new Error(language + " " + binding + ": take text " + take);
+      try { hud.set_localization_data(texts[binding]); } catch(nativeTexts:Error) {}
+      if(!prompt.visible || prompt.contextText.text != take) throw new Error(language + " " + binding + ": the shown prompt did not follow the texts: " + prompt.contextText.text);
+      hud.show_artefact_offer("st_weapon_pick_up","SVD");
+      var pick:String = prompt.contextText.text;
+      if(pick.indexOf("SVD") < 0 || pick.indexOf(key) < 0 || pick.indexOf("()") >= 0) throw new Error(language + " " + binding + ": pickup prompt " + pick);
+      for each(var hunt:String in ["st_pickup_item","st_put_item"]) {
+       if(texts[binding][hunt].indexOf(key) < 0) throw new Error(language + " " + binding + ": " + hunt + " " + texts[binding][hunt]);
+      }
+      hud.show_artefact_offer("st_artefact_take_teammate");
+     }
+    }
+    try { hud.set_localization_data({st_artefact_take_teammate:"Take artifact (E)",st_weapon_pick_up:"Pick up %1$s (E)"}); } catch(nativeAgain:Error) {}
+    if(prompt.contextText.text != "Take artifact (E)") throw new Error("the English default texts again");
     hud.show_artefact_offer("");
     if(prompt.visible) throw new Error("lost target left prompt visible");
     hud.show_artefact_offer("st_artefact_take_teammate");

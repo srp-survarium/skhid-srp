@@ -217,6 +217,50 @@ impl GameMode {
         Self::Blackout,
         Self::ArtefactHunt,
     ];
+
+    /// The notice the hud introduces it with under the match timer, if any
+    /// (`docs/notes/mode_introductions.md`): shown in each account's first
+    /// three matches of the mode.
+    pub const fn notice(self) -> Option<ModeNotice> {
+        match self {
+            Self::Blackout => Some(ModeNotice::Blackout),
+            Self::FreezeTag => Some(ModeNotice::FreezeTag),
+            Self::Batteries
+            | Self::TimedBatteries
+            | Self::TeamDeathmatch
+            | Self::Research
+            | Self::FreeForAll
+            | Self::ArtefactHunt => None,
+        }
+    }
+}
+
+/// A mode the hud introduces with a notice (`ModeNotice.as`,
+/// `docs/notes/mode_introductions.md`), each counted apart for an account:
+/// its first three matches of the mode show it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ModeNotice {
+    Blackout,
+    FreezeTag,
+}
+
+impl ModeNotice {
+    /// Every one.
+    pub const ALL: [Self; 2] = [Self::Blackout, Self::FreezeTag];
+
+    /// Its name where it is kept (`g26_mode_introductions.mode`), as the
+    /// hud names it (`ModeIntroText`).
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Blackout => "blackout",
+            Self::FreezeTag => "freeze_tag",
+        }
+    }
+
+    /// The one of a [`Self::key`].
+    pub fn of_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.key() == key)
+    }
 }
 
 /// A config's rules with no variant.
@@ -376,6 +420,46 @@ impl MapMode {
     pub fn is_stalker(&self) -> bool {
         self.build == Build::Stalker
     }
+
+    /// The map it is a version of ([`Place::of`]).
+    pub fn place(&self) -> Place {
+        Place::of(self.project, self.level)
+    }
+}
+
+/// The map a `maps_dict` id is played on, whatever its weather, mode, lighting and build (the
+/// owner, 2026-11-26: "Rudnya maps of different versions all count like a single Rudnya", and so
+/// every map's versions): what a room's vote shows once at the most. Read from the game data, the
+/// project's folder (`match_making_params.map_name`), as artefact-hunt-maps@3 reads it: Survarium's
+/// own levels are `level_MM` in every build, a port's folder is its donor build's name and the
+/// level's (`v069d_level_01` and `v021d_level_01` are Rudnya, `level_01`; `v011e_level_03` and
+/// `v021d_level_03` Vostok Radar Station, `level_03`; `v044a_level_09` London, `level_09`, as
+/// the native-named London (v0.32) is).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Place {
+    /// Survarium's level `MM` (`level_MM`), in whichever build or weather.
+    Level(u8),
+    /// A map that is no version of one of Survarium's levels (the STALKER maps,
+    /// `v010b_cs_mp_bath`): its own `match_making_params.map_id`.
+    Own(u8),
+}
+
+impl Place {
+    /// The place of a config whose project is `project` (`<folder>/<variant>`) and whose
+    /// `match_making_params.map_id` is `map_id`: [`Place::Level`] when the folder is `level_MM`
+    /// or a build's name and `level_MM` (`v069d_level_01`), else [`Place::Own`].
+    pub fn of(project: &str, map_id: u8) -> Self {
+        let folder = project.split_once('/').map_or(project, |(folder, _)| folder);
+        let level = match folder.split_once('_') {
+            Some((prefix, rest)) if reads_as_a_build(prefix) => rest,
+            _ => folder,
+        };
+        level
+            .strip_prefix("level_")
+            .filter(|number| number.len() == 2 && number.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|number| number.parse().ok())
+            .map_or(Self::Own(map_id), Self::Level)
+    }
 }
 
 /// The build a map's scene comes from, in the order lists show them (the owner,
@@ -489,7 +573,6 @@ pub fn artefact_hunt_params(
         round_countdown_time: seconds("round_countdown_time")?,
         score: seconds("score")?,
         respawn_time: seconds("respawn_time")?,
-        time_needed_to_respawn: seconds("time_needed_to_respawn")?,
         vi_spawn_time: seconds("vi_spawn_time")?,
         vi_spawn_variation: seconds("vi_spawn_variation")?,
         vi_not_picked_ttl: seconds("vi_not_picked_ttl")?,
@@ -554,7 +637,6 @@ pub fn artefact_hunt_params(
             ParamError::RoundCountdownTime => "parameters.round_countdown_time",
             ParamError::Score => "parameters.score",
             ParamError::RespawnTime => "parameters.respawn_time",
-            ParamError::TimeNeededToRespawn => "parameters.time_needed_to_respawn",
             ParamError::ViSpawnTime => "parameters.vi_spawn_time",
             ParamError::ViNotPickedTtl => "parameters.vi_not_picked_ttl",
             ParamError::ViDroppedTtl => "parameters.vi_dropped_ttl",
@@ -1107,6 +1189,21 @@ pub fn playable() -> impl Iterator<Item = &'static MapMode> {
     all().iter().filter(|map| map.is_playable())
 }
 
+/// `entries` in the order the rooms' create window lists them, each told by `of` as its map's
+/// `(build, level, weather)`: by build (0.26, 0.11, 0.21, 0.32, 0.42, 0.69, STALKER: the owner's of
+/// 2026-11-19 and, for the Londons, of 2026-11-20), each map (level) where its first entry came,
+/// its weathers day, evening, rain ([`weather::list_place`]). Stable. The lobby's room list and
+/// the site's stats both order maps by it.
+pub fn in_room_order<T>(mut entries: Vec<T>, of: impl Fn(&T) -> (Build, u8, u8)) -> Vec<T> {
+    let levels: Vec<u8> = entries.iter().map(|entry| of(entry).1).collect();
+    entries.sort_by_key(|entry| {
+        let (build, level, weather) = of(entry);
+        let map = levels.iter().position(|&each| each == level);
+        (build, map, weather::list_place(weather))
+    });
+    entries
+}
+
 /// The ids a match of `mode` may use.
 pub fn playable_in(mode: GameMode) -> impl Iterator<Item = &'static MapMode> {
     playable().filter(move |map| map.mode == mode)
@@ -1357,6 +1454,47 @@ mod tests {
             assert_eq!(map.respawn_points, points, "{} ({})", map.id, map.project);
             assert_eq!(map.container_teams, teams, "{} ({})", map.id, map.project);
         }
+    }
+
+    /// Every version of a map is its place (the owner, 2026-11-26: "Rudnya maps of different
+    /// versions all count like a single Rudnya"), read from the project's folder as the live
+    /// data names them: the Rudnyas of 0.26g, 0.69d and 0.21d (levels 1, 14 and 29) are
+    /// `level_01`; the Vostoks and Chemical Plants of 0.11 and 0.21 theirs; both Londons
+    /// `level_09`; a STALKER map its own.
+    #[test]
+    fn every_version_of_a_map_is_one_place() {
+        for (project, map_id, place) in [
+            ("level_01/day_2", 1, Place::Level(1)),
+            ("level_01/rain_8", 1, Place::Level(1)),
+            ("v069d_level_01/day_4", 14, Place::Level(1)),
+            ("v069d_level_01/day_ah", 14, Place::Level(1)),
+            ("v021d_level_01/evn_2", 29, Place::Level(1)),
+            ("level_03/day_2", 3, Place::Level(3)),
+            ("v011e_level_03/day_4", 13, Place::Level(3)),
+            ("v021d_level_03/rain_4", 10, Place::Level(3)),
+            ("v011e_level_04/day_2", 12, Place::Level(4)),
+            ("v021d_level_04/day_2", 31, Place::Level(4)),
+            ("level_09/day_4", 9, Place::Level(9)),
+            ("v044a_level_09/day_4", 32, Place::Level(9)),
+            ("v010b_cs_mp_bath/day_4", 14, Place::Own(14)),
+            ("v010b_soc_ug_station/day_8", 19, Place::Own(19)),
+            ("test/tt5", 88, Place::Own(88)),
+            ("level_1/day_2", 40, Place::Own(40)),
+        ] {
+            assert_eq!(Place::of(project, map_id), place, "{project}");
+        }
+        // The table's: each stock row is its level's, and a port's row as its data names it.
+        assert!(all().iter().filter(|map| map.is_playable()).all(|map| map.place() == Place::Level(map.level)));
+        let v069 = fixtures::AddedMap {
+            id: MapId::new(204),
+            config: "v069d_level_01_day_4.options",
+            level: 14,
+            project: "v069d_level_01/day_4",
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let table = fixtures::table_of(&fixtures::with_map(&v069)).unwrap();
+        let row = table.iter().find(|row| row.id == v069.id).unwrap();
+        assert_eq!((row.level, row.place()), (14, Place::Level(1)));
     }
 
     /// A map's build is its data's: its configs' `srp_build` (`modes.tsv`),

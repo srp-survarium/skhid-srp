@@ -1,0 +1,9 @@
+# Patch 191: only a kill moves the kill marker's last time, so a kill a
+# re-simulation makes keeps its marker (docs/notes/kill-marker.md). The site
+# is sites_026g.tsv's; the logic is kill_cross.rs.
+name = "kill_cross"
+patch = 191
+
+[[hook]]
+site = "kill_cross.walked"
+handler = "on_walked"

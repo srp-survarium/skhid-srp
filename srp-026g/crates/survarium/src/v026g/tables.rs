@@ -6,6 +6,7 @@
 use binary_config_parser::tree::ConfigValue;
 
 use super::armour;
+use super::artefacts;
 use super::awards::Awards;
 use super::dictionary::{self, Dictionary};
 use super::drops::{self, Drops};
@@ -165,6 +166,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
     }
     modifications::derive_item_mods(data, &dictionary)?;
     armour::derive(data, &dictionary)?;
+    artefacts::derive(data, &dictionary)?;
     // The modules table parses, and what it fits as a scope is a scope item.
     scopes::check(data, &dictionary)?;
     maps::derive(data, &dictionary)?;

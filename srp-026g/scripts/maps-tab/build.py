@@ -7,7 +7,7 @@
 The patches are exactly the rows of release/patches.tsv (each checked by its
 sha256), mounted over the stock resources.db in their order, as the game does.
 Nothing about a map is written here by hand: the maps are the playable ids of
-`maps_dict` (a config of mode 2 to 5 or 8 whose project exists, as the server
+`maps_dict` (a config of mode 2 to 5, 8, 12 or 13 whose project exists, as the server
 plays them), and of each map
 
 - the name, the modes and their parameters: `gameplay/game_modes/`;
@@ -16,8 +16,13 @@ plays them), and of each map
   all, mode 8, the team-2 respawn points alone: its players' only spawns);
 - Research's three units (mode 5): the mode config's
   `parameters.capture_zones` (`cp_id`, `position`);
+- Artifact Hunt's artefact spawns and the teams' bases (mode 13): the mode
+  config's `artefact_hunt.spawners` and `.bases` (`team`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
   (`artefact_container`, grouped by their `generic_anomaly_core`);
+- the anomalies (`anomaly`, `objects`): each `generic_anomaly_core`'s pool, timers,
+  chance and cap, its `damage_zone`s' hits and their `collision_geometry` seen
+  from above (docs/notes/maps_tab.md, "Anomalies");
 - the minimap and its frame: `flash_movies/hud.swf`, class
   `survarium.controls.Minimap` (`_minimapProps`, `_levels`), keyed by the
   project's `project_name` as the HUD does;
@@ -55,7 +60,9 @@ HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
 from released import LIST, die, extract, offered, revision as revision_of, write_built_from  # noqa: E402
-from game_maps import BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+from game_maps import ARTEFACT_HINT, BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+sys.path.insert(0, str(SRP / "scripts" / "site-texts"))
+from texts import CODES, DICTIONARIES, WORDS, Texts  # noqa: E402
 sys.path.insert(0, str(SRP / "scripts" / "kill-feed-icons"))
 import make_battery_icon  # noqa: E402
 
@@ -69,6 +76,10 @@ GATHER, TIMED = 88, 89
 # Research's rule (480, exe patch 53; docs/notes/research_mode.md) reads its
 # units from the mode config (`parameters.capture_zones`), not the project.
 RESEARCH = 480
+# Artifact Hunt's rule (481, exe patch 171; docs/notes/artefact_hunt.md) reads
+# the artefact's spawn points and the teams' bases from the mode config
+# (`artefact_hunt.spawners`, `.bases`), not the project.
+HUNT = 481
 SITE = "/maps"
 RENDERS = SRP / "servers" / "web-server" / "damage" / "maps"
 RENDER_TABLE = SRP / "scripts" / "damage-calc" / "assets" / "maps" / "maps.json"
@@ -140,18 +151,20 @@ def hud_icons(args, raw, work, out):
 
 
 def localization(raw):
-    return {lang: load(raw, f"localization/{name}/localization")["strings"]
-            for lang, name in (("en", "english"), ("uk", "ukrainian"))}
+    """Each language's texts (site-texts' codes)."""
+    return {code: load(raw, path)["strings"] for code, path in zip(CODES, DICTIONARIES)}
 
 
 def artefact_names(texts, key):
-    """The names the game's pickup hints give: "Onyx artifact. ..." and "Артефакт Онікс. ..."."""
+    """The names the game's pickup hints give, in each language."""
     hint = f"st_{key}_pickup_hint"
-    en = re.match(r"\s*(.+?) artifact\.", texts["en"].get(hint, ""))
-    uk = re.match(r"\s*Артефакт (.+?)\.", texts["uk"].get(hint, ""))
-    if not (en and uk):
-        die(f"{hint}: no artefact name in its text")
-    return {"en": en.group(1), "uk": uk.group(1)}
+    names = {}
+    for code in CODES:
+        found = re.match(r"\s*" + ARTEFACT_HINT[code], texts[code].get(hint, ""))
+        if not found:
+            die(f"{hint}: no artefact name in its {code} text")
+        names[code] = found.group(1)
+    return names
 
 
 def r1(v):
@@ -175,34 +188,195 @@ def heading(o):
     return round(math.degrees(math.atan2(-vz, vx)) - 90) % 360
 
 
+def rotation(angles):
+    """The rows i, j, k (where local x, y, z go) of the engine's `create_rotation`
+    (Rx · Ry · Rz for row vectors), as mapdata's `Rotation::from_angles`."""
+    (xs, ys, zs), (xc, yc, zc) = ([math.sin(a) for a in angles], [math.cos(a) for a in angles])
+    return ((yc * zc, -yc * zs, ys),
+            (ys * xs * zc + xc * zs, -xs * ys * zs + xc * zc, -xs * yc),
+            (-xc * ys * zc + xs * zs, xc * ys * zs + xs * zc, xc * yc))
+
+
+def turn(rows, v):
+    """`v` through the rotation `rows` (v · R)."""
+    return tuple(rows[0][n] * v[0] + rows[1][n] * v[1] + rows[2][n] * v[2] for n in range(3))
+
+
+def hull(points):
+    """The convex hull of [x, z] points, counter-clockwise (Andrew's monotone chain)."""
+    points = sorted(set(points))
+    if len(points) < 3:
+        return points
+    cross = lambda o, a, b: (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lower, upper = [], []
+    for p in points:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    for p in reversed(points):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
+def footprints(geometry):
+    """What a `collision_geometry`'s trigger shapes cover seen from above, as mapdata places them
+    (`geometry_shapes`: the mesh's rotation and position, then the object's scale, rotation and
+    position): {"c": [x, z, r]} for a sphere or an upright cylinder, else {"p": [[x, z], ...]}, the
+    hull of its corners (a box) or of its rims (a tilted cylinder)."""
+    scale = geometry.get("scale") or (1, 1, 1)
+    outer = rotation(geometry.get("rotation") or (0, 0, 0))
+    origin = geometry.get("position") or (0, 0, 0)
+    place = lambda v: [a + b for a, b in zip(turn(outer, [c * s for c, s in zip(v, scale)]), origin)]
+    shapes = []
+    for mesh in geometry.get("meshes") or []:
+        kind = mesh.get("type")
+        if kind not in (0, 1, 2):  # 0 sphere, 1 box, 2 cylinder (no shipped trigger has another)
+            continue
+        half = [h * s for h, s in zip(mesh.get("scale") or (1, 1, 1), scale)]
+        inner = rotation(mesh.get("rotation") or (0, 0, 0))
+        rows = tuple(turn(outer, row) for row in inner)
+        x, _, z = place(mesh.get("position") or (0, 0, 0))
+        up = rows[1][1]
+        if kind == 0 or (kind == 2 and abs(up) > 0.999):
+            shapes.append({"c": [r1(x), r1(z), r1(half[0])]})
+            continue
+        if kind == 1:
+            local = [(a * half[0], b * half[1], c * half[2]) for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)]
+        else:
+            local = [(half[0] * math.cos(t), y * half[1], half[0] * math.sin(t))
+                     for y in (-1, 1) for t in (2 * math.pi * n / 24 for n in range(24))]
+        corners = [turn(rows, v) for v in local]
+        shapes.append({"p": [[r1(x + dx), r1(z + dz)] for dx, dz in hull([(dx, dz) for dx, _, dz in corners])]})
+    return shapes
+
+
+# A damage zone's `hit_parts_filter` part as the site names it, both sides together (the equipment
+# pages' `part_name`: brain the head, forearm the arms, arm the hands, hip the legs), head to feet.
+PARTS = ("head", "face", "chest", "back", "arms", "hands", "legs", "feet")
+PART = {"brain": "head", "face": "face", "front": "chest", "back": "back", "left_forearm": "arms",
+        "right_forearm": "arms", "left_arm": "hands", "right_arm": "hands", "left_hip": "legs",
+        "right_hip": "legs", "left_foot": "feet", "right_foot": "feet"}
+
+
+def window(middle, spread):
+    """A time drawn uniformly in middle ± spread seconds, as the anomaly draws it
+    (`artefact_respawn_delay`, never below 0): [earliest, latest], whole seconds."""
+    return [max(0, round(middle - spread)), max(0, round(middle + spread))]
+
+
+def anomaly(core, by_name, artefact_keys):
+    """What an anomaly's card says and its area shows (docs/notes/maps_tab.md, "Anomalies"): the
+    artefacts it holds (its pool: a kind and how many), when the first one comes and then each next
+    (`artefacts_first_spawn_time_sec`, `_respawn_time_sec`, ± `_respawn_variation_sec`), the chance
+    each try has, how many of its artefacts may lie uncollected at once (`max_artefacts_count`), its
+    containers' search time and cooldown, how often its zones switch (a sequential group's
+    `min/max_active_time_sec`), what its zones that hurt do (a hit of `max_hit` of each part's health
+    to each part of `hit_parts_filter`, before armour: `continuous_hit` every `interval_in_msec`
+    spread over the ticks, else one hit at most that often; mapdata's `Damage`), grouped by damage
+    type, parts and timing with the range of their hits (School's fruit cloud has five levels),
+    and where it is: its damage zones' shapes seen from above, each marked whether it hurts
+    (`max_hit` > 0)."""
+    variation = core.get("artefacts_respawn_variation_sec", 0)
+    containers = [by_name[name] for name in core.get("artefact_containers") or [] if name in by_name]
+    zones, switch = [], set()
+    for state in core.get("states") or []:
+        if not state.get("enabled", True):
+            continue
+        for group in state.get("groups") or []:
+            if not group.get("enabled", True):
+                continue
+            if group.get("sequential_activation") and not group.get("keep_all_zones_active"):
+                switch.add((group.get("min_active_time_sec", 0), group.get("max_active_time_sec", 0)))
+            zones += [name for name in group.get("zones") or [] if name not in zones]
+    # Its zones, each shape marked whether it hurts ("hurt": a damage zone with a hit) or not (an
+    # idle zone of sound and sight: Rudnya's Lifebone anomaly has only that, its twin the damage).
+    areas, hits = [], defaultdict(list)
+    for name in zones:
+        zone = by_name.get(name) or {}
+        if zone.get("game_object_type") != "damage_zone":
+            continue
+        hurt = bool(zone.get("max_hit"))
+        if hurt:
+            # The v0.11 and v0.21 ports keep their builds' `body` and `head`, which 0.26g's body has not
+            # (its twelve parts: armour.rs `BodyPart`): shown without them, and said at the build
+            # (docs/notes/maps_tab.md, "Anomalies").
+            unknown = set(zone.get("hit_parts_filter") or []) - set(PART)
+            if unknown:
+                print(f"note: {name}: hit_parts_filter names parts 0.26g has not ({', '.join(sorted(unknown))}): not shown",
+                      file=sys.stderr)
+            parts = sorted({PART[p] for p in zone.get("hit_parts_filter") or [] if p in PART}, key=PARTS.index)
+            hits[(zone.get("damage_type", ""), tuple(parts), bool(zone.get("continuous_hit")),
+                  zone.get("interval_in_msec", 1000))].append(zone["max_hit"])
+        for ref in zone.get("collision_geometries") or []:
+            geometry = by_name.get(ref if isinstance(ref, str) else ref.get("name"))
+            if geometry:
+                areas += [{**shape, "hurt": hurt} for shape in footprints(geometry)]
+    seconds = lambda key: sorted({c.get(key, 0) for c in containers})
+    return {
+        "gives": [[artefact_keys[a["dict_id"]], a.get("count", 0)] for a in core.get("artefacts") or []
+                  if a["dict_id"] in artefact_keys],
+        "first": window(core.get("artefacts_first_spawn_time_sec", 0), variation),
+        "next": window(core.get("artefacts_respawn_time_sec", 0), variation),
+        "chance": round(core.get("artefacts_respawn_chance", 0), 3),
+        "max": core.get("max_artefacts_count", 0),
+        "containers": len(containers),
+        "search": seconds("artefacts_search_time_sec"),
+        "cooldown": seconds("artefacts_cooldown_time_sec"),
+        "switch": sorted(switch),
+        "damage": sorted(({"type": kind, "parts": list(parts), "continuous": continuous, "interval": interval,
+                           "hit": [round(min(values), 3), round(max(values), 3)]}
+                          for (kind, parts, continuous, interval), values in hits.items()),
+                         key=lambda d: (-d["hit"][1], d["type"])),
+        "areas": areas,
+    }
+
+
 def objects(project, artefact_keys):
     """What the tab shows of one project."""
     so = project.get("server_objects") or {}
     spawners = so.get("victory_item_spawners") or []
     stations = [xzy(o) for o in so.get("victory_item_spawn_points") or []]
     client = project.get("client_objects") or []
-    kinds_of = defaultdict(set)
+    by_name = {o.get("full_name"): o for o in client}
+    kinds_of, owners_of, anomalies = defaultdict(set), defaultdict(list), []
     for o in client:
         if o.get("game_object_type") != "generic_anomaly_core":
             continue
-        # An anomaly with no container spawns nothing anywhere: Keeper of the Artifacts' hidden
-        # pool (content-edit/artefact-keeper-1.json) is one, and none of it is shown.
-        if not o.get("artefact_containers"):
+        # An anomaly gives artefacts when they are on (`artefacts_enabled`) and it has containers;
+        # one that does not is shown by its zones alone (v0.21 Rudnya's swamp is seven anomalies,
+        # two of them giving artefacts), and one with neither is not shown: Keeper of the
+        # Artifacts' hidden pool (content-edit/artefact-keeper-1.json) is one.
+        found = anomaly(o, by_name, artefact_keys)
+        if not (o.get("artefact_containers") and o.get("artefacts_enabled")):
+            if found["areas"]:
+                anomalies.append({"gives": [], **{k: found[k] for k in ("switch", "damage", "areas")}})
             continue
         kinds = {artefact_keys[a["dict_id"]] for a in o.get("artefacts") or [] if a["dict_id"] in artefact_keys}
         for name in o.get("artefact_containers") or []:
             kinds_of[name] |= kinds
+            owners_of[name].append(len(anomalies))
+        anomalies.append(found)
+    # Twins: two anomalies on the very same zones, one of them hurting and the other only seen and
+    # heard (Rudnya's Lifebone and Spring, Chemical Plant's Spring and Onyx). The later one names
+    # the first (`twin`), and the page draws their place once, with one card for both.
+    first_at = {}
+    for i, a in enumerate(anomalies):
+        place = json.dumps(sorted(json.dumps({k: v for k, v in s.items() if k != "hurt"}) for s in a["areas"]))
+        if a["areas"] and place in first_at:
+            a["twin"] = first_at[place]
+        first_at.setdefault(place, i)
     # A container's own position is its anomaly's pivot, shared by all of
     # them; where the artefact is found is its collision geometry (the zone
-    # the search runs in).
-    by_name = {o.get("full_name"): o for o in client}
+    # the search runs in). Each is [x, z, y, its kinds, its anomalies (indices)].
     artefacts = []
     for o in client:
         if o.get("game_object_type") == "artefact_container":
             kinds = sorted(kinds_of.get(o.get("full_name"), ()))
             zones = [by_name[c["name"]] for c in o.get("collision_geometries") or [] if c.get("name") in by_name]
             if kinds:
-                artefacts.append(xzy(zones[0] if zones else o) + [kinds])
+                artefacts.append(xzy(zones[0] if zones else o) + [kinds, owners_of[o.get("full_name")]])
     # A team's container and its stash are where their collision zone is:
     # the object's own position can be a pivot far away (level_04's two
     # containers both stand at one team's side by it).
@@ -217,7 +391,15 @@ def objects(project, artefact_keys):
         "containers": sorted(xzy(zone_of(o)) + [o.get("team", -1)] for o in so.get("victory_items_containers") or []),
         "resupply": sorted(resupply),
         "artefacts": sorted(artefacts),
+        "anomalies": anomalies,
     }
+
+
+def hunt(config):
+    """Artifact Hunt's points of one mode config's `artefact_hunt`: where its
+    artefact appears ([x, z, y]) and the teams' bases ([x, z, y, team])."""
+    return {"hunt": sorted(xzy(s) for s in config["spawners"]),
+            "bases": sorted(xzy(b) + [b["team"]] for b in config["bases"])}
 
 
 def spawns(mode_id, points):
@@ -262,7 +444,7 @@ def main():
             raw.mkdir(parents=True, exist_ok=True)
             extract(args.dbgrab, args.stock, rows, args.patches, WANTED + [BATTERY_MESH], raw)
         texts = localization(raw)
-        text = lambda key: {lang: texts[lang].get(key, key) for lang in texts}
+        text = lambda key: {code: texts[code].get(key) or texts["en"].get(key, key) for code in CODES}
         dictionary = load(raw, "gameplay/db_static_dictionaries")
         artefact_keys = {i["dict_id"]: i["name"].removeprefix("artefact_") for i in dictionary["items_dict"]
                          if i["cfg_name"].startswith("gameplay/items/artefacts/")}
@@ -281,7 +463,7 @@ def main():
         # By build, as the room list (BUILDS), each build's maps by folder.
         for folder in sorted(maps, key=lambda f: (BUILDS.index(maps[f]["build"]), f)):
             m = maps[folder]
-            modes, project_name, artefacts = [], None, None
+            modes, project_name, artefacts, anomalies = [], None, None, None
             for mode_id, layout in sorted(m["modes"]):
                 mm = m["modes"][mode_id, layout]
                 seen = None
@@ -295,6 +477,9 @@ def main():
                 if artefacts is not None and seen["artefacts"] != artefacts:
                     die(f"{folder}: artefact containers differ between modes")
                 artefacts = seen.pop("artefacts")
+                if anomalies is not None and seen["anomalies"] != anomalies:
+                    die(f"{folder}: its anomalies differ between modes")
+                anomalies = seen.pop("anomalies")
                 rules = mm["rules"]
                 if not rules & {GATHER, TIMED}:
                     seen["spawners"], seen["containers"] = [], []
@@ -309,6 +494,10 @@ def main():
                 # [x, z, y, cp_id], by cp_id (0, 1, 2: A, B, C).
                 seen["units"] = (sorted((xzy(zone) + [zone.get("cp_id", 0)] for zone in p.get("capture_zones") or []),
                                         key=lambda unit: unit[3]) if RESEARCH in rules else [])
+                hunts = [hunt(c["artefact_hunt"]) if HUNT in rules else {"hunt": [], "bases": []} for c in mm["configs"]]
+                if any(h != hunts[0] for h in hunts):
+                    die(f"{folder}: Artifact Hunt's spawns or bases differ between its configs (same map and mode)")
+                seen.update(hunts[0])
                 # A mode's other layout (Research's units elsewhere) is a choice of its own: "5.2".
                 modes.append({"key": f"{mode_id}.{layout + 1}" if layout else str(mode_id), "layout": layout,
                               "mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
@@ -328,7 +517,8 @@ def main():
             box = [r1(px - s), r1(-py - s), r1(px + s), r1(-py + s)]
             play = [r1(px - s + bbox[0] * k), r1(-py - s + bbox[1] * k), r1(px - s + bbox[2] * k), r1(-py - s + bbox[3] * k)]
             entry = {"key": folder, "name": text(m["map_name"]), "box": box, "play": play,
-                     "minimap": f"{SITE}/minimap/{name}?v={version(blob)}", "modes": modes, "artefacts": artefacts}
+                     "minimap": f"{SITE}/minimap/{name}?v={version(blob)}", "modes": modes, "artefacts": artefacts,
+                     "anomalies": anomalies}
             render = renders.get(folder)
             if render and (RENDERS / render["image"]).is_file():
                 a, b, c, d, e, f = render["pixel_to_world_affine"]
@@ -369,14 +559,16 @@ def main():
     data = {"revision": revision, "maps": data_maps, "artefacts": icons, "hud": hud}
     script = ('"use strict";\n// Built by srp-026g/scripts/maps-tab/build.py; do not edit.\n'
               f"const MAPS = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n"
-              + (HERE / "ui.js").read_text())
+              + (SRP / "scripts" / "site-texts" / "words.js").read_text() + (HERE / "ui.js").read_text())
     (out / "maps.js").write_text(script)
     template = (HERE / "template.html").read_text()
     faces = "\n".join(line for line in (SRP / "servers" / "web-server" / "damage" / "damage.html").read_text().splitlines()
                       if line.startswith("@font-face"))
-    page = (template.replace("/*__FONT__*/", faces)
+    page = (template.replace("/*__FONT__*/", faces).replace("__WORDS__", WORDS)
             .replace("__SCRIPT__", f"{SITE}/maps.js?v={version(script.encode())}"))
     (out / "maps.html").write_text(page)
+    # Its words are its script's alone (site-texts: the server fills them in).
+    Texts().write(out / "maps.texts.json")
     served = ["maps.js"] + [f"{sub}/{f.name}" for sub in ("minimap", "icons") for f in sorted((out / sub).iterdir())]
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/maps-tab/build.py; do not edit. The files maps.html names.\n"
@@ -385,6 +577,7 @@ def main():
         + "}\n")
     write_built_from(out / "built-from.tsv", rows, "the Maps tab (srp-026g/scripts/maps-tab/build.py)")
     points = sum(len(mo["respawn"]) + len(mo["spawners"]) + len(mo["stations"]) + len(mo["containers"]) + len(mo["units"])
+                 + len(mo["hunt"]) + len(mo["bases"])
                  for m in data_maps for mo in m["modes"]) + sum(len(m["artefacts"]) for m in data_maps)
     print(f"{out}: revision {revision}, {len(data_maps)} maps, {points} points, maps.js {len(script) / 1024:.0f} KB")
 

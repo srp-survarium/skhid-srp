@@ -16,8 +16,6 @@ Each section may pass the original's inline buffer (patch 98 grows them); the bo
 stops at 0xF000 bytes. Each load leaves one World entry in the crash report's ring.
 """
 import argparse
-import json
-from pathlib import Path
 import struct
 import sys
 
@@ -369,8 +367,8 @@ def breadcrumbs(ours, worlds):
     `worlds` (each case's state, raw then unpacked, in order): found as the
     reporter finds it (its address, then that xor "BRCS"), one World entry a
     load, the last one's bytes, packed and refused."""
-    lock = json.load(open(Path(__file__).resolve().parent / "arena_026g.lock.json"))
-    start, size = int(lock["va"], 16), int(lock["size"])
+    linked = base.arena()
+    start, size = linked.va, linked.size
     memory = bytes(ours.emu.mem_read(start, size))
     found = [start + at for at in range(0, size - 8, 4)
              if struct.unpack_from("<II", memory, at) == (start + at, (start + at) ^ BREADCRUMB_CHECK)]

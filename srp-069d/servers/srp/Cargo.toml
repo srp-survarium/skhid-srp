@@ -1,0 +1,41 @@
+[package]
+name = "srp"
+version.workspace = true
+edition.workspace = true
+description = "0.69d server binary: login (TCP), lobby (UDP) and match server (UDP) in one process, with the world host daemon"
+
+[lib]
+name = "srp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "srp"
+path = "src/main.rs"
+
+[dependencies]
+accounts = { workspace = true }
+game-data = { workspace = true }
+# the game tables, built from the operator's game install (`srp setup`, `srp extract`)
+data-extract = { workspace = true }
+lobby-server = { workspace = true }
+local-match = { workspace = true }
+login-server = { workspace = true }
+match-server = { workspace = true }
+protocol = { workspace = true }
+# the self-test asks the world host for one start world (`srp selftest`)
+world-host-proto = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+serde = { workspace = true }
+# the config file (srp.toml)
+toml = "0.8"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# PR_SET_PDEATHSIG: the world host daemon srp starts never outlives it
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3.10"
+serde_json = { workspace = true }
+udp-transport = { workspace = true }
+rsa = { workspace = true }

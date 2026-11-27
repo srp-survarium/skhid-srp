@@ -266,6 +266,19 @@ impl Quat {
         }
     }
 
+    /// The turn of the game's splines' Euler angles `[x, y, z]`, rad (a
+    /// clip's bone channels; the offline pose tools read them the same).
+    pub fn from_spline_euler([x, y, z]: [f32; 3]) -> Quat {
+        let (sx, cx) = sin_cos(x);
+        let (sy, cy) = sin_cos(y);
+        let (sz, cz) = sin_cos(z);
+        Quat::from_basis(
+            Vec3::new(cy * cz, -cy * sz, sy),
+            Vec3::new(sy * sx * cz + cx * sz, -sx * sy * sz + cx * cz, -sx * cy),
+            Vec3::new(-cx * sy * cz + sx * sz, cx * sy * sz + sx * cz, cx * cy),
+        )
+    }
+
     /// The rotation whose columns (the images of X, Y and Z) are the
     /// orthonormal, right-handed `x`, `y`, `z`.
     pub fn from_basis(x: Vec3, y: Vec3, z: Vec3) -> Quat {

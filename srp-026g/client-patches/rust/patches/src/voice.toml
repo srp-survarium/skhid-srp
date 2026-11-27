@@ -22,6 +22,7 @@ handler = "on_connect"
 [[hook]]
 site = "game_world.finish"
 handler = "on_finish"
+order = 0
 
 [[hook]]
 site = "game_world.deactivate"

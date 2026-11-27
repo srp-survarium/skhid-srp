@@ -39,23 +39,28 @@ package survarium.controls
 
       private static var additionalMedicine:Boolean = false;
 
-      // Toxic Smoke (441) and Bear Trap (444): a grenade and a trap take two of a pocket's units,
-      // as the RGD-5 does (the server's KitLayout).
-      private static var halvedGrenades:Boolean = false;
+      // Toxic Smoke (441): a grenade of one unit takes one and a half of a pocket's units; Bear Trap
+      // (444): a trap does (the server's KitLayout, PocketShare).
+      private static var heavyGrenades:Boolean = false;
 
-      private static var halvedTraps:Boolean = false;
+      private static var heavyTraps:Boolean = false;
 
       // Supply Pocket (331) taken: the skill that closes the second weapon slot, where Deep
       // Pockets does not.
       public static var supplyPocket:Boolean = false;
+
+      // Tank Container (445) taken: a kit that wears an oxygen tank has one more artefact
+      // container (srp's kit block; the tank's card lists it).
+      public static var tankContainer:Boolean = false;
 
       // Only committed skill values affect equipment, never unspent previews.
       public static function committedSkills(value:Array) : void
       {
          additionalMedicine = false;
          supplyPocket = false;
-         halvedGrenades = false;
-         halvedTraps = false;
+         tankContainer = false;
+         heavyGrenades = false;
+         heavyTraps = false;
          for each(var skill:Object in value)
          {
             if(skill == null || skill.value <= 0)
@@ -72,11 +77,15 @@ package survarium.controls
             }
             if(skill.id == 441)
             {
-               halvedGrenades = true;
+               heavyGrenades = true;
             }
             if(skill.id == 444)
             {
-               halvedTraps = true;
+               heavyTraps = true;
+            }
+            if(skill.id == 445)
+            {
+               tankContainer = true;
             }
          }
       }
@@ -87,10 +96,11 @@ package survarium.controls
          if(size == QuickSlotSize.WHOLE)
             return 1;
          var total:int = pocketTotal(category,base);
-         // An item of two units: half the pocket, at least one (the server's PocketShare).
-         if(itemUnits(category,size) == 2)
-            return Math.min(total,Math.max(1,int(total / 2)));
-         return total;
+         // An item of more than one unit: as many as its units go into the pocket's, at least one
+         // (the server's PocketShare: a pair half the pocket, one and a half two in three). In
+         // halves, whole numbers: 2 x total / (2 x units).
+         var halves:int = int(itemUnits(category,size) * 2);
+         return Math.min(total,Math.max(1,int(2 * total / halves)));
       }
 
       // A pocket's units, whatever its items take.
@@ -106,12 +116,13 @@ package survarium.controls
          return additionalMedicine && category == ItemCategory.MEDKITS;
       }
 
-      // The pocket units one item takes: 2 for the RGD-5, a grenade with Toxic Smoke and a trap
-      // with Bear Trap; else 1.
-      public static function itemUnits(category:uint, size:Number) : int
+      // The pocket units one item takes: 2 for the RGD-5 (its own, with or without Toxic Smoke),
+      // 1.5 for another grenade with Toxic Smoke and a trap with Bear Trap; else 1.
+      public static function itemUnits(category:uint, size:Number) : Number
       {
-         var pair:Boolean = size == QuickSlotSize.PAIR || (halvedGrenades && category == ItemCategory.GRENADES) || (halvedTraps && category == ItemCategory.BOOBY_TRAPS);
-         return pair ? 2 : 1;
+         if(size == QuickSlotSize.PAIR) return 2;
+         if((heavyGrenades && category == ItemCategory.GRENADES) || (heavyTraps && category == ItemCategory.BOOBY_TRAPS)) return 1.5;
+         return 1;
       }
       
       public static var currentLevel:int = 0;

@@ -386,10 +386,11 @@ fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
     bench.run(100);
     let bad = PlayerInput {
         time: WireTime::tick(bench.clients[0].clock() + 50),
-        rotation: [0; 4],
-        actions: 1 << 30,
+        // a turn of a half's infinity, which no mouse makes
+        rotation: [0x00, 0x7C, 0, 0],
+        actions: 0x20,
     };
-    assert!(srp_validate::messages::input(bad.rotation, bad.actions).is_err());
+    assert!(srp_validate::messages::input(bad.rotation).is_err());
     bench.clients[0].send_input(bad);
     bench.clients[0].send_input(bad);
     bench.run(100);
@@ -399,9 +400,10 @@ fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
         assert_eq!(bench.clients[other].relays_of(0), [good]);
         assert!(discards(&bench.clients[other]).is_empty());
     }
-    // Native bit 31 and the shipped carry/pickup marker in bit 29 stay
-    // accepted. All players continue after the bad input is discarded.
-    for actions in [1 << 31, 1 << 29, 0x20] {
+    // Native bit 31, the shipped carry/pickup marker in bit 29 and the
+    // second sight's switch in bit 30 (client patch 206) stay accepted. All
+    // players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 1 << 30, 0x20] {
         let input = bench.clients[0].input(50, actions);
         bench.run(100);
         for other in [1, 2] {
@@ -828,76 +830,6 @@ fn a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced() {
     assert_eq!(bench.clients[2].model.syncs, 1);
     settle(&mut bench);
     bench.assert_no_faults();
-}
-
-/// The worlds of a split are asked for at its first tick, not seconds
-/// later at the resync: the wrong game's and a majority game's, and the
-/// wrong one is saved as "split".
-#[test]
-fn a_games_world_is_asked_for_at_its_first_report_against_the_majority() {
-    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
-    bench.join_all();
-    settle(&mut bench);
-    bench.run(3_000);
-    let right_asked = bench.clients[0].upload_requests + bench.clients[1].upload_requests;
-    let from = bench.clients[2].clock();
-    bench.clients[2].sim.salt_from = Some((from, 7));
-    // Its first wrong report comes a horizon (500 ms) and a way later.
-    assert!(bench.until(1_500, |bench| bench.game().split_world(2).0.is_some()));
-    assert_eq!(bench.game().resyncs(2), 0);
-    assert!(bench.until(1_000, |bench| !bench.game().split_world(2).1));
-    assert!(bench.clients[0].upload_requests + bench.clients[1].upload_requests > right_asked);
-    // Once a player, however long it is wrong; it is resynced as before.
-    assert!(bench.until(10_000, |bench| bench.game().resyncs(2) == 1));
-    assert_eq!(bench.game().split_world(0), (None, false));
-    assert_eq!(bench.game().split_world(1), (None, false));
-}
-
-/// A split's request that its game never answered (a full packet pool
-/// skips it) says nothing of the game's next upload: asked later as a
-/// source for another game's resync, its world is a vote, not "split".
-#[test]
-fn an_unanswered_split_request_does_not_take_the_next_upload() {
-    let dir = std::env::temp_dir().join(format!("srp-split-stale-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let settings = Settings {
-        snapshot_dir: Some(dir.clone()),
-        ..Settings::default()
-    };
-    let mut bench = Bench::new(3, MAP_BATTERIES, settings);
-    bench.join_all();
-    settle(&mut bench);
-    bench.run(3_000);
-    bench.clients[1].no_uploads = true;
-    let from = bench.clients[1].clock();
-    bench.clients[1].sim.salt_from = Some((from, 7));
-    assert!(bench.until(1_500, |bench| bench.game().split_world(1).0.is_some()));
-    // Wrong for a moment only, and its request skipped.
-    bench.clients[1].sim.salt_from = None;
-    bench.run(2_000);
-    bench.clients[1].no_uploads = false;
-    let asked = bench.clients[1].upload_requests;
-    // Player 0 goes wrong: its resync's source is player 1
-    // (the best link; the lowest place of equal ones).
-    let from = bench.clients[0].clock();
-    bench.clients[0].sim.salt_from = Some((from, 9));
-    assert!(bench.until(15_000, |bench| bench.game().resyncs(0) == 1));
-    assert!(bench.until(5_000, |bench| bench.clients[1].upload_requests > asked));
-    bench.run(2_000);
-    let saved: Vec<String> = std::fs::read_dir(&dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                .collect()
-        })
-        .unwrap_or_default();
-    let _ = std::fs::remove_dir_all(&dir);
-    assert!(
-        !saved.iter().any(|name| name.contains("_p1_split_")),
-        "{saved:?}"
-    );
-    assert!(!bench.game().split_world(1).1);
 }
 
 /// A game wrong from its first reports after the world it was resynced
@@ -1525,6 +1457,44 @@ fn a_player_back_in_the_match_enters_for_the_others_first() {
     assert_eq!(bench.clients[0].model.syncs, 1);
     assert_eq!(bench.clients[1].model.syncs, 1);
     settle(&mut bench);
+    bench.assert_no_faults();
+}
+
+/// A game started anew that connects to its place before the server saw the
+/// old one go (no 0xE0, no closed link, inside the client timeout): the old
+/// link is replaced, and the others are sent its leave, then its entry again
+/// at a later tick. Every game's rules see the leave first (an Artifact Hunt
+/// carrier lets go of the artefact there, patch 171's slot 9), as for the
+/// 0xE0, the closed link and the timeout (the tests before).
+#[test]
+fn a_new_connection_for_a_live_place_is_its_leave_then_its_entry() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    assert_eq!(bench.stages(), "LL");
+
+    bench.restart(1);
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    let roster = |client: &Client| {
+        let mut changes = client.got(|message| match message {
+            ServerMessage::PlayerEntered { tick, player: 1 } => Some((true, *tick)),
+            ServerMessage::PlayerLeft { tick, player: 1 } => Some((false, *tick)),
+            _ => None,
+        });
+        changes.dedup();
+        changes
+    };
+    assert!(bench.until(2_000, |bench| roster(&bench.clients[0]).len() == 3));
+    let changes = roster(&bench.clients[0]);
+    let [(true, entered), (false, left), (true, again)] = changes[..] else {
+        panic!("{changes:?}");
+    };
+    // Ticks are a byte of the 50 ms grid: in order, a step apart at least.
+    assert!(left.wrapping_sub(entered) > 0 && again.wrapping_sub(left) > 0 && again.wrapping_sub(left) < 128,
+        "{changes:?}");
+    assert!(bench.until(10_000, |bench| bench.stages() == "LL"));
     bench.assert_no_faults();
 }
 
@@ -2780,99 +2750,68 @@ fn the_inputs_since_a_snapshot_go_between_the_time_and_the_world() {
 
 #[test]
 fn a_resynced_client_gets_the_others_inputs_ahead_of_its_world_and_never_its_own() {
-    for world_only in [false, true] {
-        let settings = Settings {
-            resync_world_only: world_only,
-            ..Settings::default()
-        };
-        let mut bench = Bench::new(3, MAP_BATTERIES, settings);
-        bench.join_all();
-        settle(&mut bench);
-        bench.run(3_000);
-        let from = bench.clients[2].clock();
-        bench.clients[2].sim.salt_from = Some((from, 7));
-        // Everybody keeps sending inputs while the third is found out and
-        // restored.
-        let taken_before = bench.clients[2].taken.len();
-        let mut resynced = false;
-        for _ in 0..400 {
-            for client in &mut bench.clients {
-                client.input(20, 0x21);
-            }
-            bench.run(50);
-            if bench.game().resyncs(2) == 1 && bench.stages() == "LLL" {
-                resynced = true;
-                break;
-            }
-        }
-        assert!(resynced, "{}", bench.stages());
-        let client = &bench.clients[2];
-        // Never one of its own inputs back.
-        assert!(client.relays_of(2).is_empty());
-        let since = &client.taken[taken_before..];
-        let world = since
-            .iter()
-            .position(|message| matches!(message, ServerMessage::Snapshot { generation: 1, .. }))
-            .expect("the world of the next generation");
-        let (world_time, set_times) = match &since[world] {
-            ServerMessage::Snapshot { time, .. } => (
-                *time,
-                since
-                    .iter()
-                    .filter(|message| {
-                        matches!(message, ServerMessage::SetTime { generation: 1, .. })
-                    })
-                    .count(),
-            ),
-            _ => unreachable!(),
-        };
-        // The time goes with it, unless the setting says the world alone.
-        assert_eq!(set_times == 0, world_only, "{set_times}");
-        // The others' inputs after the world's time were with the client
-        // before the world was.
-        let ahead = since[..world]
-            .iter()
-            .filter(|message| match message {
-                ServerMessage::InputRelay { input, .. } => input
-                    .time
-                    .resolve(bench.clock())
-                    .is_some_and(|at| at > world_time),
-                _ => false,
-            })
-            .count();
-        assert!(ahead > 0);
-        assert_eq!(client.model.generation.0, 1);
-        bench.assert_no_faults();
-    }
-}
-
-#[test]
-fn a_client_that_restores_do_not_help_is_put_out_when_the_setting_says_so() {
-    let settings = Settings {
-        restore_limit: 2,
-        ..Settings::default()
-    };
-    let mut bench = Bench::new(3, MAP_BATTERIES, settings);
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all();
     settle(&mut bench);
     bench.run(3_000);
-    // The third client's world goes its own way again after every load.
-    let gone = (0..3_000).any(|_| {
-        if bench.clients[2].sim.salt_from.is_none() && bench.clients[2].model.is_synced() {
-            let from = bench.clients[2].clock();
-            bench.clients[2].sim.salt_from = Some((from, 9));
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    // Everybody keeps sending inputs while the third is found out and
+    // restored.
+    let taken_before = bench.clients[2].taken.len();
+    let mut resynced = false;
+    for _ in 0..400 {
+        for client in &mut bench.clients {
+            client.input(20, 0x21);
         }
-        bench.step(25);
-        bench.stages().ends_with('g') || bench.stages().ends_with('-')
-    });
-    assert!(gone, "{}", bench.stages());
-    // Two restores, then out; the others saw it leave and play on.
-    assert_eq!(bench.game().resyncs(0) + bench.game().resyncs(1), 0);
-    assert!(bench.clients[2].disconnected);
-    assert!(bench.until(1_000, |bench| bench.clients[0].left() == [2]));
-    assert!(bench.stages().starts_with("LL"));
+        bench.run(50);
+        if bench.game().resyncs(2) == 1 && bench.stages() == "LLL" {
+            resynced = true;
+            break;
+        }
+    }
+    assert!(resynced, "{}", bench.stages());
+    let client = &bench.clients[2];
+    // Never one of its own inputs back.
+    assert!(client.relays_of(2).is_empty());
+    let since = &client.taken[taken_before..];
+    let world = since
+        .iter()
+        .position(|message| matches!(message, ServerMessage::Snapshot { generation: 1, .. }))
+        .expect("the world of the next generation");
+    let (world_time, set_times) = match &since[world] {
+        ServerMessage::Snapshot { time, .. } => (
+            *time,
+            since
+                .iter()
+                .filter(|message| {
+                    matches!(message, ServerMessage::SetTime { generation: 1, .. })
+                })
+                .count(),
+        ),
+        _ => unreachable!(),
+    };
+    // The time goes with it.
+    assert!(set_times > 0);
+    // The others' inputs after the world's time were with the client
+    // before the world was.
+    let ahead = since[..world]
+        .iter()
+        .filter(|message| match message {
+            ServerMessage::InputRelay { input, .. } => input
+                .time
+                .resolve(bench.clock())
+                .is_some_and(|at| at > world_time),
+            _ => false,
+        })
+        .count();
+    assert!(ahead > 0);
+    assert_eq!(client.model.generation.0, 1);
+    bench.assert_no_faults();
+}
 
-    // With no limit (the default) it is restored again and again.
+#[test]
+fn a_client_that_restores_do_not_help_is_restored_again_and_again() {
     let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all();
     settle(&mut bench);
@@ -3122,7 +3061,7 @@ fn a_player_out_of_step_is_asked_for_its_world_ahead_of_its_resync() {
             .iter()
             .rev()
             .take(20)
-            .any(|message| matches!(message, ServerMessage::UploadRequest)),
+            .any(|message| matches!(message, ServerMessage::UploadRequest(_))),
         "{:?}",
         &client.taken[set_time.saturating_sub(5)..=set_time]
     );

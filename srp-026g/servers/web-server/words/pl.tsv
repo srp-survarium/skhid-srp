@@ -1,11 +1,467 @@
 # The site's own words in Polish (README.md here): English as in the code, Polish. A text without a row is shown in English.
+Head	Głowa
+Face	Twarz
+Chest	Klatka piersiowa
+Back	Plecy
+Arms	Ręce
+Hands	Dłonie
+Legs	Nogi
+Feet	Stopy
+Bullets	Pociski
+Melee	Walka wręcz
+Explosions	Wybuchy
+Fire	Ogień
+Radiation	Promieniowanie
+Electricity	Elektryczność
+Toxins	Toksyny
+Armour	Pancerz
+Isolation	Izolacja
+Protection	Ochrona
+Level	Poziom
+Faction	Frakcja
+Matchmaking level	Poziom rozgrywki
+Also takes	Zajmuje też
+Oxygen	Tlen
+Gas filter	Filtr przeciwgazowy
+{0}: hits up to {1} stopped, the rest ×{2}	{0}: trafienia do {1} zatrzymane, reszta ×{2}
+Fatal headshot	Śmiertelny strzał w głowę
+flies off	spada
+About it	O przedmiocie
+premium	premium
+level	poziom
+Weight	Waga
+Details	Szczegóły
+Its modifiers	Jego modyfikatory
+Slot	Slot
+All	Wszystkie
+Find	Znajdź
+Search by name…	Szukaj po nazwie…
+All factions	Wszystkie frakcje
+Level from	Poziom od
+to	do
+Sort by	Sortuj według
+Name	Nazwa
+Weight: low to high	Waga: rosnąco
+Armour: high to low	Pancerz: malejąco
+Isolation: high to low	Izolacja: malejąco
+Group	Grupuj
+No groups	Bez grup
+By set	Według kompletu
+By slot	Według slotu
 Wiki	Wiki
+Equipment	Wyposażenie
+Equipment reference	Spis wyposażenia
+pieces	przedmiotów
+Nothing matches.	Nic nie znaleziono.
+Stats	Statystyki
+Public matches	Mecze publiczne
+The stats need JavaScript.	Statystyki wymagają JavaScriptu.
+Skhid	Skhid
+mode {0}	tryb {0}
+No match is being played now.	Teraz nie trwa żaden mecz.
+waiting	oczekiwanie
+starting	start
+just now	przed chwilą
+{minutes} min ago	{minutes} min temu
+&le; {minutes} min	&le; {minutes} min
+{0} v {1}	{0} na {1}
+and {more} more	i jeszcze {more}
+Match	Mecz
+Players	Gracze
+Started	Początek
+Time left	Pozostało
+Score	Wynik
+No battle has been fought yet. Be the first.	Nie stoczono jeszcze żadnej bitwy. Bądź pierwszy.
+Player	Gracz
+Rating	Ranking
+online	online
+rooms	pokoi
+in rooms	w pokojach
+matches now	meczów teraz
+players	graczy
+battles fought	stoczonych bitew
+clans	klanów
+Maintenance: the server is down	Przerwa techniczna: serwer wyłączony
+Maintenance in {minutes} min	Przerwa techniczna za {minutes} min
+On the server now	Teraz na serwerze
+Since the server opened	Od otwarcia serwera
+TEST SERVER	SERWER TESTOWY
+Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.	Nieoficjalny serwer społeczności. Niezwiązany z Vostok Games ani przez nie niepopierany. Survarium jest znakiem towarowym swoich właścicieli. Wczesny test: konta i postępy mogą zostać zresetowane w każdej chwili.
+Top 10 players	10 najlepszych graczy
+Matches now	Mecze teraz
+Skhid &middot; Survarium <i>0.26g</i> community server	Skhid &middot; serwer społeczności Survarium <i>0.26g</i>
+Legal notice	Informacje prawne
+Not found.	Nie znaleziono.
+Too many wrong tokens; wait a minute.	Za dużo błędnych tokenów; poczekaj minutę.
+Wrong token.	Błędny token.
+No such user.	Nie ma takiego użytkownika.
+New accounts are taken again.	Nowe konta są znów przyjmowane.
+New accounts are refused; existing players sign in as before.	Nowe konta nie są przyjmowane; obecni gracze logują się jak dotąd.
+Maintenance cancelled.	Przerwa techniczna odwołana.
+No maintenance was planned.	Nie zaplanowano przerwy technicznej.
+Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.	Minuty: liczba całkowita od 1 do {MAX_MAINTENANCE_MINUTES}.
+Maintenance starts in {minutes} min, at {0} UTC.	Przerwa techniczna zacznie się za {minutes} min, o {0} UTC.
+for {hours} h	na {hours} godz.
+for good	na zawsze
+Address {net} banned {how_long}; {kicked} session(s) ended.	Adres {net} zbanowany {how_long}; zakończone sesje: {kicked}.
+No such user or address. A name several accounts share needs the user name they sign in with.	Nie ma takiego użytkownika ani adresu. Jeśli kilka kont ma to samo imię, podaj nazwę użytkownika, którą się loguje.
+{target} banned {how_long}; {kicked} session(s) ended.	{target} zbanowany {how_long}; zakończone sesje: {kicked}.
+ Its address {net} too ({more} more session(s) ended).	 Jego adres {net} też (zakończone kolejne sesje: {more}).
+ Its address is not known, so no address was banned.	 Jego adres jest nieznany, więc nie zbanowano żadnego adresu.
+Address {net} unbanned.	Adres {net} odbanowany.
+{net} was not banned (a range is lifted as it was banned).	{net} nie był zbanowany (zakres zdejmuje się taki, jaki został zbanowany).
+No such user or address.	Nie ma takiego użytkownika ani adresu.
+{target} unbanned.	{target} odbanowany.
+{target} was not banned.	{target} nie był zbanowany.
+ Its address {ip} too.	 Jego adres {ip} też.
+The players' server:	Serwer dla graczy:
+Test server.	Serwer testowy.
+Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset.	Tu testujemy zmiany, zanim trafią do graczy: serwer może się zrestartować w każdej chwili, a konta i postępy mogą tu zostać zresetowane.
+Damage calculator	Kalkulator obrażeń
 Maps	Mapy
+TEST	TEST
+Home	Strona główna
+Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.	Nieoficjalny serwer społeczności. Niezwiązany z Vostok Games ani przez nie niepopierany. Survarium jest znakiem towarowym swoich właścicieli.
+“Game files removed by antivirus: …”	„Antywirus usunął pliki gry: …”
+Run <code>Skhid-defender-setup.cmd</code>.	Uruchom <code>Skhid-defender-setup.cmd</code>.
+“Download failed: …”	„Pobieranie nie powiodło się: …”
+Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.	Uruchom ponownie <code>Skhid.bat</code>. Nadal nie działa? Uruchom <code>Skhid-without-updater.bat</code>: pobierze grę i jej aktualizacje bez launchera, a potem ją uruchomi.
+“No connection: …”	„Brak połączenia: …”
+Run <code>Skhid-network-setup.cmd</code>.	Uruchom <code>Skhid-network-setup.cmd</code>.
+“Blocked on this network: …”	„Zablokowane w tej sieci: …”
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Twój dostawca internetu blokuje nasz serwer. Launcher sam przełączył się już na nasz relay, który omija blokadę (<b>Relay: auto</b>, w lewym dolnym rogu). Po prostu naciśnij <b>Ponów próbę</b>.
+Nothing works.	Nic nie działa.
+Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Uruchom <code>Skhid-collect-logs.cmd</code> i wyślij nam utworzony plik zip na Discordzie: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
+Q:	P:
+A:	O:
+If something goes wrong	Jeśli coś pójdzie nie tak
+Download the files	Pobierz pliki
+The download link is coming soon.	Link do pobrania pojawi się wkrótce.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome lub antywirus nie pozwala pobrać? Wypróbuj ten skrypt: {script}. Pobierze całą grę do folderu Survarium obok siebie.
+Get the game	Zdobądź grę
+The link is coming soon.	Link pojawi się wkrótce.
+Get the original Survarium 0.26g (build 2777) and unpack it.	Zdobądź oryginalne Survarium 0.26g (build 2777) i rozpakuj je.
+Maintenance.	Przerwa techniczna.
+The server is down for maintenance.	Serwer jest wyłączony na czas przerwy technicznej.
+The game closes in {minutes} min; Play is locked in the last 30.	Gra zamknie się za {minutes} min; przez ostatnie 30 min przycisk „Graj” jest zablokowany.
+New registrations are closed for now. Existing players can sign in and play.	Rejestracja nowych kont jest na razie zamknięta. Obecni gracze mogą się logować i grać.
+players online	graczy online
+registered	zarejestrowanych
+Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.	Uruchom <code>Skhid.bat</code> i naciśnij <b>PLAY</b>. Przy pierwszym uruchomieniu gra zostanie pobrana.
+Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Uruchom <code>Skhid.bat</code> i naciśnij <b>PLAY</b>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows ostrzega przed nieznanym wydawcą? Zezwól na uruchomienie.<br>Linux: <code>bash Skhid.sh launcher</code>, zobacz <code>LINUX.txt</code>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows ostrzega przed nieznanym wydawcą? Zezwól na uruchomienie.<br>Linux: <code>bash Skhid.sh</code>, zobacz <code>LINUX.txt</code>.
+Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Uruchom <code>play_skhid.bat</code> w folderze <code>game\\binaries\\x86</code>.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (po ukraińsku „wschód”) to serwer społeczności, na którym klient Survarium {version} znów może się logować, handlować, tworzyć brygady i grać mecze.
+Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord projektu: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
+Early test server.	Wczesny serwer testowy.
+It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Zawiera błędy i może nie działać w pełni. Twoje postępy, przedmioty i konta mogą zostać utracone lub zresetowane w każdej chwili, a serwer może zostać zatrzymany w każdej chwili. Grając, akceptujesz to.
+How to play	Jak grać
+Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Pobierz nasze pliki i rozpakuj je do pustego folderu (np. D:\\Survarium). <b>Robisz to tylko raz.</b>
+Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Pobierz nasze pliki i rozpakuj je do folderu gry, tego z folderem <code>game</code>, zastępując pliki. <b>Robisz to tylko raz.</b>
+Download our files and unpack them over the game's <code>game</code> folder.	Pobierz nasze pliki i rozpakuj je na folder <code>game</code> gry.
+Sign in with any name and password: a new name registers itself. Remember the password.	Zaloguj się dowolną nazwą i hasłem: nowa nazwa rejestruje się sama. Zapamiętaj hasło.
+New accounts are taken.	Nowe konta są przyjmowane.
+Stop new registrations	Wstrzymaj rejestrację
+New accounts are refused for now.	Nowe konta są na razie odrzucane.
+Take new registrations	Przyjmuj rejestracje
+Shown once the token is right.	Widoczne po podaniu prawidłowego tokenu.
+Password	Hasło
+User name	Nazwa użytkownika
+Silver, + or -	Srebro, + lub -
+Change	Zmień
+Admin	Administrator
+Token	Token
+Money	Pieniądze
+Ban	Ban
+Unban	Odbanowanie
+Bans	Bany
+Maintenance	Przerwa techniczna
+Signups	Rejestracja
+User name, or an address or range (1.2.3.4, 1.2.3.0/24)	Nazwa użytkownika albo adres lub zakres (1.2.3.4, 1.2.3.0/24)
+Hours (empty: for good)	Godziny (puste: na zawsze)
+Reason (only admins see it)	Powód (widzą go tylko administratorzy)
+Also ban the address it last signed in from	Zbanuj też adres, z którego ostatnio się logował
+Ban	Zbanuj	button
+User name, or an address or range	Nazwa użytkownika albo adres lub zakres
+Also lift the ban of its last address	Zdejmij też ban z jego ostatniego adresu
+Unban	Odbanuj	button
+Refresh	Odśwież
+Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).	Obecni gracze i tak nadal się logują i grają. Domyślnie rejestracja jest otwarta; restart przywraca ten stan (albo SRP_REGISTRATION=closed).
+Starts in (minutes)	Początek za (minuty)
+Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.	Gracze widzą pozostałe minuty od 60, od 30 nie mogą nacisnąć „Graj”, a przy 0 gra się zamyka. Restart srp ją odwołuje.
+Plan	Zaplanuj
+Cancel	Anuluj
+Account	Konto
+Give item	Daj przedmiot
+Take items	Zabierz przedmioty
+Text	Tekst
+Mute chat	Wycisz czat
+Rename	Zmień nick
+Shown now:	Teraz widoczne:
+No text is shown.	Żaden tekst nie jest wyświetlany.
+Set the level (0 to {0})	Ustaw poziom (0–{0})
+Experience, + or -	Doświadczenie, + lub -
+Faction (1 to 4)	Frakcja (1–4)
+Reputation with it, + or -	Reputacja w niej, + lub -
+Empty fields change nothing. An open game is sent the account again.	Puste pola niczego nie zmieniają. Otwarta gra otrzyma konto ponownie.
+Item: its id in the 0.26g dictionary, or its exact name	Przedmiot: id w słowniku 0.26g albo dokładna nazwa
+Count (rounds for ammo; up to 8 of anything else)	Liczba (naboje dla amunicji; do 8 dla reszty)
+Give	Daj
+First line	Pierwszy wiersz
+Second line	Drugi wiersz
+Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.	Widzą go wszyscy w lobby i każdy, kto się zaloguje, dopóki nie zostanie usunięty lub srp się nie zrestartuje.
+Show	Pokaż
+Clear	Usuń
+No maintenance is planned.	Nie zaplanowano przerwy technicznej.
+Maintenance has started: the game closes for everyone who signs in.	Przerwa techniczna się zaczęła: gra zamyka się każdemu, kto się zaloguje.
+Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.	Godziny: liczba całkowita do {MAX_BAN_HOURS} albo puste pole na zawsze.
+until {at} UTC	do {at} UTC
+None.	Brak.
+Accounts	Konta
+Until	Do
+Reason	Powód
+Last address	Ostatni adres
+Addresses	Adresy
+Address	Adres
+Chat mutes	Wyciszenia czatu
+ The database was busy: srp's saver writes it within seconds (the history below is shown next time).	 Baza danych była zajęta: srp zapisze to w ciągu kilku sekund (historia poniżej pojawi się następnym razem).
+ Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.	 Błąd: zmiana jest tylko w pamięci: baza danych jej nie przyjęła ({error}). srp ponowi zapis; sprawdź jego log.
+No 0.26g account has that id.	Żadne konto 0.26g nie ma takiego id.
+More than one account has that character name: type its user name or #id.	Tę nazwę postaci ma więcej niż jedno konto: wpisz nazwę użytkownika lub #id.
+Silver is a whole number, + or -, or empty.	Srebro to liczba całkowita, + lub -, albo puste pole.
+{0}: silver {1} → {2} ({3}).	{0}: srebro {1} → {2} ({3}).
+Type the silver to add (+) or take (-). The balance is below.	Wpisz srebro do dodania (+) lub zabrania (-). Saldo jest poniżej.
+Nothing would change: the account has none of it left to take.	Nic by się nie zmieniło: konto nie ma już nic do zabrania.
+A reason is required: nothing was changed.	Wymagany jest powód: nic nie zmieniono.
+The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.	Konto lub pola zmieniły się od podglądu: nic nie zmieniono. Sprawdź nowy podgląd poniżej i zastosuj ponownie.
+Check the change below; type a reason to apply it.	Sprawdź zmianę poniżej; wpisz powód, aby ją zastosować.
+Check the change below, then press Apply. Nothing is changed until then.	Sprawdź zmianę poniżej, a potem naciśnij „Zastosuj”. Do tego czasu nic się nie zmienia.
+Type the account: its user name, its character name, or #id.	Wpisz konto: nazwę użytkownika, nazwę postaci lub #id.
+Units are a whole number above 0, or empty for all of it.	Sztuki to liczba całkowita większa od 0 albo puste pole, aby zabrać wszystko.
+Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview.	Zaznacz przedmioty do zabrania (i liczbę sztuk ze stosu albo cały stos), wpisz powód, a potem naciśnij „Podgląd”.
+{0}: {1} item(s) taken.	{0}: zabrane przedmioty: {1}.
+The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.	Przedmioty lub wybór zmieniły się od podglądu: nic nie zmieniono. Sprawdź nowy podgląd poniżej i zastosuj ponownie.
+Check what would be taken below; type a reason to apply it.	Sprawdź poniżej, co zostanie zabrane; wpisz powód, aby zastosować.
+Check what would be taken below, then press Apply. Nothing is changed until then.	Sprawdź poniżej, co zostanie zabrane, a potem naciśnij „Zastosuj”. Do tego czasu nic się nie zmienia.
+A reason is required: the player is told it.	Wymagany jest powód: gracz go zobaczy.
+{name}'s chat muted {0}.	Czat gracza {name} wyciszony {0}.
+{name}'s chat was not muted.	Czat gracza {name} nie był wyciszony.
+{name}'s chat unmuted.	Czat gracza {name} przywrócony.
+Account: user name or character name	Konto: nazwa użytkownika lub nazwa postaci
+Reason (the player is told it)	Powód (gracz go zobaczy)
+Nobody gets its chat lines, on any channel; it gets "muted for &lt;reason&gt;" (or "muted until &lt;time&gt; UTC: &lt;reason&gt;") back instead. Unmute needs the account only.	Nikt nie dostaje jego wiadomości czatu, na żadnym kanale; zamiast tego gracz dostaje "muted for &lt;powód&gt;" (albo "muted until &lt;czas&gt; UTC: &lt;powód&gt;"). Do cofnięcia wyciszenia wystarczy konto.
+Mute	Wycisz
+Unmute	Cofnij wyciszenie
+This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.	Ten podgląd został już użyty lub jest starszy niż 10 minut: nic nie zmieniono. Sprawdź nowy podgląd poniżej i zastosuj ponownie.
+No item was ticked.	Nie zaznaczono żadnego przedmiotu.
+At most {0} items at once.	Najwyżej {0} przedmiotów naraz.
+The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.	Konto nie ma już przedmiotu {item_id} (w międzyczasie sprzedany lub zabrany): nic nie zmieniono. Sprawdź listę ponownie.
+Item {item_id} is named twice.	Przedmiot {item_id} podano dwa razy.
+0 units of item {item_id}: leave it empty for all of it.	0 sztuk przedmiotu {item_id}: zostaw puste pole, aby zabrać wszystko.
+yes: its game is sent the change at once	tak: gra otrzyma zmianę od razu
+no: it sees the change at its next sign-in	nie: zobaczy zmianę przy następnym logowaniu
+User name	Login	sign-in
+Character	Postać
+Account id	Id konta
+ID	ID
+Earlier names	Wcześniejsze nazwy
+until {}	do {}
+In the game now	Teraz w grze
+Earlier moderation of this account	Wcześniejsza moderacja tego konta
+not shown ({error})	nie pokazano ({error})
+none	brak
+What	Co
+Change	Zmiana	what
+; {0} asked, never below 0	; żądano {0}, nigdy poniżej 0
+Apply to {0}	Zastosuj do {0}
+Done	Gotowe
+Preview	Podgląd
+Silver	Srebro
+Account: user name, character name or #id	Konto: nazwa użytkownika, nazwa postaci lub #id
+Reason (required; only admins see it)	Powód (wymagany; widzą go tylko administratorzy)
+Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once.	Podgląd pokazuje saldo przed i po; nic się nie zmienia przed „Zastosuj”. Saldo nigdy nie spada poniżej 0. Otwarta gra od razu pokaże zmianę.
+Preview	Podgląd	button
+the item	przedmiot
+all {0} units	wszystkie {0} szt.
+{0} of {1} units ({2} left)	{0} z {1} szt. (zostanie {2})
+taken off its kits	zdjęty z zestawów
+Apply: take them from {0}	Zastosuj: zabierz z konta {0}
+Taken	Zabrano
+Would be taken	Zostanie zabrane
+Item	Przedmiot
+Item id	Id przedmiotu
+Kits	Zestawy
+{0} units	{0} szt.
+all	wszystko
+cosmetic {id}	kosmetyczny {id}
+Items	Przedmioty
+Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays.	Zaznacz, co zabrać. Ze stosu zabiera się wpisaną liczbę sztuk, a gdy pole jest puste, cały stos. Zestaw * to ten, którym gra.
+Dict id	Id w słowniku
+Units / condition	Sztuki / stan
+Worn	Założony
+Modifications	Modyfikacje
+First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once.	Najpierw lista, potem podgląd tego, co zostanie zabrane; nic się nie zmienia przed „Zastosuj”. Założony przedmiot zostaje zdjęty ze wszystkich zestawów, jak przy sprzedaży. Otwarta gra od razu pokaże zmianę.
+List / preview	Lista / podgląd
+(premium)	(premium)
+{0} of {1}	{0} z {1}
+Choose an item…	Wybierz przedmiot…
+By item	Według przedmiotu
+level {0}	poziom {0}
+Can roll	Może wylosować
+Comes with	Wbudowane
+Modifiers	Modyfikatory
+An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.	Przedmiot losuje do trzech modyfikatorów, każdy innego rodzaju. Im silniejszy, tym rzadszy.
+Weapons	Broń
+Strengths from common to rare.	Siła od pospolitej do rzadkiej.
+Built into some items	Wbudowane w niektóre przedmioty
+These never roll.	Tych nie da się wylosować.
+No account signs in with that user name (character names are not looked up).	Żadne konto nie loguje się tą nazwą użytkownika (nazwy postaci nie są wyszukiwane).
+Type the user name the player signs in with.	Wpisz nazwę użytkownika, którą gracz się loguje.
+Check the account below, then press the reset button.	Sprawdź konto poniżej, a potem naciśnij przycisk resetu.
+That user name now means another account: nothing was changed. Check it below.	Ta nazwa użytkownika oznacza teraz inne konto: nic nie zmieniono. Sprawdź je poniżej.
+The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.	Hasło konta {login} wyczyszczone; zakończone sesje: {ended}. Następne logowanie, z dowolnym hasłem, ustawi nowe.
+The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.	Hasło konta {login} wyczyszczone; zakończone sesje: {ended}. Baza danych była zajęta: srp zapisze to w ciągu kilku sekund. Następne logowanie, z dowolnym hasłem, ustawi nowe.
+Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.	Błąd: hasło konta {login} wyczyszczone i zakończone sesje: {ended}, ale tylko w pamięci: baza danych nie została zapisana ({error}). srp ponowi zapis; sprawdź jego log, zanim gracz się zaloguje.
+not since srp started	nie od startu srp
+unknown	nieznany
+yes: its game is signed out	tak: gra zostanie wylogowana
+no	nie
+Last sign-in	Ostatnie logowanie
+Signed in now	Teraz zalogowany
+Reset the password of {0}	Zresetuj hasło konta {0}
+User name the player signs in with (not the character name)	Nazwa użytkownika, którą gracz się loguje (nie nazwa postaci)
+Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter.	Czyści hasło: następne logowanie gracza, z dowolnym hasłem, ustawi je jako nowe (decyzja właściciela, 2026-10-18). Kto zaloguje się pierwszy, ten je ustawi, więc resetuj, gdy gracz jest gotów się zalogować. Gra zalogowana na to konto zostanie wylogowana. Wielkość liter nie ma znaczenia.
+Quests	Zadania
+Pay by match level	Wypłata według poziomu rozgrywki
+Enter an account ID.	Wpisz ID konta.
+Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.	Nieprawidłowy nick: co najmniej 3 znaki, najwyżej 63 bajty UTF-8, bez spacji i znaków sterujących.
+A reason is required.	Wymagany jest powód.
+That nickname or a Cyrillic/Latin lookalike is already taken.	Ten nick lub jego cyrylicki/łaciński sobowtór jest już zajęty.
+No such account ID.	Nie ma konta o takim ID.
+Account #{account_id} renamed: {0} → {1}.	Konto #{account_id} przemianowane: {0} → {1}.
+Account ID	ID konta
+New nickname	Nowy nick
+Reason (admin history only)	Powód (tylko w historii administratora)
+Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.	Zmienia nick od razu i za darmo. Login i postępy pozostają bez zmian. Powtórzone nicki i cyrylickie/łacińskie sobowtóry są odrzucane.
+Levels	Poziomy
+This level	Ten poziom
+Total	Razem
+Matches	Mecze
+Hours	Godziny
+Total experience by level	Łączne doświadczenie według poziomu
+That account has not signed in to the 0.26g lobby yet: it has nothing to change.	To konto jeszcze nie logowało się do lobby 0.26g: nie ma czego zmieniać.
+Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.	Doświadczenie i reputacja to liczby całkowite, + lub -; poziom od 0 do {MAX_LEVEL}; frakcja od 1 do 4.
+That level is under the skill points the account has spent; reset its skills in the game first.	Ten poziom jest niższy niż wydane punkty umiejętności; najpierw zresetuj umiejętności w grze.
+{user}: level {level_now} ({exp_now} experience).	{user}: poziom {level_now} ({exp_now} doświadczenia).
+ Reputation with faction {faction}: {points}.	 Reputacja we frakcji {faction}: {points}.
+No such item in the 0.26g dictionary (give its id or its exact name).	Nie ma takiego przedmiotu w słowniku 0.26g (podaj id lub dokładną nazwę).
+The count for this item is 1 to {most}.	Liczba dla tego przedmiotu: od 1 do {most}.
+That stack would overflow.	Ten stos by się przepełnił.
+{user}: given {count} of {0} (id {1}).	{user}: dano {count} × {0} (id {1}).
+The text is cleared.	Tekst usunięty.
+Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.	Każdy wiersz ma najwyżej {MAX_TEXT_LEN} bajtów (litera cyrylicy to 2), bez znaków sterujących.
+The text is shown to everyone in the lobby, and to who signs in, until cleared.	Tekst widzą wszyscy w lobby i każdy, kto się zaloguje, dopóki nie zostanie usunięty.
+Simulators	Symulatory
+Skills	Umiejętności
+Browse weapons, compare base stats and explore their damage and handling.	Przeglądaj broń, porównuj parametry bazowe, obrażenia i obsługę.
+Recoil and spread of any weapon: aim, stance, skills, gear and injuries.	Odrzut i rozrzut każdej broni: celowanie, postawa, umiejętności, wyposażenie i rany.
+Every armour piece: protection, weight, built-in bonuses and what it can roll.	Każdy element wyposażenia: ochrona, waga, wbudowane bonusy i co może wylosować.
+Every modifier, its strengths and the items that can get it.	Każdy modyfikator, jego siła i przedmioty, które mogą go dostać.
+Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.	Poziomy i potrzebne doświadczenie; każde drzewko umiejętności: progi, rangi i co daje każda ranga.
+Every faction quest: its goal at each reputation level and what it pays.	Każde zadanie frakcji: cel na każdym poziomie reputacji i nagroda.
+Shots to kill a target in any armour, at any distance.	Ile strzałów trzeba, by zabić cel w dowolnym pancerzu, na dowolnej odległości.
+Spawns, batteries, chargers, containers and artefacts on every map.	Punkty odrodzenia, baterie, ładowarki, kontenery i artefakty na każdej mapie.
 Skhid wiki	Wiki Skhid
+Skhid · Survarium {version} community server	Skhid · serwer społeczności Survarium {version}
+Skhid · Survarium {version} TEST server	Skhid · TESTOWY serwer Survarium {version}
+COMMUNITY SERVER FOR SURVARIUM	SERWER SPOŁECZNOŚCI SURVARIUM
+TEST SERVER FOR SURVARIUM	SERWER TESTOWY SURVARIUM
+{text} is not an item id: nothing was changed.	{text} to nie id przedmiotu: nic nie zmieniono.
+Exp	Dośw.	formula
+Total	Razem	formula
+Experience gives levels, and every level gives one skill point.	Doświadczenie daje poziomy, a każdy poziom daje jeden punkt umiejętności.
+Clan	Klan
+Matches	Mecze	stats
+Player name	Nazwa gracza
+Clan tag	Tag klanu
+Match number	Numer meczu
+Clans	Klany
+Best matches	Najlepsze mecze
+Latest matches	Ostatnie mecze
+Hour	Godzina
+Day	Dzień
+Experience	Doświadczenie
+Wins	Wygrane
+Losses	Przegrane
+Win rate	% wygranych
+Kills	Zabójstwa
+Deaths	Śmierci
+K/D	K/D
+Kills/min	Zabójstwa/min
+Experience/min	Doświadczenie/min
+Assists	Asysty
+Score	Wynik	stats
+Avg score	Śr. wynik
+Headshots	W głowę
+Grenade kills	Granatem
+Melee kills	Wręcz
+Batteries	Baterie
+Captures	Przejęcia
+Artefacts	Artefakty
+Members	Członkowie
+Commander	Dowódca
+Overall	Ogółem
+In matches	W meczach
+Last 30 days	Ostatnie 30 dni
+Ended	Koniec
+Duration	Czas trwania
+Map	Mapa
+Mode	Tryb
+Result	Rezultat
+Place	Miejsce
+Team	Drużyna
+Points	Punkty
+Win	Wygrana
+Loss	Przegrana
+Draw	Remis
+Left	Wyszedł
+won	wygrała
+More players	Więcej graczy
+Older matches	Starsze mecze
+Hours played	Godziny gry
+Replay	Powtórka
+Preparing…	Przygotowywanie…
+Download	Pobierz
+Recorded by an older game version	Nagrane starszą wersją gry
+Busy, try again in a minute	Zajęte, spróbuj za minutę
+No replay	Brak powtórki
+Daily leaders	Liderzy dnia
+All time	Wszech czasów
+Shots fired	Oddane strzały
+Accuracy	Celność
+Weapon	Broń
+Kit	Zestaw
+Favourite equipment	Ulubione wyposażenie
+1000+ shots	1000+ strzałów
+5+ matches	5+ meczów
+HS %	W głowę %
+Avg distance	Śr. odległość
+Through walls	Przez ściany
+Ricochets	Rykoszetem
+No weapons counted yet.	Nie policzono jeszcze żadnej broni.
+No public matches yet.	Nie ma jeszcze meczów publicznych.
+No player with public matches named “{}”.	Nie ma gracza z meczami publicznymi o nazwie „{}”.
+No clan tagged [{}].	Nie ma klanu [{}].
+No public match {}.	Nie ma meczu publicznego {}.
+This server keeps no match history.	Ten serwer nie przechowuje historii meczów.
+Could not load the stats. Reload the page.	Nie udało się wczytać statystyk. Odśwież stronę.
+Nobody yet.	Jeszcze nikogo.
+
+# The wiki's modes (src/modes.rs).
 Modes	Tryby
 Every mode: its rules, numbers and maps.	Każdy tryb: zasady, liczby i mapy.
 Versions	Warianty
-Public and private rooms	Pokoje publiczne i prywatne
 Public rooms only	Tylko pokoje publiczne
 Private rooms only	Tylko pokoje prywatne
 Not offered now	Obecnie niedostępny
@@ -39,7 +495,7 @@ A thaw counts as a kill.	Odmrożenie liczy się jako zabójstwo.
 A frozen player thaws by himself after {0}.	Zamrożony gracz sam się odmraża po {0}.
 A team's last fighter shows on the enemies' map.	Ostatni walczący drużyny jest widoczny na mapie przeciwników.
 Freeze the whole enemy team to win the round.	Zamroź całą drużynę wroga, by wygrać rundę.
-{0} s pause between rounds, then everyone respawns.	{0} s przerwy między rundami, potem wszyscy się odradzają.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} s po końcu rundy, potem wszyscy się odradzają i czekają {1} s na punktach odrodzenia.
 First to {0} rounds wins.	Wygrywa pierwsza drużyna z {0} wygranymi rundami.
 Time limit {0}: an unfinished series is a draw.	Limit czasu {0}: niedokończona seria to remis.
 One artefact at a time, {0}–{1} s into a round.	Jeden artefakt naraz, {0}–{1} s od początku rundy.
@@ -47,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Zanieś go do własnej b
 The carrier is slower and seen by everyone.	Niosący jest wolniejszy i widoczny dla wszystkich.
 Respawn in waves every {0} s.	Odrodzenie falami co {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Limit czasu {0}: wygrywa wyższy wynik; przy remisie {1} nagłej śmierci bez odrodzeń.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Karabiny snajperskie, broń z tłumikiem i broń bez ognia automatycznego są zastępowane.
-Rooms up to level {0}: {1}.	Pokoje do poziomu {0}: {1}.
-Other rooms: {0}.	Pozostałe pokoje: {0}.
-Sight: {0}.	Celownik: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Wszyscy walczą karabinkami szturmowymi: karabiny snajperskie, broń z tłumikiem i broń bez ognia automatycznego zostają zamienione na {0} (pokoje do poziomu {1}) lub {2} (wyższe pokoje).
+Each comes with an {0}.	Każdy ma {0}.
+a revolver	rewolwer
+a lever-action rifle	karabin z zamkiem dźwigniowym
 Every kit: {0} only.	Każdy zestaw: tylko {0}.
 Every kit: {0} and {1}.	Każdy zestaw: {0} i {1}.
 Everyone plays the same {0} random kits.	Wszyscy grają tymi samymi {0} losowymi zestawami.
@@ -58,7 +514,490 @@ Level bands: {0}.	Przedziały poziomów: {0}.
 A room draws bands up to its level.	Pokój losuje przedziały do swojego poziomu.
 Each kit a gun of another class, with random bonuses and attachments.	W każdym zestawie broń innej klasy, z losowymi bonusami i dodatkami.
 {0} % of deals: pistols only.	{0} % rozdań: tylko pistolety.
-Nothing of yours is used or spent.	Nic twojego nie jest używane ani zużywane.
 Plain FFA: {0} % of FFA cards.	Zwykłe FFA: {0} % kart FFA.
 {0} % of FFA cards.	{0} % kart FFA.
 FFA: Roulette	FFA: Ruletka
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Szukaj broni
+No weapons match.	Nie znaleziono broni.
+lvl {n}	poz. {n}
+Search…	Szukaj…
+Search items	Szukaj przedmiotów
+No items match.	Nie znaleziono przedmiotów.
+s	s	unit
+Search rounds	Szukaj nabojów
+No rounds match.	Nie znaleziono nabojów.
+shots	strzały
+up	w górę
+side	w bok
+spread	rozrzut
+Play	Odtwórz
+Pause	Pauza
+Recoil and spread	Odrzut i rozrzut
+Weapon {side}	Broń {side}
+Choose a weapon…	Wybierz broń…
+Round	Nabój
+Clear	Wyczyść	list
+Choose a weapon; a second one to compare.	Wybierz broń; drugą do porównania.
+Aim	Celowanie
+From the hip	Z biodra
+Aiming in	W trakcie celowania
+Fully aimed	Pełne celowanie
+Stance	Postawa
+Standing	Stojąc
+Walking	Chód
+Crouching	W kucki
+Crouch-walking	Chód w kucki
+Sprinting	Sprint
+Jumping	Skok
+Broken arms	Złamane ręce
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Rozrzut z biodra {v} na rangę, także w sprincie i w skoku. Nie podczas celowania.
+No effect fully aimed.	Bez efektu przy pełnym celowaniu.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rozrzut podczas chodu {v} na rangę, z biodra lub w trakcie celowania. Nie w chodzie w kucki.
+Spread from broken arms {v} per rank.	Rozrzut od złamanych rąk {v} na rangę.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Zakresy odrzutu tej broni, w górę i w bok. Bez drgań kamery.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Bazowy rozrzut tej broni, w każdym strzale: cały rozrzut przy pełnym celowaniu, mała jego część z biodra. Nie rozrzut od postawy ani od strzału.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rozrzut od postawy i od każdego strzału. Bez efektu w sprincie, w skoku i przy pełnym celowaniu.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Odrzut każdego strzału z dowolnej broni: w górę, w bok i drgania kamery.
+Base	Bazowy
+A shot	Na strzał
+At most	Maksymalny
+Vertical kick	Odrzut pionowy
+game units	jednostki gry
+Horizontal kick	Odrzut poziomy
+Trigger	Spust
+Hold	Przytrzymaj
+Click, {n} a second	Klikaj, {n} na sekundę
+Sample seed	Ziarno losowania
+Spread	Rozrzut
+degrees	stopnie
+Last shot	Ostatni strzał
+Reset	Resetuj
+Timeline	Oś czasu
+Crosshair	Celownik
+degrees of view	stopnie pola widzenia
+Target	Cel
+None	Brak
+Enemy at {m} m	Wróg w odległości {m} m
+Recoil parameters are unavailable for this selection.	Parametry odrzutu są niedostępne dla tego wyboru.
+Rounds	Naboje
+Sniper rifle	Karabin snajperski
+Submachine gun	Pistolet maszynowy
+Pistol	Pistolet
+Shotgun	Strzelba
+Assault rifle	Karabin szturmowy
+Machine gun	Karabin maszynowy
+Skhid revision {revision}	Skhid, rewizja {revision}
+Stat	Parametr
+Better	Lepiej
+Worse	Gorzej
+weapons	szt. broni	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Porównaj broń lub rozwiń wiersz: obrażenia, obsługa, celność, odrzut i kołysanie celownika.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Wartości z wybranym nabojem, najpierw ze standardowym dla broni. Bez ulepszeń i bonusów postaci. Karta w grze pokazuje najwyższe obrażenia i najwyższą penetrację spośród wszystkich nabojów broni.
+Find a weapon	Znajdź broń
+Weapon class	Klasa broni
+All classes	Wszystkie klasy
+Damage: high to low	Obrażenia: malejąco
+Fire rate: high to low	Szybkostrzelność: malejąco
+Compare weapons	Porównanie broni
+Only differences	Tylko różnice
+Color better / worse values	Koloruj lepsze / gorsze wartości
+Recoil and spread →	Odrzut i rozrzut →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Wybierz dwie sztuki broni do porównania. Równe wartości i neutralne cechy mają zwykły kolor.
+No differences in the displayed stats.	Brak różnic w wyświetlanych parametrach.
+m	m	unit
+kg	kg	unit
+Single shot	Ogień pojedynczy
+Damage & range	Obrażenia i zasięg
+Damage	Obrażenia
+Armor penetration	Penetracja pancerza
+Full damage up to	Pełne obrażenia do
+Minimum damage from	Minimalne obrażenia od
+Minimum damage retained	Minimalne zachowane obrażenia
+Stopping power	Siła hamująca
+Stamina damage	Obrażenia kondycji
+Firing & handling	Strzelanie i obsługa
+rpm	strz./min	unit
+Fire rate	Szybkostrzelność
+Magazine capacity	Pojemność magazynka
+Reload time	Czas przeładowania
+Aim time	Czas celowania
+Draw time	Czas wyciągnięcia
+Holster time	Czas schowania
+Movement speed modifier	Modyfikator szybkości ruchu
+Base aim zoom	Bazowe przybliżenie
+Fire modes	Tryby ognia
+Accuracy & spread	Celność i rozrzut
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Wartości rozrzutu podano w jednostkach gry. Parametry wzrostu i odzyskania pokazano bez oceny „lepiej/gorzej”.
+Base dispersion	Rozrzut bazowy
+Hip-fire spread multiplier	Mnożnik rozrzutu z biodra
+Spread added per shot	Rozrzut na strzał
+Spread limit	Limit rozrzutu
+Spread growth parameter	Parametr wzrostu rozrzutu
+Spread recovery parameter	Parametr odzyskania celności
+Recoil	Odrzut
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Bazowy odrzut w jednostkach gry, nie w stopniach. Odrzut poziomy to prawo minus lewo; zmienność to jego odchylenie standardowe. Nie opisują one całej serii.
+Base vertical kick range	Zakres bazowego odrzutu pionowego
+Horizontal kick range	Zakres odrzutu poziomego
+Horizontal kick variability	Zmienność odrzutu poziomego
+Horizontal bias (− left / + right)	Przesunięcie poziome (− w lewo / + w prawo)
+Recoil accumulation exponent	Wykładnik kumulacji odrzutu
+Recovery response (P)	Reakcja powrotu (P)
+Recovery accumulation (I)	Kumulacja powrotu (I)
+Recovery damping (D)	Tłumienie powrotu (D)
+Aim sway	Kołysanie celownika
+Horizontal sway	Kołysanie poziome
+Vertical sway	Kołysanie pionowe
+Aim sway period	Okres kołysania celownika
+Magazine	Magazynek
+Set as weapon A	Ustaw jako broń A
+Set as weapon B	Ustaw jako broń B
+Automatic	Ogień ciągły
+{m}-round burst	Seria po {m}
+pellets	śrucin
+No weapons match. Try another name or class.	Nie znaleziono broni. Spróbuj innej nazwy lub klasy.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	W lewo	direction
+Right	W prawo	direction
+Back	W tył	direction
+where it aims as the shot moves it	gdzie celuje pod wpływem strzału
+from the side, the bullet from the eye along the view	z boku: pocisk od oka wzdłuż spojrzenia
+custom	własna
+Up	W górę
+Side	W bok
+Rate	Tempo
+Power	Wykładnik
+Camera wobble	Chwianie kamery
+Gun kick	Szarpnięcie broni
+Custom gun	Własna broń
+Speed	Prędkość
+bullet	pocisk
+sight	celownik
+hit	trafienie
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Punkty	skills
+matches	meczów	skills
+h	godz.	unit
+Tap a skill, then + or −.	Dotknij umiejętności, potem + lub −.
+Click a skill to add a rank, right-click to take one back.	Kliknięcie dodaje rangę, prawy przycisk ją odbiera.
+{n} point	{n} punkt	one
+{n} points	{n} punkty	few
+{n} points	{n} punktów	many
+Maximum:	Maksimum:
+or	lub	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Punkty odrodzenia
+Battery spawns	Pojawianie się baterii
+Chargers	Ładowarki
+Containers	Kontenery
+Research units	Jednostki badawcze
+Ammo stashes	Uzupełnienie amunicji
+Survarium maps	Mapy Survarium
+chargers	ładowarki
+Minimap	Minimapa
+From above	Z góry
+{n} active	aktywne: {n}
+{n} batteries to win.	Baterii do wygranej: {n}.
+team {n}	drużyna {n}
+any team	dowolna drużyna
+Ammo stash	Uzupełnienie amunicji
+Container	Kontener
+Battery spawn	Pojawianie się baterii
+Charger	Ładowarka
+Research unit	Jednostka badawcza
+Spawn	Odrodzenie
+Glow of the Forest	Leśny Blask
+Bases	Bazy
+Base	Baza	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Stopy	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	aktywny
+passive	pasywny
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Obrażenia ×{damage}, penetracja ×{pierce}, przed pancerzem: przy niższej penetracji pancerz zatrzymuje więcej.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} otrzymuje ×{k} przez {s} s po użyciu (działa po {delay} s).
+Inside an anomaly: damage ×{k}, before armour.	W anomalii: obrażenia ×{k}, przed pancerzem.
+This weapon takes no damage bonuses.	Ta broń nie ma bonusów obrażeń.
+Comes with the weapon; cannot be changed.	Należy do broni; nie można go zmienić.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Przedmiot ma najwyżej 3 modyfikacje. Bonusy do jednego parametru sumują się przed zastosowaniem.
+This item takes no armour bonuses.	Ten przedmiot nie ma bonusów pancerza.
+Nothing worn covers the {part}.	Żaden noszony przedmiot nie chroni: {part}.
+Drugs	Preparaty
+Assault rifles	Karabiny szturmowe
+Submachine guns	Pistolety maszynowe
+Shotguns	Strzelby
+Bolt-action & sniper rifles	Karabiny powtarzalne i snajperskie
+Pistols & revolvers	Pistolety i rewolwery
+Helmet	Hełm
+Mask	Maska
+Jacket	Kurtka
+Gloves	Rękawice
+Trousers	Spodnie
+Boots	Buty
+Backpack	Plecak
+Chest & neck	Klatka piersiowa i szyja
+Right arm	Prawa ręka
+Left arm	Lewa ręka
+Right hand	Prawa dłoń
+Left hand	Lewa dłoń
+Right leg	Prawa noga
+Left leg	Lewa noga
+Right foot	Prawa stopa
+Left foot	Lewa stopa
+Body	Ciało
+Pain	Ból
+Infection	Infekcja
+death	śmierć
+bleeding	krwawienie
+concussion	ogłuszenie
+hand injury	uraz dłoni
+leg injury	uraz nogi
+infection	infekcja
+blindness	oślepienie
+Search	Szukaj
+— none —	— brak —
+nothing worn	nic nie założono
+back	z tyłu
+front	z przodu
+after shot	strzał
+of	z
+dead	martwy
+Glass	Szkło
+Car	Samochód
+Plywood	Sklejka
+Tinplate	Blacha
+Brick, steel	Cegła, stal
+Concrete	Beton
+Stone	Kamień
+<none>	<brak>
+armour	pancerz
+{n} left	zostało {n}
+damage	obrażenia
+penetration	penetracja
+full damage to	pełne do
+minimum from	minimum od
+minimum	minimum
+muzzle	prędkość wylotowa
+rate	szybkostrzelność
+magazine	magazynek
+Gets through: k {k}, D {D} · P {P}.	Przebija: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Nie przebija: penetracja {P}, pancerz {A}.
+here	tutaj
+not here	nie tutaj
+taken by {item}	zajęte: {item}
+Covers the {part}.	Chroni: {part}.
+Does not cover the {part}.	Nie chroni: {part}.
+Click to aim at the {part}.	Kliknij, by celować: {part}.
+aim at the {part}	celuj: {part}
+Full damage at this range.	Na tej odległości pełne obrażenia.
+Fully fallen off: minimum damage.	Pełny spadek: minimalne obrażenia.
+Falling off: {share} of the way from minimum to full.	Spadek: {share} drogi od minimum do pełnych.
+Orange band: damage falls from {from} m to {to} m.	Pomarańczowy pas: obrażenia spadają od {from} m do {to} m.
+per shot (all pellets)	za strzał (wszystkie śruciny)
+per hit	za trafienie
+{pool} damage {per}	{pool}: obrażenia {per}
+of {n} {pool} left	z {n} pozostałych ({pool})
+of {n} {pool}	z {n} ({pool})
+Hits to kill	Trafień do zabicia
+dies when {pool} reaches 0	ginie, gdy {pool} spada do 0
+this shot cannot kill	ten strzał nie zabija
+Time to kill	Czas do zabicia
+every shot lands, no reload	każdy strzał trafia, bez przeładowania
+Leaves the barrel	Wylot z lufy
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Obrażenia broni × <code>k_damage</code> naboju, penetracja broni × <code>k_arp</code> naboju.
+Each of the {n} pellets carries this.	Dotyczy każdej z {n} śrucin.
+Flies {m} m	Leci {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Prędkość {v0} → {v} m/s. Obrażenia przechodzą od pełnych ({full}) do minimalnych ({min}) wraz z prędkością między {from} a {to} m: tutaj {share}. Penetracja się nie zmienia.
+Through {wall}	Przez: {wall}
+stopped	zatrzymany
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Penetracja {P}, pancerz {A}. Obrażenia, penetracja i prędkość × k; potem obrażenia nie wyższe niż przy {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Penetracja {P} nie przewyższa pancerza {A}: pocisk się zatrzymuje.
+No armour here, the full amount goes in.	Brak pancerza: przechodzi całość.
+Armour {A} is not above penetration {P}: nothing is stopped.	Pancerz {A} nie przewyższa penetracji {P}: nic nie zostaje zatrzymane.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Pancerz przewyższa penetrację o pełne 100: pocisk nic nie robi.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Pancerz {A} − penetracja {P} = zatrzymane {gap}% obrażeń.
+Hits {part}	Trafia: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Każde trafienie, gdziekolwiek, uszczupla też wspólną pulę bólu. Ból na 0 zabija.
+Body at 0 kills.	Ciało na 0 zabija.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Głowa ma tylko 40: na 0 zabija, poniżej 20 ogłusza.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Kończyny same nie zabijają: wyzerowana kończyna to uraz, a jej ból może zabić.
+Second chance	Druga szansa
+The skill leaves the target alive once.	Umiejętność raz zostawia cel przy życiu.
+× {n} pellets	× {n} śrucin
+Each pellet is its own bullet: when several land, their damage adds up.	Każda śrucina to osobny pocisk: gdy trafi kilka, ich obrażenia się sumują.
+kills	zabija
+breaks	łamie
+below	poniżej
+empty	na zerze
+movement	ruch
+shot	strzał
+Damage over distance	Obrażenia a odległość
+after armour	po pancerzu
+Body part	Część ciała
+Stopped	Zatrzymane
+Limb	Kończyna
+Also	Również
+injury	uraz
+best ammo	najlepszy nabój
+default ammo	standardowy nabój
+Ammo	Nabój
+Pen. here	Penetr. tu
+Damage / hit	Obr. / traf.
+RPM	Strz./min
+Bullet	Pocisk
+D, P = weapon × ammo, D falling with distance	D, P = broń × nabój, D spada z odległością
+{n} pellets	{n} śrucin
+Wall	Ściana
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: pocisk zostaje w ścianie · inaczej D, P × (1 − (A / P)²)
+stays in the wall	zostaje w ścianie
+each	każdy
+rank	ranga
+inside an anomaly	w anomalii
+D × (1 − (armour − P) / 100)	D × (1 − (pancerz − P) / 100)
+{part}, armour {A} − P {P}	{part}, pancerz {A} − P {P}
+Pools	Pule
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	klatka piersiowa, plecy → ciało · głowa, twarz → głowa · noga, stopa → noga · ręka, dłoń → dłoń
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 klatka piersiowa, głowa, ręce · 0.9 nogi · 0.8 dłonie, stopy
+Death	Śmierć
+body, head or pain at 0	ciało, głowa lub ból na 0
+{n} hits	trafień: {n}
+at 0	na 0
+does not kill	nie zabija
+wall armour	pancerz ściany
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Jeden pocisk przez kilka części: każda pula traci tylko największe trafienie, nie sumę (dłonie 40 + 40, klatka piersiowa 35 → ból −40, nie −115).
+full	w pełni
+fixed	leczy
+{s} s without hits	{s} s bez trafień
+By itself	Samoistnie
+ends after {s} s without hits	mija po {s} s bez trafień
+carried	w slocie
+activated	aktywowany
+at once, every {s} s	od razu, co {s} s
+{delay} s after use, for {s} s	po {delay} s, przez {s} s
+stops at {n}	do {n}
+From empty to full	Od zera do pełna
+Leg or hand	Noga lub dłoń
+No Larkspur	Bez Żywokostu
+Starts	Zaczyna
+Legs, hands	Nogi, dłonie
+Broken leg, hand	Złamana noga, dłoń
+Top-down view of	Widok z góry:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} w poziomie, {sign}{height} w pionie). Kliknij ponownie, by zacząć od nowa.
+Now click the target.	Teraz kliknij cel.
+Click the shooter, then the target.	Kliknij strzelca, potem cel.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Pomarańczowy okrąg: pełne obrażenia do {from} m; przerywany: minimum od {to} m.
+health shown ×100 (body 100, head 40)	zdrowie ×100 (ciało 100, głowa 40)
+Shooter	Strzelec
+fires	strzela
+Distance to target	Odległość do celu
+Wall in front of the target	Ściana przed celem
+Weapon bonuses	Bonusy broni
+— — HIT — →	— — TRAFIENIE — →
+takes the hit	przyjmuje trafienie
+Current pain	Obecny ból
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Ból, który cel już ma po wcześniejszych trafieniach. Spada do zera o 10 na sekundę, gdy minie 8 s bez trafienia.
+Armour bonuses	Bonusy pancerza
+Artefacts, drugs & skills	Artefakty, preparaty i umiejętności
+Measure on a map	Zmierz na mapie
+Clear points	Wyczyść punkty
+bullet before armour	pocisk przed pancerzem
+after this armour	po tym pancerzu
+Every body part, this shot	Każda część ciała, ten strzał
+Every weapon against this target	Każda broń przeciw temu celowi
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Ta sama odległość, ściana, część ciała, pancerz i efekty celu. Każda broń używa najlepszego naboju na ten cel, chyba że wybierzesz „standardowy nabój”. Kliknij wiersz, by wczytać tę broń.
+Formula	Formuła
+Healing	Leczenie
+Previous shot	Poprzedni strzał
+Next shot	Następny strzał
+Damage calculator	Kalkulator obrażeń Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Każdy artefakt: co daje noszony i aktywowany, jak sumują się kopie, gdzie go znaleźć.
+Artefact	Artefakt
+Passive	Pasywny
+Active	Aktywny
+Active time	Czas działania
+Cooldown	Odnowienie
+Skill	Umiejętność
+Rules	Zasady
+Movement speed	Szybkość ruchu
+Stamina regeneration	Regeneracja energii
+Stamina use	Zużycie energii
+Slowdown from hits	Spowolnienie od trafień
+Against	Przeciw
+Body parts	Części ciała
+Penetration	Penetracja
+Health	Zdrowie
+Cures injuries	Leczy urazy
+Regeneration	Regeneracja
+Regeneration delay	Opóźnienie regeneracji
+Regenerates up to	Regeneruje do
+HP	HP	unit
+Carried in a container: passive. A death leaves them in that kit.	W pojemniku: pasyw. Po śmierci zostają w tym zestawie.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Klawisz aktywuje każdą gotową kopię swojego rodzaju i od nowa uruchamia odnowienie tych, które jeszcze się odnawiają.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednego rodzaju sumują się (pasyw Onyksu się mnoży); liczą się najwyżej 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktywacja Sprężyny i Żywokostu dodaje się do pasywu; Onyksu — zastępuje go.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Onyksy aktywowane razem: jedno zmniejszenie, o 1 s dłużej za każdą dodatkową kopię.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalie
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakty pochodzą z anomalii. Każda anomalia wkłada jeden ze swoich artefaktów do jednego ze swoich wolnych kontenerów, po jednym na okno czasowe, aż leży jej maksimum niezebranych; podniesienie artefaktu zaczyna okno od nowa. Daje tylko te swoje artefakty, których nie niesie żaden gracz. Wskaż anomalię lub artefakt (albo go dotknij), by zobaczyć jej liczby.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Zawiera
+First one	Pierwszy
+Then every	Potem co
+Chance	Szansa
+Max uncollected	Maks. niezebranych
+Search	Przeszukanie	artefact
+Zones switch every	Strefy zmieniają się co
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Po podniesieniu następny pojawi się za {next}; ten kontener zostaje pusty przez {cooldown}.
+Its own zone does no damage.	Jej własna strefa nie zadaje obrażeń.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Przeszukanie kontenera trwa {search}; po podniesieniu zostaje on pusty przez {cooldown}.
+After a pickup the next one comes {next} later.	Po podniesieniu następny pojawi się za {next}.
+whole body	całe ciało
+{n} % a hit, at most every {t}	{n} % na trafienie, najwyżej co {t}
+deadly	śmiertelnie
+{n} % a second	{n} % na sekundę
+Damage is a share of each body part's health, before armour.	Obrażenia to część zdrowia każdej części ciała, przed pancerzem.
+It gives no artefacts.	Nie daje artefaktów.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Ostatnie 7 dni
+Last 24 hours	Ostatnie 24 godziny
+Avg length	Śr. czas trwania
+Sides	Strony
+No result	Bez wyniku
+Share	Udział
+Trend	Trend
+by hour	według godzin
+by day	według dni
+by week	według tygodni
+Most played maps and modes	Najpopularniejsze mapy i tryby
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Urządzenie ochronne
+Protective device: chargers	Urządzenie ochronne: ładowarki
+Team Deathmatch	Walka drużynowa
+Research	Badania
+Protective device: blackout	Urządzenie ochronne: blackout
+Free for all	Każdy na każdego
+Freeze Tag	Zamrażanie
+Artifact Hunt	Poszukiwanie artefaktów
+FFA: Racket	FFA: Raban
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Tryb {0}
+day	dzień	weather
+rain	deszcz	weather
+evening	wieczór	weather
+night	noc	weather
+before rain	przed deszczem	weather
+Weathers	Pogoda
+Variants	Warianty

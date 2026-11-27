@@ -121,7 +121,7 @@ Other shifts seen on the way: project 0x41 → 0x40, game materials 0x52 → 0x5
 Serialized rule state (strings next to each `::serialize`), PROVEN:
 - timelimit_rule_core: `m_state_start_time_ms`, `m_current_time_in_ms`, `m_players_mask`, `(u8)m_current_state` — same as 0.21d.
 - gather_victory_items_rule_core: `m_spawner_random.seed()`, **`m_team_points[0..1]`**, `items_mask`.
-- match_time_vi_spawn_rule_core: the above + `m_available_victory_items_count`, `m_match_start_time_ms`, **`m_next_spawn_time_ms`**, `m_victory_items_spawn_time_ms`, `m_victory_items_spawn_variation_ms`, **`m_match_started`**. 0.21d did not serialize the next spawn time, the root of its rollback bug (`srp-021d/.../battery_spawn.md`). LIKELY fixed in 0.26g.
+- match_time_vi_spawn_rule_core: the above + `m_available_victory_items_count`, `m_match_start_time_ms`, **`m_next_spawn_time_ms`**, `m_victory_items_spawn_time_ms`, `m_victory_items_spawn_variation_ms`, **`m_match_started`**. 0.21d did not serialize the next spawn time, the root of its rollback bug (`srp-021d/docs/notes/battery_spawn.md`). LIKELY fixed in 0.26g.
 - tdm_rule_core: `m_team_tickets[0..1]`, `m_alive_players_mask`, `m_active_players_mask`.
 - player_respawn_rule_base: `players_mask`, `m_player_respawn_times[i]`; player_respawn_rule_core adds `m_respawn_random.seed()`.
 - kd_stats_rule: `m_kd_stats[i].kills/.deaths/.online` (`online` new).
@@ -173,7 +173,7 @@ Serialized rule state (strings next to each `::serialize`), PROVEN:
 
 ## 10. When a match starts: `timelimit_rule_core` (added 2026-10-12) — PROVEN unless tagged
 
-Read in the 0.26g exe: constructor 0x317DA0, `on_match_ready` 0x317EE0, `tick` 0x317F10, `logic_tick` 0x318100, enter/leave 0x3180C0 / 0x3180E0, `rule_completed` 0x318360 (vtable 0xA06E2C slots 13, 8, 9 and 18; `tick` is a delegate stored at rule+0x110/+0x114). 0.21d counterpart: `timelimit_rule_core` 0x1F549E..0x1F590F (`v021d/match_start_spec.md`).
+Read in the 0.26g exe: constructor 0x317DA0, `on_match_ready` 0x317EE0, `tick` 0x317F10, `logic_tick` 0x318100, enter/leave 0x3180C0 / 0x3180E0, `rule_completed` 0x318360 (vtable 0xA06E2C slots 13, 8, 9 and 18; `tick` is a delegate stored at rule+0x110/+0x114). 0.21d counterpart: `timelimit_rule_core` 0x1F549E..0x1F590F (`srp-021d/docs/notes/match_start_spec.md`).
 
 **Parameters** (constructor, all from the mode config's `mode.parameters`, 0x317E18..0x317EC9):
 
@@ -275,7 +275,7 @@ is played as soon as the server runs on data with it.
   data; `survarium::v026g::localization`), else English, else the project's
   folder.
 - Checked: on the test data (0.26g) the projects give the hand tables srp had
-  before for every level 1 to 8 (`maps::tests::the_projects_give_what_srp_had_by_hand`);
+  before for every level 1 to 8 (`maps::tests::the_projects_give_what_srp_had_by_hand`, removed 2026-11-21 with the tests that repeat data);
   on 0.26g with skhid's patches 12 and 14 the playable ids are the 72 and 181
   to 183, every value as before, London 20 respawn points in each mode and
   container 0 team 1's, named "London" / "Лондон" (an ignored test:

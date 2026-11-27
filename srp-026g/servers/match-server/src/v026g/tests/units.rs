@@ -144,7 +144,8 @@ fn blackout_is_the_static_info_entry_on_its_battery_map() {
         assert_eq!(formed.played.match_map(), played);
         let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
         assert_eq!(options.map, played);
-        let entry = formed.info.options().ends_with(b"SRPX\x02\x01\x01");
+        // Its entry, then its places' notices (`mode_introductions.md`: none shown here).
+        let entry = formed.info.options().ends_with(b"SRPX\x02\x01\x01\x07\x02\x00\x00");
         assert_eq!(entry, expected, "{played:?}");
         registry.end(ticket.match_id);
     }

@@ -161,7 +161,7 @@ Its texts are data: `scripts/content-edit/weapon-attachments-1.json` (a manifest
 
 Ctrl+F over an item list ([item-search.md](item-search.md)), written in the classes that own it:
 
-- the box, its keys and the matching: `InventoryList` (`makeSearch`, `onSearchKey`, `closeSearch`,
+- the box, its keys and the matching: `InventoryList` (`makeSearch`, `onSearchKey`, `clearSearch`,
   `applySearch`, `searchItems`); the search narrows what `ApplyInventoryFilter` lists, after the
   list's own filters and its order (`LIST_ORDER`); the grid's height while the box shows: `onFilterShowed`;
 - Esc in the box: `LobbyMenu.close_active_window`; the exe's window keys while Ctrl is held over the

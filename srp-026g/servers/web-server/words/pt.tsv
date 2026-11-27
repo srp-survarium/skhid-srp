@@ -95,8 +95,6 @@ Not found.	Não encontrado.
 Too many wrong tokens; wait a minute.	Tokens errados demais; aguarde um minuto.
 Wrong token.	Token errado.
 No such user.	Usuário não encontrado.
-Silver and gold are whole numbers, + or -, or empty.	Prata e ouro são números inteiros, + ou -, ou vazio.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: agora {silver_now} de prata e {gold_now} de ouro.
 New accounts are taken again.	Novas contas voltaram a ser aceitas.
 New accounts are refused; existing players sign in as before.	Novas contas são recusadas; jogadores existentes entram normalmente.
 Maintenance cancelled.	Manutenção cancelada.
@@ -138,9 +136,8 @@ Q:	P:
 A:	R:
 If something goes wrong	Se algo der errado
 Download the files	Baixar os arquivos
-Download the game	Baixar o jogo
 The download link is coming soon.	O link de download chega em breve.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Não consegue baixar? Execute {script}: ele baixa o jogo inteiro para uma pasta Survarium ao lado dele.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	O Chrome ou o antivírus bloqueia o download? Experimente este script: {script}. Ele baixa o jogo inteiro para uma pasta Survarium ao lado dele.
 Get the game	Obtenha o jogo
 The link is coming soon.	O link chega em breve.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Obtenha o Survarium 0.26g original (build 2777) e extraia.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Execute o <code>Skhid.bat</cod
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	O Windows avisa sobre um editor desconhecido? Deixe executar.<br>Linux: <code>bash Skhid.sh launcher</code>, veja <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	O Windows avisa sobre um editor desconhecido? Deixe executar.<br>Linux: <code>bash Skhid.sh</code>, veja <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Execute o <code>play_skhid.bat</code> em <code>game\\binaries\\x86</code>.
-Start it with this command line:	Inicie o jogo com esta linha de comando:
-english	english
-server address	endereço do servidor
-language: english, russian, ukrainian	idioma: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (“leste” em ucraniano) é um servidor comunitário que permite ao cliente Survarium {version} entrar, negociar, formar esquadrões e jogar partidas de novo.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord do projeto: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Servidor em teste inicial.
@@ -167,7 +160,6 @@ How to play	Como jogar
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Baixe nossos arquivos e extraia-os em uma pasta vazia (ex.: D:\\Survarium). <b>Isso é feito só uma vez.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Baixe nossos arquivos e extraia-os na pasta do jogo, a que tem a pasta <code>game</code>, substituindo os arquivos. <b>Isso é feito só uma vez.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Baixe nossos arquivos e extraia-os por cima da pasta <code>game</code> do jogo.
-Download the patched game and unpack it.	Baixe o jogo já com o patch e extraia.
 Sign in with any name and password: a new name registers itself. Remember the password.	Entre com qualquer nome e senha: um nome novo se cadastra sozinho. Guarde a senha.
 New accounts are taken.	Novas contas são aceitas.
 Stop new registrations	Suspender novos cadastros
@@ -177,7 +169,6 @@ Shown once the token is right.	Aparece quando o token estiver certo.
 Password	Senha
 User name	Nome de usuário
 Silver, + or -	Prata, + ou -
-Gold, + or -	Ouro, + ou -
 Change	Alterar
 Admin	Admin
 Token	Token
@@ -407,6 +398,8 @@ Win rate	Taxa de vitórias
 Kills	Eliminações
 Deaths	Mortes
 K/D	K/D
+Kills/min	Eliminações/min
+Experience/min	Experiência/min
 Assists	Assistências
 Score	Pontuação	stats
 Avg score	Pontuação média
@@ -469,7 +462,6 @@ Nobody yet.	Ninguém ainda.
 Modes	Modos
 Every mode: its rules, numbers and maps.	Todos os modos: regras, números e mapas.
 Versions	Versões
-Public and private rooms	Salas públicas e privadas
 Public rooms only	Só salas públicas
 Private rooms only	Só salas privadas
 Not offered now	Não oferecido agora
@@ -503,7 +495,7 @@ A thaw counts as a kill.	Descongelar conta como um abate.
 A frozen player thaws by himself after {0}.	Um jogador congelado descongela sozinho após {0}.
 A team's last fighter shows on the enemies' map.	O último combatente de uma equipe aparece no mapa dos inimigos.
 Freeze the whole enemy team to win the round.	Congele toda a equipe inimiga para vencer a rodada.
-{0} s pause between rounds, then everyone respawns.	{0} s de pausa entre rodadas, depois todos renascem.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} s após o fim da rodada, depois todos renascem e esperam {1} s nos pontos de surgimento.
 First to {0} rounds wins.	Vence a primeira equipe a ganhar {0} rodadas.
 Time limit {0}: an unfinished series is a draw.	Limite de tempo {0}: uma série incompleta é empate.
 One artefact at a time, {0}–{1} s into a round.	Um artefato por vez, {0}–{1} s após o início da rodada.
@@ -511,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Leve-o à sua base: 1 po
 The carrier is slower and seen by everyone.	O portador fica mais lento e visível para todos.
 Respawn in waves every {0} s.	Renascimento em ondas a cada {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Limite de tempo {0}: vence o placar maior; no empate, {1} de morte súbita sem renascimento.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Fuzis de precisão, armas com silenciador e armas sem tiro automático são substituídos.
-Rooms up to level {0}: {1}.	Salas até o nível {0}: {1}.
-Other rooms: {0}.	Outras salas: {0}.
-Sight: {0}.	Mira: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Todos lutam com fuzis de assalto: fuzis de precisão, armas com silenciador e armas sem tiro automático são trocados por um {0} (salas até o nível {1}) ou um {2} (salas mais altas).
+Each comes with an {0}.	Cada um vem com {0}.
+a revolver	um revólver
+a lever-action rifle	um rifle de alavanca
 Every kit: {0} only.	Todo kit: só {0}.
 Every kit: {0} and {1}.	Todo kit: {0} e {1}.
 Everyone plays the same {0} random kits.	Todos jogam com os mesmos {0} kits aleatórios.
@@ -522,7 +514,490 @@ Level bands: {0}.	Faixas de nível: {0}.
 A room draws bands up to its level.	Uma sala sorteia faixas até o seu nível.
 Each kit a gun of another class, with random bonuses and attachments.	Cada kit com uma arma de outra classe, com bônus e acessórios aleatórios.
 {0} % of deals: pistols only.	{0} % das distribuições: só pistolas.
-Nothing of yours is used or spent.	Nada seu é usado ou gasto.
 Plain FFA: {0} % of FFA cards.	FFA normal: {0} % das cartas de FFA.
 {0} % of FFA cards.	{0} % das cartas de FFA.
 FFA: Roulette	FFA: Roleta
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Buscar armas
+No weapons match.	Nenhuma arma encontrada.
+lvl {n}	nív. {n}
+Search…	Buscar…
+Search items	Buscar itens
+No items match.	Nenhum item encontrado.
+s	s	unit
+Search rounds	Buscar munições
+No rounds match.	Nenhuma munição encontrada.
+shots	tiros
+up	cima
+side	lado
+spread	dispersão
+Play	Reproduzir
+Pause	Pausar
+Recoil and spread	Recuo e dispersão
+Weapon {side}	Arma {side}
+Choose a weapon…	Escolha uma arma…
+Round	Munição
+Clear	Limpar	list
+Choose a weapon; a second one to compare.	Escolha uma arma; e uma segunda para comparar.
+Aim	Mira
+From the hip	Da cintura
+Aiming in	Mirando
+Fully aimed	Mira completa
+Stance	Postura
+Standing	Em pé
+Walking	Andando
+Crouching	Agachado
+Crouch-walking	Andando agachado
+Sprinting	Correndo
+Jumping	Pulando
+Broken arms	Braços quebrados
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Dispersão da cintura {v} por rank, inclusive correndo e pulando. Não ao mirar.
+No effect fully aimed.	Sem efeito com a mira completa.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Dispersão ao andar {v} por rank, da cintura ou mirando. Não andando agachado.
+Spread from broken arms {v} per rank.	Dispersão com braços quebrados {v} por rank.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Faixas de recuo desta arma, para cima e para os lados. Não inclui o tremor da câmera.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	A dispersão base desta arma, em todo tiro: toda a dispersão com a mira completa, pouco dela da cintura. Não a dispersão da postura nem a de um tiro.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Dispersão da postura e de cada tiro. Sem efeito correndo, pulando ou com a mira completa.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Recuo de cada tiro com qualquer arma: para cima, para os lados e o tremor da câmera.
+Base	Base
+A shot	Por tiro
+At most	Máximo
+Vertical kick	Recuo vertical
+game units	unidades do jogo
+Horizontal kick	Recuo horizontal
+Trigger	Gatilho
+Hold	Segurar
+Click, {n} a second	Clicar, {n} por segundo
+Sample seed	Semente da amostra
+Spread	Dispersão
+degrees	graus
+Last shot	Último tiro
+Reset	Redefinir
+Timeline	Linha do tempo
+Crosshair	Mira
+degrees of view	graus de visão
+Target	Alvo
+None	Nenhum
+Enemy at {m} m	Inimigo a {m} m
+Recoil parameters are unavailable for this selection.	Parâmetros de recuo indisponíveis para esta seleção.
+Rounds	Munições
+Sniper rifle	Rifle de precisão
+Submachine gun	Submetralhadora
+Pistol	Pistola
+Shotgun	Escopeta
+Assault rifle	Rifle de assalto
+Machine gun	Metralhadora
+Skhid revision {revision}	Skhid, revisão {revision}
+Stat	Atributo
+Better	Melhor
+Worse	Pior
+weapons	armas	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Compare armas ou expanda uma linha para ver dano, manuseio, precisão, recuo e balanço da mira.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Valores com a munição escolhida, começando pela padrão da arma. Modificações e bônus do personagem não são considerados. O card do jogo mostra o maior dano e a maior penetração entre todas as munições da arma.
+Find a weapon	Encontrar arma
+Weapon class	Classe da arma
+All classes	Todas as classes
+Damage: high to low	Dano: do maior ao menor
+Fire rate: high to low	Taxa de fogo: da maior à menor
+Compare weapons	Comparar armas
+Only differences	Só as diferenças
+Color better / worse values	Colorir valores melhores / piores
+Recoil and spread →	Recuo e dispersão →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Escolha duas armas para comparar. Valores iguais e características neutras mantêm a cor normal.
+No differences in the displayed stats.	Nenhuma diferença nos atributos exibidos.
+m	m	unit
+kg	kg	unit
+Single shot	Disparo único
+Damage & range	Dano e alcance
+Damage	Dano
+Armor penetration	Penetração
+Full damage up to	Dano total até
+Minimum damage from	Dano mínimo a partir de
+Minimum damage retained	Dano mínimo retido
+Stopping power	Poder de parada
+Stamina damage	Dano à estamina
+Firing & handling	Disparo e manuseio
+rpm	tiros/min	unit
+Fire rate	Taxa de fogo
+Magazine capacity	Capacidade do carregador
+Reload time	Tempo de recarga
+Aim time	Tempo de mira
+Draw time	Tempo para sacar
+Holster time	Tempo para guardar
+Movement speed modifier	Modificador de velocidade de movimento
+Base aim zoom	Zoom base da mira
+Fire modes	Modos de disparo
+Accuracy & spread	Precisão e dispersão
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Os valores de dispersão usam as unidades do próprio jogo. Os parâmetros de aumento e recuperação aparecem sem avaliação de melhor/pior.
+Base dispersion	Dispersão base
+Hip-fire spread multiplier	Multiplicador da dispersão da cintura
+Spread added per shot	Dispersão por tiro
+Spread limit	Limite de dispersão
+Spread growth parameter	Parâmetro de aumento da dispersão
+Spread recovery parameter	Parâmetro de recuperação da dispersão
+Recoil	Recuo
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Recuo base em unidades do jogo, não em graus. O recuo horizontal é direita menos esquerda; a variação é o seu desvio padrão. Estes valores não descrevem uma rajada inteira.
+Base vertical kick range	Faixa do recuo vertical base
+Horizontal kick range	Faixa do recuo horizontal
+Horizontal kick variability	Variação do recuo horizontal
+Horizontal bias (− left / + right)	Tendência horizontal (− esquerda / + direita)
+Recoil accumulation exponent	Expoente de acúmulo do recuo
+Recovery response (P)	Resposta da recuperação (P)
+Recovery accumulation (I)	Acúmulo da recuperação (I)
+Recovery damping (D)	Amortecimento da recuperação (D)
+Aim sway	Balanço da mira
+Horizontal sway	Balanço horizontal
+Vertical sway	Balanço vertical
+Aim sway period	Período do balanço da mira
+Magazine	Carregador
+Set as weapon A	Definir como arma A
+Set as weapon B	Definir como arma B
+Automatic	Automático
+{m}-round burst	Rajada de {m} tiros
+pellets	bagos
+No weapons match. Try another name or class.	Nenhuma arma encontrada. Tente outro nome ou classe.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Esquerda	direction
+Right	Direita	direction
+Back	Trás	direction
+where it aims as the shot moves it	para onde mira com o tiro
+from the side, the bullet from the eye along the view	de lado: a bala do olho ao longo da visão
+custom	personalizada
+Up	Cima
+Side	Lado
+Rate	Taxa
+Power	Expoente
+Camera wobble	Balanço da câmera
+Gun kick	Coice da arma
+Custom gun	Arma personalizada
+Speed	Velocidade
+bullet	bala
+sight	mira
+hit	acerto
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pontos	skills
+matches	partidas	skills
+h	h	unit
+Tap a skill, then + or −.	Toque em uma habilidade e depois em + ou −.
+Click a skill to add a rank, right-click to take one back.	Clique em uma habilidade para somar um rank; clique direito para tirar.
+{n} point	{n} ponto	one
+{n} points	{n} pontos	few
+{n} points	{n} pontos	many
+Maximum:	Máximo:
+or	ou	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Pontos de reaparecimento
+Battery spawns	Surgimento de baterias
+Chargers	Carregadores
+Containers	Recipientes
+Research units	Unidades de pesquisa
+Ammo stashes	Reabastecimento de munição
+Survarium maps	Mapas de Survarium
+chargers	carregadores
+Minimap	Minimapa
+From above	Visto de cima
+{n} active	{n} ativos
+{n} batteries to win.	{n} baterias para vencer.
+team {n}	time {n}
+any team	qualquer time
+Ammo stash	Reabastecimento de munição
+Container	Recipiente
+Battery spawn	Surgimento de bateria
+Charger	Carregador
+Research unit	Unidade de pesquisa
+Spawn	Reaparecimento
+Glow of the Forest	Brilho da Floresta
+Bases	Bases
+Base	Base	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Pés	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	ativo
+passive	passivo
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Dano ×{damage}, penetração ×{pierce}, antes da armadura: com penetração menor, a armadura bloqueia mais.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} recebe ×{k} por {s} s após o uso (faz efeito em {delay} s).
+Inside an anomaly: damage ×{k}, before armour.	Dentro de uma anomalia: dano ×{k}, antes da armadura.
+This weapon takes no damage bonuses.	Esta arma não recebe bônus de dano.
+Comes with the weapon; cannot be changed.	Vem com a arma; não pode ser alterado.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Um item tem no máximo 3 modificações. Bônus no mesmo atributo se somam antes de valer.
+This item takes no armour bonuses.	Este item não recebe bônus de armadura.
+Nothing worn covers the {part}.	Nada vestido protege: {part}.
+Drugs	Medicamentos
+Assault rifles	Rifles de assalto
+Submachine guns	Submetralhadoras
+Shotguns	Escopetas
+Bolt-action & sniper rifles	Rifles de ferrolho e de precisão
+Pistols & revolvers	Pistolas e revólveres
+Helmet	Capacete
+Mask	Máscara
+Jacket	Jaqueta
+Gloves	Luvas
+Trousers	Calças
+Boots	Botas
+Backpack	Mochila
+Chest & neck	Peito e pescoço
+Right arm	Braço direito
+Left arm	Braço esquerdo
+Right hand	Mão direita
+Left hand	Mão esquerda
+Right leg	Perna direita
+Left leg	Perna esquerda
+Right foot	Pé direito
+Left foot	Pé esquerdo
+Body	Corpo
+Pain	Dor
+Infection	Infecção
+death	morte
+bleeding	sangramento
+concussion	concussão
+hand injury	ferimento na mão
+leg injury	ferimento na perna
+infection	infecção
+blindness	cegueira
+Search	Buscar
+— none —	— nenhum —
+nothing worn	nada vestido
+back	costas
+front	frente
+after shot	após o tiro
+of	de
+dead	morto
+Glass	Vidro
+Car	Carro
+Plywood	Compensado
+Tinplate	Chapa fina
+Brick, steel	Tijolo, aço
+Concrete	Concreto
+Stone	Pedra
+<none>	<nenhuma>
+armour	armadura
+{n} left	restam {n}
+damage	dano
+penetration	penetração
+full damage to	dano total até
+minimum from	mínimo a partir de
+minimum	mínimo
+muzzle	velocidade inicial
+rate	taxa de fogo
+magazine	carregador
+Gets through: k {k}, D {D} · P {P}.	Atravessa: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Não atravessa: penetração {P}, armadura {A}.
+here	aqui
+not here	não aqui
+taken by {item}	ocupado por {item}
+Covers the {part}.	Protege: {part}.
+Does not cover the {part}.	Não protege: {part}.
+Click to aim at the {part}.	Clique para mirar: {part}.
+aim at the {part}	mirar: {part}
+Full damage at this range.	Dano total nesta distância.
+Fully fallen off: minimum damage.	Queda completa: dano mínimo.
+Falling off: {share} of the way from minimum to full.	Em queda: {share} do caminho do mínimo ao total.
+Orange band: damage falls from {from} m to {to} m.	Faixa laranja: o dano cai de {from} m a {to} m.
+per shot (all pellets)	por tiro (todos os bagos)
+per hit	por acerto
+{pool} damage {per}	{pool}: dano {per}
+of {n} {pool} left	de {n} restantes ({pool})
+of {n} {pool}	de {n} ({pool})
+Hits to kill	Acertos para matar
+dies when {pool} reaches 0	morre quando {pool} chega a 0
+this shot cannot kill	este tiro não mata
+Time to kill	Tempo para matar
+every shot lands, no reload	todos os tiros acertam, sem recarga
+Leaves the barrel	Sai do cano
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Dano da arma × <code>k_damage</code> da munição, penetração da arma × <code>k_arp</code> da munição.
+Each of the {n} pellets carries this.	Cada um dos {n} bagos leva isto.
+Flies {m} m	Percorre {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Velocidade {v0} → {v} m/s. O dano vai do total ({full}) ao mínimo ({min}) conforme a velocidade entre {from} e {to} m: aqui {share}. A penetração se mantém.
+Through {wall}	Através de {wall}
+stopped	bloqueado
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Penetração {P}, armadura {A}. Dano, penetração e velocidade × k; depois o dano não passa do valor a {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Penetração {P} não é maior que a armadura {A}: a bala para.
+No armour here, the full amount goes in.	Sem armadura aqui: passa tudo.
+Armour {A} is not above penetration {P}: nothing is stopped.	Armadura {A} não é maior que a penetração {P}: nada é bloqueado.
+Armour exceeds penetration by a full 100: the bullet does nothing.	A armadura supera a penetração em 100 inteiros: a bala não faz nada.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Armadura {A} − penetração {P} = {gap}% do dano bloqueado.
+Hits {part}	Acerta: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Todo acerto, em qualquer lugar, também drena a reserva comum de dor. Dor em 0 mata.
+Body at 0 kills.	Corpo em 0 mata.
+Head holds only 40: at 0 it kills, below 20 it concusses.	A cabeça tem só 40: em 0 mata, abaixo de 20 causa concussão.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Membros não matam sozinhos: um membro zerado fica ferido, e a dor que ele causa pode matar.
+Second chance	Segunda chance
+The skill leaves the target alive once.	A habilidade mantém o alvo vivo uma vez.
+× {n} pellets	× {n} bagos
+Each pellet is its own bullet: when several land, their damage adds up.	Cada bago é uma bala própria: quando vários acertam, o dano se soma.
+kills	mata
+breaks	quebra
+below	abaixo
+empty	zerado
+movement	movimento
+shot	tiro
+Damage over distance	Dano por distância
+after armour	após a armadura
+Body part	Parte do corpo
+Stopped	Bloqueado
+Limb	Membro
+Also	Também
+injury	ferimento
+best ammo	melhor munição
+default ammo	munição padrão
+Ammo	Munição
+Pen. here	Pen. aqui
+Damage / hit	Dano / acerto
+RPM	Tiros/min
+Bullet	Bala
+D, P = weapon × ammo, D falling with distance	D, P = arma × munição, D caindo com a distância
+{n} pellets	{n} bagos
+Wall	Parede
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: a bala fica na parede · senão D, P × (1 − (A / P)²)
+stays in the wall	fica na parede
+each	cada
+rank	rank
+inside an anomaly	dentro de uma anomalia
+D × (1 − (armour − P) / 100)	D × (1 − (armadura − P) / 100)
+{part}, armour {A} − P {P}	{part}, armadura {A} − P {P}
+Pools	Reservas
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	peito, costas → corpo · cabeça, rosto → cabeça · perna, pé → perna · braço, mão → mão
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 peito, cabeça, braços · 0.9 pernas · 0.8 mãos, pés
+Death	Morte
+body, head or pain at 0	corpo, cabeça ou dor em 0
+{n} hits	{n} acertos
+at 0	em 0
+does not kill	não mata
+wall armour	armadura da parede
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Uma bala por várias partes: cada reserva perde só o maior acerto, não a soma (mãos 40 + 40, peito 35 → dor −40, não −115).
+full	total
+fixed	curado
+{s} s without hits	{s} s sem acertos
+By itself	Por si só
+ends after {s} s without hits	termina após {s} s sem acertos
+carried	no slot
+activated	ativado
+at once, every {s} s	de uma vez, a cada {s} s
+{delay} s after use, for {s} s	{delay} s após o uso, por {s} s
+stops at {n}	até {n}
+From empty to full	Do zero ao total
+Leg or hand	Perna ou mão
+No Larkspur	Sem Espora
+Starts	Começa
+Legs, hands	Pernas, mãos
+Broken leg, hand	Perna ou mão quebrada
+Top-down view of	Vista de cima de
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} na horizontal, {sign}{height} na altura). Clique de novo para recomeçar.
+Now click the target.	Agora clique no alvo.
+Click the shooter, then the target.	Clique no atirador, depois no alvo.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Anel laranja: dano total até {from} m; tracejado: mínimo a partir de {to} m.
+health shown ×100 (body 100, head 40)	vida mostrada ×100 (corpo 100, cabeça 40)
+Shooter	Atirador
+fires	dispara
+Distance to target	Distância até o alvo
+Wall in front of the target	Parede na frente do alvo
+Weapon bonuses	Bônus da arma
+— — HIT — →	— — ACERTO — →
+takes the hit	recebe o acerto
+Current pain	Dor atual
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Dor que o alvo já tem de acertos anteriores. Ela cai até zero, 10 por segundo, depois de 8 s sem acertos.
+Armour bonuses	Bônus da armadura
+Artefacts, drugs & skills	Artefatos, medicamentos e habilidades
+Measure on a map	Medir no mapa
+Clear points	Limpar pontos
+bullet before armour	bala antes da armadura
+after this armour	após esta armadura
+Every body part, this shot	Cada parte do corpo, este tiro
+Every weapon against this target	Todas as armas contra este alvo
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Mesma distância, parede, parte do corpo, armadura e efeitos no alvo. Cada arma usa a melhor munição para este alvo, a menos que você escolha "munição padrão". Clique numa linha para carregar essa arma.
+Formula	Fórmula
+Healing	Cura
+Previous shot	Tiro anterior
+Next shot	Próximo tiro
+Damage calculator	Calculadora de dano do Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Cada artefato: o que dá carregado e ativado, como as cópias se acumulam, onde é encontrado.
+Artefact	Artefato
+Passive	Passivo
+Active	Ativo
+Active time	Duração
+Cooldown	Recarga
+Skill	Habilidade
+Rules	Regras
+Movement speed	Velocidade de movimento
+Stamina regeneration	Regeneração de energia
+Stamina use	Consumo de energia
+Slowdown from hits	Lentidão por acertos
+Against	Contra
+Body parts	Partes do corpo
+Penetration	Penetração
+Health	Vida
+Cures injuries	Cura ferimentos
+Regeneration	Regeneração
+Regeneration delay	Atraso da regeneração
+Regenerates up to	Regenera até
+HP	HP	unit
+Carried in a container: passive. A death leaves them in that kit.	Num contêiner: passivo. Após a morte ficam nesse kit.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Uma tecla ativa todas as cópias prontas do seu tipo e reinicia a recarga das que ainda estão recarregando.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Cópias de um tipo se somam (o passivo do Ônix se multiplica); contam no máximo 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	O ativo da Fonte e da Espora soma-se ao passivo; o do Ônix o substitui.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Ônix ativados juntos: uma redução, 1 s a mais por cópia extra.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalias
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Os artefatos vêm das anomalias. Cada anomalia coloca um dos seus artefatos em um dos seus recipientes livres, um por janela de tempo, até que o seu máximo esteja à espera de coleta; uma coleta reinicia a janela. Ela só dá os seus artefatos que nenhum jogador está carregando. Aponte para uma anomalia ou um artefato (ou toque nele) para ver os números dela.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Contém
+First one	Primeiro
+Then every	Depois a cada
+Chance	Chance
+Max uncollected	Máx. não coletados
+Search	Busca	artefact
+Zones switch every	Zonas alternam a cada
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Após uma coleta, o próximo vem {next} depois; esse recipiente fica vazio por {cooldown}.
+Its own zone does no damage.	A própria zona dela não causa dano.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Revistar um recipiente leva {search}; após uma coleta ele fica vazio por {cooldown}.
+After a pickup the next one comes {next} later.	Após uma coleta, o próximo vem {next} depois.
+whole body	corpo inteiro
+{n} % a hit, at most every {t}	{n} % por acerto, no máximo a cada {t}
+deadly	mortal
+{n} % a second	{n} % por segundo
+Damage is a share of each body part's health, before armour.	O dano é uma parte da vida de cada parte do corpo, antes da armadura.
+It gives no artefacts.	Ela não dá artefatos.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Últimos 7 dias
+Last 24 hours	Últimas 24 horas
+Avg length	Duração média
+Sides	Lados
+No result	Sem resultado
+Share	Parcela
+Trend	Tendência
+by hour	por hora
+by day	por dia
+by week	por semana
+Most played maps and modes	Mapas e modos mais jogados
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Pegue a Bateria
+Protective device: chargers	Pegue a Bateria: carregadores
+Team Deathmatch	Mata-Mata em Equipe
+Research	Captura de Ponto
+Protective device: blackout	Pegue a Bateria: blecaute
+Free for all	Todos contra Todos
+Freeze Tag	Pique-Congela
+Artifact Hunt	Caça ao Artefato
+FFA: Racket	FFA: Bagunça
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Modo {0}
+day	dia	weather
+rain	chuva	weather
+evening	entardecer	weather
+night	noite	weather
+before rain	antes da chuva	weather
+Weathers	Climas
+Variants	Variantes

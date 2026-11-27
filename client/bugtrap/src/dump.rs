@@ -513,6 +513,8 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
     if request.crash {
         PHASE.store(CRASH_CLOSED, Ordering::Release);
     }
+    // Older crashes' files: each folder keeps its newest ten (crash_files.rs).
+    prune_folders();
     if !library.is_null() {
         FreeLibrary(library);
     }
@@ -534,4 +536,55 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
         }
     }
     if request.saved { 0 } else { error }
+}
+
+/// [`prune`] beside the exe and in the temporary folder, each alone.
+unsafe fn prune_folders() {
+    let mut folder = folder();
+    prune(&mut folder);
+    let n = GetTempPathW(folder.buf.len() as u32, folder.buf.as_mut_ptr()) as usize;
+    if n > 0 && n < folder.buf.len() {
+        folder.len = n;
+        prune(&mut folder);
+    }
+}
+
+/// Deletes the files of `folder`'s crashes past its newest
+/// [`crate::crash_files::KEEP`] and its `.zip.part` leftovers, none of this
+/// process: one listing of `SRP-crash-*`, no subfolder. Only after this
+/// crash's files are closed; a file Windows does not delete (open,
+/// read-only) is passed over, and any error ends it quietly. `folder` is
+/// left as it was.
+unsafe fn prune(folder: &mut Wide<32768>) {
+    let len = folder.len;
+    if len == 0 || write!(folder, "SRP-crash-*").is_err() {
+        folder.truncate(len);
+        return;
+    }
+    let mut files = crate::crash_files::Folder::new();
+    let mut data: WIN32_FIND_DATAW = core::mem::zeroed();
+    let find = FindFirstFileW(folder.ptr(), &mut data);
+    if find != INVALID_HANDLE_VALUE {
+        loop {
+            if data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)
+                == 0
+            {
+                let n = data.cFileName.iter().position(|&c| c == 0).unwrap_or(0);
+                let written = (data.ftLastWriteTime.dwHighDateTime as u64) << 32
+                    | data.ftLastWriteTime.dwLowDateTime as u64;
+                files.add(&data.cFileName[..n], written);
+            }
+            if FindNextFileW(find, &mut data) == 0 {
+                break;
+            }
+        }
+        FindClose(find);
+        for found in files.going(GetCurrentProcessId()) {
+            folder.truncate(len);
+            if write!(folder, "{}", found.file).is_ok() {
+                DeleteFileW(folder.ptr());
+            }
+        }
+    }
+    folder.truncate(len);
 }

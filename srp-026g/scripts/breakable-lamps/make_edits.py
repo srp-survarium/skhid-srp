@@ -74,6 +74,33 @@ GLASS = TUBE_GLASS | LANTERN_GLASS
 # with glass; on its own it is scenery.
 HOUSINGS = {prefix + 'props/light/lamp_midle_04' for prefix in ('',) + LONDON_PREFIXES} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
+# Glass that is no lamp: School's vodka bottles, each a fixture of its own
+# with its one intact visual (make_bottles.py), outside the lamp rule above,
+# which would merge bottles lying side by side into one fixture.
+BOTTLES = {prefix + 'props/kitchen/bottle_vodka' for prefix in PORT_PREFIXES}
+# A broken bottle's shards (scripts/bottle-shards, pack bottle-shards@1): the
+# loose pieces of its row, kind 'shard', placed as the bottle but at each
+# one's centre. School's bottles (stock and the v0.21 port) have them.
+SHARDS = 8
+# The most loose pieces a project's table may have: the client's MAX_PIECES
+# and its registry's MAX_LOOSE (lamps/model.rs, vostok/project.rs), past
+# which it refuses the map at its load.
+MAX_PIECES = 32
+BOTTLE_SHARDS = {prefix + 'props/kitchen/bottle_vodka':
+                 [prefix + f'props/kitchen/srp_bottle_vodka_shard{k}' for k in range(SHARDS)]
+                 for prefix in ('', 'ported/v021d/')}
+# Figures with a loose piece (scripts/skeleton-cap): the sitting skeleton and
+# its cap. A figure's row is its piece's (its bounds, what a shot or a blast
+# must reach); its broken model is the figure without the piece, placed as
+# it; the piece (the row's `loose`) is a model of its own, placed as the
+# figure but at the piece's centre, inside the row's bounds. Not in PARTS:
+# the lamp rule never makes a fixture of them. A table of figures says
+# leftover 'body' (the client marks the figure's collision once broken),
+# one of lamps leaves it out (their glass's stays: never marked).
+FIGURE_FOLDERS = ('character/human/static/remains/', 'ported/v021d/character/human/static/remains/',
+                  'v069d_rudnya/character/human/static/remains/')
+FIGURES = {folder + 'skeleton_sitting1': (folder + 'srp_skeleton_sitting1_bare', folder + 'srp_skeleton_sitting1_cap')
+           for folder in FIGURE_FOLDERS}
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
 # triangles make_pack.py drops: lamp_midle_0N y -0.099..-0.055, lamp_big_01
@@ -391,11 +418,20 @@ def author(path, data, bounds, break_material, effect_material, cubemap=None, da
                                    'replaces': carried is not None}
 
 
+def model_name(v):
+    """A render visual's model: its visual_name, or (the v0.69 ports' maps
+    have none) its lib_name."""
+    return v.get('visual_name', v.get('lib_name', ''))
+
+
 def check_built(path, data):
     """Problems of a built client_project's srp_lamps against the file itself:
     each visual index names its role's model (intact: a breakable lamp inside
-    its row's bounds; broken: that lamp's broken model, placed as it; cone: a
-    light shaft), each light position is exactly one light of the map, each
+    its row's bounds, or a figure; broken: that lamp's broken model, or the
+    figure's bare one, placed as it; cone: a light shaft; loose: the figure's
+    piece or a bottle's shard, of its kind, turned as it, unscaled and inside
+    the row's bounds; at most MAX_PIECES in all), the table's leftover
+    'body' exactly when its fixtures are figures, each light position is exactly one light of the map, each
     ambient light position exactly one ambient light and each particle
     position exactly one particle object, each probe position exactly one
     environment probe (what the client binds; a later edit list or a
@@ -407,27 +443,43 @@ def check_built(path, data):
     placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
               for kind in ('light', 'ambient_light', 'particle', 'environment_probe')}
     problems = []
+    broken_of = REPLACEMENTS | {figure: models[0] for figure, models in FIGURES.items()}
     for name, row in root['srp_lamps']['lamps'].items():
-        def visual(key):
-            index = row['visuals'][key]['index']
+        def visual(key, table='visuals'):
+            index = row[table][key]['index']
             return visuals[index] if 0 <= index < len(visuals) else None
+
+        def inside(v):
+            return all(row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
         for key in row['visuals']:
             v, role = visual(key), key.rstrip('0123456789')
-            model = v.get('visual_name', '') if v else None
+            model = model_name(v) if v else None
             if v is None:
                 ok = False
             elif role == 'intact':
-                ok = (model in REPLACEMENTS or model in GLASS) and all(
-                    row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
+                ok = model in FIGURES or ((model in REPLACEMENTS or model in GLASS or model in BOTTLES) and inside(v))
             elif role == 'broken':
                 intact = visual('intact' + key[len(role):])
-                ok = intact is not None and intact.get('visual_name') in REPLACEMENTS and \
-                    model == REPLACEMENTS[intact['visual_name']] and \
+                ok = intact is not None and model_name(intact) in broken_of and \
+                    model == broken_of[model_name(intact)] and \
                     all(v[k] == intact[k] for k in ('position', 'rotation', 'scale'))
             else:
                 ok = role == 'cone' and (model == LEGACY_CONE or model.endswith('props/light/cone_light_volume'))
             if not ok:
                 problems.append(f'{path}: {name} {key}: render_visuals[{row["visuals"][key]["index"]}] is {model!r}')
+        pieces_of = {figure: ([models[1]], 'headwear') for figure, models in FIGURES.items()} \
+            | {bottle: (shards, 'shard') for bottle, shards in BOTTLE_SHARDS.items()}
+        figures = [visual(key) for key in row['visuals'] if key.startswith('intact')]
+        figures = [v for v in figures if v is not None and model_name(v) in pieces_of]
+        for key, piece in row.get('loose', {}).items():
+            v = visual(key, 'loose')
+            ok = v is not None and len(figures) == 1 and model_name(v) in pieces_of[model_name(figures[0])][0] \
+                and piece.get('kind', 'headwear') == pieces_of[model_name(figures[0])][1] \
+                and all(v[k] == figures[0][k] for k in ('rotation', 'scale')) and inside(v) \
+                and all(abs(s - 1) < 0.01 for s in v['scale'])     # the client's seat is rigid (2 %)
+            if not ok:
+                model = model_name(v) if v else None
+                problems.append(f'{path}: {name} loose {key}: render_visuals[{row["loose"][key]["index"]}] is {model!r}')
         for end in ('from', 'to'):
             if not all(row['min_' + a] - 1e-3 <= row[f'glass_{end}_{a}'] <= row['max_' + a] + 1e-3 for a in 'xyz'):
                 problems.append(f'{path}: {name}: its glass line leaves its bounds')
@@ -438,6 +490,15 @@ def check_built(path, data):
                 found = sum(p == [light['x'], light['y'], light['z']] for p in placed[kind])
                 if found != 1:
                     problems.append(f'{path}: {name} {key}: {found} {what} of the map at its position')
+    intact = [model_name(visuals[v['index']]) for row in root['srp_lamps']['lamps'].values()
+              for key, v in row['visuals'].items() if key.startswith('intact') and 0 <= v['index'] < len(visuals)]
+    pieces = sum(len(row.get('loose', {})) for row in root['srp_lamps']['lamps'].values())
+    if pieces > MAX_PIECES:
+        problems.append(f'{path}: {pieces} loose pieces, more than the client binds ({MAX_PIECES})')
+    kinds = {'body' if name in FIGURES else 'glass' for name in intact}
+    leftover = root['srp_lamps'].get('leftover', 'glass')
+    if kinds != {leftover}:
+        problems.append(f'{path}: leftover {leftover!r} for fixtures of {sorted(kinds)}')
     return problems
 
 

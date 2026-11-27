@@ -869,7 +869,10 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// The life whose death and whose removal each place's line last said: a
 /// rollback runs both hooks again at each tick it simulates again, the same
-/// death or removal at another time, and its line is said once a life.
+/// death or removal at another time, and its line is said once a life. A
+/// death's breadcrumb is recorded once a life too: recorded at every pass, one
+/// death filled the crash report's ring 10 to 18 times (2026-11-26's report:
+/// 864 of its 901 events).
 static DEATHS_SAID: GameCell<[Option<u32>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
 static REMOVALS_SAID: GameCell<[Option<u32>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
 
@@ -896,8 +899,8 @@ fn first_line<K: Copy + PartialEq>(said: &GameCell<[Option<K>; PLACES as usize]>
 /// is there (a rollback replaying the death). The ragdoll draws the gun in
 /// its hands; the prompt's box is the copy's, the same gun.
 pub fn died(player: &Player<'_>, thread: &Thread) {
-    breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
     if first_line(&DEATHS_SAID, thread, usize::from(player.place()), player.spawned()) {
+        breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
         log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
               Text(" at "), Dec(player.time()), Text(" ms")]);
     }

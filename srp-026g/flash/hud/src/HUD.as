@@ -46,13 +46,16 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.ArtefactHuntLook;
    import survarium.modes.ArtefactHuntRow;
    import survarium.modes.ArtefactHuntState;
    import survarium.modes.FfaProgress;
    import survarium.modes.FrozenPlaces;
+   import survarium.modes.RevealedPlaces;
    import survarium.constants.UiSound;
    import survarium.modes.RoundFade;
    import survarium.modes.ModeNotice;
+   import survarium.modes.RevealNotice;
    import survarium.modes.ModeIntroText;
    import flash.utils.getTimer;
    import survarium.controls.KeptLayer;
@@ -153,7 +156,11 @@ package
          var freeze:Boolean = this._gameType == 12 && this._freezeContext != null;
          var context:Object = freeze ? this._freezeContext : this._nativeContext;
          var offer:Boolean = !freeze && this._artefactOfferKey.length != 0;
-         this.contextInfo.visible = (offer || freeze) ? !this._chatTyping && !this._profilePanel.visible : context.visible;
+         // An artefact offer waits under the kits; Freeze Tag's line does not: the pause shows its
+         // kits and its countdown at once (the owner, 2026-11-22: "timer in freeze tag disappeared
+         // when round is finished").
+         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible
+            : freeze ? !this._chatTyping : context.visible;
          if(!this.contextInfo.visible) return;
          var value:int = offer ? 0 : context.value;
          var frame:int = value == 0 ? 1 : 2;
@@ -256,7 +263,7 @@ package
 
       // Artifact Hunt (mode 13, docs/notes/artefact_hunt.md "HUD calls"): the teams' points in Team
       // Deathmatch's bars as Research's, the artefact under them (huntRow), the bases, the artefact and
-      // the carrier on the minimaps, his row in the Tab list, the round's fade (roundFade); all of it
+      // the carrier on the minimaps, the round's fade (roundFade); all of it
       // from the last root.artefact_hunt_update (_hunt) and the time since.
       protected const GAME_MODE_ARTEFACT_HUNT:uint = 13;
 
@@ -443,7 +450,8 @@ package
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
-         huntRow = new ArtefactHuntRow(new DefaultLabel3().textField,new SrvContextInfoPregame().contextText);
+         huntRow = new ArtefactHuntRow(new DefaultLabel3().textField,new SrvContextInfoPregame().contextText,
+            function():DisplayObject { return progress_indicator.match_time_2_tdm; });
          addChild(this.huntRow);
          voiceSpeakers = new VoiceSpeakers();
          addChild(this.voiceSpeakers);
@@ -651,12 +659,18 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
+      // Freeze Tag: the popups of a last one fighting's reveal (freeze_tag_reveal), and the text of
+      // the one shown (null: none of ours).
+      private var _revealNotice:RevealNotice = new RevealNotice();
+      private var _revealPopup:String = null;
       private var _freezeContext:Object = null;
 
       private static const FREEZE_BAR_WIDTH:Number = 120;
       private var _freezeWasFrozen:Boolean = false;
       // Freeze Tag: the places frozen now (freeze_tag_rows), which the Tab list and both maps show.
       private var _frozen:FrozenPlaces = FrozenPlaces.NONE;
+      // Freeze Tag: the places revealed now (freeze_tag_revealed), an enemy of them marked on the maps (showRevealed).
+      private var _revealed:RevealedPlaces = RevealedPlaces.NONE;
       private var _pregameText:String = "";
 
       // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
@@ -669,6 +683,17 @@ package
       }
 
       // After each change of the notice: shown, it is placed now and every frame until it ends.
+      // The top of what goes under the match timer: the pregame countdown's and the timer's bottom.
+      private function underTimer() : Number
+      {
+         var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
+            this.pregameInfo.getBounds(this).bottom : 0;
+         var timer:DisplayObject = this.matchTime() as DisplayObject;
+         if(timer != null)
+            bottom = Math.max(bottom,timer.getBounds(this).bottom);
+         return bottom;
+      }
+
       private function followModeNotice() : void
       {
          if(!this._modeNotice.shown)
@@ -676,13 +701,15 @@ package
             removeEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
             return;
          }
-         var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
-            this.pregameInfo.getBounds(this).bottom : 0;
-         var timer:DisplayObject = this.matchTime() as DisplayObject;
-         if(timer != null)
-            bottom = Math.max(bottom,timer.getBounds(this).bottom);
-         this._modeNotice.place(this.stageWidth,bottom);
+         this._modeNotice.place(this.stageWidth,this.underTimer());
          addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
+      }
+
+      // Exe patch 214, at each match's start after reset: whether this match shows its mode's notice
+      // (the account's first three matches of the mode; never in a replay). Until told, a notice waits.
+      public function mode_notice(shown:Boolean) : void
+      {
+         this._modeNotice.tell(shown);
       }
 
       public function force_interface_hidden(forced:Boolean) : void
@@ -693,7 +720,7 @@ package
          if(forced)
             this._modeNotice.begin("blackout");
          else
-            this._modeNotice.reset();
+            this._modeNotice.cancel("blackout");
          this.followModeNotice();
          this.set_pregame(this._pregameText);
       }
@@ -827,6 +854,8 @@ package
       public function set_localization_data(value:Object) : void
       {
          LocalizationData.setData(value);
+         // The texts again when the key bindings change (exe patch 212): a shown offer names the key now.
+         this.refresh_context();
          this.set_pregame(this._pregameText);
       }
       
@@ -1477,8 +1506,6 @@ package
       {
          this.player_list.players.addPlayersList(_players);
          this.tabMinimap.setPlayerNames(_players);
-         // the carrier's name and his row's mark
-         this.drawArtefactHunt();
       }
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
@@ -1724,8 +1751,11 @@ package
          this.show_pregame(false);
          this.set_match_time("");
          this.deathEyes.countdown("");
+         this.deathEyes.black = false;
          this.endArtefactHunt();
          this.showFrozen(FrozenPlaces.NONE);
+         this.showRevealed(RevealedPlaces.NONE);
+         this.resetRevealNotice();
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -1820,9 +1850,17 @@ package
          _gameType = type;
          this._freezeContext = null;
          this._freezeWasFrozen = false;
+         this.roundFade.show(0);
          if(type != 12)
          {
             this.showFrozen(FrozenPlaces.NONE);
+            this.showRevealed(RevealedPlaces.NONE);
+            this.resetRevealNotice();
+            this._modeNotice.cancel("freeze_tag");
+         }
+         else
+         {
+            this._modeNotice.begin("freeze_tag");
          }
          this.refresh_context();
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
@@ -1879,11 +1917,13 @@ package
          this.set_game_progress(own,other);
       }
 
-      // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw.
-      // thaw: the thaw time in ms (THAW_MS); the bar shows progress of it. thawsIn: the frozen
-      // player's time left to the auto-thaw (ms).
-      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint, thawsIn:uint) : void
+      // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw (its 3 s); 7 the
+      // round's fade, 8 its countdown (Artifact Hunt's restart, its phase ids): remaining ms of
+      // whole. thaw: the thaw time in ms (THAW_MS); the bar shows progress of it. thawsIn: the
+      // frozen player's time left to the auto-thaw (ms).
+      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint, thawsIn:uint, whole:uint = 0) : void
       {
+         this.roundFade.show(RoundFade.blackOf(status,Math.max(0,whole - remaining),whole));
          // The last freeze also ends a round; it still gets the freeze cue.
          var isFrozen:Boolean = frozen != 0;
          if(isFrozen && !this._freezeWasFrozen)
@@ -1892,14 +1932,16 @@ package
          var text:String;
          if(status >= 1 && status <= 3)
             text = LocalizationData.getName(status == 1 ? "st_srp_hud_freeze_win" : status == 2 ? "st_srp_hud_freeze_lose" : "st_srp_hud_freeze_draw");
-         else if(status >= 4)
+         else if(status == ArtefactHuntState.COUNTDOWN)
+            text = LocalizationData.getName("st_final_countdown") + " " + ArtefactHuntLook.clock(remaining);
+         else if(status >= 4 && status <= 6)
             text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
          else if(isFrozen)
             text = LocalizationData.format("st_srp_hud_freeze_frozen", freezeClock(thawsIn));
          else
             text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
          // Let native pickup/use prompts own the widget during ordinary play.
-         this._freezeContext = isFrozen || progress > 0 || status != 0
+         this._freezeContext = status != ArtefactHuntState.FADE && (isFrozen || progress > 0 || status != 0)
             ? {text:text,value:status == 0 ? Math.floor(progress * 100 / thaw) : 0,visible:true} : null;
          this.refresh_context();
       }
@@ -1928,6 +1970,66 @@ package
          this.player_list.players.frozen = places;
          this.minimap.frozen = places;
          this.tabMinimap.frozen = places;
+      }
+
+      // The revealed places (bit n: place n): a team's last one fighting, his teammates frozen, two at
+      // least (FreezeTag::last_standing), sent each frame (exe patch 160, freeze_tag::on_hud). The exe
+      // lists him among the enemies of the other team's maps; the Tab map marks his dot red, which an
+      // enemy's icon alone never draws (RevealedMark): the owner, 2026-11-26, "only the UI map when
+      // tabbing doesn't have a red mark". The corner minimap too, by REVEALED_ON_MINIMAP.
+      public function freeze_tag_revealed(mask:uint) : void
+      {
+         if(mask != this._revealed.mask)
+         {
+            this.showRevealed(new RevealedPlaces(mask));
+         }
+      }
+
+      // The corner minimap marks him too while this is true (the owner, 2026-11-26: "minimap can show
+      // too"; first "no"): the one switch, false for the Tab map alone. Within its circle: a dot beyond
+      // it is clipped there, as every dot.
+      public static const REVEALED_ON_MINIMAP:Boolean = true;
+
+      // A last one fighting's reveal, sent each frame (exe patch 160, freeze_tag::on_hud;
+      // RevealNotice): each side's whose (0 none, 1 the viewer, 2 his last teammate, 3 the enemy's
+      // last one) and the ms left (0: revealed). A side that starts counting, or is revealed, gives
+      // one short popup, the game's own message (set_parameterized_message, small, 30% down the
+      // screen: under the mode notice), which hides itself after its few seconds; no countdown.
+      public static const REVEAL_POPUP_SIZE:uint = 22;
+      public static const REVEAL_POPUP_SHIFT:uint = 30;
+
+      public function freeze_tag_reveal(own:uint, ownLeft:uint, enemy:uint, enemyLeft:uint) : void
+      {
+         this._revealNotice.tell(own,ownLeft,enemy,enemyLeft);
+         if(this._revealNotice.text != null)
+         {
+            this._revealPopup = this._revealNotice.text;
+            // The same text again (a thaw, then down to one again) starts the popup afresh.
+            this.contextInfo3.mc_text.contextText.text = "";
+            this.set_parameterized_message(this._revealPopup,REVEAL_POPUP_SIZE,REVEAL_POPUP_SHIFT,this._revealNotice.time);
+         }
+      }
+
+      // A new match or another mode: no side counted; a popup of ours still shown goes.
+      private function resetRevealNotice() : void
+      {
+         this._revealNotice.reset();
+         if(this._revealPopup != null && this.contextInfo3.visible && this.contextInfo3.mc_text.contextText.text == this._revealPopup)
+         {
+            if(this._parameterizedTimeout)
+            {
+               clearTimeout(this._parameterizedTimeout);
+            }
+            this.hideParameterized();
+         }
+         this._revealPopup = null;
+      }
+
+      private function showRevealed(places:RevealedPlaces) : void
+      {
+         this._revealed = places;
+         this.tabMinimap.revealed = places;
+         this.minimap.revealed = REVEALED_ON_MINIMAP ? places : RevealedPlaces.NONE;
       }
 
       public function set_ffa_progress(own:int, top:int, target:int) : void
@@ -2265,7 +2367,7 @@ package
       }
       
       // Artifact Hunt (mode 13), at a change and every 60 frames (the exe patch's artefact_hunt
-      // module; docs/notes/artefact_hunt.md "HUD calls"): 28 numbers, the whole state
+      // module; docs/notes/artefact_hunt.md "HUD calls"): 30 numbers, the whole state
       // (ArtefactHuntState). A call outside the contract's domains is refused and changes nothing.
       public function artefact_hunt_update(... values) : void
       {
@@ -2291,11 +2393,11 @@ package
             return;
          }
          this.drawHuntBars();
-         this.huntRow.draw(state,this.player_list.players.nameOf(state.carrier),getTimer());
+         this.spreadHuntBars(state.waveComing ? this.huntRow.wave.room : 0);
+         this.huntRow.draw(state,getTimer());
          this.roundFade.update(state,getTimer());
          this.minimap.setArtefactHunt(state);
          this.tabMinimap.setArtefactHunt(state);
-         this.player_list.players.carrier = state.carrier;
          this.placeTopRow();
       }
 
@@ -2307,11 +2409,11 @@ package
             return;
          }
          this._hunt = null;
+         this.spreadHuntBars(0);
          this.huntRow.clear();
          this.roundFade.update(null,0);
          this.minimap.setArtefactHunt(null);
          this.tabMinimap.setArtefactHunt(null);
-         this.player_list.players.carrier = -1;
       }
 
       // The teams' points in Team Deathmatch's bars, the own team's first (blue); in sudden death,
@@ -2340,6 +2442,51 @@ package
             bar.team1LastPlayers.value = state.ownAlive;
             bar.team2LastPlayers.maximum = state.enemyTotal;
             bar.team2LastPlayers.value = state.enemyAlive;
+         }
+      }
+
+      // The indicator's parts as the timeline placed them, before spreadHuntBars moved them.
+      private var _huntBarsAt:Array = null;
+
+      // Room after the match time for the wave (in the row's units, 0 none): each team's bar and its
+      // texts move apart by half of it, the time to the left by half, so that it and the wave stay
+      // centred between them.
+      private function spreadHuntBars(room:Number) : void
+      {
+         var bar:SrvMatchProgress = this.progress_indicator;
+         if(bar == null || bar.match_time_2_tdm == null || bar.team_1_score == null)
+         {
+            return;
+         }
+         var parts:Array = [[bar.team_1_score,-1],[bar.team1Progress,-1],[bar.team1LastPlayers,-1],
+            [bar.team_2_score,1],[bar.team2Progress,1],[bar.team2LastPlayers,1],[bar.match_time_2_tdm,0]];
+         if(this._huntBarsAt == null)
+         {
+            if(room == 0)
+            {
+               return;
+            }
+            this._huntBarsAt = [];
+            for each(var p:Array in parts)
+            {
+               this._huntBarsAt.push(p[0] == null ? 0 : p[0].x);
+            }
+         }
+         // the row's units in the indicator's
+         var k:Number = this.huntRow.transform.concatenatedMatrix.a / bar.transform.concatenatedMatrix.a;
+         var half:Number = room * k / 2;
+         for(var i:int = 0; i < parts.length; i++)
+         {
+            var part:* = parts[i][0];
+            if(part != null)
+            {
+               // the time to the left, each bar outwards
+               part.x = this._huntBarsAt[i] + (parts[i][1] == 0 ? -half : parts[i][1] * half);
+            }
+         }
+         if(room == 0)
+         {
+            this._huntBarsAt = null;
          }
       }
 
@@ -2440,6 +2587,13 @@ package
          this.progress_indicator.team_1_progress.visible = this.progress_indicator.team_2_progress.visible = true;
       }
       
+      // The view black (exe patch 196: a dead player whose corpse is shot, until the
+      // respawn): DeathEyes' black, under the hud as its fading is; the hud's reset clears it.
+      public function set_dead_black(on:Boolean) : void
+      {
+         this.deathEyes.black = on;
+      }
+
       public function set_respawn_time(time:String) : void
       {
          this.deathEyes.countdown(time);

@@ -3,9 +3,7 @@
 pub mod account;
 pub mod drops;
 pub mod item_params;
-pub mod lobby;
 pub mod loyalty;
-pub mod match_start;
 pub mod premium;
 pub mod quests;
 pub mod rating;

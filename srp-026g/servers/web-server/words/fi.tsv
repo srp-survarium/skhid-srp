@@ -1,11 +1,467 @@
-# The site's own words in Finnish (README.md here): English as in the code, Finnish. A text without a row is shown in English.
+# The site's own words in Finnish (README.md here): English as in the code, Finnish, a context if any.
+Head	Pää
+Face	Kasvot
+Chest	Rinta
+Back	Selkä
+Arms	Käsivarret
+Hands	Kädet
+Legs	Jalat
+Feet	Jalkaterät
+Bullets	Luodit
+Melee	Lähitaistelu
+Explosions	Räjähdykset
+Fire	Tuli
+Radiation	Säteily
+Electricity	Sähkö
+Toxins	Myrkyt
+Armour	Panssari
+Isolation	Eristys
+Protection	Suoja
+Level	Taso
+Faction	Ryhmittymä
+Matchmaking level	Otteluhaun taso
+Also takes	Vie myös
+Oxygen	Happi
+Gas filter	Kaasusuodatin
+{0}: hits up to {1} stopped, the rest ×{2}	{0}: osumat {1} asti pysäytetään, loput ×{2}
+Fatal headshot	Kuolettava pääosuma
+flies off	lentää pois
+About it	Tietoa
+premium	premium
+level	taso
+Weight	Paino
+Details	Lisätiedot
+Its modifiers	Sen lisäominaisuudet
+Slot	Paikka
+All	Kaikki
+Find	Hae
+Search by name…	Hae nimellä…
+All factions	Kaikki ryhmittymät
+Level from	Tasosta
+to	tasoon
+Sort by	Järjestä
+Name	Nimi
+Weight: low to high	Paino: nouseva
+Armour: high to low	Panssari: laskeva
+Isolation: high to low	Eristys: laskeva
+Group	Ryhmittele
+No groups	Ei ryhmiä
+By set	Sarjan mukaan
+By slot	Paikan mukaan
 Wiki	Wiki
+Equipment	Varusteet
+Equipment reference	Varusteluettelo
+pieces	kpl
+Nothing matches.	Ei osumia.
+Stats	Tilastot
+Public matches	Julkiset ottelut
+The stats need JavaScript.	Tilastot vaativat JavaScriptin.
+Skhid	Skhid
+mode {0}	pelimuoto {0}
+No match is being played now.	Yhtään ottelua ei pelata nyt.
+waiting	odottaa
+starting	alkaa
+just now	juuri nyt
+{minutes} min ago	{minutes} min sitten
+&le; {minutes} min	&le; {minutes} min
+{0} v {1}	{0} vs {1}
+and {more} more	ja {more} muuta
+Match	Ottelu
+Players	Pelaajat
+Started	Alkoi
+Time left	Aikaa jäljellä
+Score	Tilanne
+No battle has been fought yet. Be the first.	Yhtään taistelua ei ole vielä käyty. Ole ensimmäinen.
+Player	Pelaaja
+Rating	Luokitus
+online	paikalla
+rooms	huonetta
+in rooms	huoneissa
+matches now	ottelua nyt
+players	pelaajaa
+battles fought	taistelua käyty
+clans	klaania
+Maintenance: the server is down	Huolto: palvelin on alhaalla
+Maintenance in {minutes} min	Huolto {minutes} min kuluttua
+On the server now	Palvelimella nyt
+Since the server opened	Palvelimen avaamisesta lähtien
+TEST SERVER	TESTIPALVELIN
+Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.	Epävirallinen yhteisöpalvelin. Ei sidoksissa Vostok Gamesiin eikä sen hyväksymä. Survarium on omistajiensa tavaramerkki. Varhainen testi: tilit ja edistyminen voidaan nollata milloin tahansa.
+Top 10 players	Top 10 -pelaajat
+Matches now	Ottelut nyt
+Skhid &middot; Survarium <i>0.26g</i> community server	Skhid &middot; Survarium <i>0.26g</i> -yhteisöpalvelin
+Legal notice	Oikeudellinen huomautus
+Not found.	Ei löytynyt.
+Too many wrong tokens; wait a minute.	Liian monta väärää tokenia; odota minuutti.
+Wrong token.	Väärä token.
+No such user.	Käyttäjää ei ole.
+New accounts are taken again.	Uusia tilejä otetaan taas vastaan.
+New accounts are refused; existing players sign in as before.	Uusia tilejä ei oteta vastaan; nykyiset pelaajat kirjautuvat kuten ennenkin.
+Maintenance cancelled.	Huolto peruttu.
+No maintenance was planned.	Huoltoa ei ollut suunniteltu.
+Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.	Minuutit: kokonaisluku 1–{MAX_MAINTENANCE_MINUTES}.
+Maintenance starts in {minutes} min, at {0} UTC.	Huolto alkaa {minutes} min kuluttua, klo {0} UTC.
+for {hours} h	{hours} tunniksi
+for good	pysyvästi
+Address {net} banned {how_long}; {kicked} session(s) ended.	Osoite {net} estetty {how_long}; päätettyjä istuntoja: {kicked}.
+No such user or address. A name several accounts share needs the user name they sign in with.	Käyttäjää tai osoitetta ei ole. Jos usealla tilillä on sama nimi, anna kirjautumisnimi.
+{target} banned {how_long}; {kicked} session(s) ended.	{target} estetty {how_long}; päätettyjä istuntoja: {kicked}.
+ Its address {net} too ({more} more session(s) ended).	 Myös sen osoite {net} (päätettyjä istuntoja lisäksi: {more}).
+ Its address is not known, so no address was banned.	 Sen osoitetta ei tiedetä, joten osoitetta ei estetty.
+Address {net} unbanned.	Osoitteen {net} esto poistettu.
+{net} was not banned (a range is lifted as it was banned).	{net} ei ollut estetty (alueen esto poistetaan samanlaisena kuin se asetettiin).
+No such user or address.	Käyttäjää tai osoitetta ei ole.
+{target} unbanned.	Käyttäjän {target} esto poistettu.
+{target} was not banned.	{target} ei ollut estetty.
+ Its address {ip} too.	 Myös sen osoite {ip}.
+The players' server:	Pelaajien palvelin:
+Test server.	Testipalvelin.
+Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset.	Muutoksia kokeillaan täällä ennen kuin ne tulevat pelaajille: palvelin voi käynnistyä uudelleen milloin tahansa, ja täkäläiset tilit ja edistyminen voidaan nollata.
+Damage calculator	Vahinkolaskuri
 Maps	Kartat
+TEST	TESTI
+Home	Etusivu
+Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.	Epävirallinen yhteisöpalvelin. Ei sidoksissa Vostok Gamesiin eikä sen hyväksymä. Survarium on omistajiensa tavaramerkki.
+“Game files removed by antivirus: …”	”Game files removed by antivirus: …”
+Run <code>Skhid-defender-setup.cmd</code>.	Suorita <code>Skhid-defender-setup.cmd</code>.
+“Download failed: …”	”Download failed: …”
+Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.	Käynnistä <code>Skhid.bat</code> uudelleen. Ei vieläkään toimi? Suorita <code>Skhid-without-updater.bat</code>: se lataa pelin ja sen päivitykset ilman käynnistintä ja käynnistää sen sitten.
+“No connection: …”	”No connection: …”
+Run <code>Skhid-network-setup.cmd</code>.	Suorita <code>Skhid-network-setup.cmd</code>.
+“Blocked on this network: …”	”Blocked on this network: …”
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Palveluntarjoajasi estää palvelimemme. Käynnistin on jo vaihtanut välityspalvelimeemme, joka kiertää eston (<b>Relay: auto</b>, vasemmalla alhaalla). Paina vain <b>Yritä uudelleen</b>.
+Nothing works.	Mikään ei toimi.
+Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Suorita <code>Skhid-collect-logs.cmd</code> ja lähetä sen tekemä zip meille Discordissa: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
+Q:	K:
+A:	V:
+If something goes wrong	Jos jokin menee pieleen
+Download the files	Lataa tiedostot
+The download link is coming soon.	Latauslinkki tulee pian.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome tai virustorjunta estää latauksen? Kokeile tätä skriptiä: {script}. Se lataa koko pelin viereensä Survarium-kansioon.
+Get the game	Hanki peli
+The link is coming soon.	Linkki tulee pian.
+Get the original Survarium 0.26g (build 2777) and unpack it.	Hanki alkuperäinen Survarium 0.26g (build 2777) ja pura se.
+Maintenance.	Huolto.
+The server is down for maintenance.	Palvelin on huoltokatkolla.
+The game closes in {minutes} min; Play is locked in the last 30.	Peli sulkeutuu {minutes} min kuluttua; Pelaa-painike lukitaan viimeisten 30 minuutin ajaksi.
+New registrations are closed for now. Existing players can sign in and play.	Uudet rekisteröitymiset on toistaiseksi suljettu. Nykyiset pelaajat voivat kirjautua ja pelata.
+players online	pelaajaa paikalla
+registered	rekisteröitynyttä
+Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.	Käynnistä <code>Skhid.bat</code> ja paina <b>PLAY</b>. Ensimmäinen käynnistys lataa pelin.
+Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Käynnistä <code>Skhid.bat</code> ja paina <b>PLAY</b>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Varoittaako Windows tuntemattomasta julkaisijasta? Salli suoritus.<br>Linux: <code>bash Skhid.sh launcher</code>, katso <code>LINUX.txt</code>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Varoittaako Windows tuntemattomasta julkaisijasta? Salli suoritus.<br>Linux: <code>bash Skhid.sh</code>, katso <code>LINUX.txt</code>.
+Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Suorita <code>play_skhid.bat</code> kansiossa <code>game\\binaries\\x86</code>.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrainaa, ”itä”) on yhteisöpalvelin, jolla Survarium {version} -asiakasohjelma voi taas kirjautua, käydä kauppaa, muodostaa ryhmiä ja pelata otteluita.
+Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Projektin Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
+Early test server.	Varhainen testipalvelin.
+It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Siinä on bugeja, eikä se välttämättä toimi kokonaan. Edistymisesi, esineesi ja tilisi voivat kadota tai nollautua milloin tahansa, ja palvelin voidaan pysäyttää milloin tahansa. Pelaamalla hyväksyt tämän.
+How to play	Näin pelaat
+Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Lataa tiedostomme ja pura ne tyhjään kansioon (esim. D:\\Survarium). <b>Tämä tehdään vain kerran.</b>
+Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Lataa tiedostomme ja pura ne pelin kansioon, siihen, jossa on <code>game</code>-kansio, korvaten tiedostot. <b>Tämä tehdään vain kerran.</b>
+Download our files and unpack them over the game's <code>game</code> folder.	Lataa tiedostomme ja pura ne pelin <code>game</code>-kansion päälle.
+Sign in with any name and password: a new name registers itself. Remember the password.	Kirjaudu millä tahansa nimellä ja salasanalla: uusi nimi rekisteröityy itsestään. Muista salasana.
+New accounts are taken.	Uusia tilejä otetaan vastaan.
+Stop new registrations	Lopeta uudet rekisteröitymiset
+New accounts are refused for now.	Uusia tilejä ei toistaiseksi oteta vastaan.
+Take new registrations	Ota vastaan uusia rekisteröitymisiä
+Shown once the token is right.	Näytetään, kun token on oikein.
+Password	Salasana
+User name	Käyttäjänimi
+Silver, + or -	Hopea, + tai -
+Change	Muuta
+Admin	Ylläpito
+Token	Token
+Money	Raha
+Ban	Esto
+Unban	Eston poisto
+Bans	Estot
+Maintenance	Huolto
+Signups	Rekisteröityminen
+User name, or an address or range (1.2.3.4, 1.2.3.0/24)	Käyttäjänimi, osoite tai osoitealue (1.2.3.4, 1.2.3.0/24)
+Hours (empty: for good)	Tunnit (tyhjä: pysyvästi)
+Reason (only admins see it)	Syy (vain ylläpitäjät näkevät sen)
+Also ban the address it last signed in from	Estä myös osoite, josta se viimeksi kirjautui
+Ban	Estä	button
+User name, or an address or range	Käyttäjänimi, osoite tai osoitealue
+Also lift the ban of its last address	Poista myös sen viimeisimmän osoitteen esto
+Unban	Poista esto	button
+Refresh	Päivitä
+Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).	Nykyiset pelaajat voivat joka tapauksessa kirjautua ja pelata. Rekisteröityminen on oletuksena auki; uudelleenkäynnistys palauttaa sen (tai SRP_REGISTRATION=closed).
+Starts in (minutes)	Alkaa (minuutin kuluttua)
+Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.	Pelaajat näkevät jäljellä olevat minuutit 60:stä alkaen, eivät voi painaa Pelaa 30:stä alkaen, ja peli sulkeutuu nollassa. srp:n uudelleenkäynnistys peruu sen.
+Plan	Suunnittele
+Cancel	Peruuta
+Account	Tili
+Give item	Anna esine
+Take items	Ota esineitä
+Text	Teksti
+Mute chat	Mykistä chat
+Rename	Nimeä uudelleen
+Shown now:	Näytetään nyt:
+No text is shown.	Tekstiä ei näytetä.
+Set the level (0 to {0})	Aseta taso (0–{0})
+Experience, + or -	Kokemus, + tai -
+Faction (1 to 4)	Ryhmittymä (1–4)
+Reputation with it, + or -	Maine siinä, + tai -
+Empty fields change nothing. An open game is sent the account again.	Tyhjät kentät eivät muuta mitään. Avoimeen peliin lähetetään tili uudelleen.
+Item: its id in the 0.26g dictionary, or its exact name	Esine: sen id 0.26g-sanakirjassa tai sen tarkka nimi
+Count (rounds for ammo; up to 8 of anything else)	Määrä (ammuksille patruunoina; muuta enintään 8)
+Give	Anna
+First line	Ensimmäinen rivi
+Second line	Toinen rivi
+Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.	Kaikki aulassa näkevät sen, samoin kuin kirjautuvat, kunnes se poistetaan tai srp käynnistyy uudelleen.
+Show	Näytä
+Clear	Poista
+No maintenance is planned.	Huoltoa ei ole suunniteltu.
+Maintenance has started: the game closes for everyone who signs in.	Huolto on alkanut: peli sulkeutuu jokaiselta, joka kirjautuu.
+Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.	Tunnit: kokonaisluku enintään {MAX_BAN_HOURS}, tai tyhjä: pysyvästi.
+until {at} UTC	{at} UTC asti
+None.	Ei mitään.
+Accounts	Tilit
+Until	Asti
+Reason	Syy
+Last address	Viimeisin osoite
+Addresses	Osoitteet
+Address	Osoite
+Chat mutes	Chat-mykistykset
+ The database was busy: srp's saver writes it within seconds (the history below is shown next time).	 Tietokanta oli varattu: srp:n tallentaja kirjoittaa sen sekunneissa (alla oleva historia näkyy ensi kerralla).
+ Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.	 Virhe: muutos on vain muistissa: tietokanta hylkäsi sen ({error}). srp yrittää kirjoitusta uudelleen; tarkista sen loki.
+No 0.26g account has that id.	Millään 0.26g-tilillä ei ole tätä id:tä.
+More than one account has that character name: type its user name or #id.	Usealla tilillä on tämä hahmon nimi: kirjoita sen käyttäjänimi tai #id.
+Silver is a whole number, + or -, or empty.	Hopea on kokonaisluku, + tai -, tai tyhjä.
+{0}: silver {1} → {2} ({3}).	{0}: hopea {1} → {2} ({3}).
+Type the silver to add (+) or take (-). The balance is below.	Kirjoita lisättävä (+) tai otettava (-) hopea. Saldo on alla.
+Nothing would change: the account has none of it left to take.	Mikään ei muuttuisi: tilillä ei ole sitä enää otettavaksi.
+A reason is required: nothing was changed.	Syy vaaditaan: mitään ei muutettu.
+The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.	Tili tai kentät muuttuivat esikatselun jälkeen: mitään ei muutettu. Tarkista uusi esikatselu alla ja käytä uudelleen.
+Check the change below; type a reason to apply it.	Tarkista muutos alla; kirjoita syy käyttääksesi sen.
+Check the change below, then press Apply. Nothing is changed until then.	Tarkista muutos alla ja paina sitten Käytä. Siihen asti mitään ei muuteta.
+Type the account: its user name, its character name, or #id.	Kirjoita tili: käyttäjänimi, hahmon nimi tai #id.
+Units are a whole number above 0, or empty for all of it.	Yksiköt ovat nollaa suurempi kokonaisluku, tai tyhjä: kaikki.
+Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview.	Valitse otettavat esineet (ja pinon yksiköt tai koko pino), kirjoita syy ja paina sitten Esikatsele.
+{0}: {1} item(s) taken.	{0}: otettuja esineitä: {1}.
+The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.	Esineet tai valinta muuttuivat esikatselun jälkeen: mitään ei muutettu. Tarkista uusi esikatselu alla ja käytä uudelleen.
+Check what would be taken below; type a reason to apply it.	Tarkista alla, mitä otettaisiin; kirjoita syy käyttääksesi sen.
+Check what would be taken below, then press Apply. Nothing is changed until then.	Tarkista alla, mitä otettaisiin, ja paina sitten Käytä. Siihen asti mitään ei muuteta.
+A reason is required: the player is told it.	Syy vaaditaan: se kerrotaan pelaajalle.
+{name}'s chat muted {0}.	Pelaajan {name} chat mykistetty {0}.
+{name}'s chat was not muted.	Pelaajan {name} chat ei ollut mykistetty.
+{name}'s chat unmuted.	Pelaajan {name} chatin mykistys poistettu.
+Account: user name or character name	Tili: käyttäjänimi tai hahmon nimi
+Reason (the player is told it)	Syy (kerrotaan pelaajalle)
+Nobody gets its chat lines, on any channel; it gets "muted for &lt;reason&gt;" (or "muted until &lt;time&gt; UTC: &lt;reason&gt;") back instead. Unmute needs the account only.	Kukaan ei saa sen chat-rivejä millään kanavalla; sen sijaan se saa takaisin "muted for &lt;syy&gt;" (tai "muted until &lt;aika&gt; UTC: &lt;syy&gt;"). Mykistyksen poistoon riittää tili.
+Mute	Mykistä
+Unmute	Poista mykistys
+This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.	Tätä esikatselua on jo käytetty tai se on yli 10 minuuttia vanha: mitään ei muutettu. Tarkista uusi esikatselu alla ja käytä uudelleen.
+No item was ticked.	Yhtään esinettä ei valittu.
+At most {0} items at once.	Enintään {0} esinettä kerralla.
+The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.	Tilillä ei nyt ole esinettä {item_id} (myyty tai otettu sillä välin): mitään ei muutettu. Tarkista lista uudelleen.
+Item {item_id} is named twice.	Esine {item_id} on mainittu kahdesti.
+0 units of item {item_id}: leave it empty for all of it.	0 yksikköä esinettä {item_id}: jätä tyhjäksi, niin otetaan kaikki.
+yes: its game is sent the change at once	kyllä: sen peliin lähetetään muutos heti
+no: it sees the change at its next sign-in	ei: se näkee muutoksen seuraavalla kirjautumisella
+User name	Kirjautumisnimi	sign-in
+Character	Hahmo
+Account id	Tilin id
+ID	ID
+Earlier names	Aiemmat nimet
+until {}	{} asti
+In the game now	Pelissä nyt
+Earlier moderation of this account	Tämän tilin aiempi moderointi
+not shown ({error})	ei näytetä ({error})
+none	ei mitään
+What	Mitä
+Change	Muutos	what
+; {0} asked, never below 0	; pyydetty {0}, ei koskaan alle 0
+Apply to {0}	Käytä: {0}
+Done	Valmis
+Preview	Esikatselu
+Silver	Hopea
+Account: user name, character name or #id	Tili: käyttäjänimi, hahmon nimi tai #id
+Reason (required; only admins see it)	Syy (pakollinen; vain ylläpitäjät näkevät sen)
+Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once.	Esikatselu näyttää saldon ennen ja jälkeen; mikään ei muutu ennen Käytä-painiketta. Saldo ei koskaan mene alle 0:n. Avoin peli näyttää muutoksen heti.
+Preview	Esikatsele	button
+the item	esine
+all {0} units	kaikki {0} yksikköä
+{0} of {1} units ({2} left)	{0}/{1} yksikköä ({2} jää)
+taken off its kits	poistettu varustuksista
+Apply: take them from {0}	Käytä: ota ne tililtä {0}
+Taken	Otettu
+Would be taken	Otettaisiin
+Item	Esine
+Item id	Esineen id
+Kits	Varustukset
+{0} units	{0} yksikköä
+all	kaikki
+cosmetic {id}	kosmeettinen {id}
+Items	Esineet
+Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays.	Valitse, mitä otetaan. Pinosta otetaan kirjoitetut yksiköt, tai koko pino, jos kenttä on tyhjä. Varustus * on se, jolla pelataan.
+Dict id	Sanakirjan id
+Units / condition	Yksiköt / kunto
+Worn	Päällä
+Modifications	Muokkaukset
+First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once.	Ensin lista, sitten esikatselu otettavista; mikään ei muutu ennen Käytä-painiketta. Päällä oleva esine poistetaan jokaisesta varustuksesta, kuten myytäessä. Avoin peli näyttää muutoksen heti.
+List / preview	Lista / esikatselu
+(premium)	(premium)
+{0} of {1}	{0}/{1}
+Choose an item…	Valitse esine…
+By item	Esineen mukaan
+level {0}	taso {0}
+Can roll	Voi saada
+Comes with	Valmiina
+Modifiers	Lisäominaisuudet
+An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.	Esine saa enintään kolme lisäominaisuutta, kukin eri lajia. Mitä vahvempi, sitä harvinaisempi.
+Weapons	Aseet
+Strengths from common to rare.	Voimakkuudet yleisestä harvinaiseen.
+Built into some items	Sisäänrakennettu joihinkin esineisiin
+These never roll.	Näitä ei koskaan arvota.
+No account signs in with that user name (character names are not looked up).	Mikään tili ei kirjaudu tällä käyttäjänimellä (hahmojen nimiä ei haeta).
+Type the user name the player signs in with.	Kirjoita käyttäjänimi, jolla pelaaja kirjautuu.
+Check the account below, then press the reset button.	Tarkista tili alla ja paina sitten nollauspainiketta.
+That user name now means another account: nothing was changed. Check it below.	Tämä käyttäjänimi kuuluu nyt toiselle tilille: mitään ei muutettu. Tarkista se alla.
+The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.	Tilin {login} salasana on tyhjennetty; päätettyjä istuntoja: {ended}. Seuraava kirjautuminen millä tahansa salasanalla asettaa uuden.
+The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.	Tilin {login} salasana on tyhjennetty; päätettyjä istuntoja: {ended}. Tietokanta oli varattu: srp:n tallentaja kirjoittaa sen sekunneissa. Seuraava kirjautuminen millä tahansa salasanalla asettaa uuden.
+Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.	Virhe: tilin {login} salasana on tyhjennetty ja istuntoja päätetty ({ended}), mutta vain muistissa: tietokantaan ei kirjoitettu ({error}). srp yrittää kirjoitusta uudelleen; tarkista sen loki ennen kuin pelaaja kirjautuu.
+not since srp started	ei srp:n käynnistyksen jälkeen
+unknown	tuntematon
+yes: its game is signed out	kyllä: sen peli kirjataan ulos
+no	ei
+Last sign-in	Viimeisin kirjautuminen
+Signed in now	Kirjautuneena nyt
+Reset the password of {0}	Nollaa tilin {0} salasana
+User name the player signs in with (not the character name)	Käyttäjänimi, jolla pelaaja kirjautuu (ei hahmon nimi)
+Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter.	Tyhjentää salasanan: pelaajan seuraava kirjautuminen millä tahansa salasanalla asettaa sen uudeksi (omistajan päätös, 2026-10-18). Ensimmäisenä kirjautuva saa sen, joten nollaa, kun pelaaja on valmis kirjautumaan. Tilillä kirjautunut peli kirjataan ulos. Kirjainkoolla ei ole väliä.
+Quests	Tehtävät
+Pay by match level	Palkka ottelun tason mukaan
+Enter an account ID.	Anna tilin ID.
+Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.	Virheellinen nimimerkki: vähintään 3 merkkiä, enintään 63 UTF-8-tavua, ei välilyöntejä eikä ohjausmerkkejä.
+A reason is required.	Syy vaaditaan.
+That nickname or a Cyrillic/Latin lookalike is already taken.	Tämä nimimerkki tai sen kyrillinen/latinalainen näköisversio on jo varattu.
+No such account ID.	Tilin ID:tä ei ole.
+Account #{account_id} renamed: {0} → {1}.	Tili #{account_id} nimetty uudelleen: {0} → {1}.
+Account ID	Tilin ID
+New nickname	Uusi nimimerkki
+Reason (admin history only)	Syy (vain ylläpidon historiaan)
+Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.	Vaihtaa nimimerkin heti ja maksutta. Kirjautumistunnus ja edistyminen pysyvät samoina. Päällekkäiset ja kyrilliset/latinalaiset näköisnimet hylätään.
+Levels	Tasot
+This level	Tämä taso
+Total	Yhteensä
+Matches	Otteluita
+Hours	Tunteja
+Total experience by level	Kokonaiskokemus tasoittain
+That account has not signed in to the 0.26g lobby yet: it has nothing to change.	Tämä tili ei ole vielä kirjautunut 0.26g-aulaan: siinä ei ole muutettavaa.
+Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.	Kokemus ja maine ovat kokonaislukuja, + tai -; taso on 0–{MAX_LEVEL}; ryhmittymä on 1–4.
+That level is under the skill points the account has spent; reset its skills in the game first.	Taso on alempi kuin tilin käyttämät taitopisteet; nollaa ensin sen taidot pelissä.
+{user}: level {level_now} ({exp_now} experience).	{user}: taso {level_now} ({exp_now} kokemusta).
+ Reputation with faction {faction}: {points}.	 Maine ryhmittymässä {faction}: {points}.
+No such item in the 0.26g dictionary (give its id or its exact name).	Esinettä ei ole 0.26g-sanakirjassa (anna sen id tai tarkka nimi).
+The count for this item is 1 to {most}.	Tämän esineen määrä on 1–{most}.
+That stack would overflow.	Pino ylittyisi.
+{user}: given {count} of {0} (id {1}).	{user}: annettu {count} × {0} (id {1}).
+The text is cleared.	Teksti poistettu.
+Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.	Jokainen rivi on enintään {MAX_TEXT_LEN} tavua (kyrillinen kirjain on 2), ilman ohjausmerkkejä.
+The text is shown to everyone in the lobby, and to who signs in, until cleared.	Teksti näytetään kaikille aulassa ja kirjautuville, kunnes se poistetaan.
+Simulators	Simulaattorit
+Skills	Taidot
+Browse weapons, compare base stats and explore their damage and handling.	Selaa aseita, vertaa perusarvoja ja tutki niiden vahinkoa ja käsittelyä.
+Recoil and spread of any weapon: aim, stance, skills, gear and injuries.	Minkä tahansa aseen rekyyli ja hajonta: tähtäys, asento, taidot, varusteet ja vammat.
+Every armour piece: protection, weight, built-in bonuses and what it can roll.	Jokainen panssarin osa: suoja, paino, sisäänrakennetut bonukset ja mitä se voi saada.
+Every modifier, its strengths and the items that can get it.	Jokainen lisäominaisuus, sen voimakkuudet ja esineet, jotka voivat saada sen.
+Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.	Tasot ja niiden vaatima kokemus; jokainen taitopuu: kynnykset, asteet ja mitä kukin aste antaa.
+Every faction quest: its goal at each reputation level and what it pays.	Jokainen ryhmittymän tehtävä: sen tavoite kullakin mainetasolla ja mitä se maksaa.
+Shots to kill a target in any armour, at any distance.	Montako osumaa tarvitaan kohteen tappamiseen missä tahansa panssarissa, millä tahansa etäisyydellä.
+Spawns, batteries, chargers, containers and artefacts on every map.	Syntypisteet, akut, laturit, säiliöt ja artefaktit jokaisella kartalla.
 Skhid wiki	Skhid-wiki
+Skhid · Survarium {version} community server	Skhid · Survarium {version} -yhteisöpalvelin
+Skhid · Survarium {version} TEST server	Skhid · Survarium {version} -TESTIPALVELIN
+COMMUNITY SERVER FOR SURVARIUM	SURVARIUMIN YHTEISÖPALVELIN
+TEST SERVER FOR SURVARIUM	SURVARIUMIN TESTIPALVELIN
+{text} is not an item id: nothing was changed.	{text} ei ole esineen id: mitään ei muutettu.
+Exp	KP	formula
+Total	Yhteensä	formula
+Experience gives levels, and every level gives one skill point.	Kokemus antaa tasoja, ja jokainen taso antaa yhden taitopisteen.
+Clan	Klaani
+Matches	Ottelut	stats
+Player name	Pelaajan nimi
+Clan tag	Klaanin tunnus
+Match number	Ottelun numero
+Clans	Klaanit
+Best matches	Parhaat ottelut
+Latest matches	Viimeisimmät ottelut
+Hour	Tunti
+Day	Päivä
+Experience	Kokemus
+Wins	Voitot
+Losses	Tappiot
+Win rate	Voitto-%
+Kills	Tapot
+Deaths	Kuolemat
+K/D	K/D
+Kills/min	Tapot/min
+Experience/min	Kokemus/min
+Assists	Avustukset
+Score	Pisteet	stats
+Avg score	Keskim. pisteet
+Headshots	Pääosumat
+Grenade kills	Kranaattitapot
+Melee kills	Lähitaistelutapot
+Batteries	Akut
+Captures	Valtaukset
+Artefacts	Artefaktit
+Members	Jäsenet
+Commander	Komentaja
+Overall	Yhteensä
+In matches	Otteluissa
+Last 30 days	Viimeiset 30 päivää
+Ended	Päättyi
+Duration	Kesto
+Map	Kartta
+Mode	Pelimuoto
+Result	Tulos
+Place	Sijoitus
+Team	Joukkue
+Points	Pisteet
+Win	Voitto
+Loss	Tappio
+Draw	Tasapeli
+Left	Poistui
+won	voitti
+More players	Lisää pelaajia
+Older matches	Vanhemmat ottelut
+Hours played	Pelatut tunnit
+Replay	Uusinta
+Preparing…	Valmistellaan…
+Download	Lataa
+Recorded by an older game version	Tallennettu vanhemmalla peliversiolla
+Busy, try again in a minute	Varattu, yritä uudelleen minuutin päästä
+No replay	Ei uusintaa
+Daily leaders	Päivän kärki
+All time	Kaikkien aikojen
+Shots fired	Ammutut laukaukset
+Accuracy	Tarkkuus
+Weapon	Ase
+Kit	Varustus
+Favourite equipment	Suosikkivarusteet
+1000+ shots	1000+ laukausta
+5+ matches	5+ ottelua
+HS %	Pääosuma-%
+Avg distance	Keskim. etäisyys
+Through walls	Seinien läpi
+Ricochets	Kimmokkeet
+No weapons counted yet.	Aseita ei ole vielä laskettu.
+No public matches yet.	Julkisia otteluita ei vielä ole.
+No player with public matches named “{}”.	Ei pelaajaa, jolla on julkisia otteluita ja nimi ”{}”.
+No clan tagged [{}].	Ei klaania tunnuksella [{}].
+No public match {}.	Ei julkista ottelua {}.
+This server keeps no match history.	Tämä palvelin ei säilytä otteluhistoriaa.
+Could not load the stats. Reload the page.	Tilastoja ei voitu ladata. Lataa sivu uudelleen.
+Nobody yet.	Ei vielä ketään.
+
+# The wiki's modes (src/modes.rs).
 Modes	Pelimuodot
 Every mode: its rules, numbers and maps.	Jokainen pelimuoto: säännöt, luvut ja kartat.
 Versions	Muunnelmat
-Public and private rooms	Julkiset ja yksityiset huoneet
 Public rooms only	Vain julkiset huoneet
 Private rooms only	Vain yksityiset huoneet
 Not offered now	Ei tarjolla nyt
@@ -14,9 +470,9 @@ Batteries lie on the map.	Akut ovat kartalla.
 Carry them to your team's container.	Vie ne joukkueesi säiliöön.
 First to {0} batteries wins.	Ensimmäinen joukkue, jolla on {0} akkua, voittaa.
 Time limit {0}: more batteries wins.	Aikaraja {0}: enemmän akkuja voittaa.
-Batteries come out of {0} active chargers.	Akut tulevat {0} aktiivisesta latausasemasta.
+Batteries come out of {0} active chargers.	Akut tulevat {0} aktiivisesta laturista.
 A new battery every {0} s, give or take {1} s.	Uusi akku {0} s:n välein, {1} s suuntaan tai toiseen.
-Protective device rules: batteries, no chargers.	Suojalaitteen säännöt: akut, ei latausasemia.
+Protective device rules: batteries, no chargers.	Suojalaitteen säännöt: akut, ei latureita.
 No interface: no ammo, health, crosshair or minimap.	Ei käyttöliittymää: ei ammuksia, terveyttä, tähtäintä eikä minikarttaa.
 Teammates' markers stay; enemies have none.	Joukkuetovereiden merkit säilyvät; vihollisilla niitä ei ole.
 Hold Tab for ammo, body state, the clock and the team list.	Pidä Tabia: ammukset, kehon tila, kello ja joukkueen lista.
@@ -39,7 +495,7 @@ A thaw counts as a kill.	Sulatus lasketaan tapoksi.
 A frozen player thaws by himself after {0}.	Jäätynyt pelaaja sulaa itsestään {0} jälkeen.
 A team's last fighter shows on the enemies' map.	Joukkueen viimeinen taistelija näkyy vastustajien kartalla.
 Freeze the whole enemy team to win the round.	Jäädytä koko vastajoukkue voittaaksesi erän.
-{0} s pause between rounds, then everyone respawns.	{0} s tauko erien välillä, sitten kaikki syntyvät uudelleen.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} s erän päätyttyä, sitten kaikki syntyvät uudelleen ja odottavat {1} s syntymispisteillä.
 First to {0} rounds wins.	Ensimmäinen joukkue, joka voittaa {0} erää, voittaa.
 Time limit {0}: an unfinished series is a draw.	Aikaraja {0}: kesken jäänyt sarja on tasapeli.
 One artefact at a time, {0}–{1} s into a round.	Yksi artefakti kerrallaan, {0}–{1} s erän alusta.
@@ -47,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Vie se omaan tukikohtaas
 The carrier is slower and seen by everyone.	Kantaja on hitaampi ja kaikkien nähtävissä.
 Respawn in waves every {0} s.	Uudelleensyntyminen aalloissa {0} s:n välein.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Aikaraja {0}: suurempi tulos voittaa; tasatilanteessa {1} äkkikuolemaa ilman uudelleensyntymistä.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Tarkkuuskiväärit, äänenvaimennetut aseet ja aseet ilman sarjatulta vaihdetaan.
-Rooms up to level {0}: {1}.	Huoneet tasolle {0} asti: {1}.
-Other rooms: {0}.	Muut huoneet: {0}.
-Sight: {0}.	Tähtäin: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Kaikki taistelevat rynnäkkökivääreillä: tarkkuuskiväärit, äänenvaimennetut aseet ja aseet ilman sarjatulta vaihdetaan aseeseen {0} (huoneet tasolle {1} asti) tai {2} (korkeammat huoneet).
+Each comes with an {0}.	Jokaisessa on {0}.
+a revolver	revolveri
+a lever-action rifle	vipulukkokivääri
 Every kit: {0} only.	Jokainen varustus: vain {0}.
 Every kit: {0} and {1}.	Jokainen varustus: {0} ja {1}.
 Everyone plays the same {0} random kits.	Kaikki pelaavat samoilla {0} satunnaisella varustuksella.
@@ -58,7 +514,490 @@ Level bands: {0}.	Tasoalueet: {0}.
 A room draws bands up to its level.	Huone arpoo alueita tasoonsa asti.
 Each kit a gun of another class, with random bonuses and attachments.	Jokaisessa varustuksessa eri luokan ase, satunnaisilla bonuksilla ja lisäosilla.
 {0} % of deals: pistols only.	{0} % jaoista: vain pistoolit.
-Nothing of yours is used or spent.	Mitään omaasi ei käytetä eikä kuluteta.
 Plain FFA: {0} % of FFA cards.	Tavallinen FFA: {0} % FFA-korteista.
 {0} % of FFA cards.	{0} % FFA-korteista.
 FFA: Roulette	FFA: Ruletti
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Hae aseita
+No weapons match.	Aseita ei löytynyt.
+lvl {n}	taso {n}
+Search…	Hae…
+Search items	Hae esineitä
+No items match.	Esineitä ei löytynyt.
+s	s	unit
+Search rounds	Hae patruunoita
+No rounds match.	Patruunoita ei löytynyt.
+shots	laukaukset
+up	ylös
+side	sivulle
+spread	hajonta
+Play	Toista
+Pause	Tauko
+Recoil and spread	Rekyyli ja hajonta
+Weapon {side}	Ase {side}
+Choose a weapon…	Valitse ase…
+Round	Patruuna
+Clear	Tyhjennä	list
+Choose a weapon; a second one to compare.	Valitse ase; toinen vertailuun.
+Aim	Tähtäys
+From the hip	Lonkalta
+Aiming in	Tähtäykseen siirtyminen
+Fully aimed	Täysi tähtäys
+Stance	Asento
+Standing	Seisten
+Walking	Kävellen
+Crouching	Kyykyssä
+Crouch-walking	Kyykyssä kävellen
+Sprinting	Sprintaten
+Jumping	Hypätessä
+Broken arms	Murtuneet kädet
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Lonkkatulen hajonta {v} kultakin asteelta, myös sprintatessa ja hypätessä. Ei tähdätessä.
+No effect fully aimed.	Ei vaikutusta täydessä tähtäyksessä.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Kävellessä hajonta {v} kultakin asteelta, lonkalta tai tähtäykseen siirryttäessä. Ei kyykyssä kävellessä.
+Spread from broken arms {v} per rank.	Murtuneiden käsien hajonta {v} kultakin asteelta.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Tämän aseen rekyylin vaihteluvälit ylös ja sivulle. Ei kameran tärinää.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Tämän aseen perushajonta, joka laukauksessa: täydessä tähtäyksessä koko hajonta, lonkalta pieni osa siitä. Ei asennon tai laukauksen hajontaa.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Asennon ja jokaisen laukauksen hajonta. Ei vaikutusta sprintatessa, hypätessä eikä täydessä tähtäyksessä.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Jokaisen laukauksen rekyyli millä tahansa aseella: ylös, sivulle ja kameran tärinä.
+Base	Perus
+A shot	Laukauksesta
+At most	Enintään
+Vertical kick	Pystyrekyyli
+game units	pelin yksiköt
+Horizontal kick	Vaakarekyyli
+Trigger	Liipaisin
+Hold	Pidä pohjassa
+Click, {n} a second	Napsauta {n} kertaa sekunnissa
+Sample seed	Satunnaissiemen
+Spread	Hajonta
+degrees	asteet
+Last shot	Viimeinen laukaus
+Reset	Nollaa
+Timeline	Aikajana
+Crosshair	Tähtäin
+degrees of view	näkymän asteet
+Target	Kohde
+None	Ei mitään
+Enemy at {m} m	Vihollinen {m} m:n päässä
+Recoil parameters are unavailable for this selection.	Rekyylin parametreja ei ole saatavilla tälle valinnalle.
+Rounds	Patruunat
+Sniper rifle	Tarkkuuskivääri
+Submachine gun	Konepistooli
+Pistol	Pistooli
+Shotgun	Haulikko
+Assault rifle	Rynnäkkökivääri
+Machine gun	Konekivääri
+Skhid revision {revision}	Skhid, revisio {revision}
+Stat	Arvo
+Better	Parempi
+Worse	Huonompi
+weapons	asetta	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Vertaa aseita tai avaa rivi nähdäksesi vahingon, käsittelyn, tarkkuuden, rekyylin ja tähtäimen heilunnan.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Arvot valitulla patruunalla, aseen vakiopatruuna ensin. Parannuksia ja hahmon bonuksia ei ole huomioitu. Pelin kortti näyttää suurimman vahingon ja suurimman panssarinläpäisyn kaikista aseen patruunoista.
+Find a weapon	Etsi ase
+Weapon class	Aseluokka
+All classes	Kaikki luokat
+Damage: high to low	Vahinko: suurimmasta pienimpään
+Fire rate: high to low	Tulinopeus: suurimmasta pienimpään
+Compare weapons	Aseiden vertailu
+Only differences	Vain erot
+Color better / worse values	Väritä paremmat / huonommat arvot
+Recoil and spread →	Rekyyli ja hajonta →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Valitse kaksi asetta vertailtavaksi. Samat arvot ja neutraalit ominaisuudet säilyttävät tavallisen värinsä.
+No differences in the displayed stats.	Näytetyissä arvoissa ei ole eroja.
+m	m	unit
+kg	kg	unit
+Single shot	Kertatuli
+Damage & range	Vahinko ja kantama
+Damage	Vahinko
+Armor penetration	Panssarinläpäisy
+Full damage up to	Täyden vahingon kantama
+Minimum damage from	Vähimmäisvahinko alkaa
+Minimum damage retained	Säilyvä vähimmäisvahinko
+Stopping power	Pysäytysvoima
+Stamina damage	Kestävyysvahinko
+Firing & handling	Ampuminen ja käsittely
+rpm	ls/min	unit
+Fire rate	Tulinopeus
+Magazine capacity	Lippaan koko
+Reload time	Latausaika
+Aim time	Tähtäysaika
+Draw time	Esillenottoaika
+Holster time	Poislaittoaika
+Movement speed modifier	Liikenopeuden kerroin
+Base aim zoom	Tähtäyksen perussuurennus
+Fire modes	Tulimuodot
+Accuracy & spread	Tarkkuus ja hajonta
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Hajonnan arvot ovat pelin omissa yksiköissä. Kasvun ja palautumisen parametrit näytetään ilman parempi/huonompi-arviota.
+Base dispersion	Perushajonta
+Hip-fire spread multiplier	Lonkkatulen hajonnan kerroin
+Spread added per shot	Hajonta laukausta kohden
+Spread limit	Hajonnan raja
+Spread growth parameter	Hajonnan kasvun parametri
+Spread recovery parameter	Tarkkuuden palautumisen parametri
+Recoil	Rekyyli
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Perusrekyyli pelin yksiköissä, ei asteissa. Vaakarekyyli on oikea miinus vasen; vaihtelu on sen keskihajonta. Nämä eivät kuvaa koko sarjaa.
+Base vertical kick range	Pystyrekyylin perusvaihteluväli
+Horizontal kick range	Vaakarekyylin vaihteluväli
+Horizontal kick variability	Vaakarekyylin vaihtelu
+Horizontal bias (− left / + right)	Vaakapoikkeama (− vasemmalle / + oikealle)
+Recoil accumulation exponent	Rekyylin kertymän eksponentti
+Recovery response (P)	Palautumisen vaste (P)
+Recovery accumulation (I)	Palautumisen kertymä (I)
+Recovery damping (D)	Palautumisen vaimennus (D)
+Aim sway	Tähtäimen heilunta
+Horizontal sway	Vaakasuora heilunta
+Vertical sway	Pystysuora heilunta
+Aim sway period	Tähtäimen heiluntajakso
+Magazine	Lipas
+Set as weapon A	Aseeksi A
+Set as weapon B	Aseeksi B
+Automatic	Sarjatuli
+{m}-round burst	{m} laukauksen sarja
+pellets	haulia
+No weapons match. Try another name or class.	Aseita ei löytynyt. Kokeile toista nimeä tai luokkaa.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Vasemmalle	direction
+Right	Oikealle	direction
+Back	Taakse	direction
+where it aims as the shot moves it	mihin se tähtää laukauksen liikuttamana
+from the side, the bullet from the eye along the view	sivulta: luoti silmästä katseen suuntaan
+custom	oma
+Up	Ylös
+Side	Sivulle
+Rate	Tahti
+Power	Eksponentti
+Camera wobble	Kameran heilunta
+Gun kick	Aseen potku
+Custom gun	Oma ase
+Speed	Nopeus
+bullet	luoti
+sight	tähtäin
+hit	osuma
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pisteet	skills
+matches	ottelua	skills
+h	h	unit
+Tap a skill, then + or −.	Napauta taitoa, sitten + tai −.
+Click a skill to add a rank, right-click to take one back.	Klikkaus lisää asteen, oikea klikkaus poistaa sen.
+{n} point	{n} piste	one
+{n} points	{n} pistettä	few
+{n} points	{n} pistettä	many
+Maximum:	Enintään:
+or	tai	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Syntypisteet
+Battery spawns	Akkujen syntypisteet
+Chargers	Laturit
+Containers	Säiliöt
+Research units	Tutkimusyksiköt
+Ammo stashes	Ammustäydennys
+Survarium maps	Survariumin kartat
+chargers	laturit
+Minimap	Minikartta
+From above	Ylhäältä
+{n} active	{n} aktiivista
+{n} batteries to win.	{n} akkua voittoon.
+team {n}	joukkue {n}
+any team	mikä tahansa joukkue
+Ammo stash	Ammustäydennys
+Container	Säiliö
+Battery spawn	Akun syntypiste
+Charger	Laturi
+Research unit	Tutkimusyksikkö
+Spawn	Syntypiste
+Glow of the Forest	Metsän Hohde
+Bases	Tukikohdat
+Base	Tukikohta	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Jalkaterät	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	aktiivinen
+passive	passiivinen
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Vahinko ×{damage}, panssarinläpäisy ×{pierce}, ennen panssaria: pienemmällä läpäisyllä panssari pysäyttää enemmän.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} ottaa ×{k} vahinkoa {s} s ajan käytön jälkeen (vaikutus alkaa {delay} s:n päästä).
+Inside an anomaly: damage ×{k}, before armour.	Anomalian sisällä: vahinko ×{k}, ennen panssaria.
+This weapon takes no damage bonuses.	Tähän aseeseen ei saa vahinkobonuksia.
+Comes with the weapon; cannot be changed.	Tulee aseen mukana; ei voi muuttaa.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Esineessä on enintään 3 muokkausta. Saman arvon bonukset lasketaan yhteen ennen kuin ne vaikuttavat.
+This item takes no armour bonuses.	Tähän esineeseen ei saa panssaribonuksia.
+Nothing worn covers the {part}.	Mikään varuste ei suojaa: {part}.
+Drugs	Lääkkeet
+Assault rifles	Rynnäkkökiväärit
+Submachine guns	Konepistoolit
+Shotguns	Haulikot
+Bolt-action & sniper rifles	Pultti- ja tarkkuuskiväärit
+Pistols & revolvers	Pistoolit ja revolverit
+Helmet	Kypärä
+Mask	Naamari
+Jacket	Takki
+Gloves	Käsineet
+Trousers	Housut
+Boots	Saappaat
+Backpack	Reppu
+Chest & neck	Rinta ja kaula
+Right arm	Oikea käsivarsi
+Left arm	Vasen käsivarsi
+Right hand	Oikea käsi
+Left hand	Vasen käsi
+Right leg	Oikea jalka
+Left leg	Vasen jalka
+Right foot	Oikea jalkaterä
+Left foot	Vasen jalkaterä
+Body	Vartalo
+Pain	Kipu
+Infection	Tartunta
+death	kuolema
+bleeding	verenvuoto
+concussion	aivotärähdys
+hand injury	käsivamma
+leg injury	jalkavamma
+infection	tartunta
+blindness	sokeus
+Search	Hae
+— none —	— ei mitään —
+nothing worn	ei varusteita
+back	takaa
+front	edestä
+after shot	laukaus
+of	/
+dead	kuollut
+Glass	Lasi
+Car	Auto
+Plywood	Vaneri
+Tinplate	Pelti
+Brick, steel	Tiili, teräs
+Concrete	Betoni
+Stone	Kivi
+<none>	<ei mitään>
+armour	panssari
+{n} left	{n} jäljellä
+damage	vahinko
+penetration	panssarinläpäisy
+full damage to	täyden vahingon kantama
+minimum from	vähimmäisvahinko alkaa
+minimum	minimi
+muzzle	lähtönopeus
+rate	tulinopeus
+magazine	lipas
+Gets through: k {k}, D {D} · P {P}.	Läpäisee: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Ei läpäise: panssarinläpäisy {P}, panssari {A}.
+here	tässä
+not here	ei tässä
+taken by {item}	varattu: {item}
+Covers the {part}.	Suojaa: {part}.
+Does not cover the {part}.	Ei suojaa: {part}.
+Click to aim at the {part}.	Napsauta tähdätäksesi: {part}.
+aim at the {part}	tähtää: {part}
+Full damage at this range.	Täysi vahinko tällä etäisyydellä.
+Fully fallen off: minimum damage.	Heikentynyt täysin: vähimmäisvahinko.
+Falling off: {share} of the way from minimum to full.	Heikkenee: {share} matkasta vähimmäisvahingosta täyteen.
+Orange band: damage falls from {from} m to {to} m.	Oranssi kaista: vahinko heikkenee {from} m:n ja {to} m:n välillä.
+per shot (all pellets)	laukausta kohden (kaikki haulit)
+per hit	osumaa kohden
+{pool} damage {per}	{pool}: vahinko {per}
+of {n} {pool} left	/ {n} jäljellä ({pool})
+of {n} {pool}	/ {n} ({pool})
+Hits to kill	Osumia tappoon
+dies when {pool} reaches 0	kuolee, kun {pool} laskee nollaan
+this shot cannot kill	tämä laukaus ei voi tappaa
+Time to kill	Aika tappoon
+every shot lands, no reload	kaikki laukaukset osuvat, ei latausta
+Leaves the barrel	Lähtee piipusta
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Aseen vahinko × patruunan <code>k_damage</code>, aseen panssarinläpäisy × patruunan <code>k_arp</code>.
+Each of the {n} pellets carries this.	Sama jokaiselle haulille ({n} kpl).
+Flies {m} m	Lentää {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Nopeus {v0} → {v} m/s. Vahinko laskee täydestä ({full}) vähimmäiseen ({min}) nopeuden mukaan {from} m:n ja {to} m:n välillä: tässä {share}. Panssarinläpäisy säilyy.
+Through {wall}	Läpi: {wall}
+stopped	pysäytetty
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Panssarinläpäisy {P}, panssari {A}. Vahinko, läpäisy ja nopeus × k; sitten vahinko enintään sama kuin nopeudella {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Panssarinläpäisy {P} ei ylitä panssaria {A}: luoti pysähtyy.
+No armour here, the full amount goes in.	Ei panssaria tässä: koko määrä menee läpi.
+Armour {A} is not above penetration {P}: nothing is stopped.	Panssari {A} ei ylitä panssarinläpäisyä {P}: mitään ei pysäytetä.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Panssari ylittää panssarinläpäisyn täydellä 100:lla: luoti ei tee mitään.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Panssari {A} − panssarinläpäisy {P} = {gap}% vahingosta pysäytetään.
+Hits {part}	Osuu: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Jokainen osuma mihin tahansa vähentää myös yhteistä kipuvarantoa. Kipu nollassa tappaa.
+Body at 0 kills.	Vartalo nollassa tappaa.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Päässä on vain 40: nollassa se tappaa, alle 20:ssä tulee aivotärähdys.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Raajat eivät yksinään tapa: nollassa oleva raaja vammautuu, mutta sen tuoma kipu voi tappaa.
+Second chance	Toinen mahdollisuus
+The skill leaves the target alive once.	Taito jättää kohteen kerran henkiin.
+× {n} pellets	× {n} haulia
+Each pellet is its own bullet: when several land, their damage adds up.	Jokainen hauli on oma luotinsa: kun useampi osuu, niiden vahinko lasketaan yhteen.
+kills	tappaa
+breaks	murtaa
+below	alle
+empty	nollassa
+movement	liike
+shot	laukaus
+Damage over distance	Vahinko etäisyyden mukaan
+after armour	panssarin jälkeen
+Body part	Ruumiinosa
+Stopped	Pysäytetty
+Limb	Raaja
+Also	Lisäksi
+injury	vamma
+best ammo	paras patruuna
+default ammo	vakiopatruuna
+Ammo	Patruuna
+Pen. here	Läp. tässä
+Damage / hit	Vahinko / osuma
+RPM	ls/min
+Bullet	Luoti
+D, P = weapon × ammo, D falling with distance	D, P = ase × patruuna, D heikkenee etäisyyden myötä
+{n} pellets	{n} haulia
+Wall	Seinä
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: luoti jää seinään · muuten D, P × (1 − (A / P)²)
+stays in the wall	jää seinään
+each	kukin
+rank	aste
+inside an anomaly	anomalian sisällä
+D × (1 − (armour − P) / 100)	D × (1 − (panssari − P) / 100)
+{part}, armour {A} − P {P}	{part}, panssari {A} − P {P}
+Pools	Varannot
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	rinta, selkä → vartalo · pää, kasvot → pää · jalka, jalkaterä → jalka · käsivarsi, käsi → käsi
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 rinta, pää, käsivarret · 0.9 jalat · 0.8 kädet, jalkaterät
+Death	Kuolema
+body, head or pain at 0	vartalo, pää tai kipu nollassa
+{n} hits	{n} osumaa
+at 0	nollassa
+does not kill	ei tapa
+wall armour	seinän panssari
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Yksi luoti usean osan läpi: kukin varanto menettää vain suurimman osumansa, ei summaa (kädet 40 + 40, rinta 35 → kipu −40, ei −115).
+full	täysi
+fixed	parantaa
+{s} s without hits	{s} s ilman osumia
+By itself	Itsestään
+ends after {s} s without hits	loppuu, kun osumia ei tule {s} s
+carried	kannettuna
+activated	aktivoitu
+at once, every {s} s	heti, {s} s välein
+{delay} s after use, for {s} s	{delay} s käytöstä, {s} s ajan
+stops at {n}	{n} asti
+From empty to full	Tyhjästä täyteen
+Leg or hand	Jalka tai käsi
+No Larkspur	Ilman Ritarinkannusta
+Starts	Alkaa
+Legs, hands	Jalat, kädet
+Broken leg, hand	Murtunut jalka, käsi
+Top-down view of	Näkymä ylhäältä:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} vaakasuunnassa, {sign}{height} pystysuunnassa). Napsauta uudelleen aloittaaksesi alusta.
+Now click the target.	Napsauta nyt kohdetta.
+Click the shooter, then the target.	Napsauta ampujaa, sitten kohdetta.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Oranssi rengas: täysi vahinko {from} m asti; katkoviiva: vähimmäisvahinko {to} m:stä alkaen.
+health shown ×100 (body 100, head 40)	terveys näytetään ×100 (vartalo 100, pää 40)
+Shooter	Ampuja
+fires	ampuu
+Distance to target	Etäisyys kohteeseen
+Wall in front of the target	Seinä kohteen edessä
+Weapon bonuses	Asebonukset
+— — HIT — →	— — OSUMA — →
+takes the hit	ottaa osuman
+Current pain	Nykyinen kipu
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Kipu, joka kohteella on jo aiemmista osumista. Se laskee nollaan nopeudella 10 sekunnissa, kun 8 s on kulunut ilman osumaa.
+Armour bonuses	Panssaribonukset
+Artefacts, drugs & skills	Artefaktit, lääkkeet ja taidot
+Measure on a map	Mittaa kartalla
+Clear points	Tyhjennä pisteet
+bullet before armour	luoti ennen panssaria
+after this armour	tämän panssarin jälkeen
+Every body part, this shot	Jokainen ruumiinosa, tämä laukaus
+Every weapon against this target	Jokainen ase tätä kohdetta vastaan
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Sama etäisyys, seinä, ruumiinosa, panssari ja kohteen efektit. Jokainen ase käyttää tätä kohdetta vastaan parasta patruunaansa, ellet valitse "vakiopatruuna". Napsauta riviä valitaksesi sen aseen.
+Formula	Kaava
+Healing	Parannus
+Previous shot	Edellinen laukaus
+Next shot	Seuraava laukaus
+Damage calculator	Survariumin vahinkolaskuri	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Jokainen artefakti: mitä se antaa kannettuna ja aktivoituna, miten kappaleet pinoutuvat, mistä sen löytää.
+Artefact	Artefakti
+Passive	Passiivinen
+Active	Aktiivinen
+Active time	Vaikutusaika
+Cooldown	Latausaika
+Skill	Taito
+Rules	Säännöt
+Movement speed	Liikkumisnopeus
+Stamina regeneration	Energian palautuminen
+Stamina use	Energian kulutus
+Slowdown from hits	Osumien hidastus
+Against	Vastaan
+Body parts	Ruumiinosat
+Penetration	Läpäisy
+Health	Terveys
+Cures injuries	Parantaa vammat
+Regeneration	Palautuminen
+Regeneration delay	Palautumisen viive
+Regenerates up to	Palautuu enintään
+HP	HP	unit
+Carried in a container: passive. A death leaves them in that kit.	Säiliössä: passiivi. Kuoleman jälkeen ne jäävät siihen varustukseen.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Näppäin aktivoi jokaisen valmiin saman lajin kappaleen ja käynnistää uudelleen vielä latautuvien latausajan.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Saman lajin kappaleet lasketaan yhteen (Onyksin passiivi kertautuu); enintään 4 lasketaan.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Jousen ja Ritarinkannuksen aktiivi lisätään passiiviin; Onyksin korvaa sen.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Yhdessä aktivoidut Onyksit: yksi vähennys, 1 s pidempään jokaista lisäkappaletta kohden.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomaliat
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefaktit tulevat anomalioista. Kukin anomalia laittaa yhden artefakteistaan yhteen vapaista säiliöistään, yhden aikaikkunaa kohden, kunnes sen enimmäismäärä on keräämättä; poiminta aloittaa ikkunan alusta. Se antaa vain ne artefaktinsa, joita kukaan pelaaja ei kanna. Osoita anomaliaa tai artefaktia (tai napauta sitä) nähdäksesi sen luvut.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Sisältää
+First one	Ensimmäinen
+Then every	Sitten joka
+Chance	Mahdollisuus
+Max uncollected	Enintään keräämättä
+Search	Etsintä	artefact
+Zones switch every	Vyöhykkeet vaihtuvat joka
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Poiminnan jälkeen seuraava tulee {next} kuluttua; säiliö pysyy tyhjänä {cooldown}.
+Its own zone does no damage.	Sen oma vyöhyke ei vahingoita.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Säiliön etsintä kestää {search}; poiminnan jälkeen se pysyy tyhjänä {cooldown}.
+After a pickup the next one comes {next} later.	Poiminnan jälkeen seuraava tulee {next} kuluttua.
+whole body	koko keho
+{n} % a hit, at most every {t}	{n} % osumalta, enintään {t} välein
+deadly	tappava
+{n} % a second	{n} % sekunnissa
+Damage is a share of each body part's health, before armour.	Vahinko on osuus kunkin ruumiinosan terveydestä, ennen panssaria.
+It gives no artefacts.	Se ei anna artefakteja.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Viimeiset 7 päivää
+Last 24 hours	Viimeiset 24 tuntia
+Avg length	Keskim. kesto
+Sides	Puolet
+No result	Ei tulosta
+Share	Osuus
+Trend	Kehitys
+by hour	tunneittain
+by day	päivittäin
+by week	viikoittain
+Most played maps and modes	Pelatuimmat kartat ja pelimuodot
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Suojalaite
+Protective device: chargers	Suojalaite: laturit
+Team Deathmatch	Joukkuetaistelu
+Research	Tutkimus
+Protective device: blackout	Suojalaite: sähkökatko
+Free for all	Kaikki kaikkia vastaan
+Freeze Tag	Jäädytys
+Artifact Hunt	Artefaktijahti
+FFA: Racket	FFA: Meteli
+FFA: Saloon	FFA: Saluuna
+FFA: Saloon (Winchester)	FFA: Saluuna (Winchester)
+Mode {0}	Pelimuoto {0}
+day	päivä	weather
+rain	sade	weather
+evening	ilta	weather
+night	yö	weather
+before rain	ennen sadetta	weather
+Weathers	Säät
+Variants	Muunnelmat

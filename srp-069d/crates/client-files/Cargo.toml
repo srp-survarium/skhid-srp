@@ -1,0 +1,8 @@
+[package]
+name = "client-files"
+version.workspace = true
+edition.workspace = true
+description = "Readers of the 0.69d client's own files: resources.NN.db volumes, binary .options configs, language files"
+
+[dependencies]
+thiserror.workspace = true

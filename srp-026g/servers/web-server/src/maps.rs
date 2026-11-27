@@ -7,6 +7,7 @@
 //! `/maps/` addresses. The top-down renders are the calculator's
 //! (`/damage/maps/`).
 
+use crate::built::{Built, Script};
 use crate::{ContentType, Lang, Response};
 
 /// The page's address.
@@ -16,8 +17,14 @@ pub(crate) const PATH: &str = "/wiki/maps";
 /// images and fonts).
 pub(crate) const POLICY: &str = crate::damage::POLICY;
 
-/// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill.
-const PAGE: &str = include_str!("../maps/maps.html");
+/// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill, and its script's words
+/// (`crate::built`).
+static SCRIPT: Script = Script::new(include_bytes!("../maps/maps.js"));
+static PAGE: Built = Built::new(
+    include_str!("../maps/maps.html"),
+    include_str!("../maps/maps.texts.json"),
+    &SCRIPT,
+);
 
 macro_rules! files {
     ($($path:literal => $content_type:literal,)*) => {
@@ -47,6 +54,7 @@ pub(crate) fn page(lang: Lang, header: &str) -> Response {
         status: "200 OK",
         content_type: ContentType::Html,
         body: PAGE
+            .page(lang)
             .replacen("{{LANG}}", lang.code(), 1)
             .replacen("<!--SITE-HEADER-->", header, 1),
     }

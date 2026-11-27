@@ -229,7 +229,7 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
 - **Maps page:** a mode's second layout is a choice of its own, "Research · 2" (`#level_02/5.2`).
 - **Bots, late joiners, replays:** nothing new (Research has no bots; a replay names its map id).
 - **Release impact:** content and the site's pages; no exe, no server code. Three more entries of a
-  room's pool (256 at most, `lobby/rooms.rs` `POOL_BITS`).
+  room's pool (512 at most, `lobby/rooms.rs` `POOL_BITS`).
 - **Another layout:** a file beside `school-b.json` and its list's row in `release/content.tsv`. More
   cover at a unit: a `props` entry of its layout file (a model the map or an `examples` project
   has, its place and yaw), then the list made again.
@@ -283,7 +283,7 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
   writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
   `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
   `research.code` (research_026g.asm and research_arena) and `research.state`
-  (the cook and UI cache; addresses in `arena_026g.lock.json`); its hooks take their targets from
+  (the cook and UI cache; `python link_026g.py` prints the addresses); its hooks take their targets from
   the link by symbol. Patch 58's kit keys have blocks of their own the same way,
   and no section (#225's dynamic anomalies had one too, taken out of revision 31).
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,

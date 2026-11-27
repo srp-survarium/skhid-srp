@@ -46,6 +46,8 @@ pub mod artefact_hunt;
 pub mod round_countdown;
 mod artefact_carry;
 pub mod suicide_key;
+pub mod camera_walls;
+pub mod item_hotkeys;
 pub mod bake_async;
 
 pub mod text_input;
@@ -61,10 +63,15 @@ pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
 pub mod weapon_stats;
+pub mod second_sights;
+pub mod key_prompts;
 
 pub mod hud_options;
+pub mod key_bindings;
 // patch 167: no white hit marker through walls
 pub mod hit_marker_walls;
+// patch 191: a kill made in a re-simulation keeps its kill marker
+pub mod kill_cross;
 // patch 169: the forward effects draw as 0.44a5's
 pub mod forward_effects;
 // patch 183: the g-buffer's parallax constants as 0.44a5 sets them
@@ -73,6 +80,8 @@ pub mod parallax_uv;
 pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
+// patch 216: a filter whose temporary target was not made, never a null target pushed
+pub mod scaleform_temp_target;
 // patch 176: SKHID_CAPTURE's run, poses to pictures
 pub mod capture;
 pub mod map_names;
@@ -83,13 +92,22 @@ pub mod music;
 pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
+pub mod reload_commit;
 // patch 177: a hit breaks the victim's breath hold
 pub mod breath_hit;
+// patch 196: a shot into a corpse, 0.21's death sound and the dead player in the dark
+pub mod corpse_shot_dark;
 // patch 179: a shot ends the shooter's protection
 pub mod shot_protection;
+// patch 194: the grenade markers tell a smoke and a toxic smoke apart
+pub mod grenade_icons;
 pub mod footsteps;
+pub mod zone_guards;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
+// patch 210: the sync log (SKHID_SYNC_LOG)
+pub mod sync_log;
+pub mod exact_world;
 
 pub mod weapon_pickup;
 
@@ -112,6 +130,10 @@ pub mod input_check;
 pub mod subtick_hits;
 pub mod keyboard_layout;
 pub mod mouse_pitch;
+// patch 202: a line in the patches' log when the game cannot take the mouse
+pub mod mouse_acquire;
+// patch 207: the lobby movie's srp_set_upgrade_value is the decal editor's 46 05
+pub mod upgrade_value;
 pub mod bake_cache;
 pub mod weapon_camo;
 pub mod key_remap;
@@ -131,6 +153,8 @@ pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
 pub mod tick_parts;
+pub mod profile_kit;
+pub mod use_prompt;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
@@ -138,6 +162,12 @@ pub mod texture_streaming;
 pub mod texture_pool;
 // patch 190: the hi-Z occlusion no longer drops probes and ambient lights, nor lights for a frame
 pub mod light_occlusion;
+// patch 213: the hi-Z occlusion never leaves a first-person surface out (a collimator's dot)
+pub mod first_person_occlusion;
+// patch 215: everything held in first person moves with the view in TAA (optics, parts)
+pub mod first_person_motion;
+// patch 193: material_pair takes an id past its table as the default material
+pub mod material_bounds;
 pub mod animation_math;
 pub mod replay_keys;
 // patch 152: two keys save the game's picture as a PNG
@@ -160,6 +190,8 @@ pub mod quiet_log;
 pub mod replay_file;
 pub mod free_for_all;
 pub mod freeze_tag;
+// patch 214: a mode's notice only in each account's first three matches of it
+pub mod mode_notice;
 // patch 143: the battery carrier's hit
 pub mod battery_hit;
 // patch 150: the game shares by BitTorrent in the login screen and the lobby
@@ -169,7 +201,10 @@ pub mod console_scroll;
 pub mod v021d_render;
 // patch 178: the ported Londons' deferred composition is 0.44a5's
 pub mod composition_v044a;
+pub mod probe_tiers;
 pub mod faces;
+// patch 217: an additional model with camo_available takes its item's camouflage (the exoskeletons' legs)
+pub mod additional_camo;
 pub mod geometry_share;
 // patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
 pub mod attachments;

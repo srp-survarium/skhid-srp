@@ -126,8 +126,7 @@ fn a_pocket_a_modification_of_the_grant_opens_is_open() {
 }
 
 /// The grant on the test data: refused, naming the items of patches it
-/// predates; the released data has them (`session`'s
-/// `tests/starter_kit.rs`).
+/// predates; the released data has them.
 #[test]
 fn the_test_data_lacks_items_of_the_grant() {
     let error = check_data(game_data::shared()).unwrap_err().to_string();

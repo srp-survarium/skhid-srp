@@ -2,6 +2,7 @@
 
 // The game data (`data.md`, `modes_maps.md`).
 pub mod armour;
+pub mod artefacts;
 pub mod awards;
 pub mod cowboy;
 pub mod dictionary;

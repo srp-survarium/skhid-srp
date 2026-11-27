@@ -47,12 +47,12 @@ def main():
     def win(path):
         return 'Z:' + str(path).replace('/', '\\')
 
-    def run(*argv, expected=0):
+    def run(*argv, expected=0, timeout=60):
         # Wine's persistent server/children may inherit stdout. A regular file
         # avoids waiting for pipe EOF after the invoked process has exited.
         with tempfile.TemporaryFile() as output:
             done = subprocess.run([args.wine, *map(str, argv)], env=env, cwd=root,
-                                  stdout=output, stderr=subprocess.STDOUT, timeout=60)
+                                  stdout=output, stderr=subprocess.STDOUT, timeout=timeout)
             output.seek(0)
             data = output.read()
         assert done.returncode == expected, (argv, done.returncode, data,

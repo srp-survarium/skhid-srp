@@ -23,7 +23,9 @@ over the bytes it owns in a recorded world:
   the guns its records name that this game has no copy of);
 - in each place's state, as base_player::deserialize reaches them:
   `pickup.load` (0x2DB4CF) at offset 2, patch 85's record, and `carry.load`
-  (0x2DBAB5) at its last 32 bytes, patch 78's carry; then, as
+  (0x2DBAB5) at its tail: patch 78's carry (32 bytes), then patch 206's
+  second sights (11, `second_sight::Record`, its version last) when the
+  state ends with them; then, as
   base_player::serialize does, each place's `pickup.save` (0x2DAF70) and
   `carry.save` (0x2DB47E), with the game's byte writer (0x1F3DE0).
 
@@ -88,6 +90,7 @@ REKIT = os.path.join(HERE, "..", "..", "tools", "re-kit", "v026g")
 CARRY_SAVE, CARRY_SAVE_AFTER = 0x2DB47E, 0x2DB483
 CARRY_LOAD, CARRY_LOAD_AFTER = 0x2DBAB5, 0x2DBABC
 CARRY = 32                                  # artefact_carry::Carry::SNAPSHOT_SIZE, the state's last bytes
+SIGHTS = 11                                 # second_sight::Record::BYTES (patch 206): after the carry, when kept
 PLACES = 20
 EXTRA = wp.PICK + 0x100000                  # room for every place's kit players after the Pick's own
 # Each own gun's magazine, its stack's rounds, and its condition (weapon+270h, the wear a pick hides).
@@ -97,7 +100,7 @@ OWN_KITS = {"fresh A": (30, 90, 1.0), "fresh B": (7, 13, 0.5)}
 RUN = {
     (0x27C0D0, 9): "world_load.unpacked (patch 87's parse, patch 85's guns cooked before the load)",
     (0x2DB4CF, 6): "pickup.load (patch 85's record, state offset 2)",
-    (0x2DBAB5, 7): "carry.load (patch 78's carry, the state's last 32 bytes)",
+    (0x2DBAB5, 7): "carry.load (patch 78's carry, then patch 206's second sights when the state has them)",
     (0x2DAF70, 6): "pickup.save",
     (0x2DB47E, 5): "carry.save",
 }
@@ -118,8 +121,26 @@ OWN_CHECKS = {
                    "it never writes; check_artefact_keeper_026g.py runs it after the game's own "
                    "inventory::deserialize and asserts a mended current kit keeps its loaded +180h/+184h",
     (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x2D2770, 8): "sync.world_load (patch 210, the sync log): game_world_core::deserialize's entry reads its "
+                   "caller and the loaded state's time for the log's lines, writes nothing of the game's; "
+                   "check_sync_log_026g.py runs the site beside the original (registers and memory the same, "
+                   "the log off and on)",
+    (0x30DC7C, 6): "reload.listen_again (patch 205): after the animation-end-aware state read its bytes, a magazine "
+                   "reload subscribed to its clip's reload_commit channel as the game subscribes it to the clip's "
+                   "end; reads and writes no byte a save writes (the replayed mov [ebx+134h],cl stores the byte as "
+                   "read); check_reload_commit_026g.py runs a world read mid-reload and its seat",
     (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
+    (0x252B48, 6): "deserialize.fire_animation_sound (patch 115): a fire state's m_weapon_animation_index stored as "
+                   "read when 0 or 1, any other byte as 0; the world check refuses any other byte (srp-validate's "
+                   "FireAnimation), so a world a game loads is stored as read; check_deserialize_guards_026g.py",
+    (0x310224, 6): "deserialize.fire_animation: as 0x252B48, in the bare fire classes' deserialize (never called)",
+    (0x33A51B, 12): "deserialize.grenade_serialize (patch 115): the throw state's serialize writes its set's slot as "
+                    "the stock when the set is a grenade set, no slot (17h) for another item or none, a throw the "
+                    "server refuses (TailGrenadeSet); check_deserialize_guards_026g.py",
+    (0x2AC8A6, 8): "effect_presenter.particle_read_room (patch 122): particle_game_effect_presenter::deserialize's "
+                   "local list given the presenter's room (32 entries, not six), a capacity, no bytes of the world; "
+                   "check_particle_room_026g.py",
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
     (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
@@ -137,6 +158,8 @@ OWN_CHECKS = {
                    "check_weapon_stats_026g.py (the game's own serialize and deserialize: a load gives the table "
                    "back, the next world is the one loaded; a world without it is written back without it)",
     (0x2F5C83, 7): "weapon_stats.load: as weapon_stats.save",
+    (0x3136A3, 5): "artefact.wear_save: check_artefact_skills_026g.py check_wear round-trips compact and extended wear counts",
+    (0x3137A0, 6): "artefact.wear_load: as artefact.wear_save",
     (0x313735, 6): "carry.ground_save: a dropped artefact's 20 bytes in the objects section (no decoder locates "
                    "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded); and patch 109's "
                    "4 bytes of an active one (state 4), the places Cascade's activation reached; "
@@ -166,9 +189,9 @@ OWN_CHECKS = {
                    "(serialize, then the load: the same cloud, the reader at its end)",
     (0x303E40, 7): "smoke.save_cloud: the cloud's 16 bytes after the thrown fields, as smoke.save_state",
     (0x30406C, 7): "smoke.load_cloud: as smoke.save_state (a world without the bit clears the grenade's cloud)",
-    (0x33E7E7, 5): "technical.tank_save (patch 180, Last Gasp): the boost's u32 after the oxygen tank's m_amount_ms, "
-                   "always written (the players section; srp-validate's OxygenTank reads it); "
-                   "technical_skills::Gasp's test and srp-validate's parse",
+    (0x33E7E7, 5): "technical.tank_save (patch 180, Oxygen Rush): the boost's u32 and the use's u16 after the oxygen "
+                   "tank's m_amount_ms, always written (the players section; srp-validate's OxygenTank reads them); "
+                   "technical_skills::OxygenRush's and TankUse's tests and srp-validate's parse",
     (0x33E82F, 7): "technical.tank_load: as technical.tank_save, checked against the stream's end",
 }
 CODEC = re.compile(r"::(de)?serialize")
@@ -271,6 +294,31 @@ def walk(body):
     if at != len(body):
         raise ValueError(f"the body has {len(body) - at} bytes after its sections")
     return states
+
+
+def tail_at(state):
+    """Where a state's tail begins: its carry, and patch 206's record after it when the state ends with one
+    (second_sight::Record::split_end: the version 1 last, tags 0..3, a time only when switching, and the
+    carry's version byte before it)."""
+    def sights(record):
+        tags_ok = all(record[at] < 4 and (record[at] >= 2 or record[at + 1:at + 5] == bytes(4)) for at in (0, 5))
+        return record[-1] == 1 and tags_ok
+    if len(state) >= CARRY + SIGHTS and sights(state[-SIGHTS:]) and state[-SIGHTS - CARRY] == 2:
+        return len(state) - CARRY - SIGHTS
+    return len(state) - CARRY
+
+
+def with_sights(body, now):
+    """`body` with patch 206's record after each state's carry: a place's slot 7 on its second sight, slot 10
+    switching to its second since 30 ms ago (even places), the other way round (odd ones)."""
+    out, at = bytearray(body[:4]), 4
+    for place, start, end in walk(body):
+        a, b = (1, 0), (2, now - 30)
+        first, second = (a, b) if place % 2 == 0 else ((3, now - 30), (0, 0))
+        state = bytes(body[start:end]) + struct.pack("<BIBIB", first[0], first[1], second[0], second[1], 1)
+        out += body[at:start - 2] + struct.pack("<H", len(state)) + state
+        at = end
+    return bytes(out + body[at:])
 
 
 def migrate(body, version, size):
@@ -432,9 +480,10 @@ class Game(wp.Pick):
             reader = self.reader(at + start, at + start + 2, end - start)
             self.lohook(wp.LOAD_SITE, wp.LOAD_AFTER, {UC_X86_REG_EBX: player, UC_X86_REG_ESI: reader})
             record = body[start + 2:start + 2 + self.read(reader + 4) - (at + start + 2)]
-            reader = self.reader(at + start, at + end - CARRY, end - start)
+            tail = start + tail_at(body[start:end])
+            reader = self.reader(at + start, at + tail, end - start)
             self.lohook(CARRY_LOAD, CARRY_LOAD_AFTER, {UC_X86_REG_EBX: player, UC_X86_REG_ESI: reader})
-            carry = body[end - CARRY:self.read(reader + 4) - at]
+            carry = body[tail:self.read(reader + 4) - at]
             read[place] = (player, record, carry)
         return read
 
@@ -562,21 +611,25 @@ def main():
     version, size = record_version(patched)
     recorded = worlds(args.worlds)
     loaded = [(name, now, migrate(body, version, size)) for name, now, body in recorded]
+    # the same worlds as a game of patch 206 writes them: each state's second sights after its carry (a
+    # resync of its own over them, in their times' order)
+    sighted = [(f"{name} (second sights)", now, with_sights(body, now)) for name, now, body in loaded]
     games = {what: (lambda kit=kit: Game(patched, kit)) for what, kit in OWN_KITS.items()}
-    resync = Game(patched, OWN_KITS["fresh A"])
-    for what in [*games, "resync"]:
-        failures = []
-        for name, now, body in loaded:
-            game = resync if what == "resync" else games[what]()
-            if args.contexts:
-                game.validation_context = contexts[name]
-            failures += round_trip(game, name, now, body)
-        for _, _, _, line in failures[:args.show]:
-            print(f"  FAIL  {what}: {line}")
-        print(f"  {'FAIL' if failures else 'ok'}  {what}: {len(loaded)} worlds loaded and saved at once "
-              f"(record version {version}, {size} bytes; carry {CARRY}): "
-              f"{summary(failures, len(loaded)) if failures else 'every hook wrote what it read'}")
-        failed += len(failures)
+    for worlds_of, tail in ((loaded, f"carry {CARRY}"), (sighted, f"carry {CARRY} and patch 206's {SIGHTS}")):
+        resync = Game(patched, OWN_KITS["fresh A"])
+        for what in [*games, "resync"]:
+            failures = []
+            for name, now, body in worlds_of:
+                game = resync if what == "resync" else games[what]()
+                if args.contexts:
+                    game.validation_context = contexts[name.removesuffix(" (second sights)")]
+                failures += round_trip(game, name, now, body)
+            for _, _, _, line in failures[:args.show]:
+                print(f"  FAIL  {what}: {line}")
+            print(f"  {'FAIL' if failures else 'ok'}  {what}: {len(worlds_of)} worlds loaded and saved at once "
+                  f"(record version {version}, {size} bytes; {tail}): "
+                  f"{summary(failures, len(worlds_of)) if failures else 'every hook wrote what it read'}")
+            failed += len(failures)
     print(f"{'all cases passed' if not failed else f'{failed} FAILED'} ({time.time() - started:.0f} s)")
     sys.exit(1 if failed else 0)
 

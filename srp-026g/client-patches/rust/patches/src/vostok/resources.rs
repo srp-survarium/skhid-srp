@@ -35,6 +35,10 @@ const PARTICLE_CLASS: u32 = 61;
 /// A sound collection (sound_collection_cook: its class 102h, 0x5F4A3): a
 /// sound emitter that plays one of its items.
 pub const SOUND_COLLECTION_CLASS: u32 = 258;
+/// A composite sound (sounds/composite/*.composite_sound): a sound emitter
+/// that plays all its items at once (class 101h, as gameplay/bodyparts'
+/// torso sounds name theirs: {257, "animations/death_animation"}).
+const COMPOSITE_SOUND_CLASS: u32 = 257;
 /// query_resources' last argument: a normal asynchronous query.
 const ASYNCHRONOUS: u32 = 1;
 /// A sound scene's creation params: the music bus holds one voice at a time,
@@ -160,7 +164,7 @@ pub struct ArrivedAssets {
 }
 
 /// The most game effects one query asks for.
-pub const EFFECTS_MOST: usize = 16;
+pub const EFFECTS_MOST: usize = 13 + 3 * 23;
 
 /// The game effect resources a query asked for, in its order, each kept for
 /// the process (None: that one failed, or past the query's requests).
@@ -170,6 +174,8 @@ pub struct ArrivedEffects {
 }
 
 impl ArrivedEffects {
+    pub fn get(&self, index: usize) -> Option<KeptEffect> { self.kept.get(index).copied().flatten() }
+
     /// The first `N`, when every one of them came (a query of `N`).
     pub fn all<const N: usize>(&self) -> Option<[KeptEffect; N]> {
         let mut out = [None; N];
@@ -309,6 +315,13 @@ pub fn query_track(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallb
 /// arrives as a track does, its emitter the collection.
 pub fn query_collection(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallback) {
     query(path, SOUND_COLLECTION_CLASS, None, QueryTag::Track(serial), callback);
+}
+
+/// Asks for a composite sound (class 257) at `path`
+/// (`animations/death_animation`: sounds/composite/animations/..): it
+/// arrives as a track does, its emitter the composite.
+pub fn query_composite(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallback) {
+    query(path, COMPOSITE_SOUND_CLASS, None, QueryTag::Track(serial), callback);
 }
 
 /// Asks for a model and its particle systems in one query (class 15, then 61

@@ -7,18 +7,20 @@
 the launcher and itself) the same as the ZIP the server's page offers, and
 the game folder's `resources.db.patch_<n>` files, which the game mounts
 over its own `resources.db`, the ones the server lists ("Patches" below).
-New content reaches the players in those patches alone; `resources.db`
-itself stays as the game ships it (an earlier updater changed parts of it
-in place: those get their stock bytes back once, "Restoring resources.db"
-below).
+New content reaches the players in those patches alone; the updater never
+changes the game's `resources.db` (it unpacks the original's only into a
+folder without the game; an earlier updater changed parts of it in place:
+"What earlier updaters left" below).
 
-An ordinary 32-bit Windows program of about 570 KB, like `../bugtrap`: Rust's
+An ordinary 32-bit Windows program of about 800 KB, like `../bugtrap`: Rust's
 standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
 Windows 10 and later. It imports `kernel32.dll`, `user32.dll` (its message
 box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
-user.cfg says the language its messages are in), and `ntdll.dll` and
+user.cfg says the language its messages are in), `ole32.dll` (Network List
+Manager's connectivity test, "The player's boxes"), `ws2_32.dll` (the route's
+probes, "The route"), and `ntdll.dll` and
 `api-ms-win-core-synch-l1-2-0.dll` (the standard library's). Its BitTorrent is
 libtorrent, in `skhid_torrent.dll` beside it (Windows 10 and later), loaded
 only when torrent is on ("BitTorrent" below).
@@ -47,11 +49,10 @@ only when torrent is on ("BitTorrent" below).
   prompt is needed. Allow about 10 GB of free disk space. The game is
   unpacked with `7zr.exe`, a file of the Skhid archive beside the updater
   (`extractor/`): nothing that is run is downloaded on its own.
-- After the Skhid files, at every start: the regions of `resources.db` an
-  earlier updater rewrote in place (its record beside the updater names
-  them) get their stock bytes back, from the copies it kept, else from
-  `GET /resources/<sha256>`. Best effort, once: it never fails the update
-  ("Restoring resources.db" below).
+- After the Skhid files, at every start: what the updaters of before the
+  patches left beside this one (their record of `resources.db`, its journal,
+  copies and blobs) is deleted, best effort ("What earlier updaters left"
+  below).
 - Before PLAY, the drive of the Documents folder needs 5 GB free
   (`logic/src/disk.rs`; patch 70 keeps up to 3 GB of baked textures there).
   With less, PLAY stays off and a box in the game's language says so; Retry
@@ -128,14 +129,14 @@ one.
 |---|---|---|
 | `"<exe>" "update" "\\.\pipe\vostok_updater_pipe-<product>" ...` (also `full_update`) | the launcher | The update, reported over the launcher's pipe in the messages of the original updater (`logic/src/pipe.rs`). It stays until the launcher says stop or goes away, asking the server every 10 s meanwhile ("PLAY and the server's revision") |
 | `"<exe>" "copy" "<pipe>" ...` | the unpatched launcher | Answers "copy done" at once: nothing needs copying |
-| `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to restore resources.db and do the patch step, and its exit code is this one's. An error is a message box |
+| `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to do the patch step, and its exit code is this one's. An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
-| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game on the player's route ("The route" below): the relay, unprobed; direct, probed; Automatic: the server itself when it answers, else the relay (`srp-026g/deploy/relay/README.md`). A route that does not answer is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
+| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game on the player's route ("The route" below): the relay, unprobed; direct, probed; Automatic: the server itself when it answers, else the relay (`srp-026g/deploy/relay/README.md`). A round of a route answers when its login TCP, lobby UDP and match UDP each echo 64 KiB each way within 5 s (`route/src/lib.rs` `PROBE_BYTES`, `ROUND`; "The check" below): some providers cut a flow to foreign hosting after its first tens of KB. A route that does not answer is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
-| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
+| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `game\logs\seed\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
 (an internal error; logged).
@@ -147,10 +148,12 @@ says so and does nothing.
 
 | Folder | What |
 |---|---|
-| `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
+| `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the list of resources.db's patches, the quick check's record) and what the patch step decides, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource; `src/libtorrent.rs` is the one caller of the DLL |
+| `route/` | `relay-client`: the route's probes (login TCP, lobby and match UDP), in rounds by `logic`'s `route::Check` ("The route" below) |
+| `extractor/` | `7zr.exe`, the extractor the updater runs, with where it is from and its licence |
 | `torrent-dll/` | `skhid_torrent.dll`: libtorrent-rasterbar 2.0.12 behind a small C API (`skt.h`, `skt.cpp`), and `skhid-dht`, the same API on Linux for the release (`release/publish-dht`); `default.nix`, built by `srp-026g/flake.nix` (`skhid-torrent-dll`, `skhid-dht`) |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_run_logs.py`: the run logs in `game\logs`, the old ones beside the updater deleted, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and what earlier updaters left, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_run_logs.py`: the run logs in `game\logs`, the old ones beside the updater deleted, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
 
@@ -169,8 +172,7 @@ sections give the file offset of 0x380862, where the patched exe has
 `C6 44 24 27 <revision> 90` and the original `8A 0D 9E AE 9D 00`, revision
 0). A lower revision than `n` keeps PLAY off ("Error", and "The server lets
 in game revision n and up; this game is revision r, and the update to it is
-not offered yet (the server is being updated). ..."), before the restore and
-the patch step. That is a server whose ZIP is older than its setting: a
+not offered yet (the server is being updated). ..."), before the patch step. That is a server whose ZIP is older than its setting: a
 release half put in place. An exe whose site is neither (another program, a
 build whose site moved) or that cannot be read is logged and let through:
 the login server still decides. A server that says no `min-revision` (srp
@@ -271,8 +273,9 @@ launcher crashed at PLAY a minute later.
 In a download with a relay (`updater_skhid.relay`), the player's route is
 one of three (`logic/src/route.rs`, `exe/src/route.rs`, the one owner):
 
-- **Automatic**: PLAY probes the server's own login and lobby/match ports
-  and starts the game there when they answer, else through the relay; the
+- **Automatic**: PLAY checks the server's own login and lobby/match ports
+  and starts the game there when they answer, and through the relay only
+  when the direct route fails its check ("The check" below); the
   updater's HTTPS asks the site directly, then through the relay's CONNECT
   service (the way that answered last first).
 - **Relay**: PLAY starts the game through the relay, unprobed; HTTPS goes
@@ -305,6 +308,49 @@ function, `route::Shown::on`, takes what the row shows and what happened (a
 pick, a probe's end, a block found) to what it shows next, the choice to
 save and whether to probe.
 
+**The check** (`logic/src/route.rs` `Check`, the one rule; the probes in
+`route/src/lib.rs`). Through the relay the game's ping is higher (about 60 ms
+measured on 2026-11-20), and the route holds for the whole game, so the
+relay is taken only when the direct route really fails. A round is the three
+probes together (login TCP, lobby UDP, match UDP), each carrying 64 KiB each
+way (`PROBE_BYTES`: a provider that cuts a flow after its first tens of KB
+fails it), 5 s at most (`ROUND`: some 200 KB each way, 1.6 s at 1 Mbit/s,
+with time to send again what was lost; a UDP probe's missing datagrams are
+sent again every 0.5 s); the direct route's next round starts no sooner than
+5 s after the one before, so its rounds are spread over the seconds.
+
+- Any round whose three probes all answer: direct, at once (the usual case:
+  one round, as long as the answers take).
+- Nothing of the direct route answers: 3 rounds (15 s), then the relay.
+- A probe of it answered in a round where another was lost or cut (the
+  login TCP, say, and a UDP probe not): packets lost on the way, or a block
+  of a part, and more rounds tell which: 5 rounds (25 s), then the relay. A
+  block that passes TCP and drops or cuts UDP still ends at the relay.
+- The last game played direct: one more round (4, or 6).
+- The relay has one round: it answers whole, or neither route does.
+
+At most 6 rounds of the direct route and the relay's one: 35 s. The
+server's name is asked of DNS once for a check: a slow answer is waited for
+by the next round, not asked anew.
+
+The route PLAY starts a game by after a check is kept beside the choice, in
+`<Documents>\survarium\launcher_skhid.route_played` (one word: `direct` or
+`relay`; written when it changes; not written for the relay chosen, which
+is not checked). It is the next check's evidence (the one more round after
+`direct`), never a shortcut past it.
+
+The log has every check, of PLAY and of the launcher's row (`route:`), with
+each round and each probe that failed:
+
+```
+play: route check (last game direct): direct in 1 round: (1) answered -> Direct(203.0.113.5:8010)
+play: route check (last game direct): direct in 4 rounds: (1) login TCP TimedOut, lobby UDP TimedOut, match UDP TimedOut; (2) ...; (4) ...; relay: answered -> Relay(203.0.113.8:8010)
+play: route check (last game none): direct in 2 rounds: (1) login TCP ok, lobby UDP TimedOut, match UDP ok; (2) answered -> Direct(203.0.113.5:8010)
+```
+
+A box that waits for a server that restarts asks one round every few
+seconds; the check runs when it goes on.
+
 A request through the relay is one of a WinHTTP session opened with the
 relay's CONNECT service as its proxy (`WINHTTP_ACCESS_TYPE_NAMED_PROXY`),
 not a request with the proxy as its option (`WINHTTP_OPTION_PROXY`): Wine 11
@@ -315,6 +361,27 @@ address in the request line (`GET https://skhid.link:443/api/...`), inside
 the tunnel too; Caddy takes it and asks srp for the path alone
 (`tools/check relay-site`).
 Without `updater_skhid.relay` nothing is sent and the box stays hidden.
+
+## A game left running
+
+Before the launcher's PLAY starts the game (`play` without `wait` or
+`-match_replay=`), it closes every `survarium_skhid.exe` an earlier start of
+this folder left running: a process of this Windows session whose image is
+this folder's game exe, the whole path compared whatever the letters' case
+(`logic/src/leftover.rs`, `exe/src/leftover.rs`). Its visible windows get
+WM_CLOSE (the game quits; the crash box, BugTrap's dialog inside the game's
+process, closes and lets it end); what still runs 3 s later is terminated
+and waited for up to 5 s. The log names each one and how it ended
+(`play: earlier game, process <id>: Closed(WhenAsked)`, `Closed(Terminated)`
+or `Failed(...)`). A game of another folder, the play scripts' games and
+other programs are never touched. One that cannot be closed (refused by
+Windows, or still running after it was terminated) is a box in the
+launcher's language with Retry and Cancel, and the game is not started.
+
+**Why.** On 2026-11-23 a player on revision 72 could not aim in matches
+while the menu and the keyboard worked, until he restarted the computer: an
+earlier game that never ended held the mouse (DirectInput, exclusive, which
+the game takes in a match), so the new one got none.
 
 ## The player's boxes
 
@@ -330,7 +397,7 @@ caption is `Skhid: <the fixed words>` in English always.
 | Title begins | When | What to run |
 |---|---|---|
 | `Game files removed by antivirus: <file>` | Windows Security's 225/226 on a Skhid file; a file just written that is gone or denied when read back, or gone once in place; a program file gone at the start (put back, OK box) | `Skhid-defender-setup.cmd` (or exclude the folder named); for a patch of resources.db, in `game`, which the script does not exclude: Windows Security > Protection history > Allow on device, and that folder as an exclusion |
-| `Download failed: <file>, <damaged / cut short / too slow / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
+| `Download failed: <file>, <damaged / cut short / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
 | `No internet connection: ...`, `The server is offline: ...`, `The server is restarting: ...`, `Blocked on this network: ...`, `The relay does not answer: ...`, `No connection: ...`, each `<host> did not answer (<how>)` or `no address of <file> answered (<how>)` (or `<host>: the game server does not answer` for a 502, 503 or 504 of the site's proxy) | nothing answered before its answer's headers (WinHTTP's 12007 name not found, 12029 connection refused, 12002 timed out, 12030 connection cut off: `logic/src/network.rs`), or the site said the game server behind it is down; then told apart by what answers now (`logic/src/diagnosis.rs`, below) | what helps, and only that: nothing to run for no internet, a server offline or restarting; the launcher's "Relay" row for blocked here or the relay down; `Skhid-network-setup.cmd` for no connection |
 
 Nothing answered: the updater asks the server's site (`/api/stats`, 5 s at
@@ -689,10 +756,11 @@ without it has none, and says so). A server that answers always wins. srp's
 `/game` is the release's addresses (that row) with the rows of its
 `mirrors.tsv` added (see "Mirrors" below).
 
-**The download** is that of a patch's file (`http::get_file`), with the
+**The download** is that of a patch's file (`http::get_file_into`, the same code), with the
 rules of "Mirrors" below: redirects followed, a web page refused. The
 addresses are tried in their order, each once a run; any failure moves on to
-the next. The bytes on disk (`game\.skhid-game.7z`) are the same file at
+the next, and a slow one is left for the fastest (see "The fastest address"
+below). The bytes on disk (`game\.skhid-game.7z`) are the same file at
 every address, so the next address goes on from them: `Range: bytes=<n>-`;
 a `206` from byte n is appended, a `206` of another range is a failure, a
 `200` (a server that gives no part) is the whole file again from byte 0. A
@@ -715,9 +783,7 @@ answer within 30 s, or nothing received for 30 s: WinHTTP's 10 s name
 lookup, 10 s connect, 30 s send and receive), `host not found (DNS)`,
 `unreachable`, `connection reset`, `HTTP <status>`, `web page "<its
 title>", not the file` (the `<title>` of its first 8 KB, any host's: Google
-Drive's "Quota exceeded" page among them), `too slow: <n> KB/s over 2
-minutes (under 50 KB/s)` (`download::Speed`; only while another address
-remains: the last one is waited for, however slow), `cut short at byte <n> of
+Drive's "Quota exceeded" page among them), `cut short at byte <n> of
 <size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
@@ -797,50 +863,34 @@ downloads, verifies and extracts the full game with the extractor of
 `extractor/`, then installs the Skhid overlay. It does not contact Drive or
 archive.org.
 
-## Restoring resources.db
+## What earlier updaters left
 
-Before the patches, the players' ZIP had a plan
-(`game/binaries/x86/updater_skhid.resources`) and the updater wrote entries
-of it over the game's `resources.db` in place: the settings menu's, the
-lobby's and the login screen's Flash movies (`main_menu`, `lobby_menu`,
-`login_menu`), the same size and the same game CRC as the stock ones. Those
-updaters recorded each region before its first byte was written, in
-`updater_skhid.resources.state` beside the updater (the file, its size, the
-region's offset and size, the SHA-256 of its stock bytes and of what was
-written), noted the one being written in `updater_skhid.resources.journal`,
-and kept a copy of the stock bytes in `updater_skhid.backup\<sha256>`.
+Updaters 0.1.x (the players' ZIPs of 2026-10-14 to 2026-10-16, before the
+patches) wrote three Flash movies of `game/resources.db` in place, from a
+plan in their ZIP (`updater_skhid.resources`): the settings menu's, the
+lobby's and the login screen's (`main_menu`, `lobby_menu`, `login_menu`),
+the same size as the stock ones. They kept a record of each region in
+`updater_skhid.resources.state` beside the updater, a journal of the one
+being written in `updater_skhid.resources.journal`, a copy of its stock
+bytes in `updater_skhid.backup\` and the blobs they fetched
+(`/resources/<sha256>`) in `updater_skhid.cache\`. The updaters from 0.2.0
+(2026-10-16) until this change put the stock bytes back once, from the
+copy or from the server, and then deleted all of it.
 
-Content now comes as patches only, so a player's db must be the stock one
-again. At every start, after the overlay and before the patch step, under
-the installation lock (`exe/src/resources.rs`, `logic/src/resources.rs`):
+This updater changes no byte of an installed `resources.db`. After the
+overlay, under the installation lock (`exe/src/old_restore.rs`), it
+deletes those files and folders where they are still there, and
+`updater_skhid.resources.status` (of a plan that grew the db; never in a
+players' ZIP), logging each one; one Windows does not delete now (open) is
+tried at the next start. Nothing there fails the update, and with nothing
+left the step is a look for six names.
 
-1. The record is read, and the journal's region added to it (a write that
-   was cut short). Lines of another word are skipped; a record that cannot
-   be read is none (nothing is changed). Only regions of `game/resources.db`
-   are taken.
-2. Each region is hashed. Its stock bytes, a db of another size (another
-   build) or no db: it leaves the record. Else:
-3. The db is opened by the updater alone (share mode 0) and closed again.
-   The game keeps `resources.db` open while it runs, so this fails then: the
-   log says "the game is running" and nothing is changed this run.
-4. The stock bytes come from the copy kept when it checks (its size and
-   SHA-256), else from `<site>/resources/<sha256>` into
-   `updater_skhid.cache\` (streamed to the disk, checked; two tries).
-5. The region is journalled (flushed), the db opened by the updater alone,
-   the bytes written at the region's offset, flushed, read back and
-   checked; then the journal goes and the region leaves the record.
-6. Once the record is empty, it is deleted, and so are the copies kept, the
-   cache, the old plan and `updater_skhid.resources.status` (of a plan that
-   grew the db; never in a players' ZIP).
-
-Best effort: whatever fails is logged (`resources:`) and tried again at the
-next start, the record kept; it never fails the update or keeps PLAY off.
-The patches mount over the db, so a region not restored yet is hidden
-wherever a patch has that file. A player whose record is lost keeps the
-regions as they are: the updater no longer knows where they are. After the
-restore the step costs one look for its files. The launcher shows a
-restore as an install ("downloading" with the bar for a blob, "Extracting
-file <name>" while a region is written).
+A region an earlier updater left changed, or cut short by a write that was
+never finished, stays as it is. The game never reads it: those three movies
+are in `resources.db.patch_12` (a listed patch, so PLAY stays off until it
+is in place) and the game takes a file from the last patch that has it,
+over the db. A player who wants the stock db back replaces
+`game/resources.db` with the original's.
 
 ## Patches
 
@@ -899,8 +949,7 @@ list's SHA-256, and the list came from the update server over HTTPS.
   connection or a broken one, another status than 200, a web page
   (`Content-Type: text/html`: a sign-in page, Google Drive's "cannot scan
   this file for viruses" or "Quota exceeded" page; its title is in the
-  log), slower than 50 KB/s over 2 minutes (while another address
-  remains), a body shorter than its
+  log), a body shorter than its
   Content-Length, another SHA-256, too many redirects or one to an address
   a list may not name. Each try is a line of the log too (`... (try 1 of
   2): asking`). The second round tries again only the addresses that failed on the
@@ -910,6 +959,30 @@ list's SHA-256, and the list came from the update server over HTTPS.
   2): <why>`); PLAY stays off only when every address failed. Not enough
   disk, a file that cannot be written here: no other address would do
   better, the run ends.
+- **The fastest address.** A slow address is never a failure: it is left
+  for a faster one, which goes on from the bytes on disk, so nothing
+  measured is thrown away (`download::Mirrors`, the one rule of the
+  patches and the game's archive; one connection at a time). The address
+  in use is measured over each 30 s; under 1 MiB/s with more than 2
+  minutes of the file still to go at that speed (more than 120 MiB at
+  1 MiB/s, 12 MiB at 100 KiB/s), a round starts: every other open address
+  is sampled for 20 s in turn, each once a round, and the download goes on
+  at the fastest measured (the one in use among them). That choice is kept
+  until it breaks off, or falls under half the speed it was chosen at
+  over a minute; no round starts sooner than 5 minutes after the last. An
+  address that failed outright this run (a status, a web page, another
+  range, another SHA-256) is not sampled again; one that failed on the
+  network not in the same pass. When every address is slow, the fastest
+  is waited for, as one address is. One line of the log a decision:
+
+  ```text
+  patches: resources.db.patch_69: dl.dropboxusercontent.com (address 1): 512 KB/s over 30 s, 3511 MB to go: goes on at 2.28.121.133 (address 2) from byte 15728640, to sample it
+  patches: resources.db.patch_69: measured dl.dropboxusercontent.com 512 KB/s, 2.28.121.133 3072 KB/s: goes on at 2.28.121.133 (address 2) from byte 78643200
+  ```
+
+  (the game's archive: `skhid-game  speed    <host>: ...`). The launcher's
+  bar keeps its bytes across a move, and its speed and time left are those
+  of the address in use.
 - **Redirects** are followed, up to 5 a download (the 6th is a failure),
   WinHTTP's own following being off: each `Location` (absolute, `//host`,
   `/path`, `?query` or relative) is resolved against the address it came
@@ -926,8 +999,31 @@ list's SHA-256, and the list came from the update server over HTTPS.
   web page instead: that address fails and the next is tried. A Drive
   file has a daily download quota; past it, a "Quota exceeded" page, the
   same. `release/add-mirror` checks an address before srp offers it.
-- No patch download is resumed: one that broke off is fetched again whole
-  (a patch is tens of megabytes; the game's archive is gone on from).
+- **A download that broke off goes on from its bytes**, as the game's
+  archive does (`http::get_file_into`, the one code of both; a patch is
+  gigabytes now: `patch_69` is 3.7 GB, and one Dropbox answer ends after an
+  hour, so a link under 1 MB/s never got it in one go). Every address of a
+  patch serves the same file (the list's SHA-256), so the bytes on disk
+  are gone on from at the next address, in the second round and at the
+  next start, also after a stop (the launcher's, a route change, the pipe
+  closing) and a new updater: `Range: bytes=<n>-`. A `206` from byte n is
+  appended; a `206` of another range is a failure of that address; a `200`
+  (a server that gives no part) is the whole file again from byte 0; a
+  `416` (no byte n: the part is at least the file) has the part hashed
+  when the answer's size is the part's (it may be whole), else deleted,
+  and the second round asks that address from byte 0. The whole file is
+  hashed: another SHA-256 deletes the part (and when that try went on from
+  bytes kept, which may be what was wrong, the second round asks the
+  address again from byte 0, once). The part is
+  `game\.skhid-patch_<n>.<sha256>.part` (`Patch::part_name`): no
+  `resources.db.patch_*`, so neither the game nor the folder check takes it
+  for a patch, and the SHA-256 in its name ties its bytes to the one file:
+  a part of another file for the same number, of a patch the list has
+  not, of one already in place, or a name that is no part's is deleted at
+  the step (not with the list built in, which only adds). Each try's line
+  says the byte it goes on from (`... (try 1 of 2): asking, from byte
+  2833252352`); the launcher's bar starts from the bytes on disk, and its
+  speed counts from there.
 - **The server not reached.** When the list cannot be fetched and the
   folder is not as the list kept says, the list built into the updater at
   release time is used (`SKHID_BUILTIN_PATCHES`, the `/patches` of
@@ -938,7 +1034,8 @@ list's SHA-256, and the list came from the update server over HTTPS.
   exe may be newer than the updater and need it), and neither the list
   kept nor the status is written (it is not the server's list).
 - The Content-Length, when the server sends one, is checked against the
-  disk first, and a body shorter than it is an error.
+  disk first (what is still to come of it, past the bytes kept), and a
+  body shorter than it is an error.
 
 **The quick check.** A patch file is not read at every start. After it is
 downloaded or hashed whole, `updater_skhid.patches.checked` beside the
@@ -979,7 +1076,7 @@ delete, a new file of the same size and the old time set on it (`touch
 -r`) is not seen either. Neither happens by chance with a patch's bytes;
 `check` is the repair.
 
-**A run**, after the restore (also when nothing new was installed; under
+**A run**, after the overlay (also when nothing new was installed; under
 the installation lock):
 
 1. The list is fetched (three tries, 3 s apart; the launcher's stop is
@@ -994,14 +1091,17 @@ the installation lock):
    touched.
 4. Every `game\resources.db.patch_*` that is not a listed patch is deleted:
    one the list no longer has (a rollback), a name the game does not take
-   (`_014`, `_0`, `_300`), a download left over (`.skhid-part`).
+   (`_014`, `_0`, `_300`), a torrent's or an older updater's download left
+   over (`.skhid-part`). So is every part (`.skhid-patch_*`) that no
+   patch to download has (above).
 5. A damaged listed patch is deleted. A missing or damaged one is
-   downloaded from its addresses in turn (above) into
-   `resources.db.patch_<n>.skhid-part` beside its place (the disk must have
-   its Content-Length plus 64 MB free, else nothing is fetched), flushed,
+   downloaded from its addresses in turn (above) into its part,
+   `.skhid-patch_<n>.<sha256>.part` beside its place, going on from the
+   bytes it holds (the disk must have what is still to come, by the
+   Content-Length, plus 64 MB free, else nothing more is fetched), flushed,
    read back and hashed, and renamed to its name only when it has the
-   list's SHA-256. When every address failed, the run ends. A
-   `.skhid-part` that failed, or was stopped, is deleted. The launcher's
+   list's SHA-256. When every address failed, the run ends; the part
+   stays for the next start (one of no byte is deleted). The launcher's
    line says which of them it is at, "(5/69)" after what is left of the
    file (message `0B`, launcher patch 17; taken back when the downloads
    end).
@@ -1048,7 +1148,7 @@ done." after it:
 | A file of one address cannot be downloaded (network, a status, a web page, too many redirects, cut short) | "game\resources.db.patch_<n> could not be downloaded. <the network error>" |
 | A file of one address has another SHA-256 | "<host> sent game\resources.db.patch_<n> with another checksum than its list says. Tell the server's operator." |
 | None of a patch's addresses (two or more) gave its file | "game\resources.db.patch_<n> could not be downloaded from any of its <k> addresses (each is in updater_skhid.<date>.log). The first: <its failure>" |
-| Not enough disk | "Not enough free disk space to update the game's files in <folder>: N MB needed, M MB free. ..." (N: the file's size and 64 MB) |
+| Not enough disk | "Not enough free disk space to update the game's files in <folder>: N MB needed, M MB free. ..." (N: what is still to come of the file and 64 MB) |
 | resources.db is held (the game runs) and a patch file is to change | "The game is running, so Skhid could not update the game's patches ... Close the game, then start the launcher again." |
 | A patch file stays held by another program | "Another program holds game\resources.db.patch_<n>, so Skhid could not update the game's patches. An antivirus may be scanning it: wait a minute, then start the launcher again." |
 | The server could not be asked and the patches were not checked in place | "The game's patches could not be checked: <why the server could not be asked>" |
@@ -1068,8 +1168,8 @@ Use the dev shell of `srp-026g/flake.nix` (`nix develop ./srp-026g`): the
 nightly Rust of the game workspaces with `llvm-rc` and Microsoft's
 C runtime and import libraries for 32-bit x86 (`SKHID_MSVC_LIB`, as
 `../bugtrap/README.md` "Build" says). No Windows or Visual Studio installation
-is needed. The two locked dependencies of `exe/` are Microsoft's `windows-sys`
-and `windows-link`.
+is needed. The locked dependencies of `exe/` are Microsoft's `windows-sys`
+and `windows-link`, and `logic/`'s `ed25519-compact`.
 
 ```sh
 ./build.sh                                   # exe/target/i686-pc-windows-msvc/release/updater_skhid.exe
@@ -1077,7 +1177,7 @@ SKHID_UPDATE_URL=https://test.example ./build.sh   # another default server
 SKHID_REVISION=27 ./build.sh                 # as release/build-zip builds revision 27
 (cd logic && cargo test)
 python tests/test_updater.py                 # Windows
-python tests/test_db_patches.py              # Windows or Wine (resources.db's patches, the restore)
+python tests/test_db_patches.py              # Windows or Wine (resources.db's patches, what earlier updaters left)
 python tests/test_play_gate.py               # Windows or Wine (PLAY and the server's revision, the watch)
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
@@ -1110,7 +1210,7 @@ The build is reproducible: the same source, toolchain, `SKHID_UPDATE_URL` and
   of the content, not the time) and `/DEBUG:NONE` (no PDB, which would record
   the build folder), and Cargo `trim-paths` (no build, home or toolchain
   folder in the panic locations), as `../bugtrap`;
-- `exe` and `logic` are one Cargo workspace (`Cargo.toml` here, one
+- `exe`, `logic` and `route` are one Cargo workspace (`Cargo.toml` here, one
   `Cargo.lock`). Cargo names a path dependency outside the workspace by its
   absolute path, and that name reaches the exe's symbols and their order. The
   exe still builds to `exe/target/` (`target-dir` in `exe/.cargo/config.toml`);
@@ -1287,15 +1387,14 @@ trackers.
 
 - A signature on the ZIP made with a key that is not on the server. Today
   the ZIP is trusted because the HTTPS connection to the server is.
-- Resuming a broken download (the ZIP is a few megabytes; it is fetched
-  again; a patch, from its next address, else at the next start, whole: by
-  the owner's decision).
+- Resuming a broken download of the ZIP (a few megabytes; it is fetched
+  again). The game's archive and the patches go on from their bytes.
 - Texts in other languages than English (the launcher shows them in an
-  ANSI message box), but the stop's box of "A file that cannot be read",
-  which is the updater's own.
+  ANSI message box), but the updater's own boxes: the stop's box of "A file
+  that cannot be read", "The player's boxes" and "Watch replay"'s.
 
 
-## Opening local .sur files (unreleased)
+## Opening local .sur files
 
 Double-click a `.sur` file and choose **Skhid Replay** if Windows asks which
 app to use; select the option to remember the choice. Successful launcher

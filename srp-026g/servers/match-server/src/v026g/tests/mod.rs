@@ -12,6 +12,7 @@ mod afk;
 mod bots;
 mod driven;
 mod free_for_all;
+mod desync_capture;
 mod game;
 mod late_join;
 mod late_join_edge_cases;
@@ -71,6 +72,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
         }],
         squad: 0,
         face: survarium::v026g::faces::Face::DEFAULT,
+        notice: survarium::v026g::match_msgs::static_info::Notice::Skipped,
     }
 }
 

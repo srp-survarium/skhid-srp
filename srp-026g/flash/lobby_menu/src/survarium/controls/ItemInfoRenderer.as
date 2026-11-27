@@ -10,6 +10,7 @@ package survarium.controls
    import scaleform.clik.interfaces.IDataRenderer;
    import survarium.Util;
    import survarium.constants.Colors;
+   import survarium.data.BonusOrder;
    import survarium.item.ItemFactory;
    import survarium.item.ModificationRolls;
    import survarium.data.PropertiesDescriptor;
@@ -25,6 +26,7 @@ package survarium.controls
    import survarium.item.ModificationRolls;
    import survarium.data.LocalizationData;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.upgrade.SightPlace;
    import survarium.constants.CosmeticSlot;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
@@ -235,6 +237,8 @@ package survarium.controls
                });
             }
          }
+         // the built-in lines, {prop, entry}: the item's own, then what the skills add to it
+         var builtIn:Array = [];
          while(i < allModifiers.length)
          {
             modifier = allModifiers[i];
@@ -245,7 +249,7 @@ package survarium.controls
             };
             if(modifier.isDefault)
             {
-               defaultModifiers.push(entry);
+               builtIn.push({prop:int(modifier.props[0].prop_id),entry:entry});
             }
             else
             {
@@ -253,14 +257,40 @@ package survarium.controls
             }
             i++;
          }
-         // An oxygen tank: what Tank Pocket or Tank Depth adds, as a built-in bonus reads.
+         // An oxygen tank: what the tank skills add, as a built-in bonus reads.
          var names:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
          for each(var bonus:Object in MatchEffects.tankBonuses(_data))
          {
             var description:Object = names.getPropertyDescription(bonus.prop_id);
             if(description == null) continue;
-            defaultModifiers.push({icon:icons.getIcon(bonus.icon),label:description.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,bonus.value),ModificationRolls.style(description,bonus.prop_id,bonus.value))});
+            builtIn.push({prop:int(bonus.prop_id),entry:{icon:icons.getIcon(bonus.icon),label:description.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,bonus.value),ModificationRolls.style(description,bonus.prop_id,bonus.value))}});
          }
+         for each(entry in inBonusOrder(builtIn))
+         {
+            defaultModifiers.push(entry);
+         }
+      }
+
+      // The entries of `lines` ({prop, entry}) in the one order of the built-in lines (BonusOrder),
+      // those of one property as they came. A line whose property has no row is an error: it is
+      // never drawn last (a skill's line went last so, 2026-11-23).
+      private static function inBonusOrder(lines:Array) : Array
+      {
+         var out:Array = [];
+         var placed:Object = {};
+         for each(var row:Object in BonusOrder.lines)
+         {
+            placed[row.prop] = true;
+            for each(var line:Object in lines)
+            {
+               if(line.prop == row.prop) out.push(line.entry);
+            }
+         }
+         for each(line in lines)
+         {
+            if(!placed[line.prop]) throw new Error("built-in line of property " + line.prop + ": no row in BonusOrder");
+         }
+         return out;
       }
       
       public function displayOrange(show:Boolean) : void
@@ -296,6 +326,12 @@ package survarium.controls
             else if(Boolean(UpgradeWindow.stockScopes[item.dictId]))
             {
                lines.push(LocalizationData.getName("scope_slot") + ": " + LocalizationData.getName("default_scope"));
+            }
+            // the second sight with its side: "Second sight: <optic> (Left)"
+            module = UpgradeWindow.attachedIn(item,CosmeticSlot.SECOND_SIGHT);
+            if(Boolean(module))
+            {
+               lines.push(LocalizationData.getName("st_srp_second_sight") + ": " + module.name + " (" + LocalizationData.getName(SightPlace.labelKey(UpgradeWindow.secondSightSide(item))) + ")");
             }
             module = UpgradeWindow.attachedIn(item,CosmeticSlot.MUZZLE);
             if(Boolean(module))

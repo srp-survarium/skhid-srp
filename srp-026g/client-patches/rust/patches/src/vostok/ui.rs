@@ -77,6 +77,16 @@ pub struct GameWorldUi<'t> {
 }
 
 impl<'t> GameWorldUi<'t> {
+    /// The hud a site of `vostok` holds, alive on the hook's thread for `'t`.
+    pub(super) fn of(this: raw::GameWorldUi, _: &'t Thread) -> GameWorldUi<'t> {
+        GameWorldUi { this, thread: PhantomData }
+    }
+
+    /// Its handle, for `vostok`'s own reads.
+    pub(super) fn raw(&self) -> raw::GameWorldUi {
+        self.this
+    }
+
     /// The hud's game world (+18h).
     pub fn game_world(&self, thread: &'t Thread) -> Option<super::world::GameWorld<'t>> {
         // SAFETY: the live ui's world, alive while the hud is.
@@ -101,6 +111,14 @@ impl<'t> GameWorldUi<'t> {
         Some(GameWorldUi { this, thread: PhantomData })
     }
 
+    /// At `hud.initialize_match` (0x234880, once a match, before its first frame).
+    pub fn at_initialize_match(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
+        // SAFETY: the context is this site's: initialize_match's first argument by its ESP, the
+        // hud, alive while it runs on the game's thread.
+        let this = unsafe { raw::site::hud_initialize_match::frame(ctx)?.ui() }?;
+        Some(GameWorldUi { this, thread: PhantomData })
+    }
+
     /// At `game_world_ui.welcome` (update_ui's mark of the welcome message,
     /// 0x23B36A: EDI the ui).
     pub fn at_welcome(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
@@ -119,6 +137,18 @@ impl<'t> GameWorldUi<'t> {
         Place::new(u32::from(unsafe { read(self.this.viewed_place()) }))
     }
 
+    /// The teams' points in the hud state (+90h, +92h), which update_ui sends as the score bars
+    /// (root.set_game_progress, the viewed team's first). A mode without a rule that fills them
+    /// (Freeze Tag) writes them itself: nothing clears them at a new match, so the last match's
+    /// stayed (the owner, 2026-11-22: "freeze tag counter doesn't reset after prev game").
+    pub fn set_team_points(&self, points: [u16; 2]) {
+        // SAFETY: the ui is alive for the hook, on the game's thread; two u16 of its hud state.
+        unsafe {
+            self.this.team_zero_points().write(points[0]);
+            self.this.team_one_points().write(points[1]);
+        }
+    }
+
     /// Freeze Tag's rescue reach, from the HUD's current player to a
     /// frozen teammate. The same static-world query the rule uses.
     pub fn freeze_reachable(&self, from: srp_validate::Place, target: srp_validate::Place) -> bool {
@@ -126,6 +156,19 @@ impl<'t> GameWorldUi<'t> {
         // The hud outlives the match world (the results), and nothing is in reach then.
         let core = unsafe { self.this.world().and_then(|w| w.pvp_match()).map(|m| m.core()) };
         core.is_some_and(|core| super::freeze::clear(core, from, target))
+    }
+
+    /// Freeze Tag: the team of `place`'s player (its profile's), when it has one in the match.
+    pub fn freeze_team(&self, place: srp_validate::Place) -> Option<srp_validate::Team> {
+        // SAFETY: as freeze_reachable.
+        let core = unsafe { self.this.world().and_then(|w| w.pvp_match()).map(|m| m.core()) };
+        core.and_then(|core| super::freeze::team(core, place))
+    }
+
+    /// The match's world time (its core's last step), which its rule's times are of.
+    pub fn now(&self) -> Option<u32> {
+        // SAFETY: the ui's world and its match core live for this hook.
+        unsafe { Some(read(self.this.world()?.pvp_match()?.core().time())) }
     }
 
     /// The exact deadline against the completed simulation clock. The
@@ -263,7 +306,41 @@ pub(super) unsafe fn string_argument<'a>(values: Option<raw::GfxValue>, count: u
     }
 }
 
+/// `object`'s member `name` is the uint `value` (SetMember of the AS3 object interface,
+/// 0x7C6A20); false when the value is no AS3 movie's object (nothing set) or the movie refused.
+///
+/// # Safety
+/// `object` is a live GFx value of a movie on the hook's thread.
+pub(super) unsafe fn set_uint_member(object: raw::GfxValue, name: &CStr, value: u32) -> bool {
+    let mut room = raw::GfxValueStorage::zeroed();
+    let given = room.handle();
+    // SAFETY: the caller's live value; its interface is called only when its vtable is the AS3
+    // interface's, whose SetMember 0x7C6A20 is that slot; the name a C string; the value ours, a
+    // uint.
+    unsafe {
+        let Some(interface) = object.interface() else { return false };
+        if *interface.vtable() != raw::image::AS3_OBJECT_INTERFACE {
+            return false;
+        }
+        *given.kind() = GFX_UINT;
+        *given.value() = value;
+        let display = u32::from(*object.kind() & 0x8F == 0x0A);
+        raw::engine_gfx_set_member(Some(interface), object.object(), name.as_ptr().cast(), Some(given), display) != 0
+    }
+}
+
 impl Movie<'_> {
+    /// Invokes the movie's `method` with the one value `value` (the game's own, which it keeps
+    /// and releases); whether the movie took it.
+    ///
+    /// # Safety
+    /// `value` is a live GFx value of this movie.
+    pub(super) unsafe fn invoke_value(&self, method: &CStr, value: raw::GfxValue) -> bool {
+        // SAFETY: a live movie on the hook's thread; the name a C string; the caller's value.
+        let taken = unsafe { raw::engine_movie_invoke(Some(self.this), method.as_ptr().cast(), None, Some(value), 1) };
+        taken & 0xFF != 0
+    }
+
     pub fn invoke_text(&self, method: &CStr, value: &CStr) -> bool {
         self.invoke_strings(method, &[value])
     }
