@@ -32,7 +32,7 @@ impl Bots {
         // TEST ONLY: the spot suite's bot walks to its pinned goal at a run, no play, no fire (`tests/spot_suite.rs`).
         #[cfg(test)]
         if let Some(goal) = bot.bench_pin {
-            bot.intent = Intent::to(goal, Pace::Run).hold_fire();
+            bot.set_intent(Intent::to(goal, Pace::Run).hold_fire());
             return;
         }
         if !schedule(bot, &tuning, now) {
@@ -102,7 +102,7 @@ impl Bots {
         react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
-            bot.intent = Intent::stay();
+            bot.set_intent(Intent::stay());
             return;
         }
         // TEST ONLY: a bot a client test scripts plays no play (`client_tests`).
@@ -227,7 +227,8 @@ impl Bots {
                         let drive_span = super::bench_cpu::Span::begin();
                         // [bot traps] A goal the drive's own search failed to reach to the end this tick goes on cool-down.
                         path::mark_ends();
-                        let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching, press);
+                        let lanes = &mut self.teams[usize::from(team)].features.lanes;
+                        let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching, press, lanes);
                         unreachable::after_drive(bot, &me, tactics, path::end_since_mark(), time);
                         #[cfg(test)]
                         drive_span.end(super::bench_cpu::Part::Drive);
@@ -1380,7 +1381,15 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     if let Some((give_up_ms, give_up_at)) = bot.stuck.take_give_up() {
         let ms = |v: u32| if v == u32::MAX { "never".to_owned() } else { format!("{:.1} s", f64::from(v) / 1_000.0) };
         let spot = bot.stuck.spot_at(give_up_at).map_or("none".to_owned(), |s| {
-            format!("{} times since {} ms{}", s.times, s.first, if s.fell { ", marked by a fall or a failed jump or drop" } else { "" })
+            // [ladder after a fall] A marked spot's ladder counts the stucks after its last mark: the line says how many and since when.
+            let mark = match s.mark {
+                stuck::Mark::Unmarked => String::new(),
+                stuck::Mark::Marked(None) => ", marked by a fall or a failed jump or drop, no stuck since its last mark".to_owned(),
+                stuck::Mark::Marked(Some(c)) => {
+                    format!(", marked by a fall or a failed jump or drop, {} stucks since its last mark (from {} ms) count", c.times, c.first)
+                }
+            };
+            format!("{} times since {} ms{mark}", s.times, s.first)
         });
         let hopeless = facts.hopeless.map_or("no".to_owned(), |h| format!("{:?} for {}", h.why, ms(now.saturating_sub(h.since))));
         bot.note(
@@ -1471,7 +1480,7 @@ pub(super) fn decide(
     } = *due;
     // The play's step.
     let Some(mut running) = bot.running.take() else {
-        bot.intent = Intent::stay();
+        bot.set_intent(Intent::stay());
         return None;
     };
     // [bot traps] Its goals on cool-down (`unreachable.rs`): those whose cool-down ran out or that it stands away from go, each
@@ -1614,7 +1623,20 @@ pub(super) fn decide(
                     state.knowledge.takes.stand_failed(failed, now, (rule.keep_s.get() * 1000.0) as u32);
                 }
             }
-            bot.intent = intent;
+            #[cfg(test)]
+            if !bot.intent_is_current() {
+                use super::intent_counts::{OTHER_GOAL, REFRESHED, count};
+                count(REFRESHED);
+                let other = match (bot.intent.go, intent.go) {
+                    (Go::To { at: old, .. }, Go::To { at: new, .. }) => (old - new).length() > 1.0,
+                    (Go::To { .. }, _) | (_, Go::To { .. }) => true,
+                    _ => false,
+                };
+                if other {
+                    count(OTHER_GOAL);
+                }
+            }
+            bot.set_intent(intent);
         }
         Step::Done(why) => {
             bot.end_play(now, why, notes);

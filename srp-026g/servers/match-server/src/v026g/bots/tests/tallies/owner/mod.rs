@@ -111,6 +111,8 @@ use crouch::*;
 use damage_zones::*;
 use feel::*;
 use fight::*;
+/// [fight rows by cause] The reload window and reach, shared with the bench's reload tally (`fight_tally::ReloadCase`).
+pub(crate) use fight::{RELOAD_AFTER_MS, RELOAD_LINE_M};
 use fire_gate::FireGate;
 use first_shot::FirstShotCounts;
 use gang_up::*;

@@ -84,6 +84,8 @@ pub(crate) struct BlockTally {
     pub(crate) gates: fight_tally::GateTally,
     /// [measure] The bots' reloads.
     pub(crate) reloads: fight_tally::ReloadTally,
+    /// [reload trace] [measure] Each magazine and each reload as event rows.
+    pub(crate) trace: super::reload_trace::ReloadTrace,
 }
 
 /// [measure] A bot free to fire with its view within 4 deg of a visible
@@ -274,6 +276,24 @@ impl BlockTally {
         }
         self.onview[place] = ep;
         self.reloads.tick(place, me.gun.class(), me.team, me.alive, seen.is_some(), fired, bot.reflex.reload_note(), now);
+        // [fight rows by cause] The reload's split by cause: the nearest living enemy, and a line between one within the
+        // owner tally's reach and the bot (either way, as its `reloads_in_line`).
+        let enemies = || game.bodies.iter().filter(|b| b.alive && b.team != me.team);
+        let reload_seen = fight_tally::ReloadSeen {
+            alive: me.alive,
+            enemy_m: enemies().map(|b| b.feet.distance_xz(me.feet)).min_by(f32::total_cmp),
+            cover: bot.reflex.cover_state(),
+            crouched: me.keys & key::CROUCH != 0,
+            moving: me.keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0,
+        };
+        let line = || {
+            enemies().filter(|b| b.feet.distance_xz(me.feet) <= owner::RELOAD_LINE_M).any(|b| {
+                game.world.sight.visible(eye, Game::chest(b)) || game.world.sight.visible(Game::eye(b), Game::chest(me))
+            })
+        };
+        if let Some(row) = self.reloads.case(place, me.gun.class(), now, bot.reflex.reload_note(), reload_seen, line) {
+            events.line(row);
+        }
         self.reloads.looped(place, me.gun.class(), me.team, bot.reflex.loop_end());
     }
 
@@ -315,6 +335,8 @@ impl BlockTally {
         if game.kill_log.len() < self.kills_seen {
             self.kills_seen = 0;
         }
+        // [reload trace] The step's kills: by each killer, and each victim's killer.
+        let step_kills: Vec<(Place, Place)> = game.kill_log[self.kills_seen..].iter().map(|&(_, shooter, victim)| (shooter, victim)).collect();
         for &(_, shooter, victim) in &game.kill_log[self.kills_seen..] {
             for (place, spell) in self.spells.iter_mut().enumerate() {
                 if let Some(spell) = spell.as_mut()
@@ -339,6 +361,9 @@ impl BlockTally {
             self.shots[k] += s - s0;
             self.hits[k] += h - h0;
             self.onview_tick(game, bots, bot, s > s0, events);
+            let made = step_kills.iter().filter(|k| k.0 == place).count() as u32;
+            let killer = step_kills.iter().find(|k| k.1 == place).map(|k| k.0);
+            self.trace.tick(game, bot, (s - s0, h - h0, made), killer, events);
             // From a new target to the first shot at it.
             let target = bot.reflex.target().filter(|_| body.alive);
             self.aiming[place] = match (target, self.aiming[place]) {

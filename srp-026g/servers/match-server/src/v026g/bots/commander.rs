@@ -1080,6 +1080,15 @@ impl Bots {
             .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
             .collect();
         self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
+        // [posts apart] The bots running a position play now.
+        let posts = self
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .filter_map(|b| b.assignment.as_ref().filter(|a| plays::goals::POSTS.contains(&a.kind)).map(|a| (b.place, a.kind)))
+            .collect();
+        self.teams[usize::from(team)].knowledge.posts = posts;
         // [A310 `tdm.squad` S3] The squad target order: with the squads on, fights are answered as `tdm.group`'s (play 21's cover,
         // its default rules), by a free mover of the fighting bot's own squad.
         let squad_on = tuning.tdm.squad.is_some() && !view.objective().has_homes();
@@ -1473,6 +1482,12 @@ impl Bots {
             {
                 // [fix-team 2] Its held play waits for the interrupter it runs to be over.
                 commits.push((bot.place, team::Commit::Resumes { kind: s.kind, target: s.target }));
+            } else if bot.assignment.is_some()
+                && bot.features.lane.pincer().is_some_and(|p| p.phase != super::pincer::Phase::In)
+            {
+                // [pincer] A pincer under way holds its play as a started play is held: against all but a named interrupter, while
+                // its play is still a candidate (`pincer`).
+                commits.push((bot.place, team::Commit::Held));
             } else if tuning.commit.hold_started
                 && bot.assignment.as_ref().is_some_and(|a| team::held(a.kind, a.target, a.since, now))
             {
@@ -1795,6 +1810,12 @@ impl Bots {
             bot.running = Some(running);
             bot.end_route(RouteEnd::NewAssignment, now);
             bot.assignment = Some(assignment);
+            bot.plays_given = bot.plays_given.wrapping_add(1);
+            // [stale intent] Its think is due at once: the poll's thinks run after the commander and before the ticks, so
+            // its first drive tick on the new play goes for the new play's goal (`Bot::intent_is_current`).
+            bot.next_think = bot.next_think.min(now);
+            #[cfg(test)]
+            super::intent_counts::count(super::intent_counts::GIVEN);
             if tuning.number(plays::PlayKind::Roam, "fresh_claims") > 0.5 {
                 let knowledge = &mut self.teams[usize::from(team)].knowledge;
                 match (claim, bot.side) {

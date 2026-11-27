@@ -278,12 +278,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         him.feet.y,
         him.feet.z + (cx.me.feet.z - him.feet.z) * k,
     );
-    // That point proved no way to (beyond a drop, on a ledge): the nearest
-    // of those round him it may have a way to, kept up [`ROUND_HOLD_MS`]
-    // past the proof (not back to the shut side the think the point slides
-    // out of it); none: kept, and the think leaves the play, `goal_shut`.
+    // That point proved no way to (beyond a drop, on a ledge), or [bot traps] it is one the bot cannot go to before a search
+    // fails there ([`Ctx::can_go`]: the mate on a floor no walk reaches, in a shut pocket): the nearest of those round him it
+    // may have a way to, kept up [`ROUND_HOLD_MS`] past the proof (not back to the shut side the think the point slides out
+    // of it); none: kept, and the think leaves the play, `goal_shut`.
     let State::Follow { round_until, .. } = state;
-    if cx.no_way_lately(at) {
+    if !cx.can_go(at) {
         *round_until = cx.now + ROUND_HOLD_MS;
     }
     let at = if cx.now < *round_until {

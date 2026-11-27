@@ -697,7 +697,9 @@ fn is_fine(cx: &Ctx, choke: &Choke, apart: f32, others: &[(Place, Vec3)], at: Ve
 
 /// A spot for the choke, `apart_deg` from every teammate in its ring.
 fn pick(cx: &Ctx, choke: &Choke, rng: &mut Rng) -> Option<Vec3> {
-    let fine = super::goals::perch_first(cx, choke.at, rng, fine_spots(cx, choke));
+    // [posts apart] Apart by bearing from the teammates' HoldExit and Cut posts round the choke too (its halves are its own).
+    let fine = super::goals::apart_from_posts(cx, PlayKind::Crossfire, choke.at, fine_spots(cx, choke));
+    let fine = super::goals::perch_first(cx, choke.at, rng, fine);
     // Among the best three, any (not always the best: hard to read).
     let n = fine.len().min(3);
     (n > 0).then(|| fine[rng.below(n)])

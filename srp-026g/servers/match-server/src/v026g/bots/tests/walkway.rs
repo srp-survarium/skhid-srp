@@ -191,7 +191,7 @@ pub(crate) fn walk_to_goals(
         bots.features.searching.new_poll(bots.match_wide_tuning().think.search_queue, bots.match_wide_tuning().think.search_floors_per_poll as usize, crate::v026g::bots::search::living(&bots.bots, &view));
         bots.go_on_searching();
         if let Some(bot) = bots.bots[0].as_mut() {
-            bot.intent = Intent::to(goal(clock), Pace::Run).within(1.0);
+            bot.set_intent(Intent::to(goal(clock), Pace::Run).within(1.0));
         }
         let mut made = Vec::new();
         bots.ticks(0, &clock_now, &view, &mut made);

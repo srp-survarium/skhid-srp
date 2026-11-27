@@ -1081,6 +1081,24 @@ pub mod noway_memo {
     }
 }
 
+/// [bot CPU] A search's start whose way is proven not to exist (`Tactics::never_open_no_way`): the regions' checks before a
+/// floor is searched run as [`plan_start`] runs them (their answer, as theirs); past them the search would expand floors until
+/// none is left and end with no way over the allowed floors, so it ends so here, with no floor searched.
+pub fn plan_start_proven_no_way(
+    grid: &WalkGrid,
+    regions: &Regions,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    region_ok: impl Fn(u32) -> bool,
+    reach: mapdata::Reach,
+) -> Option<Route> {
+    match regions.start_route_search_reaching(grid, from, to, &allowed, &region_ok, usize::MAX, reach) {
+        Err((found, _stage)) => answered_before_search(grid, found, allowed, None),
+        Ok(_) => finish(grid, Search::NoWay, allowed, None),
+    }
+}
+
 /// [bot traps] Whether [`plan_start`]'s search, run to its end, finds a way: the search alone. No route is made of it, so
 /// none is pulled straight (a pull spends the thread's walk ticks, `mapdata::set_pull_walk_budget`, which the poll's routes
 /// share: a check that pulled its route changed other bots' routes), and no end is left for the log's line ([`last_end`]).

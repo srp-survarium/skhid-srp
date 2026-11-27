@@ -73,6 +73,8 @@ pub mod key_sources;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
+pub mod lane_draw;
+pub mod pincer;
 pub mod legs;
 pub mod link_time;
 pub mod live_grenades;
@@ -359,7 +361,13 @@ pub struct Bot {
     running: Option<Running>,
     assignment: Option<Assignment>,
     last_ran: Vec<(PlayKind, u32)>,
+    /// What it means to do now, for its play (`Bot::set_intent`).
     intent: Intent,
+    /// The plays the commander has given it, counted (a new assignment, `commander.rs`).
+    plays_given: u32,
+    /// The count of plays given when `intent` was made: the intent is for the play it has now when they agree
+    /// (`Bot::intent_is_current`).
+    intent_for: u32,
     /// The route and the goal it was planned to.
     route: Option<(Route, Vec3)>,
     /// When the route was put in place, and how the last one ended with its
@@ -686,6 +694,8 @@ impl Bot {
             assignment: None,
             last_ran: Vec::new(),
             intent: Intent::stay(),
+            plays_given: 0,
+            intent_for: 0,
             route: None,
             #[cfg(any(test, feature = "jump-test"))]
             route_born: 0,
@@ -1079,7 +1089,7 @@ impl Bot {
         self.assignment = None;
         self.held_choke = None;
         self.end_route(RouteEnd::EndPlay, now);
-        self.intent = Intent::stay();
+        self.set_intent(Intent::stay());
     }
 
     /// A new life: a fresh start with the team's present skill (it changes
@@ -1091,7 +1101,7 @@ impl Bot {
         self.running = None;
         self.assignment = None;
         self.route = None;
-        self.intent = Intent::stay();
+        self.set_intent(Intent::stay());
         self.stuck.reset();
         // [bot traps] A new life stands elsewhere: its goals are tried again.
         self.unreachable.clear();
@@ -1533,6 +1543,8 @@ impl Bots {
         self.bases = protection::Base::of_map(&tactics.world.map);
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
+        // [bot CPU] The parts off the floors no zone opens, made here at load and not at a commander's first ask.
+        let _ = tactics.never_open_parts();
         self.features.artefacts = tuning
             .hazard
             .artefact_know
@@ -3584,6 +3596,64 @@ fn walks_crossing(bot: &Bot) -> Option<Vec3> {
 }
 
 impl Bot {
+    /// Puts `intent` in place, made for the play it has now.
+    pub(super) fn set_intent(&mut self, intent: Intent) {
+        self.intent = intent;
+        self.intent_for = self.plays_given;
+    }
+
+    /// Whether its intent was made for the play it has now: not when the commander has given it a play since.
+    pub(super) fn intent_is_current(&self) -> bool {
+        self.intent_for == self.plays_given
+    }
+}
+
+/// [stale intent] The bench's counts of drive ticks run on an intent made for the play before the one the commander gave last:
+/// plays given, such ticks, those of them going to a point, the route searches and routes put in place in them, the thinks
+/// that put a new intent in place of such a one, and of those the ones whose goal was another (over 1 m, or stay against go).
+#[cfg(test)]
+pub mod intent_counts {
+    use std::cell::Cell;
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    pub const GIVEN: usize = 0;
+    pub const TICKS: usize = 1;
+    pub const MOVING: usize = 2;
+    pub const SEARCHES: usize = 3;
+    pub const ROUTES: usize = 4;
+    pub const REFRESHED: usize = 5;
+    pub const OTHER_GOAL: usize = 6;
+    const N: usize = 7;
+    // The drive holds a tick on an old intent in place (`drive_tick_inner`): `TICKS` counts those it held.
+    static COUNTS: [AtomicU64; N] = [const { AtomicU64::new(0) }; N];
+    thread_local! {
+        static STALE: Cell<bool> = const { Cell::new(false) };
+    }
+
+    pub fn count(what: usize) {
+        COUNTS[what].fetch_add(1, Relaxed);
+    }
+
+    pub fn counts() -> [u64; N] {
+        std::array::from_fn(|k| COUNTS[k].load(Relaxed))
+    }
+
+    /// A drive tick begins (`stale`: its intent is not its play's) or ends (false): the searches in it are counted.
+    pub fn set_stale(stale: bool) {
+        STALE.with(|s| s.set(stale));
+    }
+
+    pub fn stale() -> bool {
+        STALE.with(Cell::get)
+    }
+
+    pub fn line() -> String {
+        let c = counts();
+        format!(
+            "plays given {} drive ticks on the old intent (held in place) {} of them going {} searches {} routes {} thinks refreshing it {} to another goal {}",
+            c[GIVEN], c[TICKS], c[MOVING], c[SEARCHES], c[ROUTES], c[REFRESHED], c[OTHER_GOAL]
+        )
+    }
 }
 
 /// [A362] The bench's measure of a respawn's pause: from the world that starts a life to its first think, its first think with a

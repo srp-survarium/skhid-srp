@@ -119,6 +119,11 @@ impl BenchEvents {
         }
     }
 
+    /// Whether the rows are written (a tally that only writes rows does no work otherwise).
+    pub(crate) fn on(&self) -> bool {
+        self.0.is_some()
+    }
+
     pub(crate) fn line(&mut self, value: serde_json::Value) {
         use std::io::Write;
         if let Some(file) = self.0.as_mut() {
@@ -2524,6 +2529,7 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  trap pass: {}", crate::v026g::bots::traps::onpass::line());
                 eprintln!("  trap defeated: {}", crate::v026g::bots::traps::defeated::line());
                 eprintln!("  trap camper job: {}", crate::v026g::bots::traps::camper::line());
+                eprintln!("  stale intent: {}", crate::v026g::bots::intent_counts::line());
                 eprintln!("  trap looks called away: {}", crate::v026g::bots::traps::called::line());
                 eprintln!("  trap passes: {}", crate::v026g::bots::traps::passes::line());
                 eprintln!("  own trap refusals: {}", crate::v026g::bots::traps::own_trap_counts::line());

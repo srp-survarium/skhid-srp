@@ -295,7 +295,7 @@ fn cheapest(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidAp
                 .then(|| route.points[from..=gather].iter().copied().skip_while(|p| p.distance_xz(container) > ahead).collect())?;
             (!points.is_empty()).then_some(points)
         })
-        .filter(|points| points.last().is_some_and(|&g| cx.can_go(g)))
+        .filter(|points| points.last().is_some_and(|&g| cx.can_go_into_base(g)))
         .collect();
     // The ring's points round the container (none where no floor the bot can go to), by bearing; none for a bot already
     // inside the ring (going out to it would be going back).
@@ -310,7 +310,7 @@ fn cheapest(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidAp
                 let yaw = std::f32::consts::TAU * k as f32 / n as f32;
                 let p = container + Vec3::new(yaw.cos() * rule.stage_m, 0.0, yaw.sin() * rule.stage_m);
                 let floor = grid.position(grid.locate(p, 3.0)?);
-                cx.can_go(floor).then_some(floor)
+                cx.can_go_into_base(floor).then_some(floor)
             })
             .collect();
         // [review of #2195] The bot comes onto the ring at its point nearest the bot and walks round it to the gather point,

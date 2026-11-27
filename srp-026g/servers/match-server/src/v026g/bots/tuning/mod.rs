@@ -165,6 +165,7 @@ pub use smoke::ThreatLane;
 pub use smoke::WaitForCloud;
 pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
+pub use spacing::LaneDrawTuning;
 pub use take::CrossFromZone;
 pub use take::DropImpossible;
 pub use take::FarStands;
@@ -350,6 +351,9 @@ impl Tuning {
         self.skill.check()?;
         self.smoke.check()?;
         self.take.check()?;
+        if let Some(draw) = self.spacing.lane_draw {
+            draw.check()?;
+        }
         if let Some(plan) = self.mods.team_plan {
             plan.check()?;
         }
@@ -958,6 +962,20 @@ mod tests {
         for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
             assert_eq!(off.pointer(pointer), defaults.pointer(pointer), "{pointer}");
         }
+    }
+
+    /// [lane draw] The band is a cost ratio over 1, and a patch sets it alone: the bench's C arm,
+    /// `{"spacing": {"lane_draw": {"band": 1.3}}}`, keeps the draw's other values.
+    #[test]
+    fn the_lane_draw_band_is_over_one_and_a_patch_sets_it_alone() {
+        let mut tuning = Tuning::default();
+        tuning.spacing.lane_draw = Some(LaneDrawTuning { band: Positive::of(1.0), ..LaneDrawTuning::default() });
+        assert_eq!(tuning.validate().unwrap_err(), "spacing.lane_draw.band");
+        let wider = Tuning::patched(serde_json::json!({"spacing": {"lane_draw": {"band": 1.3}}})).unwrap();
+        let draw = wider.spacing.lane_draw.unwrap();
+        assert_eq!(draw.band.get(), 1.3);
+        assert_eq!(LaneDrawTuning { band: Positive::of(1.3), ..LaneDrawTuning::default() }, draw);
+        assert!(wider.validate().is_ok());
     }
 
     #[test]

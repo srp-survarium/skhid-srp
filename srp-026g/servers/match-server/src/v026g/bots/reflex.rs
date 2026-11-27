@@ -692,6 +692,30 @@ pub struct CombatTuning {
     /// 1.6 reloads a minute against 1.0 of the others).
     pub reload_idle_ms: u32,
     pub reload_some_share: f32,
+    /// [reload in cover] A tactical reload is taken out of the line of fire of the enemies the bot knows of, and a hide lasts
+    /// as long as its reload. Three rules, no number of their own:
+    /// - A tactical reload due while an enemy the bot knows of has a line of fire to where it stands goes to cover first:
+    ///   the nearest spot of the hide's ring (`hide_m`) out of the fire of every such enemy, and the reload begins there, or
+    ///   as soon as none of them has the line. With no such spot it reloads where it stands, as before. "Knows of": a track
+    ///   its own or its team's senses placed within `duel_ms`; the line is the hide's own test (`Tactics::shot_reaches`
+    ///   from his place's eye to its own). A carrier and a push keep their way.
+    /// - On that way, with nobody in sight, the bot looks where it runs, sights down, so it may sprint: the client's sprint
+    ///   is 5.0 m/s and needs the view on the way and the sights down (`can_sprint` 0x2DBF40), its side step is 2.5, its walk
+    ///   back 3.0, and aimed 2.0 to 3.0 (`mapdata::controller::speed`). The weapon is not reloading yet, so the sprint is
+    ///   not refused. (The same for a weapon that cannot fire, the magazine out or the reload on, was built and taken out:
+    ///   its probe showed no gain. Of the empty reloads begun in an enemy's line 41.8 % were out of every line within a
+    ///   second before and 39.0 % with it.)
+    /// - A hide's wait does not end, and its peek does not begin, while the weapon is reloading: the peek's spot is chosen
+    ///   to see the enemy.
+    ///
+    /// Measured on afc8b42b7 (96 bench matches, 3,852 reloads, 600 deaths in them; `fable-fight-reload-20261126.md`): a
+    /// reload no enemy gets a line on within 3 s ends in the bot's death in 2.3 % of 1,687, one begun in a line in 29.4 %
+    /// of 970; a bot in a line that is out of every line within a second dies in 14 %, one that is not in 46 %; on the way
+    /// to a hide spot the bots move at a median 1.5 to 1.8 m/s. Real players (247 live matches, 31,278 reload presses with
+    /// a position): 12.2 % of their presses are in an enemy's line (the bots' reloads: 25.2 %), 62 % of those are out of
+    /// every line within a second (44 %), at a median 2.9 m/s. Off: the reload wherever the bot stands 400 ms after its
+    /// target is out of sight, and the peek at its wait's end.
+    pub reload_in_cover: bool,
     /// [A277] The reload key goes in as the client takes it. The client takes a reload only from its weapon's idle, or at
     /// the end of the fire or chamber clip with the key held then (the exits to reload 0x2E3EF0, 0x2E3F70, 0x2E3F40; a key
     /// let go inside the clip is lost), and the shot that empties the magazine, rounds left to load, ends its fire clip in
@@ -2028,6 +2052,7 @@ impl Default for CombatTuning {
             trade_m: 40.0,
             reload_idle_ms: 400,
             reload_some_share: 0.4,
+            reload_in_cover: true,
             empty_reload: true,
             gun_from_world: true,
             worn_kit_from_world: true,
@@ -2271,6 +2296,8 @@ pub enum LegsWhy {
     /// [A208 `smoke.wait_for_cloud`] Holding short of a crossing until a cloud hides it (`smoke::CloudWait`): the
     /// route stays for the walk on.
     WaitingForCloud,
+    /// [pincer] Holding at a pincer's stage for the teammate coming in on the other bearing (`lane_draw::pincer`).
+    PincerHold,
     /// A hurt enemy who broke sight: on his last place while he cannot mend
     /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
     Finish(Place),
@@ -2733,6 +2760,35 @@ pub struct HealNote {
     pub cover_m: Option<f32>,
 }
 
+/// [reload in cover] A tactical reload due while a known enemy has a line of fire to the bot
+/// ([`CombatTuning::reload_in_cover`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum ReloadCover {
+    /// None is due in a line, or the think has not come to it yet: the reload waits while a known enemy has the line.
+    #[default]
+    Free,
+    /// On the way to a spot out of their fire, from this enemy's place: the reload begins there, or as soon as neither that
+    /// place nor a known enemy's has the line. The place stays known on the way whatever its track's age (the way ends at
+    /// the spot or with `hide_give_up_ms`).
+    Going { who: Place, at: Vec3 },
+    /// No spot, a carrier or a push: where it stands, as before.
+    Here,
+}
+
+/// [reload in cover] [measure] What the rule did this life ([`CombatTuning::reload_in_cover`]); nothing decides by them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReloadCoverStats {
+    /// Tactical reloads due in a known enemy's line of fire that went to cover first, found no spot (and reloaded where
+    /// they stood), and kept their way (a carrier, a push).
+    pub went: u32,
+    pub no_spot: u32,
+    pub kept_way: u32,
+    /// Hides whose wait a reload under way made longer.
+    pub held: u32,
+    /// Ways to the cover of a tactical reload run with the view on the way.
+    pub ran: u32,
+}
+
 /// Play 7's steps.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum Cover {
@@ -2844,6 +2900,30 @@ struct CloudHolding {
     since: u32,
     until: u32,
     legs: HoldLegs,
+}
+
+/// [pincer] A hold at a pincer's stage: where it stands, what it looks at (the objective), since when, and its cap.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PincerHolding {
+    at: Vec3,
+    look: Vec3,
+    since: u32,
+    until: u32,
+}
+
+/// [pincer] Why a hold at a stage ended (`Reflex::take_pincer_end`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PincerEnd {
+    /// The drive let it go: the teammate is staged, or gone.
+    Released,
+    /// Hit since the hold began.
+    Hit,
+    /// A target taken: a fight.
+    Fight,
+    /// An enemy its own senses noticed since the hold began.
+    Seen,
+    /// The hold's cap (`lane_draw::pincer::HOLD_CAP_MS`).
+    Cap,
 }
 
 /// [A208] Where a hold's legs are: walking the route on to the hold point, or standing at it.
@@ -4272,6 +4352,10 @@ pub struct Reflex {
     cloud_hold: Option<CloudHolding>,
     /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
     hold_ended: Option<(Vec3, u32)>,
+    /// [pincer] A hold at a pincer's stage under way (`lane_draw::pincer`).
+    pincer_hold: Option<PincerHolding>,
+    /// [pincer] How the last hold at a stage ended and how long it held, ms, not yet taken by the drive.
+    pincer_ended: Option<(PincerEnd, u32)>,
     /// [`CombatTuning::gate_from_client`] The last tick it sent the sprint, ms.
     sprinted_at: Option<u32>,
     /// [`CombatTuning::gate_from_client`] The tick it last pressed the jump, ms.
@@ -4465,6 +4549,14 @@ pub struct Reflex {
     last_seen: u32,
     /// Empty with a target seen and no cover found: reload where it is.
     reload_here: bool,
+    /// [reload in cover] The nearest enemy the bot knows of whose place had a line of fire to it at the last think.
+    known_line: Option<(Place, Vec3)>,
+    /// [reload in cover] Where a tactical reload due in such a line stands.
+    reload_cover: ReloadCover,
+    /// [reload in cover] The start of the hide whose run was counted and noted, and of the reload whose hold was.
+    ran_hide: Option<u32>,
+    held_reload: Option<u32>,
+    reload_cover_stats: ReloadCoverStats,
     /// No shot before this (a reload or the switch to the pistol under
     /// way).
     busy_until: u32,
@@ -5286,6 +5378,7 @@ impl Reflex {
             self.break_sight(me, sit, memory, now, false, true, c.hide_m, c, rng);
             self.reload_here = !matches!(self.cover, Cover::Hiding { .. });
         }
+        self.reload_in_cover(me, sit, memory, now, c, rng);
         self.cover_steps(me, sit, now, c, rng);
         self.matchup(me, sit, memory, now, c);
         // Outranged: out of his sight, and wait (no re-peek); a carrier
@@ -5422,6 +5515,34 @@ impl Reflex {
         self.cloud_hold = Some(CloudHolding { wait, since, until: since.saturating_add(wait.cap_ms), legs });
         #[cfg(test)]
         super::smoke::tally::wait(me.team, wait.waits_for, super::smoke::tally::Wait::Begun, 1);
+    }
+
+    /// [pincer] A hold at a pincer's stage `at` from `now`, looking at `look`, for at most `cap_ms` (a hold under way is replaced).
+    pub fn hold_for_pincer(&mut self, at: Vec3, look: Vec3, now: u32, cap_ms: u32) {
+        self.pincer_hold = Some(PincerHolding { at, look, since: now, until: now.saturating_add(cap_ms) });
+        self.pincer_ended = None;
+    }
+
+    /// [pincer] The drive lets the hold go (the teammate staged, or gone): it ends as [`PincerEnd::Released`].
+    pub fn release_pincer(&mut self, now: u32) {
+        if let Some(h) = self.pincer_hold.take() {
+            self.pincer_ended = Some((PincerEnd::Released, now.saturating_sub(h.since)));
+        }
+    }
+
+    /// [pincer] Whether it was hit at or after `since` (ms).
+    pub fn hit_since(&self, since: u32) -> bool {
+        self.hit_at.is_some_and(|at| at >= since) || self.bullet_hit_at.is_some_and(|at| at >= since)
+    }
+
+    /// [pincer] Whether it holds at a stage now.
+    pub fn holds_for_pincer(&self) -> bool {
+        self.pincer_hold.is_some()
+    }
+
+    /// [pincer] How the last hold at a stage ended and how long it held, ms, once.
+    pub fn take_pincer_end(&mut self) -> Option<(PincerEnd, u32)> {
+        self.pincer_ended.take()
     }
 
     /// [smoke] A smoke thrown at `plan` from now, if the kit has one and the hands are free: no throw under way, no
@@ -5776,6 +5897,36 @@ impl Reflex {
             look_at: Some(w.line.eye),
             turn_time_s: Some(settle_s),
             legs: Some(Legs { at, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::WaitingForCloud }),
+            band_m: self.band,
+            ..Override::default()
+        })
+    }
+
+    /// [pincer] A hold at a stage: standing there looking at the objective until the drive lets it go, or at once on a hit since the
+    /// hold began, a target (a fight), an enemy its own senses noticed since it began, or the cap. `None`: no hold.
+    fn pincer_holding(&mut self, me: &PlaceView, memory: &Memory, now: u32, settle_s: f32) -> Option<Override> {
+        let h = self.pincer_hold?;
+        let hit = |at: Option<u32>| at.is_some_and(|at| at >= h.since);
+        let end = if hit(self.hit_at) || hit(self.bullet_hit_at) {
+            Some(PincerEnd::Hit)
+        } else if self.target.is_some() {
+            Some(PincerEnd::Fight)
+        } else if memory.tracks().iter().any(|track| track.own.is_some_and(|(_, time)| time >= h.since)) {
+            Some(PincerEnd::Seen)
+        } else if now >= h.until {
+            Some(PincerEnd::Cap)
+        } else {
+            None
+        };
+        if let Some(why) = end {
+            self.pincer_hold = None;
+            self.pincer_ended = Some((why, now.saturating_sub(h.since)));
+            return None;
+        }
+        Some(Override {
+            look_at: Some(h.look),
+            turn_time_s: Some(settle_s),
+            legs: Some(Legs { at: h.at, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::PincerHold }),
             band_m: self.band,
             ..Override::default()
         })
@@ -6756,6 +6907,124 @@ impl Reflex {
         Sought::NoSpot
     }
 
+    /// [reload in cover] At a think: the known enemy whose place has a line of fire to the bot, and a tactical reload due in
+    /// such a line sent to cover ([`CombatTuning::reload_in_cover`]).
+    fn reload_in_cover(&mut self, me: &PlaceView, sit: &Situation, memory: &Memory, now: u32, c: &CombatTuning, rng: &mut Rng) {
+        self.known_line = None;
+        if !c.reload_in_cover {
+            return;
+        }
+        let Some(tactics) = sit.tactics else {
+            return;
+        };
+        // The enemies its own or its team's senses placed within the duel's length whose place has a line of fire to it (the
+        // hide's own test, from his eye to its own), the nearest first.
+        let eye = still_eye(me.feet, me.crouched());
+        let mut lines: Vec<(Place, Vec3)> = memory
+            .tracks()
+            .iter()
+            .filter_map(|track| track.own.filter(|&(_, time)| now.saturating_sub(time) <= c.duel_ms).map(|(at, _)| (track.who, at)))
+            .filter(|&(_, at)| tactics.shot_reaches(sit.cover, still_eye(at, false), eye))
+            .collect();
+        lines.sort_by(|a, b| a.1.distance_xz(me.feet).total_cmp(&b.1.distance_xz(me.feet)));
+        self.known_line = lines.first().copied();
+        // On the way to cover the place it goes from counts while it has the line, whatever its track's age.
+        if let ReloadCover::Going { who, at } = self.reload_cover
+            && self.known_line.is_none()
+            && tactics.shot_reaches(sit.cover, still_eye(at, false), eye)
+        {
+            self.known_line = Some((who, at));
+        }
+        // A tactical reload is due (as `Self::reload` asks): rounds in the weapon and to load, its share fired, nobody seen
+        // for the idle time, the hands free.
+        let last_seen = self.last_seen;
+        let busy_until = self.busy_until;
+        let held = self.hands().held();
+        let fired = held.gun.magazine - held.rounds;
+        let some = ((held.gun.magazine as f32 * c.reload_some_share).ceil() as u32).max(1);
+        let due = held.rounds > 0 && held.loadable() > 0 && fired >= some && now >= busy_until && now >= last_seen + c.reload_idle_ms;
+        if !due {
+            self.reload_cover = ReloadCover::Free;
+            return;
+        }
+        if self.reload_cover != ReloadCover::Free {
+            return;
+        }
+        let Some((who, at)) = self.known_line else {
+            return;
+        };
+        let off_m = at.distance_xz(me.feet);
+        // A carrier keeps its way home, a push its way: where it stands, as before.
+        if sit.view.objective().is_actor(me) || self.push.is_some_and(|p| now < p.until) {
+            self.reload_cover = ReloadCover::Here;
+            self.reload_cover_stats.kept_way += 1;
+            return;
+        }
+        // A hide under way is the cover.
+        if matches!(self.cover, Cover::Hiding { .. }) {
+            self.reload_cover = ReloadCover::Going { who, at };
+            return;
+        }
+        let query = SpotQuery {
+            out_of_fire_of: Some(at),
+            cover: sit.cover,
+            side: sit.side,
+            samples: 48,
+            ..SpotQuery::ring(me.feet, c.hide_m.0, c.hide_m.1)
+        };
+        // Every floor sampled, the nearest first; the spot is out of the fire of each of them.
+        let spot = tactics.spots(&query, now, query.samples, rng).into_iter().find(|spot| {
+            let to = still_eye(spot.at, false);
+            lines.iter().skip(1).all(|&(_, other)| !tactics.shot_reaches(sit.cover, still_eye(other, false), to))
+        });
+        match spot {
+            Some(spot) => {
+                self.last_peek = Some(me.feet);
+                self.cover = Cover::Hiding {
+                    at: spot.at,
+                    enemy: at,
+                    started: now,
+                    arrived: None,
+                    wait_ms: rng.range(c.hide_wait_ms.0 as f32, c.hide_wait_ms.1 as f32) as u32,
+                    repeek: true,
+                };
+                self.reload_cover = ReloadCover::Going { who, at };
+                self.reload_cover_stats.went += 1;
+                self.worth_notes.push(format!(
+                    "goes to cover to reload: enemy {who}, known {off_m:.1} m off, has a line of fire to it ({} known with one); the spot is {:.1} m off",
+                    lines.len(),
+                    spot.at.distance_xz(me.feet)
+                ));
+            }
+            None => {
+                self.reload_cover = ReloadCover::Here;
+                self.reload_cover_stats.no_spot += 1;
+                self.worth_notes.push(format!(
+                    "reloads where it stands: no spot within {:.0} m out of the fire of enemy {who}, known {off_m:.1} m off ({} known with a line)",
+                    c.hide_m.1,
+                    lines.len()
+                ));
+            }
+        }
+    }
+
+    /// [reload in cover] [measure] This life's counts ([`ReloadCoverStats`]).
+    pub fn reload_cover_stats(&self) -> ReloadCoverStats {
+        self.reload_cover_stats
+    }
+
+    /// [reload in cover] The bot runs for the cover of its reload with the view on its way, sights down: counted and noted
+    /// once a hide.
+    fn ran_for_cover(&mut self) {
+        if let Cover::Hiding { started, .. } = self.cover
+            && self.ran_hide != Some(started)
+        {
+            self.ran_hide = Some(started);
+            self.reload_cover_stats.ran += 1;
+            self.worth_notes.push("runs for cover looking where it goes, sights down".to_owned());
+        }
+    }
+
     /// Play 7 on: there, waited, then back at another angle.
     fn cover_steps(
         &mut self,
@@ -6787,6 +7056,19 @@ impl Reflex {
                 }
                 None if now >= started + c.hide_give_up_ms => self.cover = Cover::Open,
                 None => {}
+                // [reload in cover] The wait lasts while the reload runs: the peek's spot is chosen to see the enemy.
+                Some(arrived)
+                    if now >= arrived + wait_ms
+                        && c.reload_in_cover
+                        && self.reload_note.is_some_and(|note| note.at <= now && now < note.until) =>
+                {
+                    let reload_at = self.reload_note.map(|note| note.at);
+                    if self.held_reload != reload_at {
+                        self.held_reload = reload_at;
+                        self.reload_cover_stats.held += 1;
+                        self.worth_notes.push("its hide lasts for its reload: no peek with the weapon not loaded".to_owned());
+                    }
+                }
                 Some(arrived) if now >= arrived + wait_ms => {
                     self.cover = Cover::Open;
                     // Dry: nothing to peek for; only the wait asked.
@@ -7793,6 +8075,15 @@ impl Reflex {
         let hiding = matches!(self.cover, Cover::Hiding { .. });
         let last_seen = self.last_seen;
         let reload_here = self.reload_here;
+        // [reload in cover] In a known enemy's line of fire a tactical reload waits for the think to send it to cover, and
+        // on the way there for the spot or for the line to be gone.
+        let waits = c.reload_in_cover
+            && self.known_line.is_some()
+            && match self.reload_cover {
+                ReloadCover::Free => true,
+                ReloadCover::Going { .. } => matches!(self.cover, Cover::Hiding { arrived: None, .. }),
+                ReloadCover::Here => false,
+            };
         let hands = self.hands();
         if let Some(ms) = hands.switch_ms() {
             hands.pistol_out = true;
@@ -7807,7 +8098,7 @@ impl Reflex {
         let load = hands.held_mut();
         let fired = load.gun.magazine - load.rounds;
         let some = ((load.gun.magazine as f32 * c.reload_some_share).ceil() as u32).max(1);
-        let tactical = !seen && now >= last_seen + c.reload_idle_ms && fired >= some;
+        let tactical = !seen && now >= last_seen + c.reload_idle_ms && fired >= some && !(waits && load.rounds > 0);
         if load.loadable() == 0
             || !(load.rounds == 0 && (!seen || hiding || reload_here) || tactical)
         {
@@ -7833,6 +8124,7 @@ impl Reflex {
         self.held_ms = 0;
         self.press_until = 0;
         self.reload_here = false;
+        self.reload_cover = ReloadCover::Free;
         // A reload resets the kick (0x310E52; when in it: not traced).
         self.recoil.reset();
         key::RELOAD
@@ -7983,6 +8275,7 @@ impl Reflex {
         self.held_ms = 0;
         self.press_until = 0;
         self.reload_here = false;
+        self.reload_cover = ReloadCover::Free;
         // A reload resets the kick (0x310E52), as the habit's.
         self.recoil.reset();
         self.empty_reloads.begun += 1;
@@ -8574,6 +8867,10 @@ impl Reflex {
         if let Some(over) = self.cloud_holding(me, view, memory, now, settle_s) {
             return over;
         }
+        // [pincer] A hold at a pincer's stage next.
+        if let Some(over) = self.pincer_holding(me, memory, now, settle_s) {
+            return over;
+        }
         #[cfg(test)]
         self.watch_crossing(me, view, now);
         // An enemy noticed since the last think (the noticing is its
@@ -8689,6 +8986,17 @@ impl Reflex {
             self.held_ms = 0;
             self.strafe = 0;
             self.strafe_until = 0;
+            // [reload in cover] On the way to the cover of a tactical reload: no look of its own and no aim key, so the walk
+            // faces its way and may sprint (the weapon is not reloading yet).
+            if c.reload_in_cover
+                && matches!(self.reload_cover, ReloadCover::Going { .. })
+                && matches!(self.cover, Cover::Hiding { arrived: None, .. })
+                && legs.is_some_and(|legs| legs.why == LegsWhy::BreakSight)
+            {
+                self.ran_for_cover();
+                self.aim_since = None;
+                return Override { keys: reload & !key::AIM, legs, ..Override::default() };
+            }
             if let Some(over) = self.fire_through((me, view), now, fire_allowed, (aim, skill), (legs, reload, carry), rng) {
                 return over;
             }
@@ -14015,6 +14323,39 @@ mod tests {
         assert!(reflex.hold_for_cloud(mates, &me, 10_000 + 2 * mates.cap_ms + 50), "a later cloud");
     }
 
+    /// [pincer] A hold at a stage stands there looking at the objective until the drive lets it go (Released), or ends itself at a
+    /// hit since it began, a target (a fight), or its cap; each end once, with its time held.
+    #[test]
+    fn a_pincer_hold_stands_at_its_stage_and_ends_on_a_release_a_hit_a_fight_or_its_cap() {
+        let memory = Memory::default();
+        let stage = Vec3::new(5.0, 0.0, 5.0);
+        let look = Vec3::new(10.0, 1.6, 5.0);
+        let me = body(0, 0, stage, 0.0);
+        let mut reflex = Reflex::default();
+        reflex.hold_for_pincer(stage, look, 1_000, 10_600);
+        let o = reflex.pincer_holding(&me, &memory, 1_050, 0.1).expect("stands");
+        assert_eq!(o.look_at, Some(look));
+        assert!(o.legs.is_some_and(|l| l.why == LegsWhy::PincerHold && l.at == stage), "{o:?}");
+        assert!(reflex.holds_for_pincer() && reflex.take_pincer_end().is_none());
+        reflex.release_pincer(3_000);
+        assert!(!reflex.holds_for_pincer());
+        assert_eq!(reflex.take_pincer_end(), Some((PincerEnd::Released, 2_000)));
+        assert_eq!(reflex.take_pincer_end(), None, "once");
+        assert!(reflex.pincer_holding(&me, &memory, 3_050, 0.1).is_none());
+        for (end, at) in [(PincerEnd::Hit, 1_500), (PincerEnd::Fight, 1_500), (PincerEnd::Cap, 11_600)] {
+            let mut reflex = Reflex { hit_at: Some(900), ..Reflex::default() };
+            reflex.hold_for_pincer(stage, look, 1_000, 10_600);
+            assert!(reflex.pincer_holding(&me, &memory, 1_050, 0.1).is_some(), "a hit before the hold does not end it");
+            match end {
+                PincerEnd::Hit => reflex.hit_at = Some(1_400),
+                PincerEnd::Fight => reflex.target = Some(3),
+                _ => {}
+            }
+            assert!(reflex.pincer_holding(&me, &memory, at, 0.1).is_none(), "{end:?}");
+            assert_eq!(reflex.take_pincer_end(), Some((end, at - 1_000)), "{end:?}");
+        }
+    }
+
     /// The view is held for the grenade from the key's press to the launch and
     /// the look time after it, and not before or after.
     #[test]
@@ -14626,6 +14967,123 @@ mod tests {
             reloads[0] >= 4_500 + aim.combat.reload_idle_ms - 500,
             "{reloads:?}"
         );
+    }
+
+    /// [reload in cover] A duel on the test field with a body that walks the reflex's legs (5 m/s to a hide spot with no
+    /// look of the reflex's, the client's sprint; else 2.5 m/s, its side step): the enemy is seen until `seen_until`. For each
+    /// tick: the time, the keys, the legs' why, whether the reflex held a look of its own, and where the body stood.
+    #[allow(clippy::type_complexity)]
+    fn walked_duel(combat: &CombatTuning, seen_until: u32, until: u32) -> (Vec<(u32, u32, Option<LegsWhy>, bool, Vec3)>, Reflex, Tactics, Vec3) {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let enemy_at = Vec3::new(55.0, 0.0, 30.0);
+        let mut me = body(0, 0, Vec3::new(32.0, 0.0, 28.0), 0.0);
+        let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
+        let mut aim = AimTuning { fire_within_deg: 180.0, combat: combat.clone(), ..AimTuning::default() };
+        aim.combat.fire.burst_human = None;
+        let sit = Situation { tactics: Some(&tactics), side: Some(0), ..Situation::of(&view) };
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::armed(Arms::of_test_role("flanker"));
+        let mut rng = Rng::new(21);
+        let chest = enemy_at + Vec3::new(0.0, 1.3, 0.0);
+        let mut out = Vec::new();
+        let mut now = 1_000;
+        while now < until {
+            let seen = if now < seen_until { vec![percept(1, enemy_at, now, Source::Seen)] } else { vec![] };
+            sense(&mut memory, &seen, now);
+            if (now - 1_000).is_multiple_of(250) {
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            facing(&mut me, chest);
+            let o = reflex.tick(&me, sit.view, &memory, now, true, &aim, 0.5, &mut rng);
+            out.push((now, o.keys, o.legs.map(|l| l.why), o.look_at.is_some(), me.feet));
+            if let Some(legs) = o.legs.filter(|l| l.why == LegsWhy::BreakSight) {
+                let step: f32 = if o.look_at.is_none() { 5.0 } else { 2.5 } * 0.05;
+                let to = legs.at - me.feet;
+                let d = to.x.hypot(to.z);
+                if d > 0.0 {
+                    let k = step.min(d) / d;
+                    me.feet = Vec3::new(me.feet.x + to.x * k, me.feet.y, me.feet.z + to.z * k);
+                }
+            }
+            now += 50;
+        }
+        (out, reflex, tactics, enemy_at)
+    }
+
+    /// [reload in cover] A tactical reload due where a known enemy has a line of fire goes to cover first, with no look of
+    /// the reflex's and no aim key on the way, and begins out of his line; off, it begins where the bot stands, in it.
+    #[test]
+    fn a_tactical_reload_in_a_known_enemys_line_goes_to_cover_first() {
+        let on = CombatTuning::default();
+        assert!(on.reload_in_cover, "on by default");
+        let off = CombatTuning { reload_in_cover: false, ..CombatTuning::default() };
+        let in_line = |tactics: &Tactics, enemy: Vec3, at: Vec3| tactics.shot_reaches(None, still_eye(enemy, false), still_eye(at, false));
+        // A little fire, then nothing seen (`it_breaks_sight_before_reloading_and_reloads_tactically_when_quiet`'s second half,
+        // on the map).
+        let (ticks, mut reflex, tactics, enemy) = walked_duel(&on, 4_500, 12_000);
+        let reload = ticks.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads");
+        assert!(!in_line(&tactics, enemy, reload.4), "the reload begins out of his line: {reload:?}");
+        assert!(in_line(&tactics, enemy, ticks[0].4), "it stood in his line");
+        let way: Vec<_> = ticks.iter().filter(|t| t.2 == Some(LegsWhy::BreakSight) && t.0 < reload.0).collect();
+        assert!(!way.is_empty(), "it goes to cover before the reload");
+        let went_at = way[0].0;
+        assert!(way.iter().all(|t| !t.3 && t.1 & key::AIM == 0), "the view on the way, sights down: {way:?}");
+        let stats = reflex.reload_cover_stats();
+        assert_eq!((stats.went, stats.no_spot, stats.kept_way), (1, 0, 0), "{stats:?}");
+        assert!(stats.ran >= 1, "{stats:?}");
+        let notes = reflex.take_worth_notes();
+        assert!(notes.iter().any(|n| n.starts_with("goes to cover to reload: enemy 1, known ")), "{notes:?}");
+        assert!(notes.iter().any(|n| n == "runs for cover looking where it goes, sights down"), "{notes:?}");
+        // Off: where it stands, as soon as the idle time is over.
+        let (ticks, reflex, tactics, enemy) = walked_duel(&off, 4_500, 12_000);
+        let reload = ticks.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads");
+        assert!(in_line(&tactics, enemy, reload.4), "{reload:?}");
+        assert!(reload.0 <= went_at, "no later than the way to cover began: {reload:?} {went_at}");
+        assert_eq!(reflex.reload_cover_stats(), ReloadCoverStats::default());
+    }
+
+    /// [reload in cover] The magazine out with the enemy in sight: the reload, the hide and the view on him are as they
+    /// were (the rule is the tactical reload's), tick for tick to the reload's end.
+    #[test]
+    fn an_empty_weapons_reload_and_hide_are_as_they_were() {
+        let on = CombatTuning::default();
+        let off = CombatTuning { reload_in_cover: false, ..CombatTuning::default() };
+        let run = |c: &CombatTuning| {
+            let (ticks, reflex, ..) = walked_duel(c, 12_000, 12_000);
+            let reload = ticks.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads").0;
+            let to_its_end: Vec<_> = ticks.into_iter().filter(|t| t.0 <= reload + guns::gun("uzi").unwrap().reload_ms(0, 32)).collect();
+            assert!(to_its_end.iter().any(|t| t.2 == Some(LegsWhy::BreakSight) && t.0 > reload && t.3), "it heads for cover with the view on him");
+            (to_its_end, reflex.reload_cover_stats())
+        };
+        let (with, stats) = run(&on);
+        assert_eq!((stats.went, stats.ran, stats.no_spot), (0, 0, 0), "{stats:?}");
+        assert_eq!(with, run(&off).0);
+    }
+
+    /// [reload in cover] A hide's wait does not end while the weapon reloads (the peek's spot is chosen to see the enemy);
+    /// with the reload over it ends as before; off, it ends at its time.
+    #[test]
+    fn a_hide_lasts_for_its_reload() {
+        let me = body(0, 0, Vec3::new(32.0, 0.0, 20.0), 0.0);
+        let view = view_of(vec![me.clone(), body(1, 1, Vec3::new(55.0, 0.0, 30.0), 0.0)]);
+        let sit = Situation::of(&view);
+        let hidden = |c: &CombatTuning, now: u32| {
+            let mut r = gun_ledger(30, 600);
+            r.cover = Cover::Hiding { at: me.feet, enemy: Vec3::new(55.0, 0.0, 30.0), started: 0, arrived: Some(1_000), wait_ms: 500, repeek: false };
+            r.reload_note = Some(ReloadNote { at: 1_200, until: 3_500, why: ReloadWhy::Tactical, left: 10, magazine: 30 });
+            let mut rng = Rng::new(3);
+            for t in [now, now + 250] {
+                r.cover_steps(&me, &sit, t, c, &mut rng);
+            }
+            (r.cover != Cover::Open, r.reload_cover_stats().held, r.take_worth_notes())
+        };
+        let on = CombatTuning::default();
+        let (hides, held, notes) = hidden(&on, 1_600);
+        assert!(hides && held == 1, "the reload runs: {held}");
+        assert_eq!(notes, ["its hide lasts for its reload: no peek with the weapon not loaded"], "one note a reload");
+        assert!(!hidden(&on, 3_500).0, "the reload is over");
+        let off = CombatTuning { reload_in_cover: false, ..CombatTuning::default() };
+        assert_eq!((hidden(&off, 1_600).0, hidden(&off, 1_600).1), (false, 0), "off: at its wait's end");
     }
 
     /// The first reload key of `ticks` (a duel's), and the reflex of the same

@@ -27,6 +27,7 @@
 use mapdata::Vec3;
 
 use super::{Ctx, Go, Intent, Look, PlayKind};
+use crate::v026g::bots::view::Place;
 use crate::v026g::bots::rng::Rng;
 use crate::v026g::bots::view::{PlaceView, still_eye};
 
@@ -285,6 +286,12 @@ impl Ctx<'_> {
     /// proved none lately ([`Ctx::no_way_lately`]).
     pub fn can_go(&self, at: Vec3) -> bool {
         self.reachable(at, false) && !self.no_way_lately(at)
+    }
+
+    /// [`Self::can_go`] for a goal the bot then walks to bound for their base (`Intent::into_base`, Raid's): no way ever is
+    /// asked with the spawn rule off, as its search does.
+    pub fn can_go_into_base(&self, at: Vec3) -> bool {
+        self.reachable_walking(at, false, true) && !self.no_way_lately(at)
     }
 }
 
@@ -605,6 +612,59 @@ pub fn goal_shut(intent: &Intent, me: &PlaceView, no_way_to: &[(Vec3, u32)], now
             && no_way_near(no_way_to, at, now))
 }
 
+/// [posts apart] The position plays: each of their walkers takes its own spot round a point (Crossfire's choke, HoldExit's exit,
+/// Cut's cut point). Fable task D §3.4 (bench v73 A): their pairs are 38 % of the co-arrivals and come in 45 deg or more apart 24 %
+/// of the time; Crossfire's own `apart_deg` read only Crossfire's halves on the same choke, HoldExit and Cut none.
+pub const POSTS: [PlayKind; 3] = [PlayKind::Crossfire, PlayKind::HoldExit, PlayKind::Cut];
+
+/// The degrees round `centre` between the ground directions to `a` and to `b` (0-180).
+pub fn degrees_round(centre: Vec3, a: Vec3, b: Vec3) -> f32 {
+    let (u, v) = ([a.x - centre.x, a.z - centre.z], [b.x - centre.x, b.z - centre.z]);
+    let (lu, lv) = (u[0].hypot(u[1]), v[0].hypot(v[1]));
+    if lu < 1e-4 || lv < 1e-4 {
+        return 0.0;
+    }
+    ((u[0] * v[0] + u[1] * v[1]) / (lu * lv)).clamp(-1.0, 1.0).acos().to_degrees()
+}
+
+/// [posts apart] The spots the teammates (not this bot) running a position play ([`POSTS`], `TeamKnowledge::posts`) claim within
+/// Crossfire's `partner_m` of `centre`: (place, spot).
+pub fn posts_round(cx: &Ctx, centre: Vec3) -> Vec<(Place, Vec3)> {
+    let near = cx.num(PlayKind::Crossfire, "partner_m");
+    cx.team
+        .posts
+        .iter()
+        .filter(|&&(place, _)| place != cx.me.place)
+        .filter_map(|&(place, _)| cx.team.claims_of_others(cx.me.place, cx.now).find(|c| c.who == place).map(|c| (place, c.at)))
+        .filter(|(_, at)| at.distance_xz(centre) <= near)
+        .collect()
+}
+
+/// [posts apart] Of a position play's (`kind`) `fine` spots round `centre`, those at least Crossfire's `apart_deg` round it from
+/// every teammate's post there ([`posts_round`]): the three plays' spots spread by bearing as Crossfire's halves are. None apart:
+/// `fine` as it was (no play loses its spot to it). A line on the log when there were posts to keep apart from.
+pub fn apart_from_posts(cx: &Ctx, kind: PlayKind, centre: Vec3, fine: Vec<Vec3>) -> Vec<Vec3> {
+    let posts = posts_round(cx, centre);
+    if posts.is_empty() || fine.is_empty() {
+        return fine;
+    }
+    let apart = cx.num(PlayKind::Crossfire, "apart_deg");
+    let kept: Vec<Vec3> = fine.iter().copied().filter(|&at| posts.iter().all(|&(_, o)| degrees_round(centre, at, o) >= apart)).collect();
+    let line = format!(
+        "{}posts apart: {kind:?} round ({:.1}, {:.1}): {} of {} fine spots {apart:.0} deg off {} teammates' posts{}",
+        crate::v026g::bots::nav_log::PREFIX,
+        centre.x,
+        centre.z,
+        kept.len(),
+        fine.len(),
+        posts.len(),
+        if kept.is_empty() { ", none apart: all kept" } else { "" },
+    );
+    let key = ((centre.x.floor() as i32 as u32 as u64) << 32) ^ (centre.z.floor() as i32 as u32 as u64) ^ ((kind as u64) << 56);
+    cx.lines.push(crate::v026g::bots::nav_log::Kind::Posts, Some(key), line);
+    if kept.is_empty() { fine } else { kept }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::Scenario;
@@ -703,6 +763,34 @@ mod tests {
                 assert!(!(yields_to(a, b) && yields_to(b, a)), "{a} and {b}");
             }
         }
+    }
+
+    /// [posts apart] Round a point at (40, 30): a teammate on a position play claims the spot west of it; of a play's fine spots,
+    /// those 60 deg or more round from it are kept (east, north), the one beside it (north-west, 45 deg) is not; a teammate on
+    /// another play, a post past `partner_m`, or no spot apart: the list as it was.
+    #[test]
+    fn a_position_plays_spots_keep_apart_from_its_teammates_posts_round_one_point() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let centre = Vec3::new(40.0, 0.0, 30.0);
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+        s.bot(3, 0, Vec3::new(12.0, 0.0, 10.0));
+        let now = s.view.clock;
+        let (east, north, beside) = (centre + Vec3::new(15.0, 0.0, 0.0), centre + Vec3::new(0.0, 0.0, 15.0), centre + Vec3::new(-10.0, 0.0, 10.0));
+        let fine = vec![east, north, beside];
+        assert_eq!(apart_from_posts(&s.cx(0), PlayKind::HoldExit, centre, fine.clone()), fine, "no posts");
+        s.team.claim(3, centre + Vec3::new(-15.0, 0.0, 0.0), now);
+        assert_eq!(apart_from_posts(&s.cx(0), PlayKind::HoldExit, centre, fine.clone()), fine, "its claim, but on no position play");
+        s.team.posts = vec![(3, PlayKind::Cut)];
+        let cx = s.cx(0);
+        assert_eq!(posts_round(&cx, centre), vec![(3, centre + Vec3::new(-15.0, 0.0, 0.0))]);
+        assert_eq!(apart_from_posts(&cx, PlayKind::HoldExit, centre, fine.clone()), vec![east, north]);
+        assert!(cx.lines.take().iter().any(|(kind, _, text)| *kind == crate::v026g::bots::nav_log::Kind::Posts
+            && text.ends_with("posts apart: HoldExit round (40.0, 30.0): 2 of 3 fine spots 60 deg off 1 teammates' posts")));
+        assert_eq!(apart_from_posts(&cx, PlayKind::Crossfire, centre, vec![beside]), vec![beside], "none apart: kept");
+        assert!(posts_round(&s.cx(3), centre).is_empty(), "not its own post");
+        s.team.claim(3, centre + Vec3::new(-60.0, 0.0, 0.0), now);
+        assert!(posts_round(&s.cx(0), centre).is_empty(), "past partner_m");
+        assert!((degrees_round(centre, east, north) - 90.0).abs() < 1e-3);
     }
 
     #[test]
@@ -847,6 +935,27 @@ mod tests {
         s.view.places[carrier].carrying = None;
         s.view.places[carrier].spawned = now;
         assert!(!moves(&mut s, PlayKind::Crossfire), "a new life");
+    }
+
+    /// [bot traps] A spot reached only through the other side's spawn area is not reachable for this side and is for the other;
+    /// one behind a zone on all match stays reachable as before (a crossing may take the bot there); bound for their base (Raid's
+    /// walk) the spawn rule is off.
+    #[test]
+    fn a_spot_past_the_other_sides_spawn_area_is_not_reachable_for_this_side() {
+        let mut solids = crate::v026g::bots::body::tests::wall_x(60.0, 0.0, 14.0).to_vec();
+        solids.extend(crate::v026g::bots::body::tests::wall_x(60.0, 16.0, 40.0));
+        let world = crate::v026g::bots::tactics::tests::field_with_solids(&solids, |_| {});
+        let past = Vec3::new(62.0, 0.0, 38.0);
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        assert!(!s.cx(0).reachable(past, false), "side 0: only through side 1's spawn area");
+        assert!(!s.cx(0).can_go(past));
+        assert!(s.cx(0).can_go_into_base(past), "bound for their base");
+        s.side = Some(1);
+        s.view.places.clear();
+        s.bot(0, 1, Vec3::new(70.0, 0.0, 30.0));
+        assert!(s.cx(0).reachable(past, false), "side 1: its own spawn area");
     }
 
     #[test]

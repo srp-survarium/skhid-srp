@@ -188,6 +188,8 @@ pub(crate) struct FightTally {
     /// Plays: the last two takes of each place (what, when); ended within
     /// 1 s; A, B, A within 10 s.
     takes: BTreeMap<Place, Vec<(String, u32)>>,
+    /// Every play taken (what `quick_ends` and `flips` are shares of).
+    play_takes: u32,
     quick_ends: u32,
     flips: u32,
     next_sample: u32,
@@ -303,6 +305,7 @@ impl FightTally {
             return;
         };
         let what = rest.split(" (score").next().unwrap_or(rest).to_owned();
+        self.play_takes += 1;
         let list = self.takes.entry(note.place).or_default();
         if let Some((_, at)) = list.last()
             && note.time < at + 1_000
@@ -478,7 +481,7 @@ impl FightTally {
         let off_median = offs.get(offs.len() / 2).copied().unwrap_or(0.0);
         let bands: Vec<String> = self.band.iter().map(Count::text).collect();
         format!(
-            "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {}; team kills {:?} deaths {:?}\n  \
+            "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {} of takes {}; team kills {:?} deaths {:?}\n  \
              shots: bands(<10,<20,<35,<60,60+) {}; still hip {} still aim {} moving hip {} moving aim {}; crouched {}; first3 {} later {}; line on body {} off median {:.1} deg; aim hip {} aiming-in {} aimed-in {} cone mean {:.2} deg\n  \
              grenades: thrown {} held back {}; at the blasts teammates within 3/6/10 m {} {} {}; the thrower within 6/10 m {} {}
              ranges ({} m bins): {}; hits taken by team {:?} {:?}; deaths by team {:?} {:?}; at the target {} shots, {} into a wall, {} with nothing of him showing; by team {:?} {:?} {:?}",
@@ -494,6 +497,7 @@ impl FightTally {
             self.not_facing,
             self.quick_ends,
             self.flips,
+            self.play_takes,
             kills,
             deaths,
             bands.join(" | "),
@@ -672,7 +676,48 @@ pub(crate) struct ReloadTally {
     by_class: BTreeMap<(u8, &'static str), ClassReloads>,
     died: [u32; 2],
     held: [[u32; 3]; 2],
+    /// [fight rows by cause] By place: the reload under watch and the start of the last one watched ([`Self::case`]).
+    cases: Vec<Option<ReloadCase>>,
+    cased: Vec<Option<u32>>,
+    /// [fight rows by cause] By why, and in no enemy's line or in one ([`ReloadCase::in_line`]): the reloads, and those the
+    /// bot died in.
+    by_line: [[[u32; 2]; 2]; 3],
 }
+
+/// [fight rows by cause] A reload from its start to [`super::owner::RELOAD_AFTER_MS`] after its end (the window of the
+/// owner tally's `deaths_reloading`), and what it met: the split of the deaths while reloading by why the reload began and
+/// by whether an enemy had a line to the bot. Read from the stand-in game and the reflex's note; nothing decides by it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ReloadCase {
+    at: u32,
+    until: u32,
+    why: usize,
+    class: &'static str,
+    /// The share of the magazine left at the start.
+    left: f32,
+    /// At the start: ms since an enemy was last on the bot's view (the on-view episodes' 4 degrees); none this far.
+    view_ago_ms: Option<u32>,
+    start: ReloadSeen,
+    /// A living enemy within [`super::owner::RELOAD_LINE_M`] and the bot had a line between them at the start; at some
+    /// tick of the reload (looked at every 4th tick, as the owner tally's `reloads_in_line`).
+    line_at_start: bool,
+    in_line: bool,
+}
+
+/// [fight rows by cause] What the stand-in game shows of a reloading bot at a tick.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ReloadSeen {
+    pub alive: bool,
+    /// The nearest living enemy, m across.
+    pub enemy_m: Option<f32>,
+    /// The reflex's cover state ([`crate::v026g::bots::reflex::Reflex::cover_state`]).
+    pub cover: &'static str,
+    pub crouched: bool,
+    /// A walk key held.
+    pub moving: bool,
+}
+
+const WHY_NAMES: [&str; 3] = ["empty_in_view", "empty", "tactical"];
 
 #[derive(Default)]
 struct ClassReloads {
@@ -749,6 +794,85 @@ impl ReloadTally {
         if !alive {
             self.waiting[place] = None;
         }
+    }
+
+    /// [fight rows by cause] A bot's tick, for the split of its reloads by cause: `note` its last reload, `seen` what the
+    /// game shows of it, `line` whether a living enemy within [`super::owner::RELOAD_LINE_M`] and the bot have a line
+    /// between them now (asked at the reload's start and at every 4th tick of it until one is found). A reload is
+    /// watched from its start to [`super::owner::RELOAD_AFTER_MS`] after its end, or to the bot's death in that window.
+    /// The row of a reload whose watch ends this tick, for the bench events (`"reload"`): place, weapon class, why, the
+    /// share left, its length ms, ms since an enemy was on view, the nearest enemy m, the cover state, crouched,
+    /// moving, in a line at the start, in a line at some tick, ms from its start to the death (none: lived).
+    pub(crate) fn case(
+        &mut self,
+        place: Place,
+        class: &'static str,
+        now: u32,
+        note: Option<crate::v026g::bots::reflex::ReloadNote>,
+        seen: ReloadSeen,
+        line: impl FnOnce() -> bool,
+    ) -> Option<serde_json::Value> {
+        let n = place + 1;
+        if self.cases.len() < n {
+            self.cases.resize(n, None);
+            self.cased.resize(n, None);
+        }
+        let mut line = Some(line);
+        let mut ask = || line.take().is_some_and(|line| line());
+        let mut row = None;
+        // The watched reload: its end follows the note's (the world's reading moves it); over at the death or the window's end.
+        if let Some(mut case) = self.cases[place].take() {
+            if let Some(note) = note.filter(|note| note.at == case.at) {
+                case.until = note.until;
+            }
+            let next = note.is_some_and(|note| note.at != case.at);
+            if !seen.alive {
+                row = Some(self.case_over(place, case, Some(now.saturating_sub(case.at))));
+            } else if next || now > case.until + super::owner::RELOAD_AFTER_MS {
+                row = Some(self.case_over(place, case, None));
+            } else {
+                if !case.in_line && now < case.until && (now / super::TICK_MS).is_multiple_of(4) {
+                    case.in_line = ask();
+                }
+                self.cases[place] = Some(case);
+            }
+        }
+        // A new reload: watched from the first tick that shows its note.
+        if let Some(note) = note
+            && seen.alive
+            && self.cases[place].is_none()
+            && self.cased[place] != Some(note.at)
+            && now < note.until
+        {
+            self.cased[place] = Some(note.at);
+            let line_at_start = ask();
+            self.cases[place] = Some(ReloadCase {
+                at: note.at,
+                until: note.until,
+                why: why_index(note.why),
+                class,
+                left: note.left as f32 / note.magazine.max(1) as f32,
+                view_ago_ms: self.last_view.get(place).copied().flatten().map(|t| note.at.saturating_sub(t)),
+                start: seen,
+                line_at_start,
+                in_line: line_at_start,
+            });
+        }
+        row
+    }
+
+    fn case_over(&mut self, place: Place, case: ReloadCase, died_ms: Option<u32>) -> serde_json::Value {
+        let count = &mut self.by_line[case.why][usize::from(case.in_line)];
+        count[0] += 1;
+        count[1] += u32::from(died_ms.is_some());
+        // Rounded as f64: an f32 in the JSON would print its binary tail.
+        let round = |x: f32, to: f64| (f64::from(x) * to).round() / to;
+        serde_json::json!({
+            "t": case.at,
+            "reload": [place, case.class, WHY_NAMES[case.why], round(case.left, 100.0), case.until - case.at,
+                case.view_ago_ms, case.start.enemy_m.map(|m| round(m, 10.0)), case.start.cover, case.start.crouched, case.start.moving,
+                case.line_at_start, case.in_line, died_ms],
+        })
     }
 
     /// A bot's tick: the end of its last round-by-round loop, counted once.
@@ -829,10 +953,11 @@ impl ReloadTally {
             })
             .collect();
         format!(
-            "reloads (empty in view, empty, tactical): {}; died reloading by team {:?}; on view held by the reload by team {:?}",
+            "reloads (empty in view, empty, tactical): {}; died reloading by team {:?}; on view held by the reload by team {:?}; watched to 1 s after the end, by why [in no enemy's line [reloads, died], in one [reloads, died]]: {:?}",
             classes.join(" | "),
             self.died,
-            self.held
+            self.held,
+            self.by_line
         )
     }
 }
@@ -859,6 +984,39 @@ fn the_reload_tally_counts_each_reload_once_and_what_came_of_it() {
     assert_eq!(c.next_shot_ms, vec![300]);
     assert_eq!(c.left, vec![0.0, 10.0 / 30.0]);
     assert_eq!(t.died, [0, 1]);
+}
+
+#[test]
+fn the_reload_tally_splits_the_reloads_by_why_and_an_enemys_line_and_counts_the_deaths_in_them() {
+    use crate::v026g::bots::reflex::{ReloadNote, ReloadWhy};
+    let mut t = ReloadTally::default();
+    let note = |at: u32, why| ReloadNote { at, until: at + 2_000, why, left: 12, magazine: 30 };
+    let seen = |alive| ReloadSeen { alive, enemy_m: Some(21.04), cover: "open", crouched: false, moving: true };
+    // An enemy on view at 600; a tactical reload from 1000 to 3000 with no line at its start and one from 1400: the bot
+    // dies at 3500, inside the second after the reload's end.
+    t.tick(0, "rifle", 1, true, true, false, None, 600);
+    let a = note(1_000, ReloadWhy::Tactical);
+    let mut rows = Vec::new();
+    for now in (1_000..=3_500).step_by(50) {
+        rows.extend(t.case(0, "rifle", now, Some(a), seen(now < 3_500), || now >= 1_400));
+    }
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(
+        rows[0],
+        serde_json::json!({"t": 1_000, "reload": [0, "rifle", "tactical", 0.4, 2_000, 400, 21.0, "open", false, true, false, true, 2_500]}),
+    );
+    // The note stays after the reload: it is not watched again. An empty reload with nobody near: lived, counted when its
+    // window ends.
+    assert_eq!(t.case(0, "rifle", 3_550, Some(a), seen(true), || true), None);
+    let b = note(5_000, ReloadWhy::Empty);
+    let mut rows = Vec::new();
+    for now in (5_000..=8_100).step_by(50) {
+        rows.extend(t.case(0, "rifle", now, Some(b), seen(true), || false));
+    }
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["reload"][12], serde_json::Value::Null);
+    assert_eq!(t.by_line, [[[0, 0], [0, 0]], [[1, 0], [0, 0]], [[0, 0], [1, 1]]]);
+    assert!(t.line().ends_with("in one [reloads, died]]: [[[0, 0], [0, 0]], [[1, 0], [0, 0]], [[0, 0], [1, 1]]]"), "{}", t.line());
 }
 
 #[test]

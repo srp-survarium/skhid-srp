@@ -435,6 +435,60 @@ fn a_jump_over_a_shut_floor_does_not_shut_the_route() {
     assert!(tactics.route_shut_ahead(&mut into.clone(), feet, 0, false, None), "landing on the zone's floor: shut");
 }
 
+/// [bot CPU] An unbounded route search (`Tactics::route_nodes`) proven to have no way over the floors no zone always on shuts
+/// (`Tactics::never_open_no_way`) answers what the search answers, route and end alike, for starts and
+/// goals all over a field with an island ringed by such zones (closed, then with a gap) and a goal inside one; and proves it
+/// at least once, never where a way exists.
+#[test]
+fn a_route_proven_to_have_no_way_past_zones_always_on_is_the_searchs_answer() {
+    use crate::v026g::bots::path;
+    use crate::v026g::bots::route_filter::RouteFilter;
+    let ring = |gap: bool| {
+        let mut zones = vec![
+            zone("north", Vec3::new(30.0, 1.0, 27.0), Vec3::new(8.0, 1.0, 1.0)),
+            zone("west", Vec3::new(22.0, 1.0, 20.0), Vec3::new(1.0, 1.0, 8.0)),
+            zone("east", Vec3::new(38.0, 1.0, 20.0), Vec3::new(1.0, 1.0, 8.0)),
+            zone("core", Vec3::new(60.0, 1.0, 20.0), Vec3::new(3.0, 1.0, 3.0)),
+        ];
+        zones.push(if gap {
+            zone("south", Vec3::new(26.0, 1.0, 13.0), Vec3::new(4.0, 1.0, 1.0))
+        } else {
+            zone("south", Vec3::new(30.0, 1.0, 13.0), Vec3::new(8.0, 1.0, 1.0))
+        });
+        zones
+    };
+    let mut proven = 0;
+    for gap in [false, true] {
+        let world = field(&[], ring(gap));
+        let teams = [0u8];
+        let mut bots = Bots::new(0xA70D, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(Tuning::default()), Trace::none(0));
+        bots.map_ready(world.clone());
+        let tactics = bots.tactics.as_ref().unwrap();
+        let grid = &tactics.world.grid;
+        let points: Vec<Vec3> = [(30.0, 20.0), (60.0, 20.0), (10.0, 10.0), (5.0, 35.0), (45.0, 20.0), (70.0, 5.0), (30.0, 32.0), (33.0, 18.0)]
+            .iter()
+            .map(|&(x, z)| Vec3::new(x, 0.0, z))
+            .collect();
+        for &a in &points {
+            for &b in &points {
+                let (Some(start), Some(goal)) = (grid.locate(a, 1.0), grid.locate(b, 1.0)) else { continue };
+                let filter = RouteFilter::open();
+                let was = tactics.never_open_no_way(start, goal);
+                let got = (tactics.route_nodes(start, goal, 1_000, None, false, &filter).map(|r| format!("{r:?}")), path::last_end());
+                let mut iters = usize::MAX;
+                let searched = tactics.start_route(start, goal, 1_000, None, false, &filter, &mut iters).ok().expect("an unbounded search ends");
+                let want = (searched.map(|r| format!("{r:?}")), path::last_end());
+                assert_eq!(got, want, "gap {gap}: {a:?} to {b:?}");
+                if was {
+                    proven += 1;
+                    assert!(want.0.is_none(), "proven no way where the search found one: {a:?} to {b:?}");
+                }
+            }
+        }
+    }
+    assert!(proven > 0, "the closed ring and the zone's core prove some");
+}
+
 /// [A395a] A body on a zone's refused floors does not walk the route it held before its walk out began across the zone: that
 /// route is shut ahead (the walk would follow it, each line within the reach of where the feet are then); one that leaves the
 /// zone's floors within the way out's reach is not, nor a route planned since (its search's way out), nor one with no walk.
@@ -487,4 +541,62 @@ fn a_new_life_ends_the_zone_walk_without_a_note() {
     bot.new_life(1.0, None, Vec3::new(0.0, 0.0, 0.0));
     assert_eq!(bot.zone_walk, None);
     assert_eq!(bot.zone_note, None);
+}
+
+/// [bot traps] The field of `tactics::tests::field_with_solids` with a wall across x = 60 whose only gap (z 14-16) lies in side
+/// 1's spawn area, and a zone on all match round (20, 33): the floors past x = 60 north of z 34 are off every spawn area and
+/// reached only through side 1's.
+fn spawn_walled_field() -> Arc<World> {
+    let mut solids = wall_x(60.0, 0.0, 14.0).to_vec();
+    solids.extend(wall_x(60.0, 16.0, 40.0));
+    crate::v026g::bots::tactics::tests::field_with_solids(&solids, |map| {
+        map.zones.push(zone("core", Vec3::new(20.0, 1.0, 33.0), Vec3::new(3.0, 1.0, 3.0)));
+    })
+}
+
+/// [bot traps] `Tactics::reach` is exact on the side's spawn rule and the zones on all match: for starts and goals all over
+/// the spawn-walled field and each side, `Never` only where the route search finds no way, `CrossingOnly` only where it finds
+/// none either, and every way it finds is `Plain`; the spot past side 1's spawn area is `Never` for side 0 and `Plain` for
+/// side 1, the zone's middle `CrossingOnly`. Read again from its kept sets: no flood for a start of the same part.
+#[test]
+fn a_goal_reached_only_through_the_other_sides_spawn_area_is_never_reached_for_this_side() {
+    use crate::v026g::bots::route_filter::RouteFilter;
+    use crate::v026g::bots::tactics::{WayTo, reach_counts};
+    let tactics = Tactics::new(spawn_walled_field(), 1.0);
+    let grid = &tactics.world.grid;
+    let at = |x: f32, z: f32| grid.locate(Vec3::new(x, 0.0, z), 1.0).expect("a floor");
+    let past = at(62.0, 38.0);
+    assert!(!tactics.in_spawn_area(grid.position(past), None), "the spot is off every spawn area");
+    assert_eq!(tactics.reach(at(5.0, 10.0), Some(0), false).way(past), WayTo::Never);
+    assert_eq!(tactics.reach(at(75.0, 10.0), Some(1), false).way(past), WayTo::Plain);
+    assert_eq!(tactics.reach(at(5.0, 10.0), Some(0), true).way(past), WayTo::Plain, "bound for their base: the spawn rule off");
+    assert_eq!(tactics.reach(at(5.0, 10.0), Some(0), false).way(at(20.0, 33.0)), WayTo::CrossingOnly);
+    let floods = reach_counts::counts()[reach_counts::FLOODS];
+    let _ = tactics.reach(at(6.0, 12.0), Some(0), false);
+    assert_eq!(reach_counts::counts()[reach_counts::FLOODS], floods, "a start of the same part reads the kept sets");
+    let points: Vec<mapdata::NodeId> = [(5.0, 10.0), (75.0, 10.0), (62.0, 38.0), (20.0, 33.0), (30.0, 35.0), (50.0, 5.0), (70.0, 30.0), (45.0, 30.0)]
+        .iter()
+        .map(|&(x, z)| at(x, z))
+        .collect();
+    let mut seen = [0usize; 3];
+    for side in [Some(0), Some(1), None] {
+        for &start in &points {
+            let reach = tactics.reach(start, side, false);
+            for &goal in &points {
+                let way = reach.way(goal);
+                let route = tactics.route_nodes(start, goal, 1_000, side, false, &RouteFilter::open());
+                let pair = format!("side {side:?}: {:?} to {:?}: {way:?}", grid.position(start), grid.position(goal));
+                match way {
+                    WayTo::Never => assert!(route.is_none(), "{pair}: a route"),
+                    WayTo::CrossingOnly => assert!(route.is_none(), "{pair}: a route"),
+                    WayTo::Plain => {}
+                }
+                if route.is_some() {
+                    assert_eq!(way, WayTo::Plain, "{pair}");
+                }
+                seen[way as usize] += 1;
+            }
+        }
+    }
+    assert!(seen.iter().all(|&n| n > 0), "each answer met: {seen:?}");
 }
