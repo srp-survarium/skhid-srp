@@ -21,28 +21,30 @@ first-person frame opens).
   the unit way to the original's eye, 0.2 m longer than the orbit, on the
   player's physics world with the lobby camera's filter (group 10h, mask 8,
   no delegate).
-- A new orbit (after a frame in the first person) with a wall across it:
-  the view's turn is the original's, its eye at once 0.2 m in front of the
-  wall on the way to the original's eye.
-- A new orbit with a wall nearer than 0.95 m (no room for the eye 0.75 m
-  out, out of the body), in a corner, or with walls behind and to both
-  sides: the view's turn the original's, the eye lifted off the way (up, by
-  upright walls) just to 0.75 m out, on the pivot's side of every wall.
-- An orbit that turns where its way has no such room: the turn the
-  player's, the eye lifted; back on a free way, 0.75 m out or more, let out
-  as above, and on its way again once the lift has gone down.
+- A new orbit (after a frame in the first person) with a wall across it
+  1.3 m or more out: the view's turn and yaw the original's, its eye at
+  once 0.2 m in front of the wall on the way to the original's eye.
+- A spawn (a new orbit) with less room: a wall 0.6 m across the way, a
+  corner (walls 0.3 m behind and to the left), walls behind and to both
+  sides, a box 1.5 m wide: the handler's yaw turned by 5-degree steps to
+  the first way with the room, the view the original's at that yaw, the eye
+  0.75 m out or more, in front of the walls; a cupboard 0.8 m wide (none
+  has it): the way with the most room. The next frame (no drag yet) the
+  same view; the first drag the original's turn on from there, no snap.
+- An orbit going on that turns onto a way 0.5 m from a wall: the player's
+  turn, the eye at once 0.3 m out on it (no nearest once the player has
+  the controls: the owner, 2026-11-27).
 - An orbit going on: a wall that comes has the eye in front of it at once,
   one that goes lets it out by 1 - e^(-3 t) of the way in t s.
 - An orbit that turns: a second ray, where its way will be 0.3 s on at the
   turn since the last frame; a wall only that ray meets pulls the eye in by
   1 - e^(-10 t) of what it would need, on the way of this frame.
-- The player drags the orbit round and round (3 degrees a frame twice,
-  1 back once) by a wall, in a corner, a dead end, a box, under a ceiling
-  and in a cupboard: every frame the turn is the original's at that yaw,
-  the eye in front of every wall, 0.75 m out or more where the room has it
-  (under a ceiling but while the eye goes from side to side), its steps
-  smooth. Revision 73's patch held the view in all of them (up to 324
-  frames on end in the box).
+- The player drags the orbit round and round from its spawn's yaw (3
+  degrees a frame twice, 1 back once) by a wall, in a corner, a dead end, a box, under a ceiling
+  and in a cupboard: every frame the turn is the original's at that yaw and
+  the eye on the original's way, no further out, in front of every wall,
+  its steps smooth. Revision 73's patch held the view in all of them (up to
+  324 frames on end in the box).
 - The first person (0) and a spectator (4): the view is the original's (the
   eyes' transform), no ray of the orbit's (patch 158's own, from under the eye,
   with nothing in its way).
@@ -74,12 +76,8 @@ REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_R
         UC_X86_REG_EBP, UC_X86_REG_ESP)
 STEADY = dict(zip(REGS[:7], (0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
 MARGIN, UP, IN_RATE, OUT_RATE, LEAD, NEAREST = 0.2, 1.4, 10.0, 3.0, 0.3, 0.75
-# the sweeps' bounds: the eye this far at least on the pivot's side of a wall (the near plane is 0.05 m;
-# the 0.2 m margin is along the ray, less across a wall the ray meets aslant), a frame's step at most
-# (the orbit's own at 3 m and 3 degrees a frame is 0.16 m). Under a ceiling with no room up the eye goes
-# to a side: nearer than 0.75 m only while it goes from one side to the other (0.25 s, 16 frames, at
-# most 3 times a turn), and a side lift that starts at once (out of the body) may step further
-IN_FRONT, LONGEST_STEP, SIDE_FRAMES, SIDE_STEP = 0.02, 0.3, 3 * 16, 0.5
+# the sweeps' bound: a frame's step at most (the orbit's own at 3 m and 3 degrees a frame is 0.16 m)
+LONGEST_STEP = 0.3
 
 # the player: turned 30 degrees about up, its feet at (100, 5, -50)
 C, S = math.cos(math.radians(30)), math.sin(math.radians(30))
@@ -108,11 +106,6 @@ def dot(a, b):
 def unit(a):
     n = math.sqrt(dot(a, a))
     return tuple(x / n for x in a)
-
-
-def same(a, b):
-    """Two views alike but for the rounding of the eye put back on the pivot."""
-    return max(abs(x - y) for x, y in zip(a, b)) < 1e-5
 
 
 class Game:
@@ -206,6 +199,7 @@ class Game:
         emu.emu_start(UPDATE_CAMERA, DONE, count=200000)
         emu.hook_del(hook)
         regs = {r: emu.reg_read(r) for r in REGS + (UC_X86_REG_EIP,)}
+        self.yaw = self.floats(HANDLER + 0x34C, 1)[0]                    # the yaw the frame leaves
         return self.floats(HANDLER + 0x48, 16), regs, self.rays
 
 
@@ -213,9 +207,9 @@ def sweeps(stock, ours, s_view):
     """The player turns the orbit round and round (a drag: the handler's yaw
     3 or 1 degrees a 16 ms frame, both ways) by walls, in corners and in
     tight spaces. Every frame: the view's turn is the original's at that yaw
-    (the drag always turns it), the eye at least `IN_FRONT` m on the pivot's
-    side of every wall, NEAREST m from the pivot or more where the space has
-    the room, and no further than `LONGEST_STEP` m from the frame before's."""
+    (the drag always turns it), the eye on the original's way and no further
+    out, on the pivot's side of every wall, and no further than
+    `LONGEST_STEP` m from the frame before's."""
     way = unit(sub(s_view[12:15], PIVOT))
     behind, side = unit((way[0], 0.0, way[2])), unit((s_view[0], 0.0, s_view[2]))
     front, left = tuple(-b for b in behind), tuple(-s for s in side)
@@ -225,14 +219,13 @@ def sweeps(stock, ours, s_view):
 
     ceiling = ((PIVOT[0], PIVOT[1] + 0.5, PIVOT[2]), (0.0, -1.0, 0.0))
     box = [upright(behind, 0.4), upright(front, 0.4), upright(left, 0.4), upright(side, 0.4)]
-    # (what, walls, the room: "all" every frame, "turns" but while the eye goes from side to side, "none")
-    cases = (("a wall 0.5 m behind", [upright(behind, 0.5)], "all"),
-             ("a corner: walls 0.3 m behind and to the left", [upright(behind, 0.3), upright(left, 0.3)], "all"),
+    cases = (("a wall 0.5 m behind", [upright(behind, 0.5)]),
+             ("a corner: walls 0.3 m behind and to the left", [upright(behind, 0.3), upright(left, 0.3)]),
              ("a dead end: walls 0.3 m behind and 0.35 m to both sides",
-              [upright(behind, 0.3), upright(left, 0.35), upright(side, 0.35)], "all"),
-             ("a box: walls 0.4 m all round", box, "all"),
-             ("a ceiling 0.5 m over the pivot and a wall 0.5 m behind", [ceiling, upright(behind, 0.5)], "turns"),
-             ("a cupboard: walls 0.4 m all round and a ceiling 0.5 m over the pivot", box + [ceiling], "none"))
+              [upright(behind, 0.3), upright(left, 0.35), upright(side, 0.35)]),
+             ("a box: walls 0.4 m all round", box),
+             ("a ceiling 0.5 m over the pivot and a wall 0.5 m behind", [ceiling, upright(behind, 0.5)]),
+             ("a cupboard: walls 0.4 m all round and a ceiling 0.5 m over the pivot", box + [ceiling]))
     stock_views = {}
 
     def original(yaw):
@@ -240,36 +233,32 @@ def sweeps(stock, ours, s_view):
             stock_views[yaw] = stock.update_camera(3, yaw=yaw)[0]
         return stock_views[yaw]
 
-    for what, walls, room in cases:
+    for what, walls in cases:
         for step, turns in ((3, 2), (-1, 1)):
-            ours.update_camera(0)                              # a new orbit
-            frames = 360 * turns // abs(step)
-            yaws = [struct.unpack("<f", struct.pack("<f", 0.7 + math.radians(step * k)))[0] for k in range(frames + 1)]
-            turned, inside, under, longest, last, nearest = 0, 0, 0, 0.0, None, 9.0
-            behind_most, held, run, last_turn = 9.0, 0, 0, None
+            ours.update_camera(0)                              # a new orbit: its spawn, then the drag from its yaw
+            ours.update_camera(3, wall=walls)
+            frames, start = 360 * turns // abs(step), ours.yaw
+            yaws = [struct.unpack("<f", struct.pack("<f", start + math.radians(step * k)))[0] for k in range(1, frames + 2)]
+            turned, off_way, behind_wall, longest, last, nearest, clear_least = 0, 0, 0, 0.0, None, 9.0, 9.0
             for yaw in yaws:
                 o_view = ours.update_camera(3, wall=walls, yaw=yaw)[0]
-                eye = o_view[12:15]
-                turned += o_view[:12] != original(yaw)[:12]
-                run = run + 1 if o_view[:12] == last_turn else 0
-                held, last_turn = max(held, run), o_view[:12]
+                theirs = original(yaw)
+                eye, out = o_view[12:15], math.dist(o_view[12:15], PIVOT)
+                turned += o_view[:12] != theirs[:12]
+                off_way += out > 1e-4 and (math.dist(unit(sub(eye, PIVOT)), unit(sub(theirs[12:15], PIVOT))) > 1e-4
+                                           or out > math.dist(theirs[12:15], PIVOT) + 1e-5)
                 clear = min(dot(sub(eye, p), n) for p, n in walls)
-                behind_most = min(behind_most, clear)
-                inside += clear < IN_FRONT
-                out = math.dist(eye, PIVOT)
-                nearest = min(nearest, out)
-                under += out < NEAREST - 1e-3
+                clear_least, nearest = min(clear_least, clear), min(nearest, out)
+                behind_wall += clear <= 0
                 if last is not None:
                     longest = max(longest, math.dist(eye, last))
                 last = eye
-            allowed = {"all": 0, "turns": SIDE_FRAMES * turns, "none": frames + 1}[room]
-            steps = SIDE_STEP if room == "turns" else LONGEST_STEP
-            wrong = (["turn not the player's"] * bool(turned) + ["in a wall"] * bool(inside)
-                     + ["nearer than 0.75 m"] * (under > allowed) + ["jumps"] * (longest > steps))
+            wrong = (["turn not the player's"] * bool(turned) + ["off the way"] * bool(off_way)
+                     + ["behind a wall"] * bool(behind_wall) + ["jumps"] * (longest > LONGEST_STEP))
             check(not wrong,
-                  f"{what}, the orbit turned {360 * turns} degrees at {step} a frame: the turn the player's in "
-                  f"{frames + 1 - turned}/{frames + 1} frames (held {held} frames at most), the eye {behind_most:.3f} m in front of the walls "
-                  f"at the least, {nearest:.2f} m from the pivot at the least ({under} frames under {NEAREST}), "
+                  f"{what}, the orbit turned {360 * turns} degrees at {step} a frame: the turn the player's and the "
+                  f"eye on its way in {frames + 1 - max(turned, off_way)}/{frames + 1} frames, {clear_least:.3f} m "
+                  f"in front of the walls at the least, {nearest:.2f} m from the pivot at the least, "
                   f"{longest:.3f} m its longest step" + (f" (wrong: {', '.join(wrong)})" if wrong else ""))
 
 
@@ -319,69 +308,73 @@ def main():
         expect = at - MARGIN
         o_view, o_regs, rays = ours.update_camera(3, wall=wall_at(at))
         check(o_view[:12] == s_view[:12] and o_view[15] == s_view[15] and abs(eye_out(o_view) - expect) < 1e-3
-              and on_way(o_view) and o_regs == s_regs and len(rays) == 1,
+              and on_way(o_view) and o_regs == s_regs and len(rays) == 1 and ours.yaw == stock.yaw,
               f"a new orbit, a wall {at} m out: the eye at once {expect:.2f} m out on the original's way, "
               "its turn the original's")
-
-    def lifted(view, original, walls, up=True):
-        """The view's turn the original's (`original`'s), the eye lifted off
-        the original's way (`up`: straight up) just to NEAREST out, at least
-        IN_FRONT m on the pivot's side of every wall."""
-        eye, theirs = view[12:15], original[12:15]
-        wrong = {"turn": view[:12] != original[:12] or view[15] != original[15],
-                 "nearest": abs(eye_out(view) - NEAREST) >= 1e-3,
-                 "not up": up and (math.dist(flat(eye), flat(theirs)) >= 1e-3 or eye[1] <= PIVOT[1]),
-                 "behind a wall": not all(dot(sub(eye, p), n) >= IN_FRONT for p, n in walls)}
-        return [what for what, bad in wrong.items() if bad]
 
     def upright(along, at):
         """An upright wall `at` m from the pivot along the level `along`, facing the pivot."""
         return tuple(p + a * at for p, a in zip(PIVOT, along)), tuple(-a for a in along)
 
-    def flat(eye):
-        """The level way from the pivot to `eye`."""
-        return unit((eye[0] - PIVOT[0], 0.0, eye[2] - PIVOT[2]))
+    def on_its_way(view, original, walls):
+        """The view's turn the original's (`original`'s), the eye on its way
+        no further out, on the pivot's side of every wall."""
+        eye, out = view[12:15], eye_out(view)
+        wrong = {"turn": view[:12] != original[:12] or view[15] != original[15],
+                 "off its way": out > 1e-4 and math.dist(unit(sub(eye, PIVOT)), unit(sub(original[12:15], PIVOT))) > 1e-4,
+                 "behind a wall": not all(dot(sub(eye, p), n) > 0 for p, n in walls)}
+        return [what for what, bad in wrong.items() if bad]
+
+    def same(a, b):
+        """Two views alike but for the rounding of a turn about up."""
+        return max(abs(x - y) for x, y in zip(a, b)) < 1e-5
 
     behind, side = unit((way[0], 0.0, way[2])), unit((s_view[0], 0.0, s_view[2]))
-    left = tuple(-s for s in side)
-    # (the wall across the way leans over the pivot, square to the rising way: no room up, to a side)
-    cases = (([wall_at(0.6)], "a wall 0.6 m out across the way", False),
-             ([upright(behind, 0.3), upright(left, 0.3)], "a corner: walls 0.3 m behind and to the left", True),
-             ([upright(behind, 0.3), upright(left, 0.3), upright(side, 0.3)], "walls 0.3 m behind and to both sides",
-              True))
-    for walls, what, up in cases:
+    front, left = tuple(-b for b in behind), tuple(-s for s in side)
+    room = [upright(behind, 0.75), upright(front, 0.75), upright(left, 0.75), upright(side, 0.75)]
+    cupboard = [upright(behind, 0.4), upright(front, 0.4), upright(left, 0.4), upright(side, 0.4)]
+    # a spawn: out of the body, turned to a side by the least 5-degree steps whose way has the room
+    spawns = (([wall_at(0.6)], "a wall 0.6 m out across the way", True),
+              ([upright(behind, 0.3), upright(left, 0.3)], "a corner: walls 0.3 m behind and to the left", True),
+              ([upright(behind, 0.3), upright(left, 0.3), upright(side, 0.3)], "walls 0.3 m behind and to both sides",
+               True),
+              (room, "a box 1.5 m wide: walls 0.75 m all round", True),
+              (cupboard, "a cupboard 0.8 m wide (no way has the room: the one with the most)", False))
+    for walls, what, has_room in spawns:
         ours.update_camera(0)
-        o_view, o_regs, rays = ours.update_camera(3, wall=walls)
-        wrong = lifted(o_view, s_view, walls, up) + ["registers"] * (o_regs != s_regs) + ["one ray"] * (len(rays) < 2)
-        check(not wrong,
-              f"a new orbit, {what} (no room for the eye {NEAREST} m out on the way): the original's turn, the eye "
-              f"lifted {'up' if up else 'off it'} to {eye_out(o_view):.2f} m out ({o_view[13] - PIVOT[1]:.2f} m over the pivot), "
-              "in front of the walls"
-              + (f" (wrong: {', '.join(wrong)})" if wrong else ""))
-        o_again, _, _ = ours.update_camera(3, wall=walls)
-        check(same(o_again, o_view), "the next frame: the same view")
+        o_view, o_regs, _ = ours.update_camera(3, wall=walls)
+        turned = math.degrees(ours.yaw - 0.7)
+        theirs = stock.update_camera(3, yaw=ours.yaw)[0]
+        out = eye_out(o_view)
+        wrong = {"not the game's orbit at the yaw left": not same(o_view[:12], theirs[:12]),
+                 "off that way": math.dist(unit(sub(o_view[12:15], PIVOT)), unit(sub(theirs[12:15], PIVOT))) >= 1e-4,
+                 "in the body": has_room and out < NEAREST - 1e-4,
+                 "behind a wall": not all(dot(sub(o_view[12:15], p), n) > 0 for p, n in walls),
+                 "registers": o_regs != s_regs}
+        wrong = [w for w, bad in wrong.items() if bad]
+        check(not wrong, f"a spawn, {what}: turned {turned:+.0f} degrees (its yaw), the eye {out:.2f} m out, "
+              "in front of the walls" + (f" (wrong: {', '.join(wrong)})" if wrong else ""))
+        yaw = ours.yaw
+        o_again, _, _ = ours.update_camera(3, wall=walls, yaw=yaw)
+        check(same(o_again, o_view), "the next frame, no drag yet (the game's orbit at that yaw): the same view")
+        o_drag, _, _ = ours.update_camera(3, wall=walls, yaw=yaw + 0.02)
+        theirs = stock.update_camera(3, yaw=yaw + 0.02)[0]
+        check(o_drag[:12] == theirs[:12] and math.dist(o_drag[12:15], o_again[12:15]) < 0.1
+              and all(dot(sub(o_drag[12:15], p), n) > 0 for p, n in walls),
+              "the first drag: the game's turn, on from the spawn's (no snap), the eye in front of the walls")
 
-    # an orbit going on turns to where its way has no room: the turn the player's, the eye lifted
+    # an orbit going on turns onto a way 0.5 m from a wall: the player's turn, the eye in front of it
     ours.update_camera(0)
     o_free, _, _ = ours.update_camera(3, ms=12000)
     c_view, _, _ = stock.update_camera(3, yaw=0.75)
     corner = unit(sub(c_view[12:15], PIVOT))
     tight = (tuple(p + c * 0.5 for p, c in zip(PIVOT, corner)), tuple(-c for c in corner))
     walled = lambda n: tight if math.dist(ours.rays[n][2], corner) < 1e-3 else None   # only rays on that way
-    o_view, o_regs, rays = ours.update_camera(3, wall=walled, ms=12016, yaw=0.75)
-    wrong = lifted(o_view, c_view, [tight])
-    check(o_free == s_view and not wrong and o_regs == s_regs
-          and any(math.dist(r[2], corner) < 1e-3 for r in rays) and len(rays) >= 2,
-          "a turn to a way 0.5 m from a wall: the turn the player's, the eye lifted to 0.75 m out"
+    o_view, o_regs, _ = ours.update_camera(3, wall=walled, ms=12016, yaw=0.75)
+    wrong = on_its_way(o_view, c_view, [tight]) + ["0.3 m out"] * (abs(eye_out(o_view) - 0.3) >= 1e-3)
+    check(o_free == s_view and not wrong and o_regs == s_regs,
+          "a turn onto a way 0.5 m from a wall: the player's turn, the eye at once 0.3 m out on it"
           + (f" (wrong: {', '.join(wrong)})" if wrong else ""))
-    o_again, _, _ = ours.update_camera(3, wall=walled, ms=12032, yaw=0.75)
-    check(same(o_again, o_view), "and the same while the way has no room")
-    o_view, _, _ = ours.update_camera(3, ms=12048)
-    check(o_view[:12] == s_view[:12] and NEAREST - 1e-4 <= eye_out(o_view) < distance - 0.5,
-          f"back on a free way: the turn the player's, the eye {eye_out(o_view):.2f} m out, let out from there")
-    for n in range(180):
-        o_view, _, _ = ours.update_camera(3)
-    check(on_way(o_view), "and in 3 s the eye on its way again (the lift let down by 1 - e^(-3 t))")
     ours.update_camera(0)
     o_view, _, rays = ours.update_camera(3, wall=wall_at(distance + MARGIN + 0.05))
     check(o_view == s_view and len(rays) == 1, "a wall past the eye and its margin: the original's view")

@@ -6,7 +6,7 @@
 
 use core::cell::UnsafeCell;
 
-use ragdoll::math::Vec3;
+use ragdoll::math::{Quat, Vec3};
 
 use super::context::{Context, Reg};
 use super::world::{Player, floats, write_floats};
@@ -182,13 +182,29 @@ impl<'t> Orbit<'t> {
         place(&self.view())
     }
 
-    /// The view's turn: its rows right, up and forward.
-    pub fn turn(&self) -> [Vec3; 3] {
-        let v = self.view();
-        [0, 4, 8].map(|row| Vec3::new(v[row], v[row + 1], v[row + 2]))
+    /// Turns the orbit `angle` rad about the level's up, from this frame on:
+    /// this frame's view about the pivot, and the handler's warmup yaw
+    /// (+34Ch, which process_warmup_mode adds the drag to), so the next
+    /// frames the game's own orbit is there and the drag goes on from it.
+    pub fn turn_about_up(&mut self, angle: f32) {
+        let q = Quat::from_axis_angle(Vec3::Y, angle);
+        let mut v = self.view();
+        for row in [0, 4, 8] {
+            let axis = q.rotate(Vec3::new(v[row], v[row + 1], v[row + 2]));
+            v[row..row + 3].copy_from_slice(&[axis.x, axis.y, axis.z]);
+        }
+        let eye = self.pivot + q.rotate(place(&v) - self.pivot);
+        v[12..15].copy_from_slice(&[eye.x, eye.y, eye.z]);
+        // SAFETY: as view; the yaw is the handler's own f32, read by the
+        // view's next update on this thread (rotY(yaw): +d turns it -d).
+        unsafe {
+            write_floats(self.view.view(), v);
+            *self.view.warmup_yaw() -= angle;
+        }
     }
 
-    /// The view the director gives on is the game's turn from `eye`.
+    /// Puts the eye at `eye`, the view's turn kept; the view the director
+    /// gives on is this one.
     pub fn set_eye(&mut self, eye: Vec3) {
         let mut v = self.view();
         v[12..15].copy_from_slice(&[eye.x, eye.y, eye.z]);
