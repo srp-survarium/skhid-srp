@@ -8,7 +8,9 @@ use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, UdpSocket
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use udp_transport::relay::{HEADER_SIZE, Protocol, forward_header, forwarded_datagram};
+use udp_transport::relay::{
+    HEADER_SIZE, PROBE_PREFIX, Protocol, forward_header, forwarded_datagram,
+};
 
 const MAX_PACKET: usize = 4096;
 const MAX_PEERS: usize = 8192;
@@ -68,6 +70,32 @@ fn usage() -> io::Error {
     )
 }
 
+/// A line on stderr, the journal. A line that cannot be written is let go:
+/// the log never stops a thread that forwards (stderr may be a closed pipe).
+macro_rules! say {
+    ($($arg:tt)*) => {{
+        use std::io::Write as _;
+        let _ = writeln!(std::io::stderr().lock(), $($arg)*);
+    }};
+}
+
+/// A flow of lobby or match that has sent this long without one reply is
+/// reported while it lasts: the server does not answer it.
+const UNANSWERED: Duration = Duration::from_secs(10);
+/// Login connections forwarded at once, and their per-address allowance.
+const LOGINS: usize = 128;
+const LOGIN_RATE: f64 = 2.0;
+const LOGIN_BURST: f64 = 10.0;
+
+/// The 1st, 10th, 100th, ...: when a count of something that can repeat for
+/// every packet or connection is logged.
+fn is_power_of_ten(mut n: u64) -> bool {
+    while n > 1 && n.is_multiple_of(10) {
+        n /= 10;
+    }
+    n == 1
+}
+
 /// The game service on one UDP port: login + 1, + 2, + 3.
 #[derive(Clone, Copy)]
 enum Service {
@@ -79,6 +107,11 @@ impl Service {
     const ALL: [Self; 3] = [Self::Lobby, Self::Match, Self::Voice];
     fn port(self, login: u16) -> u16 {
         login + self as u16
+    }
+    /// Whether the server answers every client that sends: voice sends a
+    /// talker nothing while nobody else talks.
+    fn answers(self) -> bool {
+        !matches!(self, Self::Voice)
     }
 }
 impl fmt::Display for Service {
@@ -110,18 +143,57 @@ struct Flow {
     up: Count,
     down: Count,
 }
+impl Flow {
+    fn lasted(&self) -> Duration {
+        self.last.duration_since(self.first)
+    }
+}
 impl fmt::Display for Flow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{:.1} s, up {} packets {} bytes, down {} packets {} bytes",
-            self.last.duration_since(self.first).as_secs_f64(),
+            self.lasted().as_secs_f64(),
             self.up.packets,
             self.up.bytes,
             self.down.packets,
             self.down.bytes
         )
     }
+}
+/// A flow's line once it has ended: idle or at the stop.
+struct Ended<'a> {
+    service: Service,
+    client: SocketAddr,
+    flow: &'a Flow,
+    how: &'static str,
+}
+impl fmt::Display for Ended<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            service,
+            client,
+            flow,
+            how,
+        } = self;
+        write!(f, "{service} {client} {how}: {flow}")?;
+        if service.answers() && flow.down.packets == 0 {
+            f.write_str(", no reply")?;
+        }
+        Ok(())
+    }
+}
+
+/// What a client's datagram did to its flow.
+#[derive(Debug, PartialEq)]
+enum Touch {
+    /// Forward it.
+    Forward,
+    /// Forward it: the flow has now sent for `UNANSWERED` and had no reply
+    /// (said once a flow, at the datagram that crosses it).
+    Unanswered(u64),
+    /// No room for a new client: drop it.
+    Full,
 }
 
 /// Ordered expiration removes only expired peers. Refreshing one peer does not
@@ -132,14 +204,21 @@ struct Peers {
     order: BTreeSet<(Instant, SocketAddr)>,
 }
 impl Peers {
-    /// A datagram of `bytes` from `peer`, to forward if the table has room.
-    fn touch(&mut self, peer: SocketAddr, now: Instant, bytes: usize) -> bool {
+    /// A datagram of `bytes` from `peer`.
+    fn touch(&mut self, peer: SocketAddr, now: Instant, bytes: usize) -> Touch {
+        let mut touch = Touch::Forward;
         if let Some(flow) = self.seen.get_mut(&peer) {
             self.order.remove(&(flow.last, peer));
+            if flow.down.packets == 0
+                && flow.lasted() < UNANSWERED
+                && now.duration_since(flow.first) >= UNANSWERED
+            {
+                touch = Touch::Unanswered(flow.up.packets + 1);
+            }
             flow.last = now;
             flow.up.add(bytes);
         } else if self.seen.len() >= MAX_PEERS {
-            return false;
+            return Touch::Full;
         } else {
             let mut up = Count::default();
             up.add(bytes);
@@ -152,7 +231,7 @@ impl Peers {
             self.seen.insert(peer, flow);
         }
         self.order.insert((now, peer));
-        true
+        touch
     }
     /// A reply of `bytes` to `peer`, to send if it was heard from lately.
     fn reply(&mut self, peer: SocketAddr, now: Instant, bytes: usize) -> bool {
@@ -180,6 +259,14 @@ struct Bucket {
     tokens: f64,
     seen: Instant,
 }
+/// Why a [`Budget`] refused.
+#[derive(Debug, PartialEq)]
+enum Refusal {
+    /// The address has spent its allowance.
+    Rate,
+    /// `MAX_PEERS` other addresses have buckets.
+    Full,
+}
 struct Budget {
     buckets: HashMap<std::net::IpAddr, Bucket>,
     collect: Instant,
@@ -195,14 +282,14 @@ impl Budget {
             burst,
         }
     }
-    fn take(&mut self, peer: SocketAddr, now: Instant) -> bool {
+    fn take(&mut self, peer: SocketAddr, now: Instant) -> Result<(), Refusal> {
         if now >= self.collect {
             self.buckets
                 .retain(|_, b| now.duration_since(b.seen) < IDLE);
             self.collect = now + Duration::from_secs(10);
         }
         if !self.buckets.contains_key(&peer.ip()) && self.buckets.len() >= MAX_PEERS {
-            return false;
+            return Err(Refusal::Full);
         }
         let b = self.buckets.entry(peer.ip()).or_insert(Bucket {
             tokens: self.burst,
@@ -212,10 +299,112 @@ impl Budget {
             (b.tokens + now.duration_since(b.seen).as_secs_f64() * self.rate).min(self.burst);
         b.seen = now;
         if b.tokens < 1.0 {
-            return false;
+            return Err(Refusal::Rate);
         }
         b.tokens -= 1.0;
-        true
+        Ok(())
+    }
+}
+
+/// A datagram a packet thread did not carry, and why.
+enum Lost<'a> {
+    // Client to server.
+    TooLong(SocketAddr),
+    OverRate(SocketAddr),
+    Addresses(SocketAddr),
+    Clients(SocketAddr),
+    Unaddressable(SocketAddr),
+    ClientsUnread(&'a io::Error),
+    NotSent(&'a io::Error),
+    // Server to client.
+    ServerUnread(&'a io::Error),
+    Unsealed(usize),
+    Stranger(SocketAddr),
+    Undelivered(SocketAddr, &'a io::Error),
+}
+impl Lost<'_> {
+    const KINDS: usize = 11;
+    fn kind(&self) -> usize {
+        match self {
+            Self::TooLong(_) => 0,
+            Self::OverRate(_) => 1,
+            Self::Addresses(_) => 2,
+            Self::Clients(_) => 3,
+            Self::Unaddressable(_) => 4,
+            Self::ClientsUnread(_) => 5,
+            Self::NotSent(_) => 6,
+            Self::ServerUnread(_) => 7,
+            Self::Unsealed(_) => 8,
+            Self::Stranger(_) => 9,
+            Self::Undelivered(..) => 10,
+        }
+    }
+}
+impl fmt::Display for Lost<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let idle = IDLE.as_secs();
+        match self {
+            Self::TooLong(client) => {
+                write!(
+                    f,
+                    "a datagram over {MAX_PACKET} bytes from {client} dropped"
+                )
+            }
+            Self::OverRate(client) => write!(
+                f,
+                "a datagram from {client} dropped: over its address's allowance \
+                 ({UDP_RATE}/s, burst {UDP_BURST})"
+            ),
+            Self::Addresses(client) => write!(
+                f,
+                "a datagram from {client} dropped: {MAX_PEERS} other addresses are counted"
+            ),
+            Self::Clients(client) => write!(
+                f,
+                "a datagram from {client} dropped: {MAX_PEERS} other clients are open"
+            ),
+            Self::Unaddressable(client) => {
+                write!(
+                    f,
+                    "a datagram from {client} dropped: not an address to forward"
+                )
+            }
+            Self::ClientsUnread(error) => write!(f, "the clients' socket failed: {error}"),
+            Self::NotSent(error) => write!(f, "a datagram not sent to the server: {error}"),
+            Self::ServerUnread(error) => write!(f, "the server's socket failed: {error}"),
+            Self::Unsealed(bytes) => {
+                write!(
+                    f,
+                    "{bytes} bytes from the server dropped: no valid envelope"
+                )
+            }
+            Self::Stranger(client) => write!(
+                f,
+                "a reply for {client} dropped: not heard from within {idle} s"
+            ),
+            Self::Undelivered(client, error) => write!(f, "a reply not sent to {client}: {error}"),
+        }
+    }
+}
+/// One packet thread's datagrams not carried, by kind: a line at the 1st,
+/// 10th, 100th, ... of each kind. Owned by its thread: no lock, no atomic.
+struct Drops {
+    service: Service,
+    counts: [u64; Lost::KINDS],
+}
+impl Drops {
+    fn new(service: Service) -> Self {
+        Self {
+            service,
+            counts: [0; Lost::KINDS],
+        }
+    }
+    fn note(&mut self, lost: Lost) {
+        let count = &mut self.counts[lost.kind()];
+        *count += 1;
+        if is_power_of_ten(*count) {
+            say!("{}: {lost}; {count} such so far", self.service);
+        }
     }
 }
 
@@ -244,7 +433,16 @@ fn udp(config: Config, service: Service) -> io::Result<Shared> {
                 std::thread::sleep(Duration::from_secs(1));
                 lock(&expiring).expire(Instant::now(), &mut ended);
                 for (client, flow) in ended.drain(..) {
-                    eprintln!("{service} {client} idle: {flow}");
+                    let how = "idle";
+                    say!(
+                        "{}",
+                        Ended {
+                            service,
+                            client,
+                            flow: &flow,
+                            how
+                        }
+                    );
                 }
             }
         })?;
@@ -253,17 +451,28 @@ fn udp(config: Config, service: Service) -> io::Result<Shared> {
         .name(format!("udp-{port}-return"))
         .spawn(move || {
             let mut buffer = [0; HEADER_SIZE + MAX_PACKET + 1];
+            let mut drops = Drops::new(service);
             loop {
-                let Ok(n) = b.recv(&mut buffer) else { continue };
+                let n = match b.recv(&mut buffer) {
+                    Ok(n) => n,
+                    Err(error) => {
+                        drops.note(Lost::ServerUnread(&error));
+                        continue;
+                    }
+                };
                 if n > HEADER_SIZE + MAX_PACKET {
+                    drops.note(Lost::Unsealed(n));
                     continue;
                 }
                 let Ok((client, bytes)) = forwarded_datagram(&buffer[..n], config.public, port)
                 else {
+                    drops.note(Lost::Unsealed(n));
                     continue;
                 };
-                if lock(&p).reply(client, Instant::now(), bytes.len()) {
-                    let _ = f.send_to(bytes, client);
+                if !lock(&p).reply(client, Instant::now(), bytes.len()) {
+                    drops.note(Lost::Stranger(client));
+                } else if let Err(error) = f.send_to(bytes, client) {
+                    drops.note(Lost::Undelivered(client, &error));
                 }
             }
         })?;
@@ -273,22 +482,53 @@ fn udp(config: Config, service: Service) -> io::Result<Shared> {
         .spawn(move || {
             let mut buffer = [0; HEADER_SIZE + MAX_PACKET + 1];
             let mut budget = Budget::new(UDP_RATE, UDP_BURST);
+            let mut drops = Drops::new(service);
             loop {
-                let Ok((n, client)) = front.recv_from(&mut buffer[HEADER_SIZE..]) else {
-                    continue;
+                let (n, client) = match front.recv_from(&mut buffer[HEADER_SIZE..]) {
+                    Ok(received) => received,
+                    Err(error) => {
+                        drops.note(Lost::ClientsUnread(&error));
+                        continue;
+                    }
                 };
                 let now = Instant::now();
-                if n > MAX_PACKET || !budget.take(client, now) {
+                if n > MAX_PACKET {
+                    drops.note(Lost::TooLong(client));
                     continue;
+                }
+                match budget.take(client, now) {
+                    Ok(()) => {}
+                    Err(Refusal::Rate) => {
+                        drops.note(Lost::OverRate(client));
+                        continue;
+                    }
+                    Err(Refusal::Full) => {
+                        drops.note(Lost::Addresses(client));
+                        continue;
+                    }
                 }
                 let Ok(header) = forward_header(client, config.public, port, Protocol::Udp) else {
+                    drops.note(Lost::Unaddressable(client));
                     continue;
                 };
-                if !lock(&q).touch(client, now, n) {
-                    continue;
+                let touch = lock(&q).touch(client, now, n);
+                match touch {
+                    Touch::Forward => {}
+                    Touch::Unanswered(packets) if service.answers() => say!(
+                        "{service} {client}: {packets} packets up in {} s, none down: \
+                         the server does not answer it",
+                        UNANSWERED.as_secs()
+                    ),
+                    Touch::Unanswered(_) => {}
+                    Touch::Full => {
+                        drops.note(Lost::Clients(client));
+                        continue;
+                    }
                 }
                 buffer[..HEADER_SIZE].copy_from_slice(&header);
-                let _ = back.send(&buffer[..HEADER_SIZE + n]);
+                if let Err(error) = back.send(&buffer[..HEADER_SIZE + n]) {
+                    drops.note(Lost::NotSent(&error));
+                }
             }
         })?;
     Ok(peers)
@@ -300,10 +540,62 @@ impl Drop for Permit {
         self.0.fetch_sub(1, Ordering::Relaxed);
     }
 }
+
+/// An end of a login connection, as the relay sees it.
+#[derive(Clone, Copy)]
+enum Side {
+    Client,
+    Server,
+}
+impl fmt::Display for Side {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Client => "client",
+            Self::Server => "server",
+        })
+    }
+}
+/// How one direction of a login connection stopped.
+enum End {
+    /// Its source closed.
+    Closed,
+    /// Nothing came for `IDLE` (the read timeout).
+    Idle,
+    /// Its destination took nothing for the write timeout.
+    Stalled(Side),
+    /// An error on one side's socket.
+    Failed(Side, io::Error),
+}
+impl End {
+    fn read(error: io::Error, side: Side) -> Self {
+        match error.kind() {
+            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => Self::Idle,
+            _ => Self::Failed(side, error),
+        }
+    }
+    fn write(error: io::Error, side: Side) -> Self {
+        match error.kind() {
+            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => Self::Stalled(side),
+            _ => Self::Failed(side, error),
+        }
+    }
+}
+impl fmt::Display for End {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Closed => f.write_str("closed"),
+            Self::Idle => write!(f, "idle {} s", IDLE.as_secs()),
+            Self::Stalled(side) => write!(f, "{side} took nothing for {} s", WRITE.as_secs()),
+            Self::Failed(side, error) => write!(f, "{side}: {error}"),
+        }
+    }
+}
 /// What one direction of a login connection carried, and how it stopped.
 struct Half {
     bytes: u64,
-    end: io::Result<()>,
+    /// Its first byte: what the connection is.
+    first: Option<u8>,
+    end: End,
 }
 /// A login connection once both directions have stopped.
 struct Login {
@@ -321,36 +613,57 @@ impl fmt::Display for Login {
             self.down.bytes
         )?;
         match (&self.up.end, &self.down.end) {
-            (Err(error), _) => write!(f, "up: {}", Ended(error)),
-            (Ok(()), Err(error)) => write!(f, "down: {}", Ended(error)),
-            (Ok(()), Ok(())) => f.write_str("closed"),
+            (End::Closed, End::Closed) => f.write_str("closed")?,
+            (up, End::Closed) => write!(f, "up: {up}")?,
+            (End::Closed, down) => write!(f, "down: {down}")?,
+            (up, down) => write!(f, "up: {up}, down: {down}")?,
+        }
+        if self.down.bytes == 0 {
+            f.write_str(", no reply")?;
+        }
+        Ok(())
+    }
+}
+impl Login {
+    /// The updater's route check, or a sign-in (or anything else).
+    fn kind(&self) -> &'static str {
+        if self.up.first == PROBE_PREFIX.first().copied() {
+            "route check"
+        } else {
+            "login"
         }
     }
 }
-struct Ended<'a>(&'a io::Error);
-impl fmt::Display for Ended<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.kind() {
-            // The read timeout.
-            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => {
-                write!(f, "idle {} s", IDLE.as_secs())
-            }
-            _ => self.0.fmt(f),
-        }
+/// A login connection that was not forwarded.
+enum Unforwarded {
+    /// The server did not take the connection.
+    Unreached(io::Error),
+    /// A socket of it failed before anything was forwarded.
+    Failed(io::Error),
+}
+impl From<io::Error> for Unforwarded {
+    fn from(error: io::Error) -> Self {
+        Self::Failed(error)
     }
 }
 
-fn connection(mut front: TcpStream, client: SocketAddr, config: Config) -> io::Result<Login> {
+const WRITE: Duration = Duration::from_secs(10);
+fn connection(
+    mut front: TcpStream,
+    client: SocketAddr,
+    config: Config,
+) -> Result<Login, Unforwarded> {
     let start = Instant::now();
     let mut back = TcpStream::connect_timeout(
         &SocketAddr::from((config.backend, config.login)),
         Duration::from_secs(10),
-    )?;
+    )
+    .map_err(Unforwarded::Unreached)?;
     front.set_nodelay(true)?;
     back.set_nodelay(true)?;
     for stream in [&front, &back] {
         stream.set_read_timeout(Some(IDLE))?;
-        stream.set_write_timeout(Some(Duration::from_secs(10)))?;
+        stream.set_write_timeout(Some(WRITE))?;
     }
     back.write_all(&forward_header(
         client,
@@ -362,20 +675,26 @@ fn connection(mut front: TcpStream, client: SocketAddr, config: Config) -> io::R
     let mut reverse_back = back.try_clone()?;
     let (up, down) = std::thread::scope(|scope| {
         let down = scope.spawn(move || {
-            let down = copy(&mut reverse_back, &mut reverse_front);
+            let down = copy(
+                &mut reverse_back,
+                Side::Server,
+                &mut reverse_front,
+                Side::Client,
+            );
             // The server is done with this sign-in: end both sides now, so a
             // silent client does not hold its slot until the idle timeout.
             let _ = reverse_front.shutdown(Shutdown::Both);
             let _ = reverse_back.shutdown(Shutdown::Both);
             down
         });
-        let up = copy(&mut front, &mut back);
-        let _ = back.shutdown(if up.end.is_ok() {
+        let up = copy(&mut front, Side::Client, &mut back, Side::Server);
+        let closed = matches!(up.end, End::Closed);
+        let _ = back.shutdown(if closed {
             Shutdown::Write
         } else {
             Shutdown::Both
         });
-        if up.end.is_err() {
+        if !closed {
             let _ = front.shutdown(Shutdown::Both);
         }
         let down = down
@@ -389,20 +708,25 @@ fn connection(mut front: TcpStream, client: SocketAddr, config: Config) -> io::R
         down,
     })
 }
-fn copy(source: &mut TcpStream, destination: &mut TcpStream) -> Half {
+fn copy(source: &mut TcpStream, from: Side, destination: &mut TcpStream, to: Side) -> Half {
     let mut buffer = [0; 16384];
     let mut bytes = 0;
+    let mut first = None;
     let mut pass = || loop {
-        let n = source.read(&mut buffer)?;
+        let n = source.read(&mut buffer).map_err(|e| End::read(e, from))?;
         if n == 0 {
             return Ok(());
         }
-        destination.write_all(&buffer[..n])?;
+        first = first.or(Some(buffer[0]));
+        destination
+            .write_all(&buffer[..n])
+            .map_err(|e| End::write(e, to))?;
         bytes += n as u64;
     };
-    let end = pass();
-    Half { bytes, end }
+    let end = pass().err().unwrap_or(End::Closed);
+    Half { bytes, first, end }
 }
+
 /// Blocks SIGTERM and SIGINT in this thread and the threads it starts after,
 /// so that only the one waiting for them in `sigwait` takes them.
 fn block_stop_signals() -> io::Result<libc::sigset_t> {
@@ -418,14 +742,41 @@ fn block_stop_signals() -> io::Result<libc::sigset_t> {
         }
     }
 }
+
+/// Why the login port did not forward a connection: a line at the 1st,
+/// 10th, 100th, ... of each.
+#[derive(Default)]
+struct Refused {
+    busy: u64,
+    rate: u64,
+    addresses: u64,
+    unaccepted: u64,
+    threadless: u64,
+}
+fn refused(count: &mut u64, what: fmt::Arguments) {
+    *count += 1;
+    if is_power_of_ten(*count) {
+        say!("login {what}; {count} such so far");
+    }
+}
+
 fn main() -> io::Result<()> {
     let config = Config::parse()?;
+    // A thread that panics would leave its port unforwarded while the rest
+    // goes on: the whole process ends instead, and systemd starts it anew.
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        report(info);
+        std::process::abort();
+    }));
     let stop = block_stop_signals()?;
     let login = TcpListener::bind((config.bind, config.login))?;
     let mut ports = Vec::new();
     for service in Service::ALL {
         ports.push((service, udp(config, service)?));
     }
+    let active = Arc::new(AtomicUsize::new(0));
+    let open = active.clone();
     // A stop reports the flows still open, which no idle expiry will.
     std::thread::Builder::new()
         .name("stop".into())
@@ -433,26 +784,66 @@ fn main() -> io::Result<()> {
             let mut signal = 0;
             // SAFETY: `stop` is the set blocked in every thread.
             unsafe { libc::sigwait(&stop, &mut signal) };
-            for (service, peers) in &ports {
-                for (client, flow) in &lock(peers).seen {
-                    eprintln!("{service} {client} at stop: {flow}");
+            let name = if signal == libc::SIGINT {
+                "SIGINT"
+            } else {
+                "SIGTERM"
+            };
+            let tables: Vec<_> = ports
+                .iter()
+                .map(|(service, peers)| (*service, lock(peers)))
+                .collect();
+            let flows = tables
+                .iter()
+                .map(|(service, peers)| format!("{} {service}", peers.seen.len()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            say!(
+                "stopping on {name}: {flows} flows and {} login connections open",
+                open.load(Ordering::Relaxed)
+            );
+            for (service, peers) in &tables {
+                for (client, flow) in &peers.seen {
+                    let (service, client, how) = (*service, *client, "at stop");
+                    say!(
+                        "{}",
+                        Ended {
+                            service,
+                            client,
+                            flow,
+                            how
+                        }
+                    );
                 }
             }
             std::process::exit(0);
         })?;
-    eprintln!(
-        "ready: {}:{} -> {} (native UDP, WireGuard backend)",
-        config.public, config.login, config.backend
+    say!(
+        "ready: {public}, login TCP {login}, lobby UDP {lobby}, match UDP {game}, \
+         voice UDP {voice}, to the server {backend} at the same ports (bound to {bind}); \
+         idle {idle} s, {MAX_PEERS} clients a port, {UDP_RATE}/s (burst {UDP_BURST}) an \
+         address; {LOGINS} logins at once, {LOGIN_RATE}/s (burst {LOGIN_BURST}) an address",
+        public = config.public,
+        login = config.login,
+        lobby = Service::Lobby.port(config.login),
+        game = Service::Match.port(config.login),
+        voice = Service::Voice.port(config.login),
+        backend = config.backend,
+        bind = config.bind,
+        idle = IDLE.as_secs(),
     );
-    let active = Arc::new(AtomicUsize::new(0));
-    let mut budget = Budget::new(2.0, 10.0);
+    let mut budget = Budget::new(LOGIN_RATE, LOGIN_BURST);
+    let mut refusals = Refused::default();
     for stream in login.incoming() {
         // One sign-in that fails (reset before it is accepted, no thread for
         // it) is dropped: the process also carries every relayed match.
         let stream = match stream {
             Ok(stream) => stream,
             Err(error) => {
-                eprintln!("login not accepted: {error}");
+                refused(
+                    &mut refusals.unaccepted,
+                    format_args!("not accepted: {error}"),
+                );
                 std::thread::sleep(Duration::from_millis(50));
                 continue;
             }
@@ -460,8 +851,33 @@ fn main() -> io::Result<()> {
         let Ok(client) = stream.peer_addr() else {
             continue;
         };
-        if active.load(Ordering::Relaxed) >= 128 || !budget.take(client, Instant::now()) {
+        if active.load(Ordering::Relaxed) >= LOGINS {
+            refused(
+                &mut refusals.busy,
+                format_args!("{client} refused: {LOGINS} connections open"),
+            );
             continue;
+        }
+        match budget.take(client, Instant::now()) {
+            Ok(()) => {}
+            Err(Refusal::Rate) => {
+                let ip = client.ip();
+                refused(
+                    &mut refusals.rate,
+                    format_args!(
+                        "{client} refused: over the allowance of {ip} \
+                         ({LOGIN_RATE}/s, burst {LOGIN_BURST})"
+                    ),
+                );
+                continue;
+            }
+            Err(Refusal::Full) => {
+                refused(
+                    &mut refusals.addresses,
+                    format_args!("{client} refused: {MAX_PEERS} other addresses are counted"),
+                );
+                continue;
+            }
         }
         active.fetch_add(1, Ordering::Relaxed);
         let permit = Permit(active.clone());
@@ -470,12 +886,22 @@ fn main() -> io::Result<()> {
             .spawn(move || {
                 let _permit = permit;
                 match connection(stream, client, config) {
-                    Ok(login) => eprintln!("login {client}: {login}"),
-                    Err(error) => eprintln!("login {client} not forwarded: {error}"),
+                    Ok(login) => say!("{} {client}: {login}", login.kind()),
+                    Err(Unforwarded::Unreached(error)) => say!(
+                        "login {client} not forwarded: the server {}:{} not reached: {error}",
+                        config.backend,
+                        config.login
+                    ),
+                    Err(Unforwarded::Failed(error)) => {
+                        say!("login {client} not forwarded: {error}")
+                    }
                 }
             });
         if let Err(error) = spawned {
-            eprintln!("login dropped: {error}");
+            refused(
+                &mut refusals.threadless,
+                format_args!("{client} dropped: no thread for it: {error}"),
+            );
         }
     }
     Ok(())
@@ -491,7 +917,11 @@ mod tests {
         for packet in 0..14_000 {
             let peer = SocketAddr::from(([198, 51, 100, 9], 20_000 + (packet % 40) as u16));
             let now = start + Duration::from_micros(packet * 1_000_000 / 1400);
-            assert!(budget.take(peer, now), "shared exit dropped packet {packet}");
+            assert_eq!(
+                budget.take(peer, now),
+                Ok(()),
+                "shared exit dropped packet {packet}"
+            );
         }
     }
 
@@ -501,7 +931,8 @@ mod tests {
         let now = Instant::now();
         let client = "198.51.100.9:12000".parse().unwrap();
         for i in 0..10000 {
-            assert!(peers.touch(client, now + Duration::from_micros(i), 100));
+            let touch = peers.touch(client, now + Duration::from_micros(i), 100);
+            assert_eq!(touch, Touch::Forward);
         }
         assert_eq!(peers.seen.len(), 1);
         assert_eq!(peers.order.len(), 1);
@@ -517,7 +948,98 @@ mod tests {
         assert_eq!(*peer, client);
         assert_eq!((flow.up.packets, flow.up.bytes), (10000, 1_000_000));
         assert_eq!((flow.down.packets, flow.down.bytes), (1, 40));
+        let (service, client, how) = (Service::Match, *peer, "idle");
+        assert_eq!(
+            Ended {
+                service,
+                client,
+                flow,
+                how
+            }
+            .to_string(),
+            "match 198.51.100.9:12000 idle: 0.0 s, up 10000 packets 1000000 bytes, \
+             down 1 packets 40 bytes"
+        );
     }
+
+    #[test]
+    fn a_flow_without_replies_is_said_once_at_ten_seconds() {
+        let mut peers = Peers::default();
+        let now = Instant::now();
+        let client = "198.51.100.9:12000".parse().unwrap();
+        let touches: Vec<_> = (0..30)
+            .map(|second| peers.touch(client, now + Duration::from_secs(second), 10))
+            .collect();
+        let said: Vec<_> = touches
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| **t != Touch::Forward)
+            .collect();
+        assert_eq!(said, [(10, &Touch::Unanswered(11))]);
+        // One reply, and a flow that is answered is never said.
+        let mut answered = Peers::default();
+        answered.touch(client, now, 10);
+        assert!(answered.reply(client, now, 10));
+        for second in 1..30 {
+            let touch = answered.touch(client, now + Duration::from_secs(second), 10);
+            assert_eq!(touch, Touch::Forward);
+        }
+        let flow = &peers.seen[&client];
+        let (service, how) = (Service::Lobby, "idle");
+        assert!(
+            Ended {
+                service,
+                client,
+                flow,
+                how
+            }
+            .to_string()
+            .ends_with(", no reply")
+        );
+        let service = Service::Voice;
+        assert!(
+            !Ended {
+                service,
+                client,
+                flow,
+                how
+            }
+            .to_string()
+            .contains("no reply")
+        );
+    }
+
+    #[test]
+    fn repeated_drops_are_said_at_powers_of_ten() {
+        let said: Vec<u64> = (1..=2000).filter(|&n| is_power_of_ten(n)).collect();
+        assert_eq!(said, [1, 10, 100, 1000]);
+    }
+
+    #[test]
+    fn a_login_line_names_each_failed_direction() {
+        let failed = |side| End::Failed(side, io::Error::from(io::ErrorKind::ConnectionReset));
+        let half = |bytes, end| Half {
+            bytes,
+            first: Some(b'S'),
+            end,
+        };
+        let login = Login {
+            lasted: Duration::from_millis(1200),
+            up: half(30_000, failed(Side::Client)),
+            down: half(0, End::Stalled(Side::Client)),
+        };
+        assert_eq!(login.kind(), "route check");
+        assert_eq!(
+            login.to_string(),
+            "1.2 s, up 30000 bytes, down 0 bytes, up: client: connection reset, \
+             down: client took nothing for 10 s, no reply"
+        );
+        assert!(matches!(
+            End::read(io::ErrorKind::WouldBlock.into(), Side::Client),
+            End::Idle
+        ));
+    }
+
     #[test]
     fn login_permit_releases_on_teardown() {
         let active = Arc::new(AtomicUsize::new(1));

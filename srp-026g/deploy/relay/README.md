@@ -125,14 +125,90 @@ UDP replies go only to clients observed on that frontend within 120 seconds.
 To take it away: remove the name from `SRP_WEB_DOMAIN`, make `caddy26` anew,
 remove the A record.
 
-## What it carried
+## How to read the relay's logs
 
-On the relay, `journalctl -u skhid-relay -u skhid-relay-web`: a line per login
-connection at its end (client, seconds, bytes each way, how it ended), a line
-per client and UDP service (`lobby`, `match`, `voice`) when it has been idle
-120 s or the relay stops (seconds from its first datagram to its last, packets
-and bytes each way), and a line per `site` or updater `CONNECT` connection. On
-the origin the sign-in lines name the route: `from <client> via relay <public>`.
+On the relay: `journalctl -u skhid-relay` (the game: login TCP, lobby, match and
+voice UDP) and `journalctl -u skhid-relay-web` (the updater's `CONNECT` and the
+`site`). Every line is one event or one flow, never one per packet; what can
+repeat per packet or per connection is said at its 1st, 10th, 100th, ... time,
+with the count so far (`; 100 such so far`). On the origin the sign-in lines name
+the route: `from 198.51.100.9:50122 via relay 203.0.113.8`, and each route check
+has its line.
+
+Start and stop. The first line of a run is `ready:` with what it serves:
+
+    ready: 203.0.113.8, login TCP 1234, lobby UDP 1235, match UDP 1236, voice UDP 1237, to the server 10.77.0.1 at the same ports (bound to 0.0.0.0); idle 120 s, 8192 clients a port, 2000/s (burst 4000) an address; 128 logins at once, 2/s (burst 10) an address
+    ready: CONNECT on 0.0.0.0:8080 to skhid.link:443 only, 128 at once; site on 0.0.0.0:443 to 10.77.0.1:443, 256 at once; 16 an address, 2/s (burst 10) an address; idle 120 s
+
+A stop (`systemctl stop` or `restart`) says `stopping on SIGTERM:` with what was
+open, then a line for each flow or connection marked `at stop`, and the process
+exits with 0. A `ready:` with no `stopping` before it is a restart after a crash:
+systemd's own lines in the same journal say how it ended (`Main process exited,
+code=killed, status=6/ABRT` and `Scheduled restart job`). A thread of
+`srp-relay` that panics ends the whole process (its panic message is just
+above), so no port stops forwarding while the others go on.
+
+    stopping on SIGTERM: 3 lobby, 5 match, 2 voice flows and 1 login connections open
+    match 198.51.100.9:50122 at stop: 1834.2 s, up 120345 packets 10234567 bytes, down 98000 packets 40234567 bytes
+
+A login connection's line, when it ends. `route check` is the updater's check
+(it starts `SKHID-ROUTE-1:`), `login` anything else:
+
+    login 198.51.100.9:50122: 0.8 s, up 412 bytes, down 1350 bytes, closed
+    route check 198.51.100.9:50130: 1.2 s, up 65536 bytes, down 65536 bytes, closed
+    route check 198.51.100.9:50131: 4.9 s, up 30000 bytes, down 28000 bytes, up: client: Connection reset by peer (os error 104)
+    login 198.51.100.9:50140: 120.0 s, up 23 bytes, down 0 bytes, up: idle 120 s, no reply
+    login 198.51.100.9:50141 not forwarded: the server 10.77.0.1:1234 not reached: Connection refused (os error 111)
+
+- `closed`: both sides ended it. Otherwise each direction that did not close says
+  why: `up` is client to server, `down` server to client; `client:` or `server:`
+  names the socket that failed; `idle 120 s` nothing came; `<side> took nothing
+  for 10 s` that side stopped reading. The first named is usually the cause, the
+  other its consequence.
+- `no reply`: the server sent nothing back. With `not forwarded ... not reached`,
+  srp is not listening or the tunnel is down (`wg show skhid-relay
+  latest-handshakes`).
+- A route check cut by the player's provider has fewer than 65536 bytes and an
+  error; the origin's line for the same check says what it echoed:
+  `Route check from 198.51.100.9:50131 via relay 203.0.113.8: 4.9 s, 28000 bytes
+  echoed, Connection reset by peer (os error 104)` (else `whole`, `closed by the
+  client before the whole`, or `cut at 30 s`).
+
+A UDP flow is one client on one port. Its line comes when it has been idle 120 s
+(or at the stop); the seconds run from its first forwarded datagram to its last:
+
+    match 198.51.100.9:50122 idle: 1834.2 s, up 120345 packets 10234567 bytes, down 98000 packets 40234567 bytes
+    lobby 198.51.100.9:50122 idle: 4.1 s, up 9 packets 980 bytes, down 0 packets 0 bytes, no reply
+    match 198.51.100.9:50122: 214 packets up in 10 s, none down: the server does not answer it
+
+The last is said while the flow lasts, once, after 10 s of lobby or match
+datagrams without a reply (voice is not said: a lone talker gets nothing back).
+Many of them at once, or `no reply` on every flow, mean the origin does not
+answer: srp down or the tunnel down. Down far below up in a long match flow means
+the player lost much of what the server sent, on the way from the relay.
+
+Refused and dropped, each said at its 1st, 10th, 100th, ...:
+
+    login 198.51.100.9:50150 refused: over the allowance of 198.51.100.9 (2/s, burst 10); 10 such so far
+    login 198.51.100.9:50151 refused: 128 connections open; 1 such so far
+    match: a datagram from 198.51.100.9:50122 dropped: over its address's allowance (2000/s, burst 4000); 100 such so far
+    match: a datagram from 198.51.100.9:50122 dropped: 8192 other clients are open; 1 such so far
+    match: the server's socket failed: Connection refused (os error 111); 10 such so far
+    match: a datagram not sent to the server: Resource temporarily unavailable (os error 11); 1 such so far
+    match: a reply for 198.51.100.9:50122 dropped: not heard from within 120 s; 10 such so far
+    CONNECT 198.51.100.9:45854 refused: 16 connections of its address open; 1 such so far
+
+- `the server's socket failed: Connection refused`: the origin's port answered
+  that nothing listens there (srp down or restarting). `not sent to the server`
+  or `not sent to <client>` with `Resource temporarily unavailable`: the socket
+  was full for 1 ms and the datagram was dropped (congestion here).
+- `a reply ... not heard from within 120 s`: the server still sends to a client
+  that left; a few after each match are normal.
+- `over its address's allowance` on many datagrams of one address: a flood, or
+  more players behind one address than the allowance carries.
+- The web service's lines are `CONNECT` (updater downloads) and `site`, with the
+  same parts: `CONNECT 198.51.100.9:45838: 0.0 s, up 0 bytes, down 0 bytes,
+  refused: not the origin` is a request for another host.
 
 ## Checks and rollback
 
