@@ -472,7 +472,7 @@ The list: `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>` (`done` 0 the list,
 
 #### 2.16.5 The lobby pick, on `3B`: srp's own (2026-10-30)
 
-The lobby window's pick (`lobby-scenes.md`, exe patch 81): start **2 095 000 000 + id**, the lobby's id 1 to 4 (1 the Room, 2 the Basement, 3 the Bunker, 4 the Hangar; `lobby_pick.rs`, `LOBBY_PICK_BASE`): above the presets, inside an `int`. The movie sends it at a card's click, the exe the saved pick when srp has none (the sign-in: `0xA1`'s own byte 0). No `91` answers it: srp keeps the pick for the session (`Player::lobby_pick`, in memory) and sends it back in `0xA1`'s two srp bytes (2.x `0xA1`: after the squad, after the id alone for none: the receiver's own pick, its commander's, 0 none), every client whose `0xA1` changed again. A start past the four is no pick (not answered).
+The lobby window's pick (`lobby-scenes.md`, exe patch 81): start **2 095 000 000 + id**, the lobby's id 1 to 6 (1 the Room, 2 the Basement, 3 the Bunker, 4 the Hangar, 5 the Bar, 6 the Shooting Range; `lobby_pick.rs`, `LOBBY_PICK_BASE`): above the presets, inside an `int`. The movie sends it at a card's click, the exe the saved pick when srp has none (the sign-in: `0xA1`'s own byte 0). No `91` answers it: srp keeps the pick for the session (`Player::lobby_pick`, in memory) and sends it back in `0xA1`'s two srp bytes (2.x `0xA1`: after the squad, after the id alone for none: the receiver's own pick, its commander's, 0 none), every client whose `0xA1` changed again. A start past the six is no pick (not answered).
 
 #### 2.16.6 The shop's "Hide owned" box, on `3B` / 0x91: srp's own (contract H1, 2026-11-15)
 

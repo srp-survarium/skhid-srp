@@ -4097,9 +4097,11 @@ st_srp_loadout_slot_to_pocket	Правы клік: кішэня
 st_srp_loadout_slot_to_weapon	Правы клік: другая зброя
 st_srp_loadout_title	Камплект
 st_srp_loadout_unfit	не для бою
+st_srp_lobby_bar	Бар
 st_srp_lobby_basement	Падвал
 st_srp_lobby_bunker	Бункер
 st_srp_lobby_hangar	Ангар
+st_srp_lobby_range	Цір
 st_srp_lobby_room	Пакой
 st_srp_lobby_title	Лобі
 st_srp_login_account_hint	Акаўнт ствараецца пры першым уваходзе

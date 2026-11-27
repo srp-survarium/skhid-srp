@@ -7,7 +7,7 @@ package survarium.lobbypick
    import survarium.rooms.CardWindow;
    import survarium.rooms.RoomsLook;
 
-   // The lobby window (exe patch 81, docs/notes/lobby-scenes.md): four cards as the rooms' map vote
+   // The lobby window (exe patch 81, docs/notes/lobby-scenes.md): six cards as the rooms' map vote
    // draws its own (CardWindow), the lobby's render over the whole card, its name on a dark band. A
    // click on one picks that lobby: srp is told (its 3B at PICK_BASE + id, the lobby's id), gives
    // the pick back in 0xA1, and the exe shows that lobby behind its fade. The pick has the gold frame.
@@ -16,11 +16,13 @@ package survarium.lobbypick
    {
       public static const PICK_BASE:int = 2095000000;
 
-      // the cards in id order, 1 to 4: their names (dictionary keys) and pictures (bitmaps/)
-      private static const NAMES:Array = ["st_srp_lobby_room","st_srp_lobby_basement","st_srp_lobby_bunker","st_srp_lobby_hangar"];
-      private static const PICTURES:Array = ["SrpLobbyRoom","SrpLobbyBasement","SrpLobbyBunker","SrpLobbyHangar"];
+      // the cards in id order, 1 to 6: their names (dictionary keys) and pictures (bitmaps/)
+      private static const NAMES:Array = ["st_srp_lobby_room","st_srp_lobby_basement","st_srp_lobby_bunker","st_srp_lobby_hangar","st_srp_lobby_bar","st_srp_lobby_range"];
+      private static const PICTURES:Array = ["SrpLobbyRoom","SrpLobbyBasement","SrpLobbyBunker","SrpLobbyHangar","SrpLobbyBar","SrpLobbyRange"];
 
-      // a vote card's size (RoomsRoom: a third of the rooms window less its margins, 190 high), two by two
+      // a vote card's size (RoomsRoom: a third of the rooms window less its margins, 190 high), three
+      // to a row
+      private static const COLUMNS:int = 3;
       private static const CARD_W:int = 280;
       private static const CARD_H:int = 190;
       private static const BAND_H:int = 58;
@@ -41,7 +43,7 @@ package survarium.lobbypick
             var cls:Class = getDefinitionByName(picture) as Class;
             pictures.push(RoomsLook.card(new cls() as BitmapData,CARD_W,CARD_H));
          }
-         build(pictures,2);
+         build(pictures,COLUMNS);
          LocalizationData.addCallback(this.labels,"st_srp_lobby_title");
          this.redraw();
       }

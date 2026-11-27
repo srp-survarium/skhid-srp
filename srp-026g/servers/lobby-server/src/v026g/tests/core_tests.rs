@@ -1765,7 +1765,7 @@ fn a_squad_invite_that_waits_is_sent_again() {
 
 #[test]
 fn a_squad_info_carries_the_lobby_picks() {
-    use survarium::v026g::lobby::lobby_pick::LOBBY_PICK_BASE;
+    use survarium::v026g::lobby::lobby_pick::{LOBBY_PICK_BASE, LobbyPick};
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
@@ -1799,8 +1799,11 @@ fn a_squad_info_carries_the_lobby_picks() {
         None,
         "the commander's squad info is as it was"
     );
-    // A start past the picks is no pick.
-    pick(&mut world, bob, 5);
+    // The last lobby is a pick; a start past the picks is none.
+    let last = LobbyPick::ALL.len() as u32;
+    pick(&mut world, bob, last);
+    assert_eq!(picks(&world.take(bob)), Some((true, [last as u8, 2])));
+    pick(&mut world, bob, last + 1);
     assert_eq!(picks(&world.take(bob)), None);
 }
 

@@ -4097,9 +4097,11 @@ st_srp_loadout_slot_to_pocket	Clique direito: bolso
 st_srp_loadout_slot_to_weapon	Clique direito: segunda arma
 st_srp_loadout_title	Kit
 st_srp_loadout_unfit	não jogável
+st_srp_lobby_bar	Bar
 st_srp_lobby_basement	Porão
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
+st_srp_lobby_range	Estande de tiro
 st_srp_lobby_room	Sala
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	A conta é criada no primeiro login

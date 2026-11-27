@@ -18,7 +18,7 @@
 //! both squad panels' characters drop their players when the second pose
 //! starts, for the lobby window's pictures of the empty scene
 //! (lobby-scenes.md). A line `pick <id>` (the player's own
-//! lobby picked, 1 to 4), `led <id>` (a squad joined, its commander's pick
+//! lobby picked, 1 to 6), `led <id>` (a squad joined, its commander's pick
 //! that lobby) or `alone` (the squad left) changes patch 81's lobby when the
 //! next pose starts, for captures of its change (lobby-scenes.md); a line
 //! `window` opens (or closes) the lobby window then.

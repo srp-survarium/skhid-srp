@@ -4097,9 +4097,11 @@ st_srp_loadout_slot_to_pocket	Oikea napsautus: tasku
 st_srp_loadout_slot_to_weapon	Oikea napsautus: toinen ase
 st_srp_loadout_title	Varustesetti
 st_srp_loadout_unfit	ei pelikelpoinen
+st_srp_lobby_bar	Baari
 st_srp_lobby_basement	Kellari
 st_srp_lobby_bunker	Bunkkeri
 st_srp_lobby_hangar	Halli
+st_srp_lobby_range	Ampumarata
 st_srp_lobby_room	Huone
 st_srp_lobby_title	Aula
 st_srp_login_account_hint	Tili luodaan ensimmäisellä kirjautumisella

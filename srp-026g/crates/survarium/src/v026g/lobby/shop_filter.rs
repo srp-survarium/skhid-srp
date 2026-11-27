@@ -82,7 +82,8 @@ mod tests {
     #[test]
     fn every_start_is_one_request_inside_an_int_past_the_lobby_pick() {
         const {
-            assert!(SHOP_FILTER_FIRST > super::super::lobby_pick::LOBBY_PICK_BASE + 4);
+            use super::super::lobby_pick::{LOBBY_PICK_BASE, LobbyPick};
+            assert!(SHOP_FILTER_FIRST > LOBBY_PICK_BASE + LobbyPick::ALL.len() as u32);
             assert!(SHOP_FILTER_FIRST + 2 <= i32::MAX as u32);
         }
         assert_eq!(
