@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Když antitoxin začne účinkovat, obnovená vý
 st_srp_medical_324_name	Druhý dech
 st_srp_medical_331_description	Nahradí slot pro sekundární zbraň další zásobovací kapsou.
 st_srp_medical_331_name	Zásobovací kapsa
-st_srp_medical_332_description	Bonus k maximálnímu zdraví paží a nohou:
+st_srp_medical_332_description	Bonus k maximálnímu zdraví paží a nohou (nezvyšuje práh bolesti):
 st_srp_medical_332_name	Pevné kosti
 st_srp_medical_333_description	Během účinku antitoxinu bonus k rychlosti přebíjení:
 st_srp_medical_333_name	Soustředění

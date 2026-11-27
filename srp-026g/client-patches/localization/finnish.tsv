@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Vastamyrkyn alkaessa vaikuttaa palautuva kestävy
 st_srp_medical_324_name	Toinen tuuli
 st_srp_medical_331_description	Korvaa toissijaisen aseen paikan ylimääräisellä tarviketaskulla.
 st_srp_medical_331_name	Tarviketasku
-st_srp_medical_332_description	Lisäys käsien ja jalkojen enimmäisterveyteen:
+st_srp_medical_332_description	Lisäys käsien ja jalkojen enimmäisterveyteen (ei nosta kipukynnystä):
 st_srp_medical_332_name	Vahvat luut
 st_srp_medical_333_description	Vastamyrkyn vaikuttaessa latausnopeuden lisäys:
 st_srp_medical_333_name	Keskittyminen

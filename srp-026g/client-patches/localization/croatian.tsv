@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Kad antitoksin počne djelovati, vraćena izdržl
 st_srp_medical_324_name	Drugi dah
 st_srp_medical_331_description	Zamjenjuje mjesto za sporedno oružje dodatnim džepom za zalihe.
 st_srp_medical_331_name	Džep za zalihe
-st_srp_medical_332_description	Bonus najvećem zdravlju ruku i nogu:
+st_srp_medical_332_description	Bonus najvećem zdravlju ruku i nogu (ne povećava prag boli):
 st_srp_medical_332_name	Čvrste kosti
 st_srp_medical_333_description	Dok antitoksin djeluje, bonus brzini punjenja:
 st_srp_medical_333_name	Koncentracija

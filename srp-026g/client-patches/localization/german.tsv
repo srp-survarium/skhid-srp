@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Wenn ein Gegengift zu wirken beginnt, wiederherge
 st_srp_medical_324_name	Zweiter Atem
 st_srp_medical_331_description	Ersetzt den Platz für die Sekundärwaffe durch eine zusätzliche Vorratstasche.
 st_srp_medical_331_name	Vorratstasche
-st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen:
+st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen (erhöht nicht die Schmerzgrenze):
 st_srp_medical_332_name	Starke Knochen
 st_srp_medical_333_description	Solange ein Gegengift wirkt, Bonus auf die Nachladegeschwindigkeit:
 st_srp_medical_333_name	Konzentration

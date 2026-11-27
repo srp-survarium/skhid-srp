@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Quando a antitoxina faz efeito, estamina restaura
 st_srp_medical_324_name	Segundo Fôlego
 st_srp_medical_331_description	Substitui o espaço da arma secundária por um bolso extra de suprimentos.
 st_srp_medical_331_name	Bolso Extra
-st_srp_medical_332_description	Bônus na vida máxima de braços e pernas:
+st_srp_medical_332_description	Bônus na vida máxima de braços e pernas (não aumenta o limite de dor):
 st_srp_medical_332_name	Ossos Fortes
 st_srp_medical_333_description	Com a antitoxina ativa, bônus na velocidade de recarga:
 st_srp_medical_333_name	Concentração

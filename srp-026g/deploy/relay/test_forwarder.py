@@ -128,14 +128,21 @@ class SocketTests(unittest.IsolatedAsyncioTestCase):
         login = f.Login('203.0.113.4', '127.0.0.1', port)
         relay = await asyncio.start_server(login.accept, '127.0.0.1', 0)
         try:
-            reader, writer = await asyncio.open_connection('127.0.0.1', relay.sockets[0].getsockname()[1])
-            client = writer.get_extra_info('sockname')
-            writer.write(b'hello')
-            await writer.drain()
-            self.assertEqual(await asyncio.wait_for(reader.readexactly(5), 2), b'HELLO')
-            self.assertEqual(observed, [f.header(client, '203.0.113.4', port, 0x11)])
-            writer.close()
-            await writer.wait_closed()
+            with self.assertLogs(level='INFO') as logs:
+                reader, writer = await asyncio.open_connection('127.0.0.1', relay.sockets[0].getsockname()[1])
+                client = writer.get_extra_info('sockname')
+                writer.write(b'hello')
+                await writer.drain()
+                self.assertEqual(await asyncio.wait_for(reader.readexactly(5), 2), b'HELLO')
+                self.assertEqual(observed, [f.header(client, '203.0.113.4', port, 0x11)])
+                writer.close()
+                await writer.wait_closed()
+                for _ in range(40):
+                    if logs.records:
+                        break
+                    await asyncio.sleep(0.05)
+            self.assertRegex(logs.output[0],
+                rf'login 127\.0\.0\.1:{client[1]}: \d+\.\d s, up 5 bytes, down 5 bytes, closed$')
         finally:
             relay.close()
             origin.close()
@@ -178,6 +185,78 @@ class SocketTests(unittest.IsolatedAsyncioTestCase):
         finally:
             for writer in opened:
                 writer.close()
+            relay.close()
+            origin.close()
+            await relay.wait_closed()
+            await origin.wait_closed()
+
+    async def wait_for_logs(self, logs, count):
+        for _ in range(40):
+            if len(logs.records) >= count:
+                return
+            await asyncio.sleep(0.05)
+
+    async def test_an_unreached_server_and_a_refusal_are_said(self):
+        closed = socket.socket()
+        closed.bind(('127.0.0.1', 0))
+        port = closed.getsockname()[1]
+        closed.close()
+        login = f.Login('203.0.113.4', '127.0.0.1', port)
+        relay = await asyncio.start_server(login.accept, '127.0.0.1', 0)
+        try:
+            with self.assertLogs(level='INFO') as logs:
+                reader, writer = await asyncio.open_connection('127.0.0.1', relay.sockets[0].getsockname()[1])
+                client = writer.get_extra_info('sockname')
+                self.assertEqual(await asyncio.wait_for(reader.read(), 2), b'')
+                writer.close()
+                await self.wait_for_logs(logs, 1)
+                login.budget = f.Budget(rate=0, burst=0)
+                for _ in range(10):
+                    reader, writer = await asyncio.open_connection('127.0.0.1', relay.sockets[0].getsockname()[1])
+                    self.assertEqual(await asyncio.wait_for(reader.read(), 2), b'')
+                    writer.close()
+                await self.wait_for_logs(logs, 3)
+            self.assertRegex(logs.output[0],
+                rf'login 127\.0\.0\.1:{client[1]}: \d+\.\d s, up 0 bytes, down 0 bytes, '
+                rf'not forwarded: the server 127\.0\.0\.1:{port} not reached: \[Errno 111\] Connect call failed')
+            self.assertRegex(logs.output[1], r'WARNING:root:login 127\.0\.0\.1:\d+ refused: over the '
+                r'allowance of its address \(0/s, burst 0\); 1 such so far$')
+            self.assertRegex(logs.output[2], r'; 10 such so far$')
+            self.assertEqual(len(logs.output), 3)
+        finally:
+            relay.close()
+            await relay.wait_closed()
+
+    async def test_a_stop_ends_the_open_connections_and_says_so(self):
+        import os
+        import signal
+        held = asyncio.Event()
+        async def backend(reader, writer):
+            await reader.readexactly(28)
+            held.set()
+            await reader.read()
+            writer.close()
+        origin = await asyncio.start_server(backend, '127.0.0.1', 0)
+        login = f.Login('203.0.113.4', '127.0.0.1', origin.sockets[0].getsockname()[1])
+        relay = await asyncio.start_server(login.accept, '127.0.0.1', 0)
+        try:
+            with self.assertLogs(level='INFO') as logs:
+                stopping = asyncio.create_task(f.stop_on_signal((relay,), (login,)))
+                reader, writer = await asyncio.open_connection('127.0.0.1', relay.sockets[0].getsockname()[1])
+                client = writer.get_extra_info('sockname')
+                await asyncio.wait_for(held.wait(), 2)
+                await asyncio.sleep(0)
+                os.kill(os.getpid(), signal.SIGTERM)
+                await asyncio.wait_for(stopping, 2)
+                self.assertEqual(await asyncio.wait_for(reader.read(), 2), b'')
+                writer.close()
+            self.assertEqual(logs.output[0], 'INFO:root:stopping on SIGTERM: 1 login connections open')
+            self.assertRegex(logs.output[1],
+                rf'login 127\.0\.0\.1:{client[1]}: \d+\.\d s, up 0 bytes, down 0 bytes, at stop, no reply$')
+        finally:
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                loop.remove_signal_handler(sig)
             relay.close()
             origin.close()
             await relay.wait_closed()

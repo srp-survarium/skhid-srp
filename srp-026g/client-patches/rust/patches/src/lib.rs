@@ -144,6 +144,7 @@ pub mod particle_room;
 pub mod message_check;
 pub mod packet_recovery;
 pub mod module_report;
+mod input_report;
 pub mod executable_report;
 pub mod memory_report;
 pub mod memory_profile;

@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Amikor az antitoxin hatni kezd, visszanyert áll�
 st_srp_medical_324_name	Második szél
 st_srp_medical_331_description	A másodlagos fegyver helyét egy további felszerelészsebre cseréli.
 st_srp_medical_331_name	Felszerelészseb
-st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
+st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza (a fájdalomküszöböt nem növeli):
 st_srp_medical_332_name	Erős csontok
 st_srp_medical_333_description	Antitoxin hatása alatt az újratöltési sebesség bónusza:
 st_srp_medical_333_name	Összpontosítás

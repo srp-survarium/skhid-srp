@@ -14,6 +14,8 @@ package survarium.interfaces
       function showLock(show:Boolean) : void;
       
       function lock(locked:Boolean) : void;
+
+      function takeBack() : void;
       
       function invalidateData() : void;
    }
