@@ -610,6 +610,12 @@ impl<'t> Gun<'t> {
         self.stock.records().filter_map(move |bytes| table.stock_part(bytes))
     }
 
+    /// The slots its carriers bring ([`Gun::carrier`] gives each one's).
+    pub fn carried(&self) -> impl Iterator<Item = SlotId> + use<'t> {
+        let table = self.table;
+        self.carriers.records().filter_map(move |bytes| table.carrier(bytes)).map(|(brings, _)| brings)
+    }
+
     /// The carriers that bring `slot` to this gun, each with the slot it
     /// goes in, in the order they go on. None: the gun has none for it.
     pub fn carrier(&self, slot: SlotId) -> Option<impl Iterator<Item = (Module<'t>, SlotId)> + use<'t>> {

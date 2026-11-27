@@ -160,6 +160,22 @@ pub fn mounts(gun: Gun<'_>, scope: DictId) -> Mounts {
     mounts
 }
 
+/// Where the slots of `gun` stand with nothing fitted: its own, and each one
+/// its carriers bring, with those carriers seated as a fit would seat them.
+/// 0.69d0's workshop marks a slot at its locator so, the module that brings
+/// it on the gun (`docs/notes/modification-069.md`). A carried slot whose
+/// carriers do not go on is not given.
+pub fn slot_places<'t>(gun: Gun<'t>) -> impl Iterator<Item = (SlotId, Placement)> + use<'t> {
+    let carried = gun.carried().filter_map(move |slot| {
+        let mut build = Build::stock(gun).ok()?;
+        for (carrier, on) in gun.carrier(slot)? {
+            build.seat(carrier, carrier.attach(on)?, Role::Carrier).ok()?;
+        }
+        Some((slot, build.frame(slot)?.1))
+    });
+    gun.slots().chain(carried)
+}
+
 /// What a player fitted, by dict id (the weapon kit's slots 3, 4, 5 and 6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Wanted {

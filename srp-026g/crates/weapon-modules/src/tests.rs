@@ -1089,6 +1089,28 @@ fn a_scope_goes_on_by_its_chosen_way() {
     assert_eq!(Mount::new(4), None);
 }
 
+/// The places the workshop's markers point at: the gun's own slots where
+/// they are, and a slot a carrier brings on that carrier, where a fit that
+/// needs it stands (the EOTech on the dovetail's rail).
+#[test]
+fn a_carried_slot_stands_on_its_carrier() {
+    let bytes = encode(&source()).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let ak = table.gun(DictId::new(AK_74M).unwrap()).unwrap();
+    let places: Vec<_> = slot_places(ak).collect();
+    let at = |slot| places.iter().find(|(id, _)| *id == slot).map(|(_, at)| *at);
+    assert_eq!(at(S::ScopeDovetail), Some(on_offset(locator(30))));
+    assert_eq!(at(S::M24x15Muzzle), Some(on_offset(locator(32))));
+    assert_eq!(at(S::PicatinnyGrip), Some(on_offset(locator(31)).child(&locator(5))));
+    assert_eq!(at(S::PicatinnyScopeMedium), Some(on_offset(locator(30)).child(&locator(10))));
+    with(&table, AK_74M, Wanted { scope: top(EOTECH), ..Wanted::default() }, |bare| {
+        assert_eq!(at(S::PicatinnyScopeMedium), bare.optic.map(|optic| optic.frame));
+    });
+    // a slot neither the gun nor its carriers have has no place
+    assert_eq!(at(S::PicatinnyScopeHandguard), None);
+    assert_eq!(places.len(), ak.slots().count() + 2);
+}
+
 /// A version 3 table (`tests/sample-v3.srpm`, the format before second
 /// sights) is still read, as one without any.
 #[test]
