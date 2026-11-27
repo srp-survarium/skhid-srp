@@ -1390,6 +1390,22 @@ package
          if(createText("Military Warehouses") != null)
             failures.push("create: a map only shown has a tile");
          trace("ROOMS create: a map only shown has no tile");
+         // Military Warehouses offered (the server's since 2026-11-27: a private room plays its
+         // free-for-all plain, the owner: "fine for pub lobbies, not for private ones"): its tile,
+         // in the pool's count.
+         tell(["S1;M;3;0", "0;61;1;1;2;0;0;1", "1;117;2;1;4;0;0;1", "2;43;16;1;8;0;0;1"]);
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         var tile:Boolean = false;
+         var counted:Boolean = false;
+         for each(var t:Object in texts)
+         {
+            tile = tile || String(t.text).indexOf("Military") == 0;
+            counted = counted || /: \d+ \/ 3$/.test(String(t.text));
+         }
+         if(!tile || !counted)
+            failures.push("create: Military Warehouses offered: tile " + tile + ", in the pool's count " + counted);
+         trace("ROOMS create: Military Warehouses offered has its tile: " + (tile && counted ? "yes" : "no"));
       }
 
       // Presses the window's button labelled `label`.

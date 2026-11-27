@@ -263,12 +263,6 @@ pub(super) fn by_build(entries: Vec<(maps::Build, PoolEntry)>) -> Vec<PoolEntry>
         .collect()
 }
 
-/// A private room's pool may hold the entry: not a free-for-all played with a twist only
-/// (`MapMode::twists_only`), since a private room's free-for-all is plain.
-fn private(entry: &PoolEntry) -> bool {
-    maps::map_mode(entry.map_id).is_some_and(|map| !map.twists_only)
-}
-
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them and the
     /// create window lists them: the match pool (Blackout's maps too, mode
@@ -308,14 +302,6 @@ impl Core<'_> {
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
-    }
-
-    /// The maps a private room's pool may hold, in the order their bits name them: what the
-    /// create window lists (players create private rooms only). [`Self::room_entries`] but the
-    /// free-for-alls played with a twist only ([`private`]). The pool the movie is sent has
-    /// those too, after these: its cards, rooms and matches are drawn by it.
-    pub(super) fn private_entries(&self) -> Vec<PoolEntry> {
-        self.room_entries().into_iter().filter(private).collect()
     }
 
     /// The mate a squad's action takes along (the owner's of 2026-10-31:
@@ -520,12 +506,13 @@ impl Core<'_> {
                 self.send_made(who.addr, list);
             }
             RoomRequest::State => self.send_room_state(who, RoomCode::None, now),
-            // Every map a room shows: the private ones, whose bits a create
-            // names, then the ones only an open room's card shows.
+            // Every entry a private room may hold, so none only shown: a map
+            // played with a twist only is a private room's plain free-for-all
+            // (the owner, 2026-11-27: "which is fine for pub lobbies, not for
+            // private ones").
             RoomRequest::Pool { page } => {
-                let (offered, shown): (Vec<_>, Vec<_>) =
-                    self.room_entries().into_iter().partition(private);
-                self.send_made(who.addr, wire::room_pool(&offered, &shown, page));
+                let entries = self.room_entries();
+                self.send_made(who.addr, wire::room_pool(&entries, &[], page));
             }
             // The movie put up its "Room Chat" tab: the room's last lines,
             // and its new ones from now on (`room_chat`).
@@ -536,7 +523,7 @@ impl Core<'_> {
             // The create window's start: the asker's last room made by hand,
             // fitted to the pool and its equipment now.
             RoomRequest::Form => {
-                let entries = self.private_entries();
+                let entries = self.room_entries();
                 let form = {
                     let account = who.account.locked();
                     let gear = matchmaking::gear_level(&account, quests::now());
@@ -940,7 +927,7 @@ impl Core<'_> {
                         min_side: default.min_side,
                     };
                     let entries: Vec<maps::MapId> = self
-                        .private_entries()
+                        .room_entries()
                         .iter()
                         .map(|entry| entry.map_id)
                         .collect();
@@ -984,9 +971,9 @@ impl Core<'_> {
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let key = match made {
             Made::Before { bots } => {
-                // A draft names the create window's entries (a private room's).
+                // A draft names the create window's entries.
                 let entries: Vec<maps::MapId> = self
-                    .private_entries()
+                    .room_entries()
                     .iter()
                     .map(|entry| entry.map_id)
                     .collect();
@@ -1111,7 +1098,7 @@ impl Core<'_> {
             spec.wait,
             pin,
             &room.pool,
-            &self.private_entries(),
+            &self.room_entries(),
         );
         let mut account = who.account.locked();
         if account.room_settings.as_ref() != Some(&settings) {

@@ -753,10 +753,10 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     free-for-all map, always twisted; drawing the twist first would have left it out of half the
     free-for-all cards (the plain ones), and every other map's twist shares stay as they are. Of
     all free-for-all cards, plain falls from 30 % to about 29.1 % (one map in 33).
-  - A private room's free-for-all is plain (below), so its pool never holds such a map: the
-    create window does not list it (`Core::private_entries`), and a private room's pool leaves it
-    out whatever it was made with (`Rooms::create_with_pool`: a saved window with it, the default
-    pool). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
+  - A private room's free-for-all is plain (below), and it holds such a map as any other and plays
+    it plain (the owner, 2026-11-27: "this is because we removed FFA from them, which is fine for
+    pub lobbies, not for private ones"; from 2026-11-22 to then the create window did not list it
+    and a private room's pool left it out). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
   Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
   present in private room creations"): a private room's free-for-all card is always plain Free for
