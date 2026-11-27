@@ -89,7 +89,7 @@ fn sides(registry: &MatchRegistry, match_id: u32) -> (Vec<u8>, Vec<(u8, u8)>) {
 /// and in no squad, whatever the lobby seated it as; its static info
 /// builds, and says the kills that win. The server's bots play none: a
 /// free-for-all with a place of theirs is refused (`bots::objective::Mode::
-/// of_rules`: they know two teams only).
+/// of_match`: they know two teams only).
 #[test]
 fn a_free_for_all_gives_every_place_a_side_of_its_own_and_no_squad() {
     let registry = MatchRegistry::new("127.0.0.1", 1236);
@@ -133,6 +133,17 @@ fn a_match_of_two_teams_keeps_the_lobbys_teams_and_squads() {
         assert!(!formed.info.options().ends_with(&srp_entry()));
         registry.end(ticket.match_id);
     }
+}
+
+/// Timed batteries: the server's bots are put in none (`bots::objective::Mode::of_match`), so a match of it with a place
+/// of theirs is refused; one of players only is made, as are batteries and Team Deathmatch with bots above.
+#[test]
+fn a_timed_batteries_match_takes_no_server_bots() {
+    let registry = MatchRegistry::new("127.0.0.1", 1236);
+    let timed = maps::playable_in(GameMode::TimedBatteries).next().expect("a map of timed batteries").id;
+    assert!(matches!(registry.create(seated(5, timed, &[3, 4])), Err(CreateError::Map(id)) if id == timed));
+    let ticket = registry.create(seated(5, timed, &[])).unwrap();
+    assert_eq!(registry.formed(ticket.match_id).unwrap().played.mode(), GameMode::TimedBatteries);
 }
 
 /// A free-for-all takes as many players as any match, the server's bots

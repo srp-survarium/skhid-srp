@@ -495,9 +495,9 @@ impl MatchRegistry {
         }
         let played = setup.played;
         let map = played.map();
-        // The server's bots play the modes `Mode::of_rules` gives: none in Research, Free for All, Freeze Tag or
-        // Artifact Hunt.
-        if crate::v026g::bots::objective::Mode::of_rules(map.mode.rules()).is_err()
+        // The server's bots are put in the modes `Mode::of_match` gives: none in timed batteries, Research, Free for All,
+        // Freeze Tag or Artifact Hunt.
+        if crate::v026g::bots::objective::Mode::of_match(map.mode.rules()).is_err()
             && setup.players.iter().any(|player| player.driven)
         {
             return Err(CreateError::Map(map.id));

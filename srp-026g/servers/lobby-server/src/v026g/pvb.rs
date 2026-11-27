@@ -305,11 +305,11 @@ fn parse_rusher_kits(value: &str) -> Result<RusherKits, String> {
 }
 
 /// The maps of `maps` the server's bots play: in the modes they play
-/// (batteries, timed batteries, Team Deathmatch: not Research, Free for
+/// (batteries and Team Deathmatch: not timed batteries, Research, Free for
 /// All, Freeze Tag or Artifact Hunt, which the match server refuses them
-/// (`bots::objective::Mode::of_rules`: the bots know two teams and these
-/// three modes' rules not at all), nor Blackout, which Play vs Bots never
-/// offered) and with a bots'
+/// (`bots::objective::Mode::of_match`: the bots know two teams, these
+/// modes' rules not at all, and were never tried in timed batteries), nor
+/// Blackout, which Play vs Bots never offered) and with a bots'
 /// map in `dir` (`SRP_MAPDATA_DIR`, the match server's: without one its
 /// bots only run their script).
 pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<MapId> {
@@ -318,13 +318,10 @@ pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Pa
         .collect()
 }
 
-/// Whether the server's bots play `mode` ([`bot_maps`]): the match server refuses them in any other
-/// (`bots::objective::Mode::of_rules`).
+/// Whether the server's bots play `mode` ([`bot_maps`]): batteries and Team Deathmatch; the match server refuses them
+/// in any other (`bots::objective::Mode::of_match`), timed batteries too.
 pub fn bots_play(mode: maps::GameMode) -> bool {
-    matches!(
-        mode,
-        maps::GameMode::Batteries | maps::GameMode::TimedBatteries | maps::GameMode::TeamDeathmatch
-    )
+    matches!(mode, maps::GameMode::Batteries | maps::GameMode::TeamDeathmatch)
 }
 
 /// The offered maps as the dictionary has them: [`MAPS`], each with its
@@ -726,9 +723,7 @@ mod tests {
             .filter(|map| {
                 matches!(
                     map.mode,
-                    maps::GameMode::Batteries
-                        | maps::GameMode::TimedBatteries
-                        | maps::GameMode::TeamDeathmatch
+                    maps::GameMode::Batteries | maps::GameMode::TeamDeathmatch
                 ) && with_file.iter().any(|other| other.project == map.project)
             })
             .map(|map| map.id)
@@ -742,6 +737,29 @@ mod tests {
         assert!(!free_for_all.is_empty());
         assert!(free_for_all.iter().all(|id| !found.contains(id)));
         assert!(of(maps::GameMode::Blackout).iter().all(|id| !found.contains(id)));
+    }
+
+    /// Timed batteries are none of the bots' modes (the match server refuses
+    /// them there): a map of it with a bots' map file is not theirs, for a
+    /// room with bots neither.
+    #[test]
+    fn the_bots_play_no_timed_batteries() {
+        assert!(!bots_play(maps::GameMode::TimedBatteries));
+        let timed: Vec<&MapMode> = maps::playable_in(maps::GameMode::TimedBatteries).collect();
+        assert!(!timed.is_empty());
+        let dir = std::env::temp_dir().join(format!("srp-bot-maps-timed-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for map in &timed {
+            std::fs::write(dir.join(mapdata::format::file_name(map.project)), b"").unwrap();
+        }
+        let found = bot_maps(timed.iter().copied(), &dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(found.is_empty(), "{found:?}");
+        let config = Config {
+            bot_maps: timed.iter().map(|map| map.id).collect(),
+            ..Config::default()
+        };
+        assert!(config.bot_maps_ready().is_empty());
     }
 
     /// Artifact Hunt is none of the bots' modes, as Research: a map of it
