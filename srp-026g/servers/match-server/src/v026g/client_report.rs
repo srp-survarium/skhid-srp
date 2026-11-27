@@ -20,6 +20,8 @@ pub const MODULES: &str = "modules";
 /// in match `match_id`.
 pub fn log(carrier: &Carrier, name: &str, account: u32, match_id: u32) {
     match carrier.body {
+        Body::Input(summary) => log::info!(target: "input", "{name} (account {account}), match {match_id:#x}, {}, injected key-downs {} button-downs {} mouse moves {}",
+            summary.moment.wire(), summary.counts.key_down, summary.counts.button_down, summary.counts.mouse_move),
         Body::Memory(part) => log::info!(target: MEMORY, "{}", memory_line(carrier, &part, name, account, match_id)),
         Body::Modules(part) => log::info!(target: MODULES, "{}", modules_line(carrier, &part, name, account, match_id)),
     }
