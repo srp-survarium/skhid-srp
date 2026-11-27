@@ -298,7 +298,9 @@ class Layers:
 
     def __init__(self, game, cache, reader, archives, sha_of):
         self.game, self.cache, self.archives = game, cache, archives
-        self.of = game.files(archives)                      # path: the name of the archive giving it
+        listing = game.listing(archives)
+        self.of = {path: name for path, (_, name) in listing.items()}   # path: the archive giving it
+        self.size = {path: size for path, (size, _) in listing.items()}  # path: its bytes there
         self.key_of = {Path(a).name: Cache.key('file digests', reader, sha_of[Path(a).name]) for a in archives}
         self.known, self.new = {}, set()                    # archive name: {path: sha256}; names to save
 
@@ -423,8 +425,12 @@ class Game:
 
     def files(self, archives):
         """{path: archive name} of every file the archives give."""
+        return {path: name for path, (_, name) in self.listing(archives).items()}
+
+    def listing(self, archives):
+        """{path: (size, archive name)} of every file the archives give."""
         text = run([self.binary, 'files'] + self.layers(archives), 'srp-game-data files')
-        return {path: name for path, _, _, name in (line.split('\t') for line in text.splitlines())}
+        return {path: (int(size), name) for path, size, _, name in (line.split('\t') for line in text.splitlines())}
 
     def get(self, archives, paths):
         """{path: bytes} of those files as the archives give them."""
@@ -1477,6 +1483,139 @@ def grass_check(base, world, cache):
     print(f'grass: each of {len(maps)} map folder(s) at most {GRASS_MAX} instances (most: {folder}, {most})')
 
 
+# The client's unmanaged arena (the resources' "unmanaged" doug_lea heap) holds, while a map is
+# loaded, its grass world as one block and every binary config the game read, whole: the bytes
+# content_edit.py's appends leave behind that no record reaches (config_compact.py) included. A
+# full arena, or one without a hole as big as the block it is asked for, ends the game
+# (out_of_memory_with_crash 0xE4D70; memory-profile.md). The owner's Fire Station loads reached
+# 240.6 MiB of it in memory.log, other maps about 210 MiB.
+#
+# The grass world (grass_world, made by the grass cook from all of a project folder's .veg layers
+# at once) is cells x 0x40C0 + instances x 0x84 + layers x 0x24 + 0x20C bytes, a cell being a
+# layer's (one model's) 16 m square: floor(x / 16), floor(z / 16) (0.0625 at 0xA2D9B0; the cell
+# key {model, z, x}, 0x12BA40 / 0x12BA80). Stalker Maps 2@5's Fire Station: 14 layers, 120,000
+# instances, 3,690 cells, 77,006,468 bytes, the profile's 77,006,472 (its 8-byte rounding).
+GRASS_WORLD_MAX = 32 << 20      # one map's grass block
+CONFIG_MAX = 12 << 20           # one binary config a map's load reads (a project, the dictionary);
+                                # the largest but the known: v011e_level_03/day_5, 10.6 MiB (7.2 dead)
+# What is over its bound and known, each at most its bytes here (it may not grow), with why. A row
+# whose file or map is within its bound now is a Problem: remove it.
+MEMORY_KNOWN = {
+    'projects/v010b_cs_mp_firestation': (77_006_468,
+        "Fire Station's grass (Stalker Maps 2@5, patch 62): no grass of it lies beyond the draw "
+        'distance (High: 150 m patch centres, 49 instances beyond 162 m of walkable ground), so '
+        'none goes without a visible cut (the owner, 2026-11-27); a smaller cell block in the exe is '
+        'the fix'),
+    'projects/v010b_cs_mp_military_1': (45_335_016,
+        "Dark Valley's grass (patch 57): all of it within 49 m of walkable ground"),
+    'projects/v010b_cs_mp_bath': (40_472_928,
+        "Bath's grass (patch 57): none beyond 116 m of walkable ground"),
+    'gameplay/db_static_dictionaries': (72 << 20,
+        "the dictionary, 65,017,848 bytes at rev75 of which its tree reaches 947,429: every edit "
+        "list's appends; compacted after the edit lists (config_compact.py) it is 896,505"),
+    **{f'projects/level_07/{weather}_{mode}/client_project': (32 << 20,
+        "Vector Laboratory's projects, about 30 MB each at rev75 (#2751's lab glass) of which about "
+        '1.4 MiB is reached; compacted (config_compact.py) about 1.25 MB')
+       for weather in ('day', 'evening', 'rain') for mode in (2, 3, 4, 5, 8, 'ah')},
+}
+
+
+def grass_cells(path, data):
+    """A .veg layer's (instances, cells): its positions (chunk 0x58, float3 each) and the distinct
+    16 m squares they fall in."""
+    import math
+    at = 0
+    while at + 8 <= len(data):
+        tag, size = int.from_bytes(data[at:at + 4], 'little'), int.from_bytes(data[at + 4:at + 8], 'little')
+        if tag == 0x58:
+            if size % 12:
+                raise Problem(f'{path}: positions of {size} bytes, not float3s')
+            import struct
+            cells = {(math.floor(x * 0.0625), math.floor(z * 0.0625))
+                     for x, _, z in struct.iter_unpack('<3f', data[at + 8:at + 8 + size])}
+            return size // 12, len(cells)
+        at += 8 + size
+    raise Problem(f'{path}: a vegetation layer without positions')
+
+
+def grass_world_bytes(layers):
+    """The grass world's block for these layers' (instances, cells); 0 without grass."""
+    layers = [(n, c) for n, c in layers if n]
+    if not layers:
+        return 0
+    return sum(c * 0x40C0 + n * 0x84 + 0x24 for n, c in layers) + 0x20C
+
+
+def memory_problems(sizes, known):
+    """The problems of {name: (bytes, bound)} against `known` ({name: (at most, why)}): a name over
+    its bound and not known, a known one over its at-most, a known one within its bound."""
+    problems = []
+    for name, (size, bound) in sorted(sizes.items()):
+        if name in known:
+            most = known[name][0]
+            if size <= bound:
+                problems.append(f'{name}: {size} bytes, within its bound {bound}: remove its MEMORY_KNOWN row')
+            elif size > most:
+                problems.append(f'{name}: {size} bytes, more than the {most} MEMORY_KNOWN allows')
+        elif size > bound:
+            problems.append(f'{name}: {size} bytes, over its bound {bound}')
+    problems += [f'{name}: a MEMORY_KNOWN row of nothing the build has' for name in sorted(set(known) - set(sizes))]
+    return problems
+
+
+def memory_check(base, world, cache):
+    """Every map's grass world at most GRASS_WORLD_MAX bytes and every project and the dictionary
+    at most CONFIG_MAX, as players will have them (the build's files over the base: the patch
+    stack, or one consolidated db), but the MEMORY_KNOWN rows, each not growing; then a table of
+    each map's grass, its largest project and the dictionary. A layer's counts are cached by its
+    bytes."""
+    veg = sorted(p for p in set(base.of) | set(world)
+                 if p.startswith('projects/') and p.endswith('.veg') and '/vegetation/' in p)
+    configs = sorted(p for p in set(base.of) | set(world)
+                     if (p.startswith('projects/') and p.endswith('/client_project'))
+                     or p == 'gameplay/db_static_dictionaries')
+    key = Cache.key('the grass cells of layers', code_digest(grass_cells))
+    earlier = (cache.get(key) or ({}, {}))[1]
+    digests, files = base.digests([p for p in veg if p not in world])
+    digests.update({p: world.sha256(p) for p in veg if p in world})
+    todo = [p for p in veg if digests[p] not in earlier]
+    files.update(base.game.get(base.archives, [p for p in todo if p not in world and p not in files]))
+    counts = {digests[p]: grass_cells(p, world.data(p) if p in world else files[p]) for p in todo}
+    if counts:
+        cache.put(key, {}, earlier | counts)
+    counts = earlier | counts
+    layers = {}
+    for path in veg:
+        layers.setdefault(path.rsplit('/vegetation/', 1)[0], []).append(tuple(counts[digests[path]]))
+    size = {p: len(world.data(p)) for p in configs if p in world}
+    size.update({p: base.size[p] for p in configs if p not in world})
+    sizes = {folder: (grass_world_bytes(ls), GRASS_WORLD_MAX) for folder, ls in layers.items()}
+    sizes.update({p: (n, CONFIG_MAX) for p, n in size.items()})
+    dictionary = size.get('gameplay/db_static_dictionaries', 0)
+    mib = lambda n: f'{n / 2**20:6.1f}'
+    print('memory (MiB): grass world, largest project, dictionary, their sum; ! over its bound')
+    folders = sorted(set(layers) | {p.rsplit('/', 2)[0] for p in size if p.startswith('projects/')})
+    for folder in folders:
+        grass = sizes.get(folder, (0, 0))[0]
+        project, most = max(((p, n) for p, n in size.items() if p.startswith(folder + '/')),
+                            key=lambda pn: pn[1], default=('-', 0))
+        flag = lambda n, bound: '!' if n > bound else ' '
+        print(f'  {folder[len("projects/"):]:<26} {mib(grass)}{flag(grass, GRASS_WORLD_MAX)} '
+              f'{mib(most)}{flag(most, CONFIG_MAX)} {mib(dictionary)}{flag(dictionary, CONFIG_MAX)} '
+              f'{mib(grass + most + dictionary)}  {project.rsplit("/", 2)[-2] if project != "-" else "-"}')
+    problems = memory_problems(sizes, MEMORY_KNOWN)
+    if problems:
+        print()
+        for problem in problems:
+            print(f'MEMORY: {problem}')
+        raise Problem(f'{len(problems)} memory budget problem(s): no patch made (a map\'s grass world '
+                      f'at most {GRASS_WORLD_MAX >> 20} MiB, a config at most {CONFIG_MAX >> 20} MiB, '
+                      'or a MEMORY_KNOWN row)')
+    over = sorted(n for n, (s, b) in sizes.items() if s > b)
+    print(f'memory: {len(layers)} grass world(s), {len(size)} config(s) within their bounds but '
+          f'{len(over)} known ({", ".join(over) if len(over) < 6 else f"{over[0]}, ..."})')
+
+
 def pierce_check(rows, tree, base, world, cache):
     """Every pierce line (an add_entry with `pierce_line`, content_edit.pierce_lines) is what the final
     files make: a row after the list's that retunes a weapon's or a round's piercing, a material's
@@ -1688,6 +1827,8 @@ def main():
                 keeper_check(rows, base_layers, world)
             with timed('the grass'):
                 grass_check(base_layers, world, cache)
+            with timed('the memory budget'):
+                memory_check(base_layers, world, cache)
             with timed('the walker twins'):
                 walker_check(base_layers, world, cache)
             with timed('the project names'):

@@ -35,6 +35,11 @@ if out=$(python3 -I "$here/test_bootstrap.py" Script 2>&1); then echo "ok   the 
     echo "FAIL the bootstrap script is made (test_bootstrap.py Script): $out"
     exit 1
 fi
+# build-content's memory budget: the grass world's size and the MEMORY_KNOWN rows.
+if out=$(python3 -I "$here/test_memory_budget.py" 2>&1); then echo "ok   the memory budget (test_memory_budget.py)"; else
+    echo "FAIL the memory budget (test_memory_budget.py): $out"
+    exit 1
+fi
 
 bin=${SRP_GAME_DATA_BIN:-$root/srp-026g/target/release/srp-game-data}
 if [[ ! -x $bin ]]; then
