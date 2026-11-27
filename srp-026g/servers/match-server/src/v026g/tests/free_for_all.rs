@@ -141,16 +141,15 @@ fn a_match_of_two_teams_keeps_the_lobbys_teams_and_squads() {
 fn a_free_for_all_takes_as_many_players_as_any_match() {
     let registry = MatchRegistry::new("127.0.0.1", 1236);
     assert_eq!(MAX_PLAYERS, 20);
-    // Three players and eighteen of the server's bots.
-    let bots: Vec<usize> = (3..MAX_PLAYERS + 1).collect();
+    // Twenty-one players (no server bots: they play no free-for-all).
     assert_eq!(
-        registry.create(seated(MAX_PLAYERS + 1, map_id(), &bots)),
+        registry.create(seated(MAX_PLAYERS + 1, map_id(), &[])),
         Err(CreateError::Roster(MAX_PLAYERS + 1))
     );
     // Nothing of a refused match stays.
     assert_eq!(registry.match_count(), 0);
     assert_eq!(registry.seat(session_of(0)), None);
-    let ticket = registry.create(seated(MAX_PLAYERS, map_id(), &bots[..17])).unwrap();
+    let ticket = registry.create(seated(MAX_PLAYERS, map_id(), &[])).unwrap();
     let (teams, _) = sides(&registry, ticket.match_id);
     assert_eq!(teams, (4..24).collect::<Vec<u8>>());
 }
