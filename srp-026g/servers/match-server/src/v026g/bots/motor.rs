@@ -2230,6 +2230,19 @@ pub enum JumpBy {
 
 /// The aim past a drop's landing when the look-ahead is cut to it, metres (the target is just past the landing's point).
 const DROP_AIM_PAST_M: f32 = 0.05;
+/// [step aim] An up-step on the route: its floor rises this much or more over [`STEP_WINDOW`] scans, m (a slope rises that
+/// much over 0.25 m only past 31 degrees).
+pub(super) const STEP_RISE_M: f32 = 0.15;
+/// [step aim] The route's floor is read every this many metres ahead for an up-step ([`Motor::step_cap`]): half a cell.
+const STEP_SCAN_M: f32 = 0.125;
+/// [step aim] The scans an up-step's rise is read over (0.25 m).
+const STEP_WINDOW: usize = 2;
+/// [step aim] A scan within this of the step's highest reads as its top, m.
+const STEP_TOP_SLACK_M: f32 = 0.02;
+/// [step aim] The aim past an up-step's top when the look-ahead is cut to it, m: on the route's line just over the top.
+const STEP_AIM_PAST_M: f32 = 0.15;
+/// [step aim] The body is up the step once its feet are within this of the step's top in height, m.
+const STEP_UP_M: f32 = 0.1;
 /// A run of cut ticks longer than this, ticks (2 s), counts as the body staying above the drop.
 #[cfg(test)]
 const DROP_AIM_LONG_TICKS: u32 = 40;
@@ -2601,6 +2614,32 @@ impl Motor {
         }
     }
 
+    /// [step aim] The look-ahead cut to just past the top of an up-step on the route within it ([`STEP_RISE_M`] or more
+    /// between two of its floor's points [`STEP_SCAN_M`] apart) while the body (`feet`) is still below that top: the walk
+    /// steers up the step on the route's own line, not across the step's side to the route's points past it. level_05 day
+    /// 4: the step (-55.875, 8.278, 13.164) -> (-55.625, 8.495, 13.164), the route turning south-east past its top; the
+    /// look-ahead aimed at (-55.1, 8.64, 12.6), across the step's corner, and the body pushed into the step's side at 0 m/s
+    /// (v93: 16 stuck episodes in B, 8 in A); the exe walks the body up from those feet toward the top (port = exe).
+    fn step_cap(route: &Route, s: f32, feet: Vec3, ahead: f32) -> f32 {
+        let steps = (ahead / STEP_SCAN_M).ceil() as usize;
+        let mut heights = Vec::with_capacity(steps + 1);
+        heights.push(route.at(s, RouteHeight::Floor).y);
+        for k in 1..=steps {
+            let here = route.at(s + k as f32 * STEP_SCAN_M, RouteHeight::Floor).y;
+            heights.push(here);
+            // The rise over the last STEP_WINDOW scans: a step, not a slope.
+            let low = heights[k.saturating_sub(STEP_WINDOW)..k].iter().copied().fold(f32::INFINITY, f32::min);
+            if here - low >= STEP_RISE_M && here - feet.y > STEP_UP_M {
+                // The step's top: the first scan of the window that reaches it.
+                let top = (k.saturating_sub(STEP_WINDOW)..=k).find(|&j| heights[j] >= here - STEP_TOP_SLACK_M).unwrap_or(k);
+                #[cfg(test)]
+                step_aim::tick();
+                return ahead.min(top as f32 * STEP_SCAN_M + STEP_AIM_PAST_M);
+            }
+        }
+        ahead
+    }
+
     /// The point of the route the walk steers at: `ahead` metres on from `s`, nearer by 0.6 while the body does not walk
     /// to it in a line (`clear`), down to [`MIN_AHEAD_M`]. Where even that is not clear the body is on the wrong side of
     /// something (a wall between it and the route's next legs): with [`Feel::unclear_aim`] off it steers at the unclear
@@ -2824,6 +2863,8 @@ impl Motor {
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
                 ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 ahead = self.drop_cap(route, s, pose.feet, ahead);
+                // [step aim] Up a step on the route's line, not across its side (`Motor::step_cap`).
+                ahead = Self::step_cap(route, s, pose.feet, ahead);
                 // A door gate on the way is steered at, not past (`Route::door_centred`).
                 if let Some(gate) = route.gate_within(s, ahead) {
                     ahead = (gate - s).max(MIN_AHEAD_M);
@@ -6631,6 +6672,23 @@ pub mod sprint_jumps {
     }
 }
 
+#[cfg(test)]
+/// [step aim] The walk ticks whose look-ahead was cut to an up-step's top (`Motor::step_cap`).
+pub mod step_aim {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TICKS: AtomicU64 = AtomicU64::new(0);
+
+    pub fn tick() {
+        TICKS.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 1] {
+        [TICKS.load(Ordering::Relaxed)]
+    }
+}
+
+
 /// The bench's counts of the walk ticks whose look-ahead was cut to a drop's landing ([`Feel::drop_aim`]), and of
 /// the ticks of a run that went on past [`DROP_AIM_LONG_TICKS`] (the body stays above the drop it aims off).
 #[cfg(test)]
@@ -7570,6 +7628,30 @@ mod tests {
             })
         };
         (route, move |point: Vec3| !crosses(Vec3::new(21.5, 0.0, 182.3), point))
+    }
+
+    /// [step aim] A route up a 0.22 m step that turns 45 degrees past its top: below the top the look-ahead ends just past it
+    /// (on the step's line); once the body is up, it is not cut.
+    #[test]
+    fn below_an_up_step_the_look_ahead_ends_just_past_its_top() {
+        let point = |x: f32, y: f32, z: f32| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let route = Route::new(vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(1.25, 0.22, 0.0), point(3.25, 0.22, -2.0)]);
+        let s = 0.9;
+        let cut = Motor::step_cap(&route, s, Vec3::new(0.9, 0.0, 0.0), 3.0);
+        assert!((0.35 + STEP_AIM_PAST_M - 0.13..1.0).contains(&cut), "cut to just past the top: {cut}");
+        let aim = route.at(s + cut, RouteHeight::Floor);
+        assert!(aim.z.abs() < 0.2, "on the step's line, not across its side: {aim:?}");
+        assert_eq!(Motor::step_cap(&route, 1.3, Vec3::new(1.3, 0.22, 0.0), 3.0), 3.0, "up: no cut");
+    }
+
+    /// [step aim] A flat route or one with small rises (a ramp under STEP_RISE_M a scan) is not cut.
+    #[test]
+    fn a_flat_or_gently_rising_route_keeps_its_look_ahead() {
+        let point = |x: f32, y: f32| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        let flat = Route::new(vec![point(0.0, 0.0), point(5.0, 0.0)]);
+        assert_eq!(Motor::step_cap(&flat, 0.0, Vec3::ZERO, 3.0), 3.0);
+        let ramp = Route::new(vec![point(0.0, 0.0), point(5.0, 1.0)]);
+        assert_eq!(Motor::step_cap(&ramp, 0.0, Vec3::ZERO, 3.0), 3.0, "0.05 m a scan");
     }
 
     #[test]
