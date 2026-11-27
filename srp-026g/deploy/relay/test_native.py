@@ -107,6 +107,49 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(kind, 'tcp')
             self.assertEqual(header, f.header(address, '203.0.113.8', self.port, 0x11))
 
+    def test_each_login_and_flow_is_reported(self):
+        with socket.create_connection(('127.0.0.2', self.port), timeout=2) as client:
+            login = client.getsockname()
+            client.sendall(b'hello')
+            self.assertEqual(client.recv(5), b'HELLO')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            client.bind(('127.0.0.1', 0))
+            client.settimeout(2)
+            client.sendto(b'ping', ('127.0.0.2', self.port+2))
+            self.assertEqual(client.recv(8192), b'ping')
+            match = client.getsockname()
+        self.assertTrue(select.select([self.process.stderr], [], [], 2)[0])
+        self.assertRegex(self.process.stderr.readline().decode(),
+            rf'^login 127\.0\.0\.1:{login[1]}: \d+\.\d s, up 5 bytes, down 5 bytes, closed\n$')
+        self.process.terminate()
+        self.assertEqual(self.process.wait(timeout=5), 0)
+        self.assertRegex(self.process.stderr.read().decode(),
+            r'^stopping on SIGTERM: 0 lobby, 1 match, 0 voice flows and 0 login connections open\n'
+            rf'match 127\.0\.0\.1:{match[1]} at stop: \d+\.\d s, '
+            r'up 1 packets 4 bytes, down 1 packets 4 bytes\n$')
+
+    def test_a_server_that_is_away_is_said(self):
+        # The origin's login and match ports closed: srp down.
+        for s in (self.sockets[0], self.sockets[2]):
+            s.close()
+        # Gone once the backend threads' waits (0.1 s) return.
+        time.sleep(0.3)
+        with socket.create_connection(('127.0.0.2', self.port), timeout=2) as client:
+            login = client.getsockname()
+            self.assertEqual(client.recv(5), b'')
+        self.assertTrue(select.select([self.process.stderr], [], [], 2)[0])
+        self.assertEqual(self.process.stderr.readline().decode(),
+            f'login 127.0.0.1:{login[1]} not forwarded: the server 127.0.0.1:{self.port} '
+            'not reached: Connection refused (os error 111)\n')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            client.bind(('127.0.0.1', 0))
+            for _ in range(2):
+                client.sendto(b'ping', ('127.0.0.2', self.port+2))
+                time.sleep(0.1)
+        self.assertTrue(select.select([self.process.stderr], [], [], 2)[0])
+        self.assertEqual(self.process.stderr.readline().decode(),
+            "match: the server's socket failed: Connection refused (os error 111); 1 such so far\n")
+
     def test_all_udp_ports_multiple_clients_and_unobserved_destination(self):
         for port in range(self.port+1, self.port+4):
             for i in range(3):
