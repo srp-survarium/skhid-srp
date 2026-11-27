@@ -771,7 +771,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   maps_dict 31; `content-edit/ffa-station-racket-1.json`). The server reads the key as
   `twist::OpenPlay` (`maps::MapMode::open_play`): absent or `false` `Any` (plain or any twist, by the
   shares), `true` `Twisted` (any twist: Military Warehouses), a name `Only` that twist (`"racket"`,
-  `"saloon"`; not `"roulette"`, which a room that allows no band could not deal).
+  `"saloon"`; not `"roulette"` nor `"pistols"`, which a room that allows no band could not deal).
   - An open room's card on it is always FFA: Racket (its gun the room's, `racket::Gun::of_room`): the
     draw keeps Racket's share alone. A private room plays it plain, as every free-for-all there.
   - The vote shows it as any card: the pool the movie is sent lists every entry (#2756), and its
