@@ -1,39 +1,54 @@
 package
 {
+    import flash.display.BitmapData;
+    import flash.display.Graphics;
     import flash.display.MovieClip;
     import flash.display.Shape;
+    import flash.display.Sprite;
     import flash.events.Event;
+    import flash.events.MouseEvent;
+    import flash.geom.Matrix;
+    import flash.geom.Point;
     import flash.text.TextField;
     import flash.text.TextFieldAutoSize;
+    import flash.text.TextFormat;
+    import flash.text.TextFormatAlign;
     import scaleform.clik.events.ButtonEvent;
+    import scaleform.clik.events.IndexEvent;
 
     // The Gameplay tab's "Weapon view" (exe patch 218, docs/notes/weapon-view-settings.md): how the
-    // held gun is drawn, apart from the world's field of view (the "World FOV:" slider above it). A
-    // button under the World FOV slider, labelled with the group's heading, opens a panel over the
-    // left column (the tab has no room for the group in either column) holding
+    // held gun is drawn, apart from the world's field of view (the "World FOV:" slider above it). The
+    // tab's standard button (SetingsButton, the Optimal and Default buttons' symbol at their width) under
+    // the World FOV slider opens a window in the Settings window's own skin, as the Controls tab's Key
+    // bindings window (SrpKeysWindow: SrpSettingsGround's frame and title band, the title in its font,
+    // its close button, the screen dimmed behind it), holding the tab's own controls in their look (the
+    // stock slider with its label in the headings' look and its value, as World FOV; the HUD group's
+    // checkbox; a note in the "Applies after restart." look):
     // - three sliders of the weapon's own field of view, a rifle's degrees (each gun keeps 0.69d0's
     //   own ratio to them): at the hip (40 to 100, 65), over iron sights and collimators (20 to 65,
     //   32.5) and through magnified scopes (16.25 to 32.5, 32.5);
     // - the checkbox "Weapon at the world FOV": the held gun drawn at the world's projection, as before
     //   revision 74; the three sliders are greyed while it is ticked;
-    // - the sight distance, 0 to 100 % of the way from 0.69d0's eye to revision 73's, aimed over iron
-    //   sights and collimators.
-    // The button again, another tab, Apply or Cancel close the panel. The exe keeps each value in
-    // user.cfg and answers ExternalInterface.call(name[, value]) with root.srp_slider_option(name,
-    // label, saved, least, most, steps a unit) for a slider, root.srp_check_option(name, label, saved)
-    // for the checkbox; ExternalInterface.call("srp_weapon_view_texts") with
-    // root.srp_weapon_view_texts(heading). Settings owns it: a move or a toggle is a pending change
-    // of the tab (Apply saves it, the exe applying it at once, also in a match; Cancel puts the saved
-    // values back).
-    public class SrpWeaponView
+    // - "Sight distance", 0 to 100 %: aimed over iron sights and collimators, the eye's share of the
+    //   way from 0.69d0's place (revision 74's) to revision 73's; its note says so for players.
+    // Esc, its close button or a press beside it closes it; another tab, Apply or Cancel too. Its values
+    // are the Gameplay tab's pending changes (Apply saves them, the exe applying each at once, in a
+    // match too; Cancel puts the saved ones back). The exe keeps each value in user.cfg and answers
+    // ExternalInterface.call(name[, value]) with root.srp_slider_option(name, label, saved, least, most,
+    // steps a unit) for a slider, root.srp_check_option(name, label, saved) for the checkbox;
+    // ExternalInterface.call("srp_weapon_view_texts") with root.srp_weapon_view_texts(title, the
+    // distance's note). A script-added child of the Settings window.
+    public class SrpWeaponView extends Sprite
     {
+        public static const NAME:String = "_srp_weapon_view_window";
+        public static const BUTTON:String = "_srp_weapon_view";
         public static const HIP:String = "srp_weapon_fov";
         public static const SIGHTS:String = "srp_weapon_fov_aimed";
         public static const SCOPES:String = "srp_weapon_fov_scope";
         public static const DISTANCE:String = "srp_sight_distance";
         public static const WORLD:String = "srp_weapon_fov_world";
         public static const TEXTS:String = "srp_weapon_view_texts";
-        // In the panel's order: the three angles, then (after the checkbox) the distance.
+        // In the window's order: the three angles, then (after the checkbox) the distance.
         public static const SLIDERS:Array = [HIP, SIGHTS, SCOPES, DISTANCE];
         private static const ANGLES:Array = [HIP, SIGHTS, SCOPES];
         private static const FRAME:int = SrpCheckOption.GAMEPLAY_FRAME;
@@ -44,62 +59,81 @@ package
             srp_sight_distance: 1};
         private static const DEFAULTS:Object = {srp_weapon_fov: 65, srp_weapon_fov_aimed: 32.5, srp_weapon_fov_scope: 32.5,
             srp_sight_distance: 0};
-        // The panel's inside margin and its rows' step (a slider's label over its track, as the stock ones).
-        private static const PADDING:Number = 12;
-        private static const BOX_ROW:Number = 34;
-        private static const ROW_GAP:Number = 10;
-        // The window's border (SrpVulkanOptions's) and a surface as dark as the window's.
-        private static const EDGE:uint = 0x585A5D;
-        private static const SURFACE:uint = 0x1B1C1D;
+        // The button: the Graphics tab's Optimal and Default buttons' width, wider only for its text.
+        private static const BUTTON_WIDTH:Number = 127;
+        // The Settings window's frame (SrpSettingsGround, 650 x 565), as SrpKeysWindow lays it: its border
+        // and its title's band kept, its inside stretched; the title and the close button where the Settings
+        // window has them.
+        private static const FRAME_LEFT:Number = 6, FRAME_RIGHT:Number = 6, FRAME_TOP:Number = 39, FRAME_BOTTOM:Number = 22;
+        private static const TITLE_Y:Number = 6.75, CLOSE_RIGHT:Number = 34.5, CLOSE_SCALE:Number = 0.756;
+        // Inside the frame's sides and over its bottom; the window's inside width; to the screen's edges.
+        private static const SIDE:Number = 22, SPACE:Number = 12, INSIDE:Number = 300, MARGIN:Number = 12;
+        // The rows: a slider's next row under its track, the checkbox's row (the HUD group's step).
+        private static const ROW_GAP:Number = 12;
+        private static const BOX_ROW:Number = 35;
 
+        // The tab's button that opens the window.
         public var button:SetingsButton;
-        public var panel:MovieClip;
-        public var heading:TextField;
-        public var box:CheckBoxSkinned;
-        // The sliders by name.
         public var sliders:Object = {};
-        private var surface:Shape;
+        public var box:CheckBoxSkinned;
+        public var note:TextField;
         private var content:MovieClip;
+        private var backdrop:Sprite;
+        private var panel:Sprite;
+        private var frame:Shape;
+        private var titleField:TextField;
+        private var closeButton:ButtonCloseWindow2;
+        private var title:String = "";
         // A slider's saved value in its units and its steps a unit, by name; absent until the exe answers.
         private var saved:Object = {};
         private var units:Object = {};
         // The checkbox's saved state, "1" or "0"; "" until the exe answers.
         private var savedWorld:String = "";
-        private var open:Boolean = false;
+        // The look of the tab's headings (its "Friends:"), taken at the gameplay tab's layout.
+        private var look:TextField = null;
 
         public function SrpWeaponView(content:MovieClip)
         {
             this.content = content;
+            name = NAME;
+            visible = false;
             button = new SetingsButton();
-            button.name = "_srp_weapon_view";
+            button.name = BUTTON;
             button.autoSize = "none";
             button.focusable = true;
             button.toggle = false;
-            // Scaleform leaves a script-created control fully transparent.
-            button.alpha = 1;
             button.visible = false;
-            button.addEventListener(ButtonEvent.CLICK, onPress);
+            button.width = BUTTON_WIDTH;
+            button.addEventListener(ButtonEvent.CLICK, onOpen);
             content.addChild(button);
-            panel = new MovieClip();
-            panel.name = "_srp_weapon_view_panel";
-            panel.visible = false;
-            surface = new Shape();
-            panel.addChild(surface);
-            heading = new TextField();
-            heading.name = "_srp_weapon_view_heading";
-            heading.selectable = false;
-            heading.mouseEnabled = false;
-            heading.autoSize = TextFieldAutoSize.LEFT;
-            panel.addChild(heading);
-            for each (var name:String in SLIDERS)
+            backdrop = new Sprite();
+            backdrop.addEventListener(MouseEvent.CLICK, onBackdrop);
+            addChild(backdrop);
+            panel = new Sprite();
+            panel.name = NAME + "_panel";
+            addChild(panel);
+            frame = new Shape();
+            panel.addChild(frame);
+            titleField = text(17, 0xC6D0D1, true);
+            titleField.name = NAME + "_title";
+            panel.addChild(titleField);
+            closeButton = new ButtonCloseWindow2();
+            closeButton.name = NAME + "_close";
+            closeButton.alpha = 1;
+            closeButton.scaleX = closeButton.scaleY = CLOSE_SCALE;
+            closeButton.addEventListener(ButtonEvent.CLICK, onClose);
+            panel.addChild(closeButton);
+            for each (var key:String in SLIDERS)
             {
                 var slider:SrvOptionSlider = new SrvOptionSlider();
-                slider.name = "_" + name;
-                slider.defaultValue = DEFAULTS[name];
+                slider.name = "_" + key;
+                slider.defaultValue = DEFAULTS[key];
+                // Scaleform leaves a script-created control fully transparent.
                 slider.alpha = 1;
                 panel.addChild(slider);
-                sliders[name] = slider;
+                sliders[key] = slider;
             }
+            sliders[DISTANCE].addEventListener(IndexEvent.INDEX_CHANGE, percent);
             box = new CheckBoxSkinned();
             box.name = "_" + WORLD;
             box.autoSize = "none";
@@ -109,7 +143,13 @@ package
             box.alpha = 1;
             box.addEventListener(Event.SELECT, grey);
             panel.addChild(box);
-            content.addChild(panel);
+            note = new TextField();
+            note.name = NAME + "_note";
+            note.selectable = note.mouseEnabled = false;
+            note.wordWrap = true;
+            note.multiline = true;
+            note.autoSize = TextFieldAutoSize.LEFT;
+            panel.addChild(note);
         }
 
         // Whether `name` is one of this group's sliders.
@@ -122,41 +162,47 @@ package
         public function get controls():Array
         {
             var out:Array = [box];
-            for each (var name:String in SLIDERS)
+            for each (var key:String in SLIDERS)
             {
-                out.push(sliders[name]);
+                out.push(sliders[key]);
             }
             return out;
         }
 
-        // On every bind of a tab (create_content): on top of the tab, closed, the exe asked on the
-        // gameplay frame.
+        public function get open():Boolean
+        {
+            return visible;
+        }
+
+        // On every bind of a tab (create_content): closed, the button on top of the tab, the exe asked
+        // on the gameplay frame.
         public function place():void
         {
-            open = false;
+            close();
             content.setChildIndex(button, content.numChildren - 1);
-            content.setChildIndex(panel, content.numChildren - 1);
             shown();
             if (content.currentFrame == FRAME)
             {
                 SrpExe.call(TEXTS, null);
                 SrpExe.call(WORLD, null);
-                for each (var name:String in SLIDERS)
+                for each (var key:String in SLIDERS)
                 {
-                    SrpExe.call(name, null);
+                    SrpExe.call(key, null);
                 }
             }
         }
 
-        // The exe's texts (root.srp_weapon_view_texts): the heading, the button's label too.
+        // The exe's texts (root.srp_weapon_view_texts): the title (the button's label too) and the
+        // distance's note.
         public function answerTexts(values:Array):void
         {
-            if (values.length < 1 || String(values[0]) == "")
+            if (values.length < 2 || String(values[0]) == "")
             {
                 return;
             }
-            heading.text = String(values[0]) + ":";
-            button.label = String(values[0]);
+            title = String(values[0]);
+            button.label = title;
+            note.text = String(values[1]);
             shown();
         }
 
@@ -168,20 +214,20 @@ package
             {
                 return;
             }
-            var name:String = values[0];
+            var key:String = values[0];
             var unit:int = int(values[5]);
             var least:int = int(values[3]), most:int = int(values[4]), value:int = int(values[2]);
             if (!(unit > 0) || !(most > least) || value < least || value > most)
             {
                 return;
             }
-            var slider:SrvOptionSlider = sliders[name];
+            var slider:SrvOptionSlider = sliders[key];
             var label:String = values[1];
             slider.label = label.length > 0 && label.charAt(label.length - 1) != ":" ? label + ":" : label;
-            slider.dataProvider = {minimum: least / unit, maximum: most / unit, snapInterval: SNAP[name]};
-            units[name] = unit;
-            saved[name] = value / unit;
-            show(slider, saved[name]);
+            slider.dataProvider = {minimum: least / unit, maximum: most / unit, snapInterval: SNAP[key]};
+            units[key] = unit;
+            saved[key] = value / unit;
+            show(slider, saved[key]);
             grey();
             shown();
         }
@@ -201,42 +247,23 @@ package
             shown();
         }
 
-        // Its heading in the look of `look` (one of the tab's own: "Friends:"); the button at (x, y),
-        // `buttonWidth` wide (the column's lists'); the panel over the rectangle from (left, top), `width`
-        // wide, to `bottom`.
-        public function layout(look:TextField, x:Number, y:Number, buttonWidth:Number, left:Number, top:Number,
-            width:Number, bottom:Number):void
+        // The gameplay tab's layout: the button at (x, y), as wide as the tab's preset buttons (wider for its
+        // text); `look` the tab's headings' (its "Friends:"), which the sliders' labels take as World FOV's.
+        public function layout(look:TextField, x:Number, y:Number):void
         {
-            SrpLanguage.restyle(heading, look);
-            button.x = x;
-            button.y = y;
-            button.width = buttonWidth;
+            this.look = look;
+            button.x = Math.round(x);
+            button.y = Math.round(y);
+            button.width = BUTTON_WIDTH;
             button.validateNow();
-            panel.x = left;
-            panel.y = top;
-            var g:* = surface.graphics;
-            g.clear();
-            g.lineStyle(1, EDGE);
-            g.beginFill(SURFACE, 1);
-            g.drawRect(0, 0, width, bottom - top);
-            g.endFill();
-            heading.x = PADDING;
-            heading.y = PADDING;
-            var at:Number = heading.y + heading.height + 4;
-            for each (var name:String in SLIDERS)
+            if (button.textField != null && button.textField.textWidth + 16 > button.textField.width * button.scaleX)
             {
-                var slider:SrvOptionSlider = sliders[name];
-                if (name == DISTANCE)
-                {
-                    box.x = PADDING;
-                    box.y = at;
-                    at += BOX_ROW;
-                }
-                SrpLanguage.restyle(slider.textField, look);
-                slider.x = PADDING;
-                slider.y = at - slider.textField.y;
-                // the next row under the track, as the stock sliders' rows are spaced
-                at = slider.y + slider.slider.y + slider.slider.height + ROW_GAP;
+                button.width = BUTTON_WIDTH + button.textField.textWidth + 16 - button.textField.width * button.scaleX;
+                button.validateNow();
+            }
+            if (open)
+            {
+                build();
             }
         }
 
@@ -247,17 +274,17 @@ package
             {
                 return savedWorld != "" && state() != savedWorld;
             }
-            for each (var name:String in SLIDERS)
+            for each (var key:String in SLIDERS)
             {
-                if (control == sliders[name])
+                if (control == sliders[key])
                 {
-                    return saved[name] != undefined && steps(name) != Math.round(saved[name] * units[name]);
+                    return saved[key] != undefined && steps(key) != Math.round(saved[key] * units[key]);
                 }
             }
             return false;
         }
 
-        // Apply: every pending value saved (the exe sets it, writes user.cfg and answers); the panel closed.
+        // Apply: every pending value saved (the exe sets it, writes user.cfg and answers); closed.
         public function save():void
         {
             var calls:Array = [];
@@ -266,12 +293,12 @@ package
                 savedWorld = state();
                 calls.push([WORLD, savedWorld]);
             }
-            for each (var name:String in SLIDERS)
+            for each (var key:String in SLIDERS)
             {
-                if (pending(sliders[name]))
+                if (pending(sliders[key]))
                 {
-                    saved[name] = steps(name) / units[name];
-                    calls.push([name, String(steps(name))]);
+                    saved[key] = steps(key) / units[key];
+                    calls.push([key, String(steps(key))]);
                 }
             }
             // each answer reverts what it names to the saved value: all are taken before any call
@@ -282,40 +309,168 @@ package
             close();
         }
 
-        // Cancel: the saved values back, the panel closed.
+        // Cancel: the saved values back; closed.
         public function revert():void
         {
             if (savedWorld != "")
             {
                 box.selected = savedWorld == "1";
             }
-            for each (var name:String in SLIDERS)
+            for each (var key:String in SLIDERS)
             {
-                if (saved[name] != undefined)
+                if (saved[key] != undefined)
                 {
-                    show(sliders[name], saved[name]);
+                    show(sliders[key], saved[key]);
                 }
             }
             grey();
             close();
         }
 
-        public function close():void
+        // Esc, the close button, a press beside it, another tab, Apply, Cancel; whether it was open. Its
+        // values stay the tab's pending changes.
+        public function close():Boolean
         {
-            open = false;
-            shown();
+            if (!open)
+            {
+                return false;
+            }
+            visible = false;
+            if (stage != null)
+            {
+                stage.removeEventListener(Event.RESIZE, onResize);
+            }
+            return true;
         }
 
-        // The button: the panel opened (over everything of the tab: the Language list and its heading are
-        // placed after this group) or closed.
-        private function onPress(event:Event):void
+        private function onOpen(event:ButtonEvent):void
         {
-            open = !open;
-            if (open)
+            if (stage == null || !ready)
             {
-                content.setChildIndex(panel, content.numChildren - 1);
+                return;
             }
-            shown();
+            parent.setChildIndex(this, parent.numChildren - 1);
+            visible = true;
+            stage.addEventListener(Event.RESIZE, onResize);
+            build();
+        }
+
+        private function onClose(event:ButtonEvent):void
+        {
+            close();
+        }
+
+        private function onBackdrop(event:MouseEvent):void
+        {
+            if (event.target == backdrop)
+            {
+                close();
+            }
+        }
+
+        private function onResize(event:Event):void
+        {
+            build();
+        }
+
+        // The window at the screen's centre, the screen dimmed behind it (SrpKeysWindow's): its rows in the
+        // tab's look, top to bottom, its frame around them.
+        private function build():void
+        {
+            var from:Point = parent.globalToLocal(new Point(0, 0));
+            var to:Point = parent.globalToLocal(new Point(stage.stageWidth, stage.stageHeight));
+            var screenWidth:Number = to.x - from.x, screenHeight:Number = to.y - from.y;
+            var g:Graphics = backdrop.graphics;
+            g.clear();
+            g.beginFill(0x000000, 0.6);
+            g.drawRect(from.x, from.y, screenWidth, screenHeight);
+            g.endFill();
+            var left:Number = FRAME_LEFT + SIDE;
+            var at:Number = FRAME_TOP + SPACE;
+            for each (var key:String in SLIDERS)
+            {
+                var slider:SrvOptionSlider = sliders[key];
+                if (key == DISTANCE)
+                {
+                    box.x = left + 6;
+                    box.y = at;
+                    at += BOX_ROW;
+                }
+                if (look != null)
+                {
+                    SrpLanguage.restyle(slider.textField, look);
+                }
+                slider.x = left;
+                slider.y = at - slider.textField.y;
+                at = slider.y + slider.slider.y + slider.slider.height + ROW_GAP;
+            }
+            percent();
+            note.defaultTextFormat = SrpLanguage.noteFormat(content);
+            note.setTextFormat(note.defaultTextFormat);
+            note.embedFonts = true;
+            note.x = left;
+            note.width = INSIDE;
+            note.y = at - ROW_GAP + 2;
+            at = note.y + note.textHeight + 4;
+            var w:Number = FRAME_LEFT + FRAME_RIGHT + 2 * SIDE + INSIDE;
+            var h:Number = at + SPACE + FRAME_BOTTOM;
+            drawFrame(w, h);
+            titleField.text = title;
+            titleField.x = Math.round((w - titleField.width) / 2);
+            titleField.y = TITLE_Y;
+            closeButton.x = w - CLOSE_RIGHT;
+            closeButton.y = TITLE_Y;
+            var scale:Number = Math.min(1, (screenWidth - 2 * MARGIN) / w, (screenHeight - 2 * MARGIN) / h);
+            panel.scaleX = panel.scaleY = scale;
+            panel.x = Math.round(from.x + (screenWidth - w * scale) / 2);
+            panel.y = Math.round(from.y + (screenHeight - h * scale) / 2);
+        }
+
+        // SrpSettingsGround in nine parts (SrpKeysWindow's): the corners and the title band as they are.
+        private function drawFrame(w:Number, h:Number):void
+        {
+            var art:BitmapData = new SrpSettingsGround();
+            var g:Graphics = frame.graphics;
+            g.clear();
+            var xs:Array = [0, FRAME_LEFT, art.width - FRAME_RIGHT, art.width];
+            var ys:Array = [0, FRAME_TOP, art.height - FRAME_BOTTOM, art.height];
+            var tx:Array = [0, FRAME_LEFT, w - FRAME_RIGHT, w];
+            var ty:Array = [0, FRAME_TOP, h - FRAME_BOTTOM, h];
+            for (var i:int = 0; i < 3; i++)
+            {
+                for (var j:int = 0; j < 3; j++)
+                {
+                    var sx:Number = (tx[i + 1] - tx[i]) / (xs[i + 1] - xs[i]);
+                    var sy:Number = (ty[j + 1] - ty[j]) / (ys[j + 1] - ys[j]);
+                    var m:Matrix = new Matrix(sx, 0, 0, sy, tx[i] - xs[i] * sx, ty[j] - ys[j] * sy);
+                    g.beginBitmapFill(art, m, false, true);
+                    g.drawRect(tx[i], ty[j], tx[i + 1] - tx[i], ty[j + 1] - ty[j]);
+                    g.endFill();
+                }
+            }
+            panel.graphics.clear();
+            panel.graphics.beginFill(0x000000, 0.01);
+            panel.graphics.drawRect(0, 0, w, h);
+            panel.graphics.endFill();
+        }
+
+        // A text in the Settings' own font (its title's), on one line (SrpKeysWindow's).
+        private function text(size:Number, colour:uint, bold:Boolean):TextField
+        {
+            var stock:TextField = content.parent != null ? Object(content.parent).textFieldLabel as TextField : null;
+            var format:TextFormat = stock != null ? stock.getTextFormat() : new TextFormat();
+            format.size = size;
+            format.color = colour;
+            format.bold = bold;
+            format.align = TextFormatAlign.LEFT;
+            format.leading = 0;
+            var field:TextField = new TextField();
+            field.embedFonts = stock != null && stock.embedFonts;
+            field.defaultTextFormat = format;
+            field.autoSize = TextFieldAutoSize.LEFT;
+            field.selectable = false;
+            field.mouseEnabled = false;
+            return field;
         }
 
         private function state():String
@@ -324,9 +479,9 @@ package
         }
 
         // A slider's value in its steps.
-        private function steps(name:String):int
+        private function steps(key:String):int
         {
-            return Math.round(sliders[name].selectedIndex * units[name]);
+            return Math.round(sliders[key].selectedIndex * units[key]);
         }
 
         // A value shown at once, the thumb drawn now (a disabled slider draws no later).
@@ -337,33 +492,52 @@ package
             slider.selectedIndex = value;
             slider.slider.validateNow();
             slider.slider.enabled = on;
+            if (slider == sliders[DISTANCE])
+            {
+                percent();
+            }
+        }
+
+        // The distance's value in percent, as the slider shows its number.
+        private function percent(event:Event = null):void
+        {
+            var slider:SrvOptionSlider = sliders[DISTANCE];
+            if (slider.textFieldValue != null)
+            {
+                slider.textFieldValue.text = Math.round(slider.selectedIndex) + " %";
+            }
         }
 
         // The three angles greyed and inactive while the weapon follows the world's projection.
         private function grey(event:Event = null):void
         {
             var on:Boolean = !box.selected;
-            for each (var name:String in ANGLES)
+            for each (var key:String in ANGLES)
             {
-                var slider:SrvOptionSlider = sliders[name];
+                var slider:SrvOptionSlider = sliders[key];
                 slider.slider.enabled = on;
                 slider.mouseChildren = on;
                 slider.alpha = on ? 1 : GREYED;
             }
         }
 
-        // The button on the gameplay frame once the exe has answered; the panel while open and every
-        // value is there.
+        // Every answer of the exe is there.
+        private function get ready():Boolean
+        {
+            var all:Boolean = savedWorld != "" && title != "";
+            for each (var key:String in SLIDERS)
+            {
+                all = all && saved[key] != undefined;
+            }
+            return all;
+        }
+
+        // The button on the gameplay frame once the exe has answered.
         private function shown():void
         {
-            var here:Boolean = content.currentFrame == FRAME;
-            var ready:Boolean = savedWorld != "" && button.label != null && button.label != "";
-            for each (var name:String in SLIDERS)
-            {
-                ready = ready && saved[name] != undefined;
-            }
-            button.visible = here && ready;
-            panel.visible = here && ready && open;
+            button.visible = content.currentFrame == FRAME && ready;
+            // Scaleform leaves a script-created control fully transparent.
+            button.alpha = 1;
         }
     }
 }

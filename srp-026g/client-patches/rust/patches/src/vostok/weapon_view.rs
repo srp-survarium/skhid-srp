@@ -17,7 +17,7 @@ use crate::{attachments::view::{Focal, GunView, Profile}, raw};
 pub(crate) struct ViewId(u32);
 
 /// The optic a held gun draws.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Optic {
     /// None: its iron sights.
     None,
@@ -31,6 +31,8 @@ pub(crate) enum Optic {
 #[derive(Clone, Copy)]
 pub(crate) struct HeldGun {
     pub(crate) weapon: WeaponId,
+    /// Its item's dict id (the log's).
+    pub(crate) gun: Option<DictId>,
     /// The gun and its fitted modules, when patch 161 keeps it: its eyes
     /// are the table's.
     pub(crate) named: Option<Named>,
@@ -227,7 +229,7 @@ pub(crate) fn gun_camera(ctx: &Context<'_>) -> Option<(ViewId, HeldGun)> {
     // SAFETY: that entry's dict id.
     let gun = entry.and_then(|entry| DictId::new(unsafe { read(entry.dict_id()) }));
     let row = gun.and_then(|gun| PROFILES.with(ctx.thread(), |profiles| profiles.as_ref()?.get(gun)));
-    Some((view, HeldGun { weapon: id, named, view: row, progress, optic, aim_offset }))
+    Some((view, HeldGun { weapon: id, gun, named, view: row, progress, optic, aim_offset }))
 }
 
 /// `weapon_view.no_gun`: update_camera in first person with no gun in hand.

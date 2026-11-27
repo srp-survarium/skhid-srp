@@ -26,8 +26,9 @@
 
 use weapon_modules::Relief;
 
+use crate::vostok::log::{Piece, line, line_of};
 use crate::vostok::{Context, Flow, Lock, NoExit, attachments::WeaponId, trig, weapon_view as engine};
-use crate::weapon_view_options::{Projection, Scale, SightDistance, ViewOptions};
+use crate::weapon_view_options::{Projection, Scale, SightDistance, ViewOptions, thousandths};
 use engine::{HeldGun, Optic, ViewId};
 
 /// A projection's vertical focal length, 1 / tan(fov / 2).
@@ -72,9 +73,13 @@ impl Profile {
     /// The factors, each times the player's scale (1: 0.69d0's own, the
     /// same floats), interpolated by the aim, then the angle (0.69d0's order).
     fn focal_at(self, progress: f32, hip: Scale, aimed: Scale) -> Option<Focal> {
+        trig::focal_length(f64::from(self.factor_at(progress, hip, aimed)) * 32.5_f64.to_radians()).map(Focal)
+    }
+
+    /// The factor of 65 degrees at `progress`.
+    fn factor_at(self, progress: f32, hip: Scale, aimed: Scale) -> f32 {
         let (hip, aimed) = (self.hip * hip.get(), self.aimed * aimed.get());
-        let factor = hip + (aimed - hip) * progress.clamp(0.0, 1.0);
-        trig::focal_length(f64::from(factor) * 32.5_f64.to_radians()).map(Focal)
+        hip + (aimed - hip) * progress.clamp(0.0, 1.0)
     }
 }
 
@@ -172,10 +177,12 @@ impl Aims {
 }
 
 /// What the player's settings make of a held gun this frame: the lens the
-/// foreground takes (None: the world's projection) and the eye's move.
+/// foreground takes (None: the world's projection), its angle in tenths of a
+/// degree (the log's), and the eye's move.
 #[derive(Clone, Copy)]
 struct Held {
     lens: Option<Focal>,
+    tenths: u32,
     shift: f32,
 }
 
@@ -197,15 +204,17 @@ fn aims(gun: &HeldGun, eyes: Option<(Option<Relief>, Option<Relief>)>, share: f3
 
 /// The lens and the eye's move of `gun`.
 fn held(gun: &HeldGun, aims: Option<Aims>, options: ViewOptions) -> Held {
-    let Some(aims) = aims else { return Held { lens: None, shift: 0.0 } };
-    let lens = match options.projection {
-        Projection::World => None,
+    let Some(aims) = aims else { return Held { lens: None, tenths: 0, shift: 0.0 } };
+    let (lens, tenths) = match options.projection {
+        Projection::World => (None, 0),
         Projection::Own { hip, sights, scopes } => {
             let profile = gun.view.map_or(Profile::NONE, |view| view.profile);
-            profile.focal_at(gun.progress, hip, aims.scale(sights, scopes))
+            let aimed = aims.scale(sights, scopes);
+            let tenths = (f64::from(profile.factor_at(gun.progress, hip, aimed)) * 650.0 + 0.5) as u32;
+            (profile.focal_at(gun.progress, hip, aimed), tenths)
         }
     };
-    Held { lens, shift: aims.shift(options.distance) }
+    Held { lens, tenths, shift: aims.shift(options.distance) }
 }
 
 /// The lens of anything that is no gun: 65 degrees times the hip's scale.
@@ -228,6 +237,10 @@ static EYE: Lock<Option<(WeaponId, f32)>> = Lock::new(None);
 /// The move of the alignment being made, the camera's line times it: taken
 /// before calculate_aim_alignment, given back at its return on the same thread.
 static PENDING: Lock<Option<[f32; 3]>> = Lock::new(None);
+/// What the log said of the held gun at the hip and fully aimed.
+static HELD_SAID: Lock<[Option<HeldSaid>; 2]> = Lock::new([None, None]);
+/// The foreground has drawn a lens this run (said once).
+static DRAWN: Lock<bool> = Lock::new(false);
 
 /// `game.tick`: a frame without a first-person camera has no lens.
 pub fn on_view_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -249,7 +262,9 @@ pub fn on_view_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
             eyes = Some((bare.eye.map(|eye| eye.relief()), bare.second.map(|second| second.eye.relief())));
         });
     }
-    let held = held(&gun, aims(&gun, eyes, share), options);
+    let aims = aims(&gun, eyes, share);
+    let held = held(&gun, aims, options);
+    say_held(ctx.thread(), &gun, aims, &held);
     CAMERA.with(ctx.thread(), |camera| *camera = held.lens.map(|lens| (view, lens)));
     let moved = (held.shift != 0.0).then_some((gun.weapon, held.shift));
     EYE.with(ctx.thread(), |eye| *eye = moved);
@@ -285,8 +300,66 @@ pub fn on_view_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(focal) = DRAW.with(ctx.thread(), |draw| *draw) {
         engine::project(ctx, focal);
+        let first = DRAWN.with(ctx.thread(), |drawn| !core::mem::replace(drawn, true));
+        if first {
+            line(&[Piece::Text("weapon view: the foreground draws what is held at its own projection, focal length "),
+                   Piece::Dec(thousandths(focal.value())), Piece::Text(" (thousandths; said once a run)")]);
+        }
     }
     Flow::Continue
+}
+
+/// What the log said of a held gun, at the hip and fully aimed: its weapon, gun, what it is aimed
+/// through, its angle in tenths and the eye's move in tenths of a millimetre.
+#[derive(Clone, Copy, PartialEq)]
+struct HeldSaid {
+    weapon: WeaponId,
+    gun: u32,
+    through: &'static str,
+    tenths: u32,
+    eye: u32,
+}
+
+/// A line when what a held gun is drawn as at the hip, or fully aimed, differs from what was said
+/// last of that end: the settings and the lens proven at work.
+fn say_held(thread: &crate::vostok::Thread, gun: &HeldGun, aims: Option<Aims>, held: &Held) {
+    let end = match gun.progress {
+        p if p <= 0.0 => 0,
+        p if p >= 1.0 => 1,
+        _ => return,
+    };
+    let through = match aims.map(|aims| aims.main) {
+        None => "its own optic (the world's projection, its own eye)",
+        Some(Aim::Sights(EyeMove::Iron { .. } | EyeMove::Fixed)) if gun.optic == Optic::None => "its iron sights",
+        Some(Aim::Sights(_)) => "a sight in its eye plane",
+        Some(Aim::Scope) => "a magnified scope",
+    };
+    let said = HeldSaid {
+        weapon: gun.weapon,
+        gun: gun.gun.map_or(0, |gun| u32::from(gun.get())),
+        through,
+        tenths: if held.lens.is_some() { held.tenths } else { 0 },
+        eye: thousandths(held.shift.abs() * 10.0),
+    };
+    let changed = HELD_SAID.with(thread, |kept| {
+        let changed = kept[end] != Some(said);
+        kept[end] = Some(said);
+        changed
+    });
+    if !changed {
+        return;
+    }
+    let at = if end == 0 { "at the hip" } else { "fully aimed" };
+    let angle: &[Piece] = if held.lens.is_some() {
+        &[Piece::Text("drawn at "), Piece::Dec(said.tenths), Piece::Text(" tenths of a degree")]
+    } else {
+        &[Piece::Text("drawn at the world's projection")]
+    };
+    line_of(&[&[Piece::Text("weapon view: gun "), Piece::Dec(said.gun), Piece::Text(" "), Piece::Text(at),
+                Piece::Text(" through "), Piece::Text(through), Piece::Text(": ")],
+              angle,
+              &[Piece::Text(", the eye moved "), Piece::Dec(said.eye), Piece::Text(" tenths of a mm "),
+                Piece::Text(if held.shift < 0.0 { "toward the sight" } else { "back" })]]);
 }
 
 /// The alignment's move for an eye `shift` metres further along its line
@@ -324,6 +397,7 @@ mod tests {
     fn gun(optic: Optic, progress: f32) -> HeldGun {
         HeldGun {
             weapon: WeaponId::numbered(1),
+            gun: None,
             named: None,
             view: GunView::parse(Profile::parse([1.0, 0.5]).unwrap(), Some(-0.05)),
             progress,

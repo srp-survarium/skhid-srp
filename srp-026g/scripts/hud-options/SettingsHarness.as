@@ -115,17 +115,14 @@ package
                     if (settings.btn_accept.enabled) trace("SETTINGS RESULT fail: Apply enabled before the screenshot");
                     trace("SETTINGS SHOT settings");
                 }
-                // the weapon view's panel open (patch 218)
+                // the weapon view's window open (patch 218)
                 if (frames == 40)
                 {
-                    var weaponButton:* = settings.settings_content.getChildByName("_srp_weapon_view");
-                    click(weaponButton);
-                    var weaponPanel:* = settings.settings_content.getChildByName("_srp_weapon_view_panel");
-                    trace("SETTINGS weapon view shot: button " + weaponButton.visible + ", panel " + weaponPanel.visible + " "
-                        + weaponPanel.getBounds(settings.settings_content) + " on frame " + settings.settings_content.currentFrame);
+                    click(settings.settings_content.getChildByName("_srp_weapon_view"));
+                    trace("SETTINGS weapon view shot: " + settings.getChildByName("_srp_weapon_view_window").visible);
                 }
                 if (frames == 45) trace("SETTINGS SHOT weapon-view");
-                if (frames == 78) click(settings.settings_content.getChildByName("_srp_weapon_view"));
+                if (frames == 78) settings.getChildByName("_srp_weapon_view_window").close();
                 if (frames == 80)
                 {
                     settings.settings_content.getChildByName("_srp_hide_scores").selected = true;
@@ -290,105 +287,134 @@ package
 
         // A visible control's or text's top and bottom in the tab content: a checkbox's box and drawn
         // label (its label's field runs on below), a text's drawn lines, a list's or slider's own height.
-        // Patch 218's weapon view (SrpWeaponView): hidden until the exe's answers; then its button under the
-        // field of view (in the right column, above the window's bottom), its panel over the left column
-        // (inside the window, every control and every dictionary's label inside it); a move pending until
-        // Apply (the exe's calls: the value in its steps), Cancel putting the saved value back and closing
-        // the panel; the checkbox greying the three angles; the same with the movie scaled (the UI scale
-        // above 1080p, MainMenu.onStageResize).
-        private static const WEAPON_TEXTS:Array = [37, 38, 39, 40, 41, 42];
+        // Patch 218's weapon view (SrpWeaponView): hidden until the exe's answers; then the tab's standard button
+        // (SetingsButton, the Optimal button's width) under the field of view, in the right column, above the
+        // window's bottom; its window in the Settings window's skin (SrpKeysWindow's: SrpSettingsGround's frame, the
+        // title in the Settings' title look, the close button) at the screen's centre, every control inside its
+        // frame, none over the next, the stock slider and checkbox in the tab's look (the World FOV slider's label
+        // format, the HUD checkboxes' size); every dictionary's labels and the distance's note inside it; the
+        // distance's value in percent; a move pending until Apply (the exe's calls: the value in its steps), Cancel
+        // putting the saved value back and closing it; the checkbox greying the three angles; the close button and
+        // Esc closing it; the same at the movie scaled 1.5 (the UI scale above 1080p, MainMenu.onStageResize).
         private function checkWeaponView(root:*, settings:*, content:MovieClip, texts:Array):void
         {
             var button:* = content.getChildByName("_srp_weapon_view");
-            var panel:* = content.getChildByName("_srp_weapon_view_panel");
-            require(button != null && panel != null && !button.visible && !panel.visible,
+            var window:* = settings.getChildByName("_srp_weapon_view_window");
+            require(button != null && window != null && !button.visible && !window.visible,
                 "weapon view: hidden until the exe answers");
             var names:Array = ["srp_weapon_fov", "srp_weapon_fov_aimed", "srp_weapon_fov_scope", "srp_sight_distance"];
+            var labels:Array = [38, 39, 40, 42];
             var answers:Array = [["65", "40", "100", "1"], ["325", "200", "650", "10"], ["3250", "1625", "3250", "100"],
                 ["0", "0", "100", "1"]];
             var answer:Function = function(t:Array):void {
-                root.srp_weapon_view_texts(t[37]);
+                root.srp_weapon_view_texts(t[37], t[43]);
                 root.srp_check_option("srp_weapon_fov_world", t[41], "0");
                 for (var n:int = 0; n < 4; ++n)
                 {
-                    root.srp_slider_option(names[n], t[[38, 39, 40, 42][n]], answers[n][0], answers[n][1], answers[n][2],
-                        answers[n][3]);
+                    root.srp_slider_option(names[n], t[labels[n]], answers[n][0], answers[n][1], answers[n][2], answers[n][3]);
                 }
             };
             answer(texts[0]);
-            require(button.visible && button.label == texts[0][37] && !panel.visible && !settings.btn_accept.enabled,
-                "weapon view: the button labelled " + button.label + ", the panel closed, nothing pending");
+            var stockButton:* = new (loader.contentLoaderInfo.applicationDomain.getDefinition("SetingsButton") as Class)();
+            require(button.visible && button.label == texts[0][37] && !window.visible && !settings.btn_accept.enabled
+                && getQualifiedClassName(button) == getQualifiedClassName(stockButton) && near(button.width, 127),
+                "weapon view: the tab's standard button labelled " + button.label + " (" + getQualifiedClassName(button)
+                + ", " + button.width + " wide), closed, nothing pending");
             var fov:* = content.getChildByName("_srp_fov");
             var bottom:Number = content.bottomContainer.getBounds(content).bottom;
             var at:Rectangle = button.getBounds(content);
             require(at.top >= fov.getBounds(content).bottom - 1 && at.bottom <= bottom,
                 "weapon view: the button under the field of view, above the window's bottom (" + at + ", " + bottom + ")");
             click(button);
-            require(panel.visible, "weapon view: the button opens the panel");
-            var sliders:Array = names.map(function(name:String, ...rest):* { return panel.getChildByName("_" + name); });
-            var box:* = panel.getChildByName("_srp_weapon_fov_world");
+            require(window.visible, "weapon view: the button opens its window");
+            var sliders:Array = names.map(function(name:String, ...rest):* { return window.sliders[name]; });
+            var box:* = window.box;
             var values:Array = [65, 32.5, 32.5, 0];
             for (var i:int = 0; i < 4; ++i)
             {
                 require(sliders[i].visible && close(sliders[i].selectedIndex, values[i]),
                     names[i] + ": shown at " + values[i] + " (" + sliders[i].selectedIndex + ")");
             }
+            require(sliders[3].textFieldValue.text == "0 %", "the sight distance's value in percent: " + sliders[3].textFieldValue.text);
             require(close(sliders[2].slider.minimum, 16.25) && close(sliders[2].slider.maximum, 32.5)
                 && close(sliders[1].slider.snapInterval, 0.5), "the scope slider 16.25 to 32.5, the sights' snap 0.5");
+            // the tab's look: the World FOV slider's label format, the HUD checkboxes' size, the Settings' title
+            var heading:Object = fov.textField.getTextFormat();
+            for each (var slider:* in sliders)
+            {
+                var format:Object = slider.textField.getTextFormat();
+                require(format.font == heading.font && format.size == heading.size && format.color == heading.color
+                    && slider.textField.filters.length == fov.textField.filters.length && slider.scaleX == 1,
+                    slider.name + ": its label in World FOV's look");
+            }
+            var hud:* = content.getChildByName("_srp_hide_scores");
+            require(Math.abs(box.width - hud.width) < 1 && Math.abs(box.height - hud.height) < 1,
+                "the checkbox the HUD group's size (" + box.width + "x" + box.height + ", " + hud.width + "x" + hud.height + ")");
+            var title:TextField = window.getChildByName("_srp_weapon_view_window_panel").getChildByName("_srp_weapon_view_window_title");
+            var stockTitle:Object = settings.textFieldLabel.getTextFormat();
+            require(title.text == texts[0][37] && title.getTextFormat().font == stockTitle.font, "the window's title in the Settings' title font: " + title.text);
             var inside:Function = function(when:String):void {
-                var area:Rectangle = panel.getBounds(content);
-                var window:Rectangle = new Rectangle(content.s_friends.x - 10, content.s_friends.y - 10,
-                    content.getChildByName("_srp_weapon_view").x - content.s_friends.x, bottom - content.s_friends.y + 10);
-                require(area.top >= window.top && area.bottom <= bottom && area.left >= window.left - 1,
-                    when + ": the panel inside the window's left part (" + area + ", bottom " + bottom + ")");
-                var controls:Array = sliders.concat([box]);
-                for each (var control:* in controls)
+                var panel:* = window.getChildByName("_srp_weapon_view_window_panel");
+                var area:Rectangle = panel.getBounds(stage);
+                require(area.left >= 0 && area.top >= 0 && area.right <= stage.stageWidth && area.bottom <= stage.stageHeight,
+                    when + ": the window on the screen (" + area + ")");
+                var rows:Array = [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note];
+                var inner:Rectangle = new Rectangle(area.left + 6, area.top + 39 * panel.scaleY, area.width - 12,
+                    area.height - (39 + 22) * panel.scaleY);
+                for (var k:int = 0; k < rows.length; ++k)
                 {
-                    var r:Rectangle = control.getBounds(content);
-                    require(r.left >= area.left && r.right <= area.right + 1 && r.top >= area.top && r.bottom <= area.bottom + 1,
-                        when + ": " + control.name + " inside the panel (" + r + " in " + area + ")");
-                }
-                // the rows in the panel's order, none over the next: the three angles, the checkbox, the distance
-                var rows:Array = [sliders[0], sliders[1], sliders[2], box, sliders[3]];
-                for (var k:int = 1; k < rows.length; ++k)
-                {
-                    var upper:Rectangle = rows[k - 1].getBounds(content), lower:Rectangle = rows[k].getBounds(content);
-                    require(upper.bottom <= lower.top + 1, when + ": " + rows[k - 1].name + " over " + rows[k].name);
+                    var r:Rectangle = rows[k].getBounds(stage);
+                    require(r.left >= inner.left && r.right <= inner.right + 1 && r.top >= inner.top - 1 && r.bottom <= inner.bottom + 1,
+                        when + ": " + rows[k].name + " inside the frame (" + r + " in " + inner + ")");
+                    if (k > 0)
+                    {
+                        require(rows[k - 1].getBounds(stage).bottom <= r.top + 1, when + ": " + rows[k - 1].name + " over " + rows[k].name);
+                    }
                 }
             };
             inside("at 1280x720");
-            // every dictionary's labels inside the panel
+            // every dictionary's labels and note inside the window
             for each (var row:Array in texts)
             {
                 answer(row);
+                click(button);
+                click(button);
+                var room:Number = window.note.x + window.note.width;
                 for (i = 0; i < 4; ++i)
                 {
                     var end:Number = sliders[i].x + sliders[i].textField.x + sliders[i].textField.textWidth;
-                    require(end < panel.width, row[[38, 39, 40, 42][i]] + " inside the panel (" + end + " of " + panel.width + ")");
+                    require(end < room, row[labels[i]] + " inside the window (" + end + " of " + room + ")");
                 }
                 box.validateNow();
                 var boxEnd:Number = box.x + box.textField.x + box.textField.textWidth;
-                require(boxEnd < panel.width, row[41] + " inside the panel (" + boxEnd + " of " + panel.width + ")");
+                require(boxEnd < room, row[41] + " inside the window (" + boxEnd + " of " + room + ")");
+                require(window.note.numLines <= 2 && window.note.text == row[43], row[43] + ": the note in two lines at most");
+                require(button.textField.textWidth + 4 < button.textField.width * button.scaleX || button.width > 127,
+                    row[37] + " fits the button");
             }
             answer(texts[0]);
-            // a move pending until Apply, Cancel putting it back and closing the panel
+            inside("every dictionary shown, back in the first");
+            window.close();
+            // a move pending until Apply, Cancel putting it back and closing it
             var calls:Array = [];
             var exe:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("SrpExe") as Class;
             exe.standIn = function(name:String, value:String):void { calls.push(name + "=" + value); };
             click(button);
-            if (!panel.visible) click(button);
             sliders[1].slider.value = 52;
             require(settings.btn_accept.enabled, "the sights' angle moved to 52: a change");
             click(settings.btn_cancel);
-            require(close(sliders[1].selectedIndex, 32.5) && !settings.btn_accept.enabled && !panel.visible,
-                "Cancel: 32.5 back, the panel closed");
+            require(close(sliders[1].selectedIndex, 32.5) && !settings.btn_accept.enabled && !window.visible,
+                "Cancel: 32.5 back, closed");
             click(button);
             sliders[1].slider.value = 52;
             sliders[3].slider.value = 100;
+            require(sliders[3].textFieldValue.text == "100 %", "the sight distance's value in percent: " + sliders[3].textFieldValue.text);
+            require(settings.closePanel() && !window.visible && settings.btn_accept.enabled,
+                "Esc closes the window, its changes still pending");
             click(settings.btn_accept);
             require(calls.indexOf("srp_weapon_fov_aimed=520") >= 0 && calls.indexOf("srp_sight_distance=100") >= 0
-                && !settings.btn_accept.enabled && !panel.visible,
-                "Apply: the exe given 520 tenths and 100 percent, the panel closed (" + calls + ")");
+                && !settings.btn_accept.enabled && !window.visible,
+                "Apply: the exe given 520 tenths and 100 percent (" + calls + ")");
             exe.standIn = null;
             root.srp_slider_option(names[1], texts[0][39], "520", "200", "650", "10");
             root.srp_slider_option(names[3], texts[0][42], "100", "0", "100", "1");
@@ -403,17 +429,17 @@ package
             root.srp_slider_option(names[3], texts[0][42], "0", "0", "100", "1");
             root.srp_slider_option(names[2], texts[0][40], "3300", "1625", "3250", "100");
             require(close(sliders[2].selectedIndex, 32.5), "an answer out of its range is ignored");
-            // the UI scale (MainMenu scales the whole movie above 1080p): the panel and its controls stay in place
-            var scaled:* = root;
-            var was:Number = scaled.scaleX;
-            scaled.scaleX = scaled.scaleY = 1.5;
             click(button);
-            if (!panel.visible) click(button);
+            click(window.getChildByName("_srp_weapon_view_window_panel").getChildByName("_srp_weapon_view_window_close"));
+            require(!window.visible, "the close button closes it");
+            // the UI scale (MainMenu scales the whole movie above 1080p): the window on the screen, its rows in place
+            var was:Number = root.scaleX;
+            root.scaleX = root.scaleY = 1.5;
+            click(button);
             inside("scaled 1.5");
-            click(button);
-            scaled.scaleX = scaled.scaleY = was;
-            require(!panel.visible, "the button closes the panel");
-            trace("SETTINGS weapon view pass: the button at " + button.x + "," + button.y + ", the panel " + panel.getBounds(content));
+            window.close();
+            root.scaleX = root.scaleY = was;
+            trace("SETTINGS weapon view pass: the button at " + button.x + "," + button.y + ", " + button.width + " wide");
         }
 
         private function span(item:*):Array

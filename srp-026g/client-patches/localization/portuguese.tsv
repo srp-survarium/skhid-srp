@@ -4393,7 +4393,8 @@ st_srp_shop_not_owned	Ocultar adquiridos
 st_srp_shop_not_owned_hint	Mostrar só os itens que você não tem
 st_srp_side_left	Esquerda
 st_srp_side_right	Direita
-st_srp_sight_distance_option	Distância da mira (0.69 - 0.26)
+st_srp_sight_distance_hint	0 % = atual, 100 % = clássica
+st_srp_sight_distance_option	Distância da mira
 st_srp_skills	Habilidades
 st_srp_speed_label	Velocidade
 st_srp_speed_title	Velocidade: %1$s

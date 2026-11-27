@@ -18,8 +18,8 @@
 //!   least, most, steps a unit)` in its steps (whole degrees at the hip,
 //!   tenths over sights, hundredths in scopes, whole percent), the checkbox's `root.srp_check_option(name,
 //!   label, saved)`, each saving its argument first when it is one (user.cfg
-//!   at once); `srp_weapon_view_texts` answers the group's heading
-//!   (`root.srp_weapon_view_texts`);
+//!   at once); `srp_weapon_view_texts` answers the window's title and the
+//!   sight distance's note (`root.srp_weapon_view_texts`);
 //! - the hands' aim alignment (`hands_ik.aim_alignment` after patch 172, and
 //!   its call's return, `hands_ik.aim_aligned`): the eye moved along its own
 //!   line by the sight distance ([`crate::attachments::view`]).
@@ -34,8 +34,9 @@
 
 use core::ffi::CStr;
 
+use crate::vostok::log::{Piece, line};
 use crate::vostok::settings::{ConsoleBool, ConsoleFloat, OptionsCall, SliderSteps, save_user_config};
-use crate::vostok::{Context, Flow, NoExit, Thread, WeaponViewOptionsOnOptionsCallExit};
+use crate::vostok::{Context, Flow, Lock, NoExit, Thread, WeaponViewOptionsOnOptionsCallExit};
 
 /// 0.69d0's first-person angles (`update_camera` 0x2002C2D70 of its exe):
 /// 65 degrees at the hip, times a rifle's aimed factor 0.5 fully aimed
@@ -63,6 +64,8 @@ static SIGHTS: ConsoleFloat = ConsoleFloat::new(AIMED_069, 20.0, 65.0);
 /// housing (`weapon-view-settings.md`, "The scopes' surround").
 static SCOPES: ConsoleFloat = ConsoleFloat::new(AIMED_069, 16.25, AIMED_069);
 static WORLD: ConsoleBool = ConsoleBool::new();
+/// The values the log said last.
+static SAID: Lock<Option<ViewOptions>> = Lock::new(None);
 static DISTANCE: ConsoleFloat = ConsoleFloat::new(0.0, 0.0, 100.0);
 
 pub const HIP_NAME: &CStr = c"srp_weapon_fov";
@@ -72,6 +75,7 @@ pub const WORLD_NAME: &CStr = c"srp_weapon_fov_world";
 pub const DISTANCE_NAME: &CStr = c"srp_sight_distance";
 const WORLD_LABEL: &CStr = c"st_srp_weapon_fov_world_option";
 const HEADING: &CStr = c"st_srp_weapon_view_heading";
+const DISTANCE_NOTE: &CStr = c"st_srp_sight_distance_hint";
 
 static SLIDERS: [Slider; 4] = [
     Slider { name: HIP_NAME, label: c"st_srp_weapon_fov_option", value: &HIP, least: 40.0, most: 100.0, per_unit: 1 },
@@ -85,6 +89,11 @@ static SLIDERS: [Slider; 4] = [
 /// A held thing's angle over 0.69d0's: 1 is 0.69d0's own, exactly.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Scale(f32);
+
+/// A float in thousandths, for the log (0 for what is no number or below 0).
+pub fn thousandths(value: f32) -> u32 {
+    if value.is_nan() || value <= 0.0 { 0 } else { (f64::from(value) * 1000.0 + 0.5) as u32 }
+}
 
 impl Scale {
     pub const ONE: Scale = Scale(1.0);
@@ -169,7 +178,37 @@ impl ViewOptions {
     }
 
     pub fn now(thread: &Thread) -> ViewOptions {
-        ViewOptions::of(HIP.get(thread), SIGHTS.get(thread), SCOPES.get(thread), WORLD.get(thread), DISTANCE.get(thread))
+        let options = ViewOptions::of(HIP.get(thread), SIGHTS.get(thread), SCOPES.get(thread), WORLD.get(thread),
+                                      DISTANCE.get(thread));
+        options.say(thread);
+        options
+    }
+
+    /// A line when the values first read differ from the ones said last (the first read, an Apply, a
+    /// console line): what each variable holds and what the lens makes of it.
+    fn say(self, thread: &Thread) {
+        let changed = SAID.with(thread, |said| {
+            let changed = *said != Some(self);
+            *said = Some(self);
+            changed
+        });
+        if !changed {
+            return;
+        }
+        let scale = |name: &CStr| SLIDERS.iter().find(|slider| slider.name == name).map_or(0, |s| thousandths(s.value.get(thread)));
+        let (projection, [hip, sights, scopes]) = match self.projection {
+            Projection::World => ("the world's projection", [0, 0, 0]),
+            Projection::Own { hip, sights, scopes } => ("its own", [hip, sights, scopes].map(|s| thousandths(s.get()))),
+        };
+        line(&[Piece::Text("weapon view: srp_weapon_fov "), Piece::Dec(scale(HIP_NAME)),
+               Piece::Text(", srp_weapon_fov_aimed "), Piece::Dec(scale(SIGHTS_NAME)),
+               Piece::Text(", srp_weapon_fov_scope "), Piece::Dec(scale(SCOPES_NAME)),
+               Piece::Text(", srp_sight_distance "), Piece::Dec(scale(DISTANCE_NAME)),
+               Piece::Text(" (thousandths); srp_weapon_fov_world "), Piece::Text(if WORLD.get(thread) { "on" } else { "off" }),
+               Piece::Text(": everything held at "), Piece::Text(projection),
+               Piece::Text(", the scales of 0.69d0's angles (thousandths) hip "), Piece::Dec(hip),
+               Piece::Text(", sights "), Piece::Dec(sights), Piece::Text(", scopes "), Piece::Dec(scopes),
+               Piece::Text(", the eye's share "), Piece::Dec(thousandths(self.distance.share()))]);
     }
 }
 
@@ -214,8 +253,10 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<WeaponViewOptionsOnOptions
     let method = call.method();
     let mut label = [0; 0x200];
     if method == HEADING_CALL {
+        let mut note = [0; 0x200];
         let heading = call.translate(HEADING, &mut label);
-        call.answer(c"root.srp_weapon_view_texts", &[heading]);
+        let note = call.translate(DISTANCE_NOTE, &mut note);
+        call.answer(c"root.srp_weapon_view_texts", &[heading, note]);
     } else if method == WORLD_NAME {
         if let Some(on) = call.string_argument(0).and_then(choice) {
             WORLD.set(thread, on);

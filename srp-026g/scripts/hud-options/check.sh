@@ -11,9 +11,10 @@
 #   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options... button under it: disabled
 #   while the list shows DirectX 11, its panel over the column (the five options, every dictionary's texts
 #   inside it), closed by a press outside it or Esc, each option pending until Apply, Cancel, the note;
-# - SettingsHarness.as also: patch 218's Weapon view (docs/notes/weapon-view-settings.md): its button under the
-#   field of view, its panel over the left column (at 1280x720 and the movie scaled 1.5), every dictionary's
-#   labels inside it, Apply, Cancel, the checkbox greying the angles; screenshot settings-weapon-view.png;
+# - SettingsHarness.as also: patch 218's Weapon view (docs/notes/weapon-view-settings.md): the tab's standard
+#   button under the field of view, its window in the Settings' skin (Key bindings' frame, title and close
+#   button) at 1280x720 and the movie scaled 1.5, the tab's slider and checkbox look, every dictionary's labels
+#   and note inside it, Apply, Cancel, Esc, the checkbox greying the angles; screenshot settings-weapon-view.png;
 # - HudHarness.as: the crosshair's hit marker: all, a kill's mark only, none (a kill through a wall,
 #   exe patch 167, as a kill's mark only); the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
@@ -52,7 +53,7 @@ keys = ('st_srp_hit_markers_all', 'st_srp_hide_scores_option', 'st_srp_options_h
         'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint', 'st_srp_hit_markers_kill',
         'st_srp_hit_markers_hidden', 'st_srp_weapon_view_heading', 'st_srp_weapon_fov_option',
         'st_srp_weapon_fov_aimed_option', 'st_srp_weapon_fov_scope_option', 'st_srp_weapon_fov_world_option',
-        'st_srp_sight_distance_option')
+        'st_srp_sight_distance_option', 'st_srp_sight_distance_hint')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

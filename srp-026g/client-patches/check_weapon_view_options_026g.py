@@ -18,7 +18,7 @@ translate_text the key's English text, game::save_user_config counted):
   none nothing; each answers root.srp_slider_option(name, label, saved,
   least, most, steps a unit) in its steps (1, 1/10, 1/100, whole percent);
   the checkbox with "1"/"0" root.srp_check_option(name,
-  label, saved); `srp_weapon_view_texts` root.srp_weapon_view_texts(heading);
+  label, saved); `srp_weapon_view_texts` root.srp_weapon_view_texts(title, note);
   the original answers none of them.
 The lens and the eye the values make: check_attachments_026g.py.
 """
@@ -33,6 +33,7 @@ LABELS = {"st_srp_weapon_fov_option": "Weapon FOV at the hip",
           "st_srp_weapon_fov_aimed_option": "Weapon FOV over sights",
           "st_srp_weapon_fov_scope_option": "Weapon FOV in scopes",
           "st_srp_sight_distance_option": "Sight distance",
+          "st_srp_sight_distance_hint": "0 % = current, 100 % = classic",
           "st_srp_weapon_fov_world_option": "Weapon at the world FOV",
           "st_srp_weapon_view_heading": "Weapon view"}
 language.ENGLISH.update({key: text.encode() for key, text in LABELS.items()})
@@ -104,8 +105,9 @@ def main():
                and count == saves and (new.read(world[3], 1) == b"\x01") == want,
                f"{WORLD} with {argument!r}: {int(want)}, user.cfg written {saves} time(s), answered")
     invokes, count = new.callback("srp_weapon_view_texts")
-    expect(invokes == [(language.MOVIE, "root.srp_weapon_view_texts", (LABELS["st_srp_weapon_view_heading"],))]
-           and count == 0, "srp_weapon_view_texts: the heading, nothing saved")
+    expect(invokes == [(language.MOVIE, "root.srp_weapon_view_texts",
+                        (LABELS["st_srp_weapon_view_heading"], LABELS["st_srp_sight_distance_hint"]))]
+           and count == 0, "srp_weapon_view_texts: the title and the sight distance's note, nothing saved")
     for name in list(SLIDERS) + [WORLD, "srp_weapon_view_texts"]:
         invokes, count = old.callback(name, "1")
         expect(invokes == [] and count == 0, f"the original ignores {name}")

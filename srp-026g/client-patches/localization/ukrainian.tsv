@@ -4393,7 +4393,8 @@ st_srp_shop_not_owned	Сховати наявні
 st_srp_shop_not_owned_hint	Показувати лише те, чого у вас немає
 st_srp_side_left	Зліва
 st_srp_side_right	Справа
-st_srp_sight_distance_option	Відстань до прицілу (0.69 - 0.26)
+st_srp_sight_distance_hint	0 % = поточна, 100 % = класична
+st_srp_sight_distance_option	Відстань до прицілу
 st_srp_skills	Навички
 st_srp_speed_label	Швидкість
 st_srp_speed_title	Швидкість руху: %1$s

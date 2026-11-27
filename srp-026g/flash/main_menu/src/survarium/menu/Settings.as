@@ -117,7 +117,8 @@ package survarium.menu
       protected var _fov:SrpFieldOfView;
 
       // The gameplay tab's "Weapon view" (exe patch 218): a button under the field of view opening a
-      // panel over the left column (layoutGameplay). A move or a toggle is a change of the tab, saved by Apply.
+      // window in the Settings window's skin, as Key bindings' (layoutGameplay). A move or a toggle is a change
+      // of the tab, saved by Apply.
       protected var _weaponView:SrpWeaponView;
       
       // The sound tab's "Test microphone" button (exe patch 66), under the Microphone list. Not a
@@ -436,6 +437,7 @@ package survarium.menu
          var messageData:Object;
          this._renderer.close();
          this._keysWindow.close();
+         this._weaponView.close();
          this._micTest.stop();
          if(this.btn_accept.enabled)
          {
@@ -741,6 +743,7 @@ package survarium.menu
          this._changed[this._fov.slider] = 0;
          this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
          this._weaponView = new SrpWeaponView(this.settings_content);
+         addChild(this._weaponView);
          for each(var weaponControl:Object in this._weaponView.controls)
          {
             this._changed[weaponControl] = 0;
@@ -1019,11 +1022,11 @@ package survarium.menu
          this.listChanged(this._language.menu,this._language.pending);
       }
       
-      // Esc: the Key bindings window or the Vulkan options' panel closed, when it is open (MainMenu closes
+      // Esc: the Key bindings window, the Weapon view window or the Vulkan options' panel closed, when it is open (MainMenu closes
       // the Settings window otherwise).
       public function closePanel() : Boolean
       {
-         return this._keysWindow.close() || this._renderer.close();
+         return this._keysWindow.close() || this._weaponView.close() || this._renderer.close();
       }
       
       // A Renderer pick or a Vulkan option changed, the same way.
@@ -1139,12 +1142,10 @@ package survarium.menu
          // then the field of view, a group of its own: its label a heading as the others (their
          // look), at the column's headings' x the tab's gap under the minimap list, the slider under it
          this._fov.layout(c.s_friends,space.rightHeading,c._setter_static_minimap_position.y + space.gap);
-         // then the weapon view's button under the field of view's slider, at the right controls' x, its
-         // panel over the left column, from its heading's top to the window's bottom (the bottom panel's, which the columns run over)
+         // then the weapon view's button (the tab's standard one) under the field of view's slider, at the
+         // right controls' x; its window's labels in the headings' look, as the field of view's
          var fovBottom:Number = this._fov.slider.getBounds(c).bottom;
-         this._weaponView.layout(c.s_friends,space.rightControl,fovBottom + space.gap / 2,
-            c._setter_static_minimap_position.width,space.leftHeading - 8,c.s_friends.y - 8,
-            space.rightHeading - space.leftHeading - 4,c.bottomContainer.getBounds(c).bottom - 4);
+         this._weaponView.layout(c.s_friends,space.rightControl,fovBottom + space.gap / 2);
          c.s_cross.visible = c._setter_static_cross.visible = false;
          c.s_quest_propgress.visible = c._slider_quest_alpha.visible = false;
          c.bottomContainer.visible = false;

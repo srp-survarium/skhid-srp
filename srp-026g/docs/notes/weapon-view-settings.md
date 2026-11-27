@@ -8,16 +8,21 @@ customizable". He approved one global value for each setting; per-type values ma
 ## What the player sets
 
 Settings → Gameplay. The world's slider (patch 22's `uro_fov`, patch 83's slider) is now headed
-"World FOV:". Under it, a "Weapon view" button opens a panel over the left column. Every value is a
+"World FOV:". Under it, the tab's standard button (the Optimal and Default buttons' symbol and width),
+"Weapon view", opens a window in the Settings window's own skin, as the Controls tab's Key bindings
+window (its frame and title band, its title, its close button, the screen dimmed behind it; Esc, the
+close button or a press beside it closes it). It holds the tab's own controls in their look: the stock
+slider with its label in the headings' look and its value (as World FOV), the HUD group's checkbox, and
+a note in the "Applies after restart." look. Every value is a
 console variable kept in `user.cfg`, so it can also be set from the console.
 
-| Variable | In the panel | Range | Default | What it does |
+| Variable | In the window | Range | Default | What it does |
 |---|---|---|---|---|
 | `srp_weapon_fov` | Weapon FOV at the hip | 40 to 100, step 1 | 65 | A rifle's held angle at the hip, in degrees. Each gun keeps 0.69d0's ratio to it (a pistol 0.75 times it). Anything that is no gun is drawn at this value. |
 | `srp_weapon_fov_aimed` | Weapon FOV over sights | 20 to 65, step 0.5 | 32.5 | A rifle's angle fully aimed over iron sights, a collimator or the rail iron sight. Each gun is scaled by its own aimed factor over 0.5 (a pistol 1.2 times it, the SKS 0.7). |
 | `srp_weapon_fov_scope` | Weapon FOV in scopes | 16.25 to 32.5, step 0.25 | 32.5 | The same rule, through a magnified scope. |
 | `srp_weapon_fov_world` | Weapon at the world FOV | on / off | off | On: everything held is drawn at the world's projection, as before revision 74. The three sliders above are greyed while it is ticked. |
-| `srp_sight_distance` | Sight distance (0.69 - 0.26) | 0 to 100 % | 0 | Aimed over iron sights and sights in the gun's eye plane: the eye's share of the way from 0.69d0's place (revision 74) to revision 73's. |
+| `srp_sight_distance` | Sight distance (its value in %, its note "0 % = current, 100 % = classic") | 0 to 100 % | 0 | Aimed over iron sights and sights in the gun's eye plane: the eye's share of the way from 0.69d0's place (revision 74) to revision 73's. |
 
 - A move or a toggle is a pending change of the tab: Apply saves it (user.cfg at once), Cancel puts
   the saved value back. A saved value takes effect at the next frame, also in a match.
@@ -111,9 +116,30 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
   the Settings' call (`weapon_view_options.rs`). A slider's answer is `name, label, saved, least,
   most, steps a unit`: 1, 10, 100 and 1, so every default and end is whole and of four digits at
   most.
-- **The texts**: seven keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
+- **The texts**: eight keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
   `st_srp_weapon_fov_option`, `_aimed_option`, `_scope_option`, `_world_option`,
-  `st_srp_sight_distance_option`, `st_srp_world_fov_option`).
+  `st_srp_sight_distance_option`, `st_srp_sight_distance_hint`, `st_srp_world_fov_option`).
+
+## The log
+
+So a test proves the settings at work, `srp_patches.log` says:
+
+- `weapon view: srp_weapon_fov 59000, srp_weapon_fov_aimed 65000, ... (thousandths); srp_weapon_fov_world
+  off: everything held at its own, the scales of 0.69d0's angles (thousandths) hip 907, sights 2000, ...`:
+  at the first camera of a run, and again whenever a value changes (Apply, a console line);
+- `weapon view: gun 220 fully aimed through its iron sights: drawn at 650 tenths of a degree, the eye
+  moved 0 tenths of a mm`: whenever what the held gun is drawn as at the hip or fully aimed changes
+  (another gun, another sight, another setting); "drawn at the world's projection" for an optic of its own
+  or the checkbox;
+- `weapon view: the foreground draws what is held at its own projection, focal length ...`: the first lens
+  the render thread takes in a run.
+
+A test whose log has the first two lines and not the third would show the lens made but never drawn.
+
+The owner's first test of revision 79 (2026-11-27): the values saved, no change seen, and no line to tell
+why. The exe of that test, run under Unicorn with those values set by the console's own setters, makes
+the lens they ask for (`check_attachments_026g.py` now sets them so). The next test's log tells which of
+the game's paths it was.
 
 ## The scopes' surround
 
@@ -166,9 +192,13 @@ revision 73's 16.25, covers more of the screen. A mask like 0.69d0's would be a 
 - `check_weapon_view_options_026g.py` (`tools/check hud-options`, Unicorn): the registration, each
   slider's steps within and out of its range, the checkbox, the heading; the original answers none.
 - `scripts/hud-options/check.sh` (Ruffle; its harness has no row in `tools/checks.tsv`):
-  - the button under World FOV, the panel over the left column at 1280x720 and with the movie scaled
+  - the tab's standard button under World FOV, the window in the Settings' skin (the Key bindings
+    window's frame, title and close button) at 1280x720 and with the movie scaled
     1.5;
-  - every dictionary's labels inside the panel;
+  - the sliders' labels in World FOV's look, the checkbox the HUD group's size, the distance's value
+    in percent;
+  - every dictionary's labels and the distance's note inside the window;
+  - Esc and the close button close it, its changes still pending;
   - Apply sends the steps, and Cancel and the exe's answers keep or restore the saved values;
   - the checkbox greys the angles.
   - Screenshot `settings-weapon-view.png`.

@@ -4393,7 +4393,8 @@ st_srp_shop_not_owned	Sakrij posedovano
 st_srp_shop_not_owned_hint	Prikaži samo predmete koje nemaš
 st_srp_side_left	Levo
 st_srp_side_right	Desno
-st_srp_sight_distance_option	Udaljenost nišana (0.69 - 0.26)
+st_srp_sight_distance_hint	0 % = trenutna, 100 % = klasična
+st_srp_sight_distance_option	Udaljenost nišana
 st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s

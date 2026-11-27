@@ -4393,7 +4393,8 @@ st_srp_shop_not_owned	Hide owned
 st_srp_shop_not_owned_hint	Show only the items you do not own
 st_srp_side_left	Left
 st_srp_side_right	Right
-st_srp_sight_distance_option	Sight distance (0.69 - 0.26)
+st_srp_sight_distance_hint	0 % = current, 100 % = classic
+st_srp_sight_distance_option	Sight distance
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s

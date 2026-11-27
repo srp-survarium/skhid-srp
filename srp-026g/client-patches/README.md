@@ -155,7 +155,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
-| `rust/patches/src/weapon_view_options.rs`, `src/weapon_view_options.toml`, `src/attachments/view.rs`, `src/vostok/weapon_view.rs`, `check_weapon_view_options_026g.py`, `check_attachments_026g.py` | Patch 218: the player's weapon view kept in user.cfg (`srp_weapon_fov`, `srp_weapon_fov_aimed`, `srp_weapon_fov_scope`, `srp_weapon_fov_world`, `srp_sight_distance`): patch 161's lens scaled by them or off (the world's projection), and the hands' aim alignment moved along the eye's line toward revision 73's eye (`hands_ik.aim_alignment` after patch 172, `hands_ik.aim_aligned` at the call's return); the Settings' Gameplay "Weapon view" panel (`../flash/main_menu/src/SrpWeaponView.as`); its checks run the registration and the Settings' call, the lens and the alignment beside the original's with the aim offset moved (needs Unicorn; `tools/check hud-options`, `tools/check attachments`; `../docs/notes/weapon-view-settings.md`) |
+| `rust/patches/src/weapon_view_options.rs`, `src/weapon_view_options.toml`, `src/attachments/view.rs`, `src/vostok/weapon_view.rs`, `check_weapon_view_options_026g.py`, `check_attachments_026g.py` | Patch 218: the player's weapon view kept in user.cfg (`srp_weapon_fov`, `srp_weapon_fov_aimed`, `srp_weapon_fov_scope`, `srp_weapon_fov_world`, `srp_sight_distance`): patch 161's lens scaled by them or off (the world's projection), and the hands' aim alignment moved along the eye's line toward revision 73's eye (`hands_ik.aim_alignment` after patch 172, `hands_ik.aim_aligned` at the call's return); the Settings' Gameplay "Weapon view" window (`../flash/main_menu/src/SrpWeaponView.as`); its checks run the registration and the Settings' call, the lens and the alignment beside the original's with the aim offset moved (needs Unicorn; `tools/check hud-options`, `tools/check attachments`; `../docs/notes/weapon-view-settings.md`) |
 | `rust/patches/src/additional_camo.rs`, `src/additional_camo.toml`, `src/vostok/skin_cook.rs`, `check_additional_camo_026g.py` | Patch 217: an additional model whose `additional_models` entry has `camo_available: true` takes its item's camouflage (the exoskeleton bodies' legs, exo-camo@2): one lohook at the end of a kit slot of the character's cook (`skin_cook.item_done`, 0x20563D) gives its record the item's camouflage layer, the bake flag and a name of its own, and bake_decals bakes it; its check runs the cook's additional models, the slot's end and bake_decals' loop in the original and the build, and a broken build (needs Unicorn; `tools/check additional-camo`) |
 | `rust/patches/src/scaleform_temp_target.rs`, `src/scaleform_temp_target.toml`, `src/vostok/scaleform_filter.rs`, `check_scaleform_temp_target_026g.py` | Patch 216: a Scaleform filter whose temporary render target Direct3D did not make is drawn without its filter (HAL::PushFilters) or, cached one pass from its target, not drawn that frame and its cache let go (drawCachedFilter), never pushed as a null target (revision 73's crash at 0x2B3777): two lohooks at CreateTempRenderTarget's returns; its check runs PushFilters, PopFilters, PushRenderTarget, PopRenderTarget and drawCachedFilter on a made-up HAL, the original and two broken builds beside (needs Unicorn; `tools/check scaleform-temp-target`) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
@@ -7172,14 +7172,15 @@ The look only: nothing a match computes. Checked with `check_additional_camo_026
 
 The owner, 2026-11-27: some players prefer revision 73's sights, and "it shouldn't be old/new, it
 should be more customizable". Settings → Gameplay: under the "World FOV:" slider, a "Weapon view"
-button opens a panel over the left column with five values kept in user.cfg (also console variables):
+button (the tab's standard one) opens a window in the Settings' skin, as the Key bindings window, with
+five values kept in user.cfg (also console variables):
 
 - `srp_weapon_fov`: the held gun's angle at the hip, a rifle's degrees (40 to 100, 65);
 - `srp_weapon_fov_aimed`: fully aimed over iron sights and collimators (20 to 65, 32.5);
 - `srp_weapon_fov_scope`: through magnified scopes (16.25 to 32.5, 32.5);
 - `srp_weapon_fov_world`: everything held at the world's projection, as before revision 74 (off);
-- `srp_sight_distance`: 0 to 100 % of the way from 0.69d0's eye to revision 73's, aimed over iron
-  sights and collimators (0).
+- `srp_sight_distance` ("Sight distance", its note "0 % = current, 100 % = classic"): 0 to 100 % of
+  the way from 0.69d0's eye to revision 73's, aimed over iron sights and collimators (0).
 
 Each gun keeps 0.69d0's own ratio to the angles; the 14 guns with an optic of their own are as before.
 The defaults are revision 74 bit for bit; the checkbox with 100 % is revision 73 on every gun. A saved
@@ -7189,7 +7190,7 @@ Patch 161's lens is scaled by the angles or left off. Patch 218 registers the va
 Settings and moves the hands' aim alignment by the eye's move along its own line: the
 `calculate_aim_alignment` result with a larger `aim_offset` (`hands_ik.aim_alignment`,
 `hands_ik.aim_aligned`). The rows of `srp_weapon_views` (weapon-view-069.json) carry each moved gun's
-revision 73 iron-sight `aim_offset` (`aim_offset_026g`). Its texts are seven keys in every dictionary.
+revision 73 iron-sight `aim_offset` (`aim_offset_026g`). Its texts are eight keys in every dictionary.
 
 The look only: the camera, the shot, the recoil, the spread and what a world holds are the game's;
 no `simulation_changes.tsv` row. Checked with Unicorn (`check_attachments_026g.py`,

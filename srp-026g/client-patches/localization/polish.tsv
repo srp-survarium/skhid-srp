@@ -4393,7 +4393,8 @@ st_srp_shop_not_owned	Ukryj posiadane
 st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
 st_srp_side_left	Lewa
 st_srp_side_right	Prawa
-st_srp_sight_distance_option	Odległość celownika (0.69 - 0.26)
+st_srp_sight_distance_hint	0 % = obecna, 100 % = klasyczna
+st_srp_sight_distance_option	Odległość celownika
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s

@@ -4393,7 +4393,8 @@ st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
 st_srp_side_left	Слева
 st_srp_side_right	Справа
-st_srp_sight_distance_option	Расстояние до прицела (0.69 - 0.26)
+st_srp_sight_distance_hint	0 % = текущее, 100 % = классическое
+st_srp_sight_distance_option	Расстояние до прицела
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s

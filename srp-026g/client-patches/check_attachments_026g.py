@@ -47,7 +47,8 @@ by the crate's test): nothing here works a loadout out again.
   given back once, the weapon forgotten;
 - a weapon without any of it, and every site in the original: as the game;
 - patch 218, the player's weapon view: on_configs_loaded's start (0x1EA210)
-  registers its five variables at their defaults; set, the camera's lens
+  registers its five variables at their defaults; set by their own setters as user.cfg's
+  lines are (0xECB70, 0xECA30), the camera's lens
   scales by them (a rifle's hip and aimed angles, a fitted magnified
   scope's), the checkbox gives no lens at all (the world's projection);
   the sight distance at 0, 50 and 100 % moves the hands' alignment
@@ -352,10 +353,37 @@ class Run:
         self.u32(sp, STOP)
         stopped = self.run(CONFIGS_START, (CONFIGS_START_END,), sp)
         out, node = {}, self.u32(LIST_HEAD)
+        self.nodes = {}
         while node and node != before:
-            out[self.text(self.u32(node + 0x10)).decode()] = self.u32(node + 0x40)
+            name = self.text(self.u32(node + 0x10)).decode()
+            out[name] = self.u32(node + 0x40)
+            self.nodes[name] = node
             node = self.u32(node + 0x0C)
         return stopped, out
+
+    def console(self, name, text):
+        """A user.cfg line `<name> <text>` as the console runs it: the variable's own setter (its
+        vtable's slot 1: cc_float's 0xECB70, cc_bool's 0xECA30), sscanf (0x422B46) answered here."""
+        node = self.nodes[name]
+        at = self.block(0x40)
+        self.emu.mem_write(at, text.encode() + b"\0")
+        sp = STACK - 0x2800
+        self.u32(sp, STOP)
+        self.u32(sp + 4, at)
+        self.run(self.u32(self.u32(node) + 4), (), sp, ecx=node)
+
+    def sscanf(self, emu, address, size, _):
+        """sscanf(text, "%f", &out), cdecl: the text's float, 1 field (0 for none)."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        text, out = self.text(self.u32(sp + 4)).decode(), self.u32(sp + 12)
+        try:
+            self.put_floats(out, [float(text)])
+            value = 1
+        except ValueError:
+            value = 0
+        emu.reg_write(UC_X86_REG_EAX, value)
+        emu.reg_write(UC_X86_REG_EIP, self.u32(sp))
+        emu.reg_write(UC_X86_REG_ESP, sp + 4)
 
     # -------------------------------------------------- the table
 
@@ -750,11 +778,13 @@ def weapon_view_settings(original, built, report):
     _, none = stock.settings()
     report(not any(name.startswith(("srp_weapon_fov", "srp_sight")) for name in none), "the original registers none")
 
+    # the values as user.cfg's lines and the console set them: each variable's own setter
+    r.emu.hook_add(UC_HOOK_CODE, r.sscanf, begin=0x422B46, end=0x422B46)
+
     def put(name, value):
-        if name == "srp_weapon_fov_world":
-            r.emu.mem_write(values[name], bytes([value]))
-        else:
-            r.put_floats(values[name], [value])
+        r.console(name, ("on" if value else "off") if name == "srp_weapon_fov_world" else f"{value}")
+        got = r.byte(values[name]) if name == "srp_weapon_fov_world" else r.floats(values[name], 1)[0]
+        assert got == value, (name, value, got)
 
     player, world, entry, config, view = (r.block(n) for n in (0xF480, 0x10, 0x118, 0x10C, 0x100))
     r.u32(player + 0xF474, world)
@@ -820,6 +850,14 @@ def weapon_view_settings(original, built, report):
     put("srp_weapon_fov", 65.0)
     put("srp_weapon_fov_aimed", 32.5)
     report(close(drawn(a545), lens(32.5)), "back at 65 and 32.5: 0.69d0's 32.5 degrees aimed")
+    said = r.logged.decode(errors="replace")
+    report("weapon view: srp_weapon_fov 90000, srp_weapon_fov_aimed 52000" in said
+           and "everything held at the world's projection" in said
+           and "weapon view: gun 220 fully aimed through its iron sights: drawn at 520 tenths of a degree" in said
+           and "weapon view: gun 220 at the hip through its iron sights: drawn at 900 tenths of a degree" in said
+           and "weapon view: the foreground draws what is held at its own projection" in said,
+           "the log says the values when they change (the setters' lines), and what the held gun is drawn at, "
+           "at the hip and fully aimed" + ("" if "weapon view: srp" in said else f": {said!r}"))
 
     # the sight distance: the A-545's iron sights, 0.137 (0.69d0's eye) toward 0.15 (revision 73's)
     for percent, want_offset in ((0.0, 0.137), (50.0, 0.1435), (100.0, 0.15)):
