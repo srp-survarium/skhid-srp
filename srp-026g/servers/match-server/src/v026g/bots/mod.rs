@@ -2831,6 +2831,12 @@ impl Bots {
             "{}unverified pulled legs since the last match end (every match on this server): kept {kept}, walked {walked}, failed ahead {ahead}, failed with the body on them {on_leg}, passed untested {passed}",
             nav_log::PREFIX
         ));
+        // [pull unknown] The legs carried into routes made from others, and those a splice replaced (`path::unverified::take_carried`).
+        let [gates, splice, jump_stand, cut] = path::unverified::take_carried();
+        lines.push(format!(
+            "{}unverified legs carried into routes made from others since the last match end (every match on this server): through door gates {gates}, through splices (threat detours, relays) {splice}, through a jump or a stand {jump_stand}; cut with a spliced stretch {cut}",
+            nav_log::PREFIX
+        ));
         // [pull unknown] The failing ones laid again in place from their floors, and those that could not be (cut or ended).
         let [relaid_ahead, relaid_under, relay_none] = path::unverified::take_relays();
         lines.push(format!(

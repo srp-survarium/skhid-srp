@@ -1696,6 +1696,33 @@ pub mod unverified {
     pub fn take() -> [u64; 5] {
         [&KEPT, &WALKED, &FAILED_AHEAD, &FAILED_ON_LEG, &PASSED].map(|c| c.swap(0, Relaxed))
     }
+
+    static CARRIED_GATES: AtomicU64 = AtomicU64::new(0);
+    static CARRIED_SPLICE: AtomicU64 = AtomicU64::new(0);
+    static CUT_SPLICE: AtomicU64 = AtomicU64::new(0);
+    static CARRIED_JUMP_STAND: AtomicU64 = AtomicU64::new(0);
+
+    /// Legs carried into a route made from another: through its door gates ([`super::Route::door_centred`]), a splice
+    /// ([`super::Route::spliced`]: a threat detour or a relay, the route's own legs on both sides and the detour's), a jump or a
+    /// stand put on it ([`super::Route::then_jump`], [`super::Route::from_stand`]); and the route's own legs a splice replaced
+    /// with its stretch (the detour's legs in their place).
+    pub(super) fn carried_gates(n: usize) {
+        CARRIED_GATES.fetch_add(n as u64, Relaxed);
+    }
+    pub(super) fn carried_splice(n: usize) {
+        CARRIED_SPLICE.fetch_add(n as u64, Relaxed);
+    }
+    pub(super) fn cut_splice(n: usize) {
+        CUT_SPLICE.fetch_add(n as u64, Relaxed);
+    }
+    pub(super) fn carried_jump_stand(n: usize) {
+        CARRIED_JUMP_STAND.fetch_add(n as u64, Relaxed);
+    }
+    /// Those counts, set back to 0: carried through door gates, through a splice, through a jump or a stand; cut with a
+    /// spliced stretch.
+    pub fn take_carried() -> [u64; 4] {
+        [&CARRIED_GATES, &CARRIED_SPLICE, &CARRIED_JUMP_STAND, &CUT_SPLICE].map(|c| c.swap(0, Relaxed))
+    }
 }
 
 /// [marked walk] The routes that took a marked walk since the last call, the count set back to 0.
@@ -2260,10 +2287,18 @@ impl Route {
             new_at.push(total);
         }
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, crouch_climbs, planned, below_walk_m, past_drop, walk_offs, lane_walks, .. } =
-            self;
+        let Self {
+            sprint_drops, ledge_leads, ledge_tops, mut gates, risers, crouch_climbs, planned, below_walk_m, past_drop, walk_offs, lane_walks, unverified, leg_paths, ..
+        } = self;
         gates.extend(corner.iter().flatten());
+        // [pull unknown] The unverified legs end at the same waypoints, now after the gates put in before them. A gate put in on
+        // such a leg splits it: the leg is still tested by its own floors (`a`, `b`) before the body walks to its end, and laid
+        // again from them ([`Route::relaid_leg`] finds its start by its first floor).
+        let shift = |to: usize| to + corner[..=to].iter().filter(|c| c.is_some()).count();
         let mut route = Self::with_floors(points, floors);
+        route.unverified = unverified.into_iter().map(|leg| UnverifiedLeg { to: shift(leg.to), ..leg }).collect();
+        route.leg_paths = leg_paths;
+        unverified::carried_gates(route.unverified.len());
         route.walk_offs = walk_offs;
         route.lane_walks = lane_walks;
         route.sprint_drops = sprint_drops;
@@ -2297,6 +2332,8 @@ impl Route {
             crouch_climbs,
             walk_offs,
             lane_walks,
+            unverified,
+            leg_paths,
             ..
         } = self;
         // A planned walk has its start at least (an escape's walk to an
@@ -2314,6 +2351,10 @@ impl Route {
         });
         floors.push((along + last.at.distance_xz(to), to.y));
         let mut route = Self::with_floors(points, floors);
+        // [pull unknown] The jump goes after the last point: the unverified legs keep their waypoints.
+        unverified::carried_jump_stand(unverified.len());
+        route.unverified = unverified;
+        route.leg_paths = leg_paths;
         route.walk_offs = walk_offs;
         route.lane_walks = lane_walks;
         route.sprint_drops = sprint_drops;
@@ -2368,7 +2409,49 @@ impl Route {
         route.walk_offs = self.walk_offs.iter().chain(&mid.walk_offs).copied().collect();
         route.lane_walks = self.lane_walks.iter().chain(&mid.lane_walks).copied().collect();
         route.planned = self.planned && mid.planned;
+        route.leg_paths = self.leg_paths.iter().chain(&mid.leg_paths).copied().collect();
+        route.unverified = self.spliced_legs(before, after, first_mid, first_after, mid);
         route
+    }
+
+    /// [pull unknown] The unverified legs of [`Self::spliced`]'s route: its points before `before` kept, `mid`'s from `first_mid`,
+    /// its points from `after` on from `first_after`. A leg of this route with both ends kept keeps them; one of `mid` is moved
+    /// to its place, its floors after this route's in the new `leg_paths`. A leg of which the splice keeps one end (the leg
+    /// into `before`, the leg out of `after - 1`) is still walked in part, from its kept end to `mid`'s end there: it is kept,
+    /// tested by its own floors (a straight line that walks walks in part), and laid again from them only when `mid` ends on its
+    /// floor there; else it keeps no floors (none to lay again from: the old handling, a plan from the body). The legs within
+    /// the replaced stretch go with it.
+    fn spliced_legs(&self, before: usize, after: usize, first_mid: usize, first_after: usize, mid: &Route) -> Vec<UnverifiedLeg> {
+        let offset = self.leg_paths.len() as u32;
+        let (mid_first, mid_last) = (mid.points.first().map(|p| p.node), mid.points.last().map(|p| p.node));
+        let mut legs = Vec::with_capacity(self.unverified.len() + mid.unverified.len());
+        for &leg in &self.unverified {
+            if leg.to < before {
+                legs.push(leg);
+            } else if leg.to == before && before > 0 && first_mid < first_after {
+                // Its start kept, its end now `mid`'s first point.
+                let floors = if mid_first == Some(self.points[leg.to].node) { leg.floors } else { (0, 0) };
+                legs.push(UnverifiedLeg { to: first_mid, floors, ..leg });
+            }
+        }
+        legs.extend(mid.unverified.iter().map(|m| UnverifiedLeg { to: m.to + first_mid, floors: (m.floors.0 + offset, m.floors.1), ..*m }));
+        for &leg in &self.unverified {
+            if leg.to > after {
+                legs.push(UnverifiedLeg { to: leg.to - after + first_after, ..leg });
+            } else if leg.to == after && after > 0 && after < self.points.len() && first_mid < first_after {
+                // Its end kept, its start now `mid`'s last point.
+                let floors = if mid_last == Some(self.points[after - 1].node) { leg.floors } else { (0, 0) };
+                if leg.to == before {
+                    // The splice is within this one leg (no point of it replaced): both its pieces are walked, each tested.
+                    unverified::kept();
+                }
+                legs.push(UnverifiedLeg { to: first_after, floors, ..leg });
+            }
+        }
+        let own = legs.len() - mid.unverified.len();
+        unverified::carried_splice(legs.len());
+        unverified::cut_splice(self.unverified.len().saturating_sub(own));
+        legs
     }
 
     /// Whether a corner reached by a jump lies between `s0` and `s1` metres
@@ -2435,6 +2518,10 @@ impl Route {
         route.crouch_climbs = self.crouch_climbs;
         route.walk_offs = self.walk_offs;
         route.planned = self.planned;
+        // [pull unknown] The body's own place goes first: the unverified legs end one waypoint later.
+        route.unverified = self.unverified.into_iter().map(|leg| UnverifiedLeg { to: leg.to + 1, ..leg }).collect();
+        route.leg_paths = self.leg_paths;
+        unverified::carried_jump_stand(route.unverified.len());
         route
     }
 
@@ -2803,19 +2890,9 @@ impl Route {
             return None;
         }
         let (s0, s1) = (self.along[start], self.along[leg.to]);
+        // Spliced: the points before `start`, then mid's, then the ones after `leg.to`; the unverified legs before it kept, those
+        // after it moved by the points put in, the relaid stretch's own added ([`Self::spliced_legs`]), the failing one gone.
         let mut route = self.spliced(s0, s1, &mid);
-        // Spliced: the points before `start`, then mid's, then the ones after `leg.to`.
-        let put_in = mid.points.len() as isize - (leg.to + 1 - start) as isize;
-        let offset = self.leg_paths.len() as u32;
-        route.leg_paths = self.leg_paths.iter().chain(&mid.leg_paths).copied().collect();
-        route.unverified = self
-            .unverified
-            .iter()
-            .filter(|other| other.to <= start)
-            .copied()
-            .chain(mid.unverified.iter().map(|m| UnverifiedLeg { to: m.to + start, floors: (m.floors.0 + offset, m.floors.1), ..*m }))
-            .chain(self.unverified.iter().filter(|other| other.to > leg.to).map(|other| UnverifiedLeg { to: (other.to as isize + put_in) as usize, ..*other }))
-            .collect();
         route.segment = self.segment.min(start);
         Some(route)
     }
@@ -3444,6 +3521,97 @@ mod tests {
         let again = pull_straight(&grid, path(), |_| true, &|_, _| false, &|a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks }, &|| {});
         assert!(again.points.windows(2).all(|w| (w[0].node, w[1].node) != bad), "{:?}", again.points);
         assert!(again.unverified.is_empty());
+    }
+
+    /// [pull unknown] Every unverified leg of `route` with floors kept ends on its last floor and starts on its first one before
+    /// that, and its floors in [`Route::leg_paths`] run from its first floor to its last: what [`Route::verify_ahead`] tests and
+    /// [`Route::relaid_leg`] lays again. A leg with none kept (a piece of a leg a splice cut) still ends on a point of the route.
+    fn assert_legs_hold(route: &Route) {
+        for leg in &route.unverified {
+            assert!(leg.to >= 1 && leg.to < route.points.len(), "{leg:?} of {} points", route.points.len());
+            if leg.floors.1 == 0 {
+                continue;
+            }
+            assert_eq!(route.points[leg.to].node, leg.b, "{leg:?} ends on its last floor: {:?}", route.points);
+            assert!((0..leg.to).any(|k| route.points[k].node == leg.a), "{leg:?} starts on its first floor: {:?}", route.points);
+            let (first, count) = (leg.floors.0 as usize, leg.floors.1 as usize);
+            let floors = &route.leg_paths[first..first + count];
+            assert_eq!((floors[0].0, floors[count - 1].0), (leg.a, leg.b), "{leg:?}");
+        }
+    }
+
+    /// [pull unknown] The door gates ([`Route::door_centred`], on every found route when `door_centres` is on) keep the route's
+    /// unverified legs, each ending on the waypoint it ended on, now after the gates put in before it; a gate on such a leg splits
+    /// it, and the leg is still tested before the body walks to its end and laid again from its floors when it fails. Dropping
+    /// them walked the legs untested (the round bench of 2026-11-27: 170,687 legs kept, 12,899 walked and 12,432 failed).
+    #[test]
+    fn door_gates_keep_the_unverified_legs() {
+        use crate::v026g::bots::body::tests::floor;
+        // Two rooms joined by a 1 m doorway at x 8-9.
+        let mut triangles = floor(0.0, 0.0, 8.0, 6.0, 0.0).to_vec();
+        triangles.extend(floor(8.0, 2.5, 9.0, 3.5, 0.0));
+        triangles.extend(floor(9.0, 0.0, 17.0, 6.0, 0.0));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 17.0, 6.0], 0.25, mapdata::Body::default()).with_pull_walk();
+        let at = |x: f32| grid.locate(Vec3::new(x, 0.0, 3.0), 0.3).unwrap();
+        let kept = pull_straight(&grid, grid.path(at(2.0), at(15.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        assert!(!kept.unverified.is_empty(), "its legs wait for their test: {:?}", kept.points);
+        let centred = kept.clone().door_centred(&grid);
+        assert!(!centred.gates().is_empty() && centred.points.len() > kept.points.len(), "a gate in the doorway: {:?}", centred.points);
+        assert_eq!(centred.unverified.len(), kept.unverified.len(), "every unverified leg kept");
+        assert_eq!(centred.leg_paths, kept.leg_paths);
+        assert_legs_hold(&centred);
+        // Tested before the body walks them: one the client walks goes from the list.
+        let mut walked = centred.clone();
+        assert_eq!(walked.verify_ahead(&mut |_, _| PullWalk::Walks), LegCheck::Clear);
+        assert!(walked.unverified.len() < centred.unverified.len());
+        // One that fails is the answer, and is laid again from its floors.
+        let first = centred.unverified[0];
+        let mut failing = centred.clone();
+        let check = failing.verify_ahead(&mut |a, b| if (a, b) == (first.a, first.b) { PullWalk::Fails } else { PullWalk::Unknown });
+        assert!(matches!(check, LegCheck::FailsAhead { leg, .. } | LegCheck::FailsUnderBody { leg, .. } if leg == first), "{check:?}");
+        let feet = centred.points[0].at;
+        let relaid = centred.relaid_leg(first, &grid, feet, &|_, _| PullWalk::Walks).expect("laid again from its floors");
+        assert!(relaid.points.windows(2).all(|w| (w[0].node, w[1].node) != (first.a, first.b)));
+        assert_legs_hold(&relaid);
+    }
+
+    /// [pull unknown] A threat detour spliced into a route ([`Route::spliced`], `threat.rs`) keeps the route's unverified legs before
+    /// and after the stretch it replaces and adds the detour's own, their floors carried into the new [`Route::leg_paths`], so
+    /// each is tested before the body walks it and a failing one is laid again in place. The leg the splice cuts keeps its
+    /// walked piece, tested by its own floors.
+    #[test]
+    fn a_spliced_route_keeps_the_unverified_legs() {
+        let (grid, at) = unverified_world();
+        let unknown = |from: f32, to: f32| pull_straight(&grid, grid.path(at(from), at(to)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        let plain = unknown(1.0, 19.0);
+        let x0 = plain.points[0].at.x;
+        // A detour of the middle stretch, through a floor off the line (the threat's way round), its legs unverified too.
+        let side = grid.locate(Vec3::new(10.125, 0.0, 1.125), 0.2).unwrap();
+        let back = pull_straight(&grid, grid.path(side, at(14.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        let to_side = pull_straight(&grid, grid.path(at(6.0), side).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        let mid = to_side.spliced(to_side.length(), to_side.length(), &back);
+        assert!(!mid.unverified.is_empty(), "the detour's legs wait for their test: {:?}", mid.points);
+        let (s0, s1) = (grid.position(at(6.0)).x - x0, grid.position(at(14.0)).x - x0);
+        let spliced = plain.spliced(s0, s1, &mid);
+        assert_legs_hold(&spliced);
+        let mids: Vec<_> = spliced.unverified.iter().filter(|leg| mid.unverified.iter().any(|m| (m.a, m.b) == (leg.a, leg.b))).copied().collect();
+        assert_eq!(mids.len(), mid.unverified.len(), "the detour's legs: {:?}", spliced.unverified);
+        assert!(spliced.unverified.len() > mid.unverified.len(), "the route's own legs kept around it: {:?}", spliced.unverified);
+        assert!(spliced.unverified.windows(2).all(|w| w[0].to < w[1].to), "in order: {:?}", spliced.unverified);
+        // Walking it: every leg is tested, none passed untested.
+        let mut route = spliced.clone();
+        let mut tested = 0;
+        for k in 0..route.points.len() {
+            route.progress(route.points[k].at);
+            let before = route.unverified.len();
+            assert_eq!(route.verify_ahead(&mut |_, _| { tested += 1; PullWalk::Walks }), LegCheck::Clear);
+            assert!(before - route.unverified.len() <= tested);
+        }
+        assert_eq!(tested, spliced.unverified.len(), "each kept leg tested once before it is walked");
+        // A failing leg of the detour is laid again in place from its floors.
+        let leg = mids[0];
+        let relaid = spliced.relaid_leg(leg, &grid, spliced.points[0].at, &|_, _| PullWalk::Walks).expect("laid again from its floors");
+        assert_legs_hold(&relaid);
     }
 
     /// [pull unknown] A verdict that comes late, with the body already on the leg's risky part: the check says so (`on_leg`), the
