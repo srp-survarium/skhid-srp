@@ -56,15 +56,19 @@ configs.start with it, a chain).
 - the Room's weather (room-weather.md): `srp_room_rain`, a saved string of
   4 bytes, registered beside `srp_lobby`; each entry (the start's query, the
   return from a match: on_activate after on_deactivate) reads the local time
-  (kernel32's GetLocalTime, its import slot, stubbed: the case's hour) and,
+  (kernel32's GetSystemTimeAsFileTime, FileTimeToLocalFileTime and
+  FileTimeToSystemTime, their import slots, stubbed: the case's hour) and,
   out of a spell, rolls the dice seeded by QueryPerformanceCounter (stubbed:
   a counter whose first roll is dry, or wet); the Room asked is
-  lobby_scene/camp_069 by day, camp_069_night from 21:00 to 06:00,
-  camp_069_rain in a spell or a rain rolled (srp_room_rain then the entries
-  left, user.cfg saved); another lobby is asked as it is; a return into
-  another weather steps the black whole with the spinner at once and asks
-  the new Room alone at the next frame, and a return into the same asks
-  nothing;
+  lobby_scene/camp_069 by day, camp_069_evening from 18:00 to 21:00,
+  camp_069_night from 21:00 to 06:00, by day camp_069_rain in a spell or a
+  rain rolled (srp_room_rain then the entries left, user.cfg saved); another
+  lobby is asked as it is; a return into another weather steps the black
+  whole with the spinner at once and asks the new Room alone at the next
+  frame, and a return into the same asks nothing; the environment's
+  SKHID_ROOM_WEATHER (GetEnvironmentVariableA, stubbed: unset, or the
+  case's) makes each entry that weather, no clock read, no roll, the spell
+  kept;
 - 0xA1 (read_squad_info at its id, 0x2747C3, and a squad's revision,
   0x2748BC): srp's two bytes after the squad (the receiver's pick and its
   commander's, lobby ids): picks 0 (the sign-in) send the saved pick (3B
@@ -92,11 +96,14 @@ READY, READY_REPLAYED = 0x220B20, 0x220B26
 PLAYERS_RANGE = 0x270070                      # lobby_client's 3B sender (EAX the client, start, count; ret 8)
 PICK_BASE = 2_095_000_000
 CREATE_FILE_SLOT = 0x870048                   # kernel32's CreateFileA import (engine_create_file_a)
-QPC_SLOT, LOCAL_TIME_SLOT = 0x870158, 0x870184  # kernel32's QueryPerformanceCounter and GetLocalTime imports
+QPC_SLOT = 0x870158                           # kernel32's QueryPerformanceCounter import
+# GetSystemTimeAsFileTime, FileTimeToLocalFileTime, FileTimeToSystemTime, GetEnvironmentVariableA
+NOW_SLOT, TO_LOCAL_SLOT, TO_SYSTEM_SLOT, ENVIRONMENT_SLOT = 0x870244, 0x870230, 0x87022C, 0x8701B4
 CC_STRING, CONSOLE_LOAD = 0xEC860, 0xEBF00
 STAND_IN, CFG = 0x30400000, 0x30410000       # a stand-in r_resolution; a user.cfg's bytes
 LOG_STUB = STAND_IN + 0x18000                 # the stand-in CreateFileA (fails)
-QPC_STUB, LOCAL_TIME_STUB = STAND_IN + 0x18100, STAND_IN + 0x18200   # their stand-ins (`ret 4`)
+QPC_STUB, NOW_STUB = STAND_IN + 0x18100, STAND_IN + 0x18200          # their stand-ins (`ret 4`)
+TO_LOCAL_STUB, TO_SYSTEM_STUB, ENVIRONMENT_STUB = STAND_IN + 0x18300, STAND_IN + 0x18400, STAND_IN + 0x18500
 CLIENT = 0x30100000
 MENU, RESULTS = 0x30050000, 0x30060000
 PROJECT = 0x30070000                  # a project's resource part (the project is at -38h)
@@ -153,9 +160,13 @@ class Run(language.Run):
         self.emu.hook_add(UC_HOOK_CODE, self.ray_stub, begin=RAY, end=RAY)
         # the entries' clock: noon, a counter whose first roll is dry
         self.hour, self.counter, self.local_times = 12, DRY_COUNTER, 0
-        for slot, stub, hook in ((QPC_SLOT, QPC_STUB, self.qpc), (LOCAL_TIME_SLOT, LOCAL_TIME_STUB, self.local_time)):
+        self.forced = None                # the environment's SKHID_ROOM_WEATHER (unset, as players have it)
+        for slot, stub, hook, pops in ((QPC_SLOT, QPC_STUB, self.qpc, 4), (NOW_SLOT, NOW_STUB, self.now, 4),
+                                       (TO_LOCAL_SLOT, TO_LOCAL_STUB, self.to_local, 8),
+                                       (TO_SYSTEM_SLOT, TO_SYSTEM_STUB, self.to_system, 8),
+                                       (ENVIRONMENT_SLOT, ENVIRONMENT_STUB, self.environment, 12)):
             self.word(slot, stub)
-            self.emu.mem_write(stub, b"\xc2\x04\x00")
+            self.emu.mem_write(stub, b"\xc2" + struct.pack("<H", pops))
             self.emu.hook_add(UC_HOOK_CODE, hook, begin=stub, end=stub)
 
     def qpc(self, emu, address, size, _):
@@ -164,11 +175,31 @@ class Run(language.Run):
         emu.mem_write(out, struct.pack("<Q", self.counter))
         emu.reg_write(UC_X86_REG_EAX, 1)
 
-    def local_time(self, emu, address, size, _):
-        """GetLocalTime(out), stdcall: a SYSTEMTIME of 2026-11-02 at the case's hour."""
+    def now(self, emu, address, size, _):
+        """GetSystemTimeAsFileTime(out), stdcall: a FILETIME (the clock read, counted)."""
         self.local_times += 1
-        out = self.read(emu.reg_read(UC_X86_REG_ESP) + 4)
+        emu.mem_write(self.read(emu.reg_read(UC_X86_REG_ESP) + 4), struct.pack("<Q", 134_000_000_000_000_000))
+
+    def to_local(self, emu, address, size, _):
+        """FileTimeToLocalFileTime(in, out), stdcall: the same FILETIME."""
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        emu.mem_write(self.read(esp + 8), bytes(emu.mem_read(self.read(esp + 4), 8)))
+        emu.reg_write(UC_X86_REG_EAX, 1)
+
+    def to_system(self, emu, address, size, _):
+        """FileTimeToSystemTime(in, out), stdcall: a SYSTEMTIME of 2026-11-02 at the case's hour."""
+        out = self.read(emu.reg_read(UC_X86_REG_ESP) + 8)
         emu.mem_write(out, struct.pack("<8H", 2026, 11, 1, 2, self.hour, 30, 0, 0))
+        emu.reg_write(UC_X86_REG_EAX, 1)
+
+    def environment(self, emu, address, size, _):
+        """GetEnvironmentVariableA(name, out, room), stdcall: SKHID_ROOM_WEATHER the case's, any other unset."""
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        name, out, room = (self.read(esp + 4 * k) for k in (1, 2, 3))
+        value = self.forced.encode() if self.forced and self.text(name) == b"SKHID_ROOM_WEATHER" else b""
+        if value and len(value) < room:
+            emu.mem_write(out, value + b"\0")
+        emu.reg_write(UC_X86_REG_EAX, len(value) + (1 if len(value) >= room else 0) if value else 0)
 
     def ray_stub(self, emu, address, size, _):
         """The camera's collision ray (patch 45's flight home casts it; `ret 4`): nothing in the way."""
@@ -448,18 +479,17 @@ def main():
     variable = language.console_variable(ours, node)
     expect(variable[0] == "srp_lobby" and variable[2] == 4 and variable[3] == 1 and names.count("srp_lobby") == 1
            and names[-1] == "localization"
-           and names[:4] == ["where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume"]
+           and names[names.index("where"):][:4] == ["where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume"]
            and names.index("s_music_volume") < names.index("srp_lobby") < names.index("localization"),
            f"configs.start: `srp_lobby`, a saved string of 4 bytes, in the console's list once, after patch 79's "
            f"`localization` and patch 83's, before patch 88's `s_music_volume`, patch 112's and patch 133's command "
+           f"(later patches' variables above them) "
            f"(newest first: {', '.join(names)})")
     _, _, again = ours.start()
     expect(again == head, "configs.start again: registered once")
     rain = language.console_variable(ours, language.named(ours, nodes, "srp_room_rain"))
-    expect(rain[0] == "srp_room_rain" and rain[2] == 4 and rain[3] == 1 and names.count("srp_room_rain") == 1
-           and "srp_room_weather" not in names,
-           "configs.start: `srp_room_rain`, a saved string of 4 bytes, once; the diagnostics' `srp_room_weather` "
-           "not in the default build")
+    expect(rain[0] == "srp_room_rain" and rain[2] == 4 and rain[3] == 1 and names.count("srp_room_rain") == 1,
+           "configs.start: `srp_room_rain`, a saved string of 4 bytes, once")
     buffer = variable[1]
     ours.emu.mem_write(language.TEXT, b"2\0")
     ours.call_at(language.EXECUTE, (language.TEXT,), {UC_X86_REG_ECX: node})
@@ -535,6 +565,11 @@ def weather(patched, stock_requests, expect):
         ("the Room at night (22:30)", "1", "", 22, DRY_COUNTER, "camp_069_night", "", 0),
         ("the Room at 05:30: still night", "", "0", 5, DRY_COUNTER, "camp_069_night", "0", 0),
         ("the Room at 06:30: day", "", "0", 6, DRY_COUNTER, "camp_069", "0", 0),
+        ("the Room at 17:30: still day", "1", "", 17, DRY_COUNTER, "camp_069", "", 0),
+        ("the Room at 18:30: evening", "1", "", 18, DRY_COUNTER, "camp_069_evening", "", 0),
+        ("the Room at 20:30: still evening", "1", "", 20, DRY_COUNTER, "camp_069_evening", "", 0),
+        ("the Room in the evening, a rain rolled: the evening, a spell of 3 more", "1", "", 19, WET_COUNTER,
+         "camp_069_evening", "3", 1),
         ("the Room, a rain rolled: a spell of 3 more", "1", "", 12, WET_COUNTER, "camp_069_rain", "3", 1),
         ("the Room in a saved spell (2 left), the roll unused", "1", "2", 12, DRY_COUNTER, "camp_069_rain", "1", 1),
         ("the Room's last spell entry", "1", "1", 12, WET_COUNTER, "camp_069_rain", "0", 1),
@@ -555,6 +590,21 @@ def weather(patched, stock_requests, expect):
                and r.rain() == after.encode() and r.saves == saves and r.local_times == 1 and again[3] == requests[3],
                f"start, {label}: asks lobby_scene/{asked}; srp_room_rain {after or '(none)'} after"
                f"{', user.cfg saved' if saves else ''}; the clock read once (the query asked again: the same)")
+
+    # SKHID_ROOM_WEATHER: each entry that weather, whatever the clock and the spell, both left alone
+    for forced, hour, asked, clock in (("night", 12, "camp_069_night", 0), ("evening", 23, "camp_069_evening", 0),
+                                       ("rain", 23, "camp_069_rain", 0), ("day", 23, "camp_069", 0),
+                                       ("fog", 23, "camp_069_night", 1)):
+        r = Run(patched)
+        node = r.lobby_variable()
+        r.emu.mem_write(r.read(node + 0x40), b"1\0")
+        r.rain("2")
+        r.hour, r.counter, r.saves, r.forced = hour, WET_COUNTER, 0, forced
+        requests, _, _ = r.query()
+        kept = (b"2", 0) if not clock else (b"1", 1)
+        expect(requests[3] == (f"lobby_scene/{asked}", 0x40) and r.local_times == clock and (r.rain(), r.saves) == kept,
+               f"start, SKHID_ROOM_WEATHER={forced} at {hour}:30 in a spell: asks lobby_scene/{asked}"
+               + ("; no clock read, the spell kept" if not clock else " (no weather's name: the entry's own)"))
 
     # a return from a match: another weather, the black at once and the new Room asked alone
     r = Run(patched)

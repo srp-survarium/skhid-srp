@@ -21,13 +21,16 @@
 //! lobby picked, 1 to 4), `led <id>` (a squad joined, its commander's pick
 //! that lobby) or `alone` (the squad left) changes patch 81's lobby when the
 //! next pose starts, for captures of its change (lobby-scenes.md); a line
-//! `window` opens (or closes) the lobby window then.
+//! `window` opens (or closes) the lobby window then. A line `return <day,
+//! rain, evening or night>` plays a return from a match into that Room's
+//! weather when the next pose starts (patch 81's own events, the lobby
+//! hidden and shown again, without a match: room-weather.md).
 
 #![forbid(unsafe_code)]
 
 use ragdoll::math::Vec3;
 
-use crate::lobby_scene::{self, Lobby, Squad};
+use crate::lobby_scene::{self, Lobby, Squad, Weather};
 use crate::vostok::lobby_menu::DrawnLobby;
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, Steps, WeaponTableState};
 use crate::vostok::trace::{self, TraceFile};
@@ -57,6 +60,8 @@ pub enum Change {
     Squad(Squad),
     /// The lobby window opened or closed.
     Window,
+    /// A return from a match into the Room's weather.
+    Return(Weather),
 }
 
 /// One pose of the script.
@@ -208,6 +213,8 @@ fn change_of(line: &[u8]) -> Option<Change> {
         id(rest).map(Change::Own)
     } else if let Some(rest) = line.strip_prefix(b"led ") {
         id(rest).map(|lobby| Change::Squad(Squad::Led(lobby)))
+    } else if let Some(rest) = line.strip_prefix(b"return ") {
+        Weather::of_name(rest.trim_ascii()).map(Change::Return)
     } else {
         None
     }
@@ -286,6 +293,11 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 Change::Window => {
                     if let Some(lobby) = DrawnLobby::of(&camera) {
                         lobby.toggle_window();
+                    }
+                }
+                Change::Return(weather) => {
+                    if let Some(lobby) = DrawnLobby::of(&camera) {
+                        lobby_scene::force_return(thread, &lobby, weather);
                     }
                 }
             }
@@ -377,6 +389,9 @@ mod tests {
         assert_eq!(changes.poses[1].change, Change::Own(Lobby::Stk2Bunker));
         assert_eq!(changes.poses[2].change, Change::Squad(Squad::Led(Lobby::Hangar046)));
         assert_eq!(changes.poses[3].change, Change::Squad(Squad::None), "a line that is no change passed over");
+        let returns = parse(b"40 0 0 1.96\nreturn evening\n12 0 0 1.96\nreturn fog\n8 0 0 1.96\n").unwrap();
+        assert_eq!(returns.poses[1].change, Change::Return(Weather::Evening));
+        assert_eq!(returns.poses[2].change, Change::Nothing, "an unknown weather passed over");
         let flight = parse(b"squad\n0.5 -90 -14.3 1.2 4.25 1.3 3.05 21\n").unwrap();
         assert!(flight.squad && !flight.empty && flight.count == 1);
         let empty = parse(b"empty\n45 0 0 1.96\npick 2\n25 0 0 1.96\n").unwrap();

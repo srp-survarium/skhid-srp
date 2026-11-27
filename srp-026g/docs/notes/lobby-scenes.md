@@ -16,7 +16,7 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
 
   | id | card (dictionary key)              | project                                  |
   |----|------------------------------------|------------------------------------------|
-  | 1  | the Room (`st_srp_lobby_room`)     | `lobby_scene/camp_069`, the 0.69d camp; the default; secretly also `camp_069_rain` and `camp_069_night`, its weather (room-weather.md) |
+  | 1  | the Room (`st_srp_lobby_room`)     | `lobby_scene/camp_069`, the 0.69d camp; the default; secretly also `camp_069_rain`, `camp_069_evening` and `camp_069_night`, its weather (room-weather.md) |
   | 2  | the Basement (`st_srp_lobby_basement`) | `lobby_scene/day`, the classic (stock) |
   | 3  | the Bunker (`st_srp_lobby_bunker`) | `lobby_scene/stk2_bunker`, S.T.A.L.K.E.R. 2 |
   | 4  | the Hangar (`st_srp_lobby_hangar`) | `lobby_scene/hangar_046`, the 0.46c2 hangar |

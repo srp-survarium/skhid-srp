@@ -36,16 +36,18 @@
 //! closed and the camera home: a fade begun steps back out, a project that
 //! comes behind the black is let go, and the change starts again then.
 //!
-//! The Room is secretly three rooms (docs/notes/room-weather.md): its day,
-//! its rain and its night, a project each ([`Scenery`]). Each entry to the
-//! lobby (the game's start, each return from a match) decides the Room's
-//! [`Weather`] once, for this client alone: the night by the player's local
-//! time ([`NIGHT`]), else the rain of a [`Spell`] (a roll of
-//! [`RAIN_PERCENT`] starts one, rainy for [`SPELL_ENTRIES`] more entries,
-//! kept in user.cfg as `srp_room_rain`), else the day. Only the machine's
-//! entries decide it ([`Scene::step`]'s `enter`): a pick, a squad, a
-//! night begun in the lobby change nothing of it. The lobby window, srp and
-//! `0xA1` know the Room alone.
+//! The Room is secretly four rooms (docs/notes/room-weather.md): its day,
+//! its rain, its evening and its night, a project each ([`Scenery`]). Each
+//! entry to the lobby (the game's start, each return from a match) decides
+//! the Room's [`Weather`] once, for this client alone: the evening and the
+//! night by the player's local time ([`Hours`]), by day the rain of a
+//! [`Spell`] (a roll of [`RAIN_PERCENT`] starts one, rainy for
+//! [`SPELL_ENTRIES`] more entries, kept in user.cfg as `srp_room_rain`),
+//! else the day. Only the machine's entries decide it ([`Scene::step`]'s
+//! `enter`): a pick, a squad, a night begun in the lobby change nothing of
+//! it. The lobby window, srp and `0xA1` know the Room alone. The
+//! environment's `SKHID_ROOM_WEATHER` (`day`, `rain`, `evening` or `night`)
+//! makes every entry that weather, for looking at one.
 
 #![forbid(unsafe_code)]
 
@@ -53,6 +55,7 @@ use core::ffi::CStr;
 use core::num::NonZeroU8;
 
 use crate::vostok::clock::{self, DayMinute};
+use crate::vostok::memory_profile::environment;
 use crate::vostok::language::ConsoleString;
 use crate::vostok::settings::save_user_config;
 use crate::vostok::lobby_menu::{DrawnLobby, HiddenLobby, Picks, SceneQuery, ScenesReady, Shade, SquadId, SquadRead};
@@ -134,15 +137,36 @@ impl Lobby {
     }
 }
 
-/// The Room's weather in an entry to the lobby: one of its three projects.
+/// The Room's weather in an entry to the lobby: one of its four projects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Weather {
     /// `lobby_scene/camp_069`, the camp as the 0.69d has it.
     Day,
     /// `lobby_scene/camp_069_rain`.
     Rain,
+    /// `lobby_scene/camp_069_evening`.
+    Evening,
     /// `lobby_scene/camp_069_night`.
     Night,
+}
+
+impl Weather {
+    pub const ALL: [Weather; 4] = [Weather::Day, Weather::Rain, Weather::Evening, Weather::Night];
+
+    /// Its name: the log's, the sweep's `return` and `SKHID_ROOM_WEATHER`'s.
+    pub fn name(self) -> &'static str {
+        match self {
+            Weather::Day => "day",
+            Weather::Rain => "rain",
+            Weather::Evening => "evening",
+            Weather::Night => "night",
+        }
+    }
+
+    /// The weather a name gives (none for any other text).
+    pub fn of_name(name: &[u8]) -> Option<Weather> {
+        Weather::ALL.into_iter().find(|weather| weather.name().as_bytes() == name)
+    }
 }
 
 /// What the lobby shows: a lobby's project, the Room's in its weather.
@@ -156,9 +180,10 @@ pub enum Scenery {
 
 impl Scenery {
     /// Every project a lobby shows.
-    pub const ALL: [Scenery; 6] = [
+    pub const ALL: [Scenery; 7] = [
         Scenery::Camp069(Weather::Day),
         Scenery::Camp069(Weather::Rain),
+        Scenery::Camp069(Weather::Evening),
         Scenery::Camp069(Weather::Night),
         Scenery::Classic,
         Scenery::Stk2Bunker,
@@ -183,6 +208,7 @@ impl Scenery {
             Scenery::Hangar046 => c"lobby_scene/hangar_046",
             Scenery::Camp069(Weather::Day) => c"lobby_scene/camp_069",
             Scenery::Camp069(Weather::Rain) => c"lobby_scene/camp_069_rain",
+            Scenery::Camp069(Weather::Evening) => c"lobby_scene/camp_069_evening",
             Scenery::Camp069(Weather::Night) => c"lobby_scene/camp_069_night",
         }
     }
@@ -197,6 +223,7 @@ impl Scenery {
             Scenery::Hangar046 => c"resources/projects/lobby_scene/hangar_046/client_project",
             Scenery::Camp069(Weather::Day) => c"resources/projects/lobby_scene/camp_069/client_project",
             Scenery::Camp069(Weather::Rain) => c"resources/projects/lobby_scene/camp_069_rain/client_project",
+            Scenery::Camp069(Weather::Evening) => c"resources/projects/lobby_scene/camp_069_evening/client_project",
             Scenery::Camp069(Weather::Night) => c"resources/projects/lobby_scene/camp_069_night/client_project",
         }
     }
@@ -206,6 +233,7 @@ impl Scenery {
         match self {
             Scenery::Camp069(Weather::Day) => "camp_069",
             Scenery::Camp069(Weather::Rain) => "camp_069_rain",
+            Scenery::Camp069(Weather::Evening) => "camp_069_evening",
             Scenery::Camp069(Weather::Night) => "camp_069_night",
             Scenery::Classic => "day",
             Scenery::Stk2Bunker => "stk2_bunker",
@@ -214,24 +242,31 @@ impl Scenery {
     }
 }
 
-/// The night in the player's local time: from `from` up to (not at)
-/// `until`, across midnight when `from` is the later.
+/// The part of the player's local day an entry falls in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Night {
-    pub from: DayMinute,
-    pub until: DayMinute,
+pub enum Hours {
+    Day,
+    Evening,
+    Night,
 }
 
-/// The Room's night: 21:00 to 06:00 local (the one place to move it).
-pub const NIGHT: Night = Night { from: DayMinute::at(21, 0), until: DayMinute::at(6, 0) };
+/// The Room's day starts (the night ends): 06:00 local.
+pub const DAY_FROM: DayMinute = DayMinute::at(6, 0);
+/// Its evening starts: 18:00.
+pub const EVENING_FROM: DayMinute = DayMinute::at(18, 0);
+/// Its night starts: 21:00, to the day's start across midnight.
+pub const NIGHT_FROM: DayMinute = DayMinute::at(21, 0);
 
-impl Night {
-    /// Whether `time` is in it.
-    pub fn holds(self, time: DayMinute) -> bool {
-        if self.from <= self.until {
-            self.from <= time && time < self.until
+impl Hours {
+    /// The part `time` is in (the three starts above the one place to move
+    /// them, in this order within a day).
+    pub fn of(time: DayMinute) -> Hours {
+        if time < DAY_FROM || time >= NIGHT_FROM {
+            Hours::Night
+        } else if time >= EVENING_FROM {
+            Hours::Evening
         } else {
-            self.from <= time || time < self.until
+            Hours::Day
         }
     }
 }
@@ -289,7 +324,8 @@ impl Dice {
     }
 }
 
-/// Whether an entry rains (the night's shows the night all the same).
+/// Whether an entry rains (the evening's and the night's show their own
+/// room all the same).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sky {
     Dry,
@@ -340,14 +376,16 @@ impl Spell {
     }
 }
 
-/// An entry's weather: the night in [`NIGHT`] (a spell's entry all the
-/// same: the spell counts it), else its sky; and the spell after it.
+/// An entry's weather: the clock first, its evening and its night (a
+/// spell's entry all the same: the spell counts it), by day the sky's; and
+/// the spell after it.
 pub fn enter(spell: Spell, time: DayMinute, roll: Roll) -> (Weather, Spell) {
     let (sky, spell) = spell.enter(roll);
-    let weather = match sky {
-        _ if NIGHT.holds(time) => Weather::Night,
-        Sky::Rain => Weather::Rain,
-        Sky::Dry => Weather::Day,
+    let weather = match (Hours::of(time), sky) {
+        (Hours::Night, _) => Weather::Night,
+        (Hours::Evening, _) => Weather::Evening,
+        (Hours::Day, Sky::Rain) => Weather::Rain,
+        (Hours::Day, Sky::Dry) => Weather::Day,
     };
     (weather, spell)
 }
@@ -663,38 +701,53 @@ static RAIN: ConsoleString<4> = ConsoleString::new();
 /// The dice, seeded at the first entry's roll.
 static DICE: GameCell<Option<Dice>> = GameCell::new(None);
 
-/// A diagnostics build's Room weather for every entry (`srp_room_weather
-/// day`, `rain` or `night` in user.cfg; registered in a diagnostics build
-/// alone, so a release's game never knows the line).
-static FORCED: ConsoleString<8> = ConsoleString::new();
+/// The weather every entry is given instead of its own, for looking at
+/// one: the environment's `SKHID_ROOM_WEATHER` (`day`, `rain`, `evening` or
+/// `night`; unset, as players have it, none), read at the first entry; a
+/// diagnostics build's sweep sets it too ([`force_return`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Forced {
+    Unread,
+    No,
+    To(Weather),
+}
+
+static FORCED: GameCell<Forced> = GameCell::new(Forced::Unread);
+
+/// The environment's variable, a C string.
+const FORCED_VARIABLE: &[u8] = b"SKHID_ROOM_WEATHER\0";
 
 pub fn on_configs_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     SAVED.register(thread, c"srp_lobby");
     RAIN.register(thread, c"srp_room_rain");
-    if trace::enabled() {
-        FORCED.register(thread, c"srp_room_weather");
-    }
     Flow::Continue
 }
 
-/// A diagnostics build's forced weather (none in a release's, or with no
-/// value or another).
+/// The weather forced, if one is.
 fn forced(thread: &Thread) -> Option<Weather> {
-    if !trace::enabled() {
-        return None;
-    }
-    match FORCED.get(thread) {
-        b"day" => Some(Weather::Day),
-        b"rain" => Some(Weather::Rain),
-        b"night" => Some(Weather::Night),
-        _ => None,
+    let read = match FORCED.get(thread) {
+        Forced::Unread => {
+            let mut value = [0u8; 8];
+            let read = environment(thread, FORCED_VARIABLE, &mut value).and_then(Weather::of_name).map_or(Forced::No, Forced::To);
+            FORCED.set(thread, read);
+            if let Forced::To(weather) = read {
+                log::line(&[Text("lobby_scene: every entry's weather is "), Text(weather.name()), Text(" (SKHID_ROOM_WEATHER)")]);
+            }
+            read
+        }
+        known => known,
+    };
+    match read {
+        Forced::To(weather) => Some(weather),
+        Forced::Unread | Forced::No => None,
     }
 }
 
 /// An entry to the lobby ([`Scene::step`]'s `enter`): its weather, from
 /// the local time, the saved spell and a roll; the spell after it kept
-/// (user.cfg written at once when it changed).
+/// (user.cfg written at once when it changed). A forced weather rolls
+/// nothing and keeps the spell as it is.
 fn entry(thread: &Thread) -> Weather {
     let weather = match forced(thread) {
         Some(weather) => weather,
@@ -711,12 +764,12 @@ fn entry(thread: &Thread) -> Weather {
             weather
         }
     };
-    let name: &[u8] = match weather {
+    diagnose(thread, match weather {
         Weather::Day => b"entry: day",
         Weather::Rain => b"entry: rain",
+        Weather::Evening => b"entry: evening",
         Weather::Night => b"entry: night",
-    };
-    diagnose(thread, name);
+    });
     weather
 }
 
@@ -782,6 +835,23 @@ pub fn force(thread: &Thread, own: Option<Lobby>, squad: Option<Squad>) {
     }
     if let Some(squad) = squad {
         SQUAD.set(thread, squad);
+    }
+}
+
+/// A diagnostics build's return from a match (camera_sweep.rs `return
+/// <weather>`): the machine's own events of a return, the lobby hidden and
+/// shown again, the return's weather forced (and every later entry's): the
+/// switch a return plays, without a match (the lobby menu itself neither
+/// deactivated nor activated).
+pub fn force_return(thread: &Thread, lobby: &DrawnLobby<'_>, weather: Weather) {
+    FORCED.set(thread, Forced::To(weather));
+    if step(thread, Event::Hidden) == Action::Clear {
+        lobby.shade(Shade::Gone);
+    }
+    if let Action::Shade { per_mille, loading } =
+        step(thread, Event::Shown { picked: picked(thread), camera: table_camera(thread) })
+    {
+        lobby.shade(Shade::At { per_mille, loading });
     }
 }
 
@@ -1035,9 +1105,10 @@ mod tests {
             assert_eq!(scenery.config().to_str().unwrap(), format!("resources/projects/lobby_scene/{id}/client_project"));
             assert_eq!(Scenery::ALL.iter().filter(|other| other.name() == scenery.name()).count(), 1);
         }
-        let room = [Weather::Day, Weather::Rain, Weather::Night].map(|weather| Lobby::Camp069.scenery(weather).name());
-        assert_eq!(room, ["camp_069", "camp_069_rain", "camp_069_night"]);
-        for weather in [Weather::Day, Weather::Rain, Weather::Night] {
+        let room = Weather::ALL.map(|weather| Lobby::Camp069.scenery(weather).name());
+        assert_eq!(room, ["camp_069", "camp_069_rain", "camp_069_evening", "camp_069_night"]);
+        for weather in Weather::ALL {
+            assert_eq!(Weather::of_name(weather.name().as_bytes()), Some(weather));
             for lobby in Lobby::ALL {
                 assert_eq!(lobby.scenery(weather).lobby(), lobby, "the window's card: the Room whatever its weather");
             }
@@ -1046,22 +1117,29 @@ mod tests {
     }
 
     #[test]
-    fn the_night_is_21_to_6_local() {
-        for (hour, minute, night) in
-            [(21, 0, true), (23, 59, true), (0, 0, true), (5, 59, true), (6, 0, false), (12, 0, false), (20, 59, false)]
-        {
-            assert_eq!(NIGHT.holds(DayMinute::at(hour, minute)), night, "{hour}:{minute:02}");
+    fn the_evening_is_18_to_21_and_the_night_21_to_6_local() {
+        for (hour, minute, hours) in [
+            (0, 0, Hours::Night),
+            (5, 59, Hours::Night),
+            (6, 0, Hours::Day),
+            (12, 0, Hours::Day),
+            (17, 59, Hours::Day),
+            (18, 0, Hours::Evening),
+            (20, 59, Hours::Evening),
+            (21, 0, Hours::Night),
+            (23, 59, Hours::Night),
+        ] {
+            assert_eq!(Hours::of(DayMinute::at(hour, minute)), hours, "{hour}:{minute:02}");
         }
-        // a window within a day
-        let evening = Night { from: DayMinute::at(18, 0), until: DayMinute::at(20, 0) };
-        assert!(evening.holds(DayMinute::at(19, 0)) && !evening.holds(DayMinute::at(20, 0)) && !evening.holds(DayMinute::at(3, 0)));
         assert_eq!(DayMinute::at(99, 99), DayMinute::at(23, 59), "the clock's fields cut to their last");
+        assert_eq!(Weather::of_name(b"fog"), None);
     }
 
     const DRY: Roll = Roll(50);
     const WET: Roll = Roll(0);
     const NOON: DayMinute = DayMinute::at(12, 0);
     const MIDNIGHT: DayMinute = DayMinute::at(0, 30);
+    const DUSK: DayMinute = DayMinute::at(19, 30);
 
     fn left(n: u8) -> Spell {
         Spell::Raining { left: NonZeroU8::new(n).unwrap() }
@@ -1082,6 +1160,10 @@ mod tests {
         assert_eq!(enter(left(2), MIDNIGHT, DRY), (Weather::Night, left(1)));
         assert_eq!(enter(Spell::Clear, MIDNIGHT, WET), (Weather::Night, left(3)));
         assert_eq!(enter(Spell::Clear, MIDNIGHT, DRY), (Weather::Night, Spell::Clear));
+        // and the evening the evening: it rains by day alone
+        assert_eq!(enter(left(2), DUSK, DRY), (Weather::Evening, left(1)));
+        assert_eq!(enter(Spell::Clear, DUSK, WET), (Weather::Evening, left(3)));
+        assert_eq!(enter(Spell::Clear, DUSK, DRY), (Weather::Evening, Spell::Clear));
     }
 
     #[test]
@@ -1601,7 +1683,7 @@ mod tests {
         for loads in LOADS {
             for code in 0..KINDS.pow(steps) {
                 let mut game = Game::new(Lobby::Classic, loads);
-                game.weathers = std::vec![Weather::Rain, Weather::Day, Weather::Night];
+                game.weathers = std::vec![Weather::Rain, Weather::Day, Weather::Evening, Weather::Night];
                 let mut wanted = std::vec![Lobby::Classic];
                 let mut c = code;
                 for _ in 0..steps {
