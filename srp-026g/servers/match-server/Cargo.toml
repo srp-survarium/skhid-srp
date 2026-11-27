@@ -17,6 +17,8 @@ mapdata = { path = "../../crates/mapdata" }
 # SHA-256 of a replay file (`v026g::replay`): its sidecar, the updater's check.
 openssl = { workspace = true }
 serde_json = { workspace = true }
+# `srp-history-backfill`: a copy of srp.db and the bundle it writes.
+rusqlite = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }
@@ -26,6 +28,8 @@ vostok = { workspace = true }
 # check the game itself runs (exe patch 87), one crate for both.
 world-frame = { workspace = true }
 srp-validate = { workspace = true }
+# The files a match checks (`resource_checks`), as the game data names them.
+resources-db = { workspace = true }
 # Artifact Hunt's rule: its end in a trusted world (`game.rs::observe`).
 artefact-hunt-rule = { workspace = true }
 # Client patch 85's pickup command, checked as the clients check it.

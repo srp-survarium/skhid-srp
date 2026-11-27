@@ -327,6 +327,10 @@ fn code(kernel32: &Kernel32, bases: &Bases, mut each: impl FnMut(Found)) {
 /// any more.
 static WINDOW: AtomicUsize = AtomicUsize::new(0);
 
+pub(super) fn presented_window() -> Option<NonNull<c_void>> {
+    NonNull::new(WINDOW.load(Ordering::Relaxed) as *mut c_void)
+}
+
 /// render_output.present: the window the game is about to present to.
 pub fn presenting(ctx: &Context<'_>) {
     // SAFETY: the context is this site's: ESI the render output, alive in its own present.
@@ -505,7 +509,7 @@ fn windows_over(kernel32: &Kernel32, mut saw: impl FnMut(&Path, Place)) -> Resul
     const ROOT: u32 = 2;
     const GWL_EXSTYLE: u32 = -20i32 as u32;
     const CLASS: usize = 64;
-    let presented = NonNull::new(WINDOW.load(Ordering::Relaxed) as *mut c_void).ok_or(Unseen::NoWindow)?;
+    let presented = presented_window().ok_or(Unseen::NoWindow)?;
     // SAFETY: GetModuleHandleA and GetProcAddress (the exe's imports), NUL-terminated names; the
     // exe imports user32, so it is loaded and never unloaded.
     let function = |name: &CStr| unsafe {

@@ -50,6 +50,48 @@ pub fn particle_stop(ctx: &Context<'_>) -> Search {
     index(ctx.reg(Reg::Eax))
 }
 
+/// A saved particle entry at `effect_presenter.particle_read_entry`, its
+/// link just resolved in its player's effects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadEntry {
+    /// It names an effect its player plays: the game reads it back.
+    Plays,
+    /// It names none (`resource` 0: an entry a stop emptied, as a stop
+    /// empties every entry of its effect and erases only the last; else an
+    /// effect its player no longer plays): its two floats are passed over,
+    /// and the game goes on with the next entry.
+    Dropped { resource: u32 },
+    /// It names none and the reader holds less than its two floats: the
+    /// game's read goes on to the original's fault at 0x2AC94D.
+    Short,
+}
+
+/// `effect_presenter.particle_read_entry`: the entry at ESP+28h, EBX the
+/// reader at its two floats. An entry of no effect is passed over in the
+/// reader ([`ReadEntry::Dropped`]); the native code would read its effect's
+/// +30h at 0 (0x2AC94D).
+pub fn drop_entry_of_no_effect(ctx: &Context<'_>) -> ReadEntry {
+    use raw::site::effect_presenter_particle_read_entry as site;
+    // SAFETY: at the site ESP is deserialize's frame, its entry resolved the
+    // call before; its weak cell, when it has one, is the entry's own
+    // reference (alive while the entry holds it).
+    let (plays, resource) = unsafe {
+        let Some(frame) = site::frame(ctx) else { return ReadEntry::Plays };
+        let link = frame.entry().effect();
+        let plays = link.cell().is_some_and(|cell| super::world::read(cell.target()) != 0);
+        (plays, link.resource().map_or(0, |resource| resource.address()))
+    };
+    if plays {
+        return ReadEntry::Plays;
+    }
+    // SAFETY: EBX is the reader deserialize reads the entry from.
+    let Some(reader) = (unsafe { site::reader(ctx) }) else { return ReadEntry::Short };
+    match super::carry_runtime::read_bytes::<8>(reader) {
+        Some(_) => ReadEntry::Dropped { resource },
+        None => ReadEntry::Short,
+    }
+}
+
 /// A play's presenter at `effect_presenter.particle_start`, before the
 /// entry is made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

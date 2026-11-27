@@ -274,6 +274,90 @@ pub(super) const EXPERIENCE_MIGRATION: &str = "
     ALTER TABLE g26_clan_totals ADD COLUMN experience_played_ms INTEGER NOT NULL DEFAULT 0;
     ";
 
+/// The schema step that lets the history hold matches of before it, made
+/// again from their recordings (`srp-history-backfill`,
+/// `docs/notes/match_history.md`, "Matches of before the history"):
+/// - a match says where it comes from ([`Source`]): `live`, as srp wrote it
+///   at its end, or `recording`, written later from its recording;
+/// - a line's rating may be unknown (NULL): a recording does not say it;
+/// - the matches are in the order they ended, not by their number, so a
+///   line keeps its match's end (`ended_at`) for the lists of a player and a
+///   clan, and the public matches are listed by their end (`id` breaks a
+///   tie). The numbers of the matches stay as they were.
+///
+/// A line's table is made anew (SQLite cannot drop a NOT NULL), the same
+/// columns with the match's end added.
+pub(super) const BACKFILL_MIGRATION: &str = "
+    CREATE TABLE g26_match_players_new (
+        match_id      INTEGER NOT NULL REFERENCES g26_matches(id) ON DELETE CASCADE,
+        account_id    INTEGER NOT NULL,
+        clan_id       INTEGER,
+        team          INTEGER NOT NULL,
+        place         INTEGER NOT NULL,
+        seat          INTEGER NOT NULL,
+        presence      TEXT NOT NULL CHECK (presence IN ('finished', 'left')),
+        outcome       TEXT NOT NULL CHECK (outcome IN ('won', 'lost', 'neither')),
+        -- The visible rating after the match; NULL: not known.
+        rating        INTEGER,
+        score         INTEGER NOT NULL,
+        kills         INTEGER NOT NULL,
+        deaths        INTEGER NOT NULL,
+        assists       INTEGER NOT NULL,
+        headshots     INTEGER NOT NULL,
+        grenade_kills INTEGER NOT NULL,
+        melee_kills   INTEGER NOT NULL,
+        batteries     INTEGER NOT NULL,
+        captures      INTEGER NOT NULL,
+        artefacts     INTEGER NOT NULL,
+        shots         INTEGER NOT NULL,
+        hits          INTEGER NOT NULL,
+        played_ms     INTEGER NOT NULL,
+        experience    INTEGER,
+        -- Its match's end (Unix seconds): the order of a player's matches.
+        ended_at      INTEGER NOT NULL,
+        PRIMARY KEY (match_id, account_id)
+    ) WITHOUT ROWID;
+    INSERT INTO g26_match_players_new (match_id, account_id, clan_id, team, place, seat, presence,
+        outcome, rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
+        batteries, captures, artefacts, shots, hits, played_ms, experience, ended_at)
+    SELECT p.match_id, p.account_id, p.clan_id, p.team, p.place, p.seat, p.presence, p.outcome,
+        p.rating, p.score, p.kills, p.deaths, p.assists, p.headshots, p.grenade_kills,
+        p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots, p.hits, p.played_ms,
+        p.experience, m.ended_at
+    FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id;
+    DROP TABLE g26_match_players;
+    ALTER TABLE g26_match_players_new RENAME TO g26_match_players;
+    CREATE INDEX g26_match_players_by_account
+        ON g26_match_players (account_id, ended_at, match_id);
+    CREATE INDEX g26_match_players_by_clan ON g26_match_players (clan_id, ended_at, match_id)
+        WHERE clan_id IS NOT NULL;
+    ALTER TABLE g26_matches ADD COLUMN source TEXT NOT NULL DEFAULT 'live'
+        CHECK (source IN ('live', 'recording'));
+    DROP INDEX g26_matches_public;
+    CREATE INDEX g26_matches_public ON g26_matches (ended_at, id) WHERE kind = 'public';
+    -- Where the public matches come from, and since when (`MatchHistory::all_time`).
+    CREATE INDEX g26_matches_by_source ON g26_matches (source, ended_at) WHERE kind = 'public';
+    ";
+
+/// Where a match of the history comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    /// Written by srp when the match ended.
+    Live,
+    /// Made again from its recording after the fact (`srp-history-backfill`):
+    /// a match of before the history.
+    Recording,
+}
+
+impl Source {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Live => "live",
+            Self::Recording => "recording",
+        }
+    }
+}
+
 /// Who could join a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchKind {
@@ -707,8 +791,9 @@ pub struct PlayerLine {
     pub seat: u8,
     pub presence: Presence,
     pub outcome: Outcome,
-    /// The visible rating after the match.
-    pub rating: u16,
+    /// The visible rating after the match; `None`: not known (a match
+    /// made again from its recording, [`Source::Recording`]).
+    pub rating: Option<u16>,
     pub score: u64,
     pub kills: u64,
     pub deaths: u64,
@@ -718,6 +803,16 @@ pub struct PlayerLine {
     /// The experience the match paid it for its play, the daily bonus
     /// left out (`rewards::Reward::played_experience`); `None` in a line
     /// written before the history kept it.
+    pub experience: Option<u32>,
+}
+
+/// What a match's settlement said of one of its players, for its line:
+/// `None` where it is not known (a match made again from its recording).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Paid {
+    /// The visible rating after the match.
+    pub rating: Option<u16>,
+    /// The experience the match paid for its play.
     pub experience: Option<u32>,
 }
 
@@ -757,6 +852,7 @@ pub struct MatchRecord {
     pub kind: MatchKind,
     pub info: MatchInfo,
     pub players: Vec<PlayerRecord>,
+    pub source: Source,
 }
 
 /// Public matches added up.
@@ -961,6 +1057,13 @@ pub struct AllTime {
     pub players: u64,
     pub matches: u64,
     pub totals: Totals,
+    /// The first public match srp wrote at its end (Unix seconds): when
+    /// the history began. `None` before one.
+    pub live_since: Option<u64>,
+    /// The public matches of before it made again from their recordings
+    /// ([`Source::Recording`]), and the first one's end.
+    pub recorded: u64,
+    pub recorded_since: Option<u64>,
 }
 
 /// The stretch of time the site's maps and modes views add up
@@ -1093,8 +1196,9 @@ pub(super) fn record(
     let info = &record.info;
     transaction.execute(
         "INSERT INTO g26_matches (game_match_id, replay_id, ended_at, duration_ms, map_id,
-             game_mode, match_level, kind, eligibility, winner, team0_points, team1_points)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             game_mode, match_level, kind, eligibility, winner, team0_points, team1_points,
+             source)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             record.replay_id.match_id(),
             record.replay_id.as_str(),
@@ -1108,9 +1212,11 @@ pub(super) fn record(
             info.winner.as_str(),
             info.team_points[0],
             info.team_points[1],
+            record.source.as_str(),
         ],
     )?;
     let match_id = transaction.last_insert_rowid();
+    let ended_at = info.ended_at.min(i64::MAX as u64) as i64;
     // A public match that does not count still names its players (a row of
     // zeros): the site names whoever has a public match.
     let counted = record.kind.eligibility();
@@ -1122,9 +1228,10 @@ pub(super) fn record(
         transaction.execute(
             "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
                  rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
-                 batteries, captures, artefacts, shots, hits, seat, outcome, played_ms, experience)
+                 batteries, captures, artefacts, shots, hits, seat, outcome, played_ms, experience,
+                 ended_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                 ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
+                 ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             params![
                 match_id,
                 player.account_id,
@@ -1149,6 +1256,7 @@ pub(super) fn record(
                 line.outcome.as_str(),
                 line.played_ms,
                 line.experience,
+                ended_at,
             ],
         )?;
         record_kits(&transaction, match_id, player)?;
@@ -1803,17 +1911,20 @@ impl MatchHistory {
         limit: usize,
     ) -> Result<Vec<PlayerMatch>, PersistError> {
         let connection = self.reader();
+        let Some((end, id)) = cursor(&connection, before)? else {
+            return Ok(Vec::new());
+        };
         let mut statement = connection.prepare_cached(&format!(
             "SELECT {SUMMARY}, {LINE}
              FROM (SELECT * FROM g26_match_players
-                   WHERE account_id = ?1 AND match_id < ?2
-                   ORDER BY match_id DESC LIMIT 500) p
+                   WHERE account_id = ?1 AND (ended_at, match_id) < (?2, ?3)
+                   ORDER BY ended_at DESC, match_id DESC LIMIT 500) p
              JOIN g26_matches m ON m.id = p.match_id
              WHERE m.kind = 'public'
-             ORDER BY p.match_id DESC LIMIT ?3"
+             ORDER BY p.ended_at DESC, p.match_id DESC LIMIT ?4"
         ))?;
         let rows = statement
-            .query_map(params![account_id, upper(before), bounded(limit)], |row| {
+            .query_map(params![account_id, end, id, bounded(limit)], |row| {
                 Ok((summary_at(row, 0)?, line_at(row, SUMMARY_COLUMNS)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -1900,9 +2011,7 @@ impl MatchHistory {
         let mut statement = connection.prepare_cached(&format!(
             "SELECT date(m.ended_at, 'unixepoch') AS day, {LINE_SUMS}
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
-             WHERE p.account_id = ?1 AND m.eligibility = 'counted' AND m.ended_at >= ?2
-               AND p.match_id >= IFNULL((SELECT MIN(id) FROM g26_matches WHERE ended_at >= ?2),
-                   9223372036854775807)
+             WHERE p.account_id = ?1 AND p.ended_at >= ?2 AND m.eligibility = 'counted'
              GROUP BY day ORDER BY day"
         ))?;
         let rows = statement.query_map(
@@ -1921,26 +2030,31 @@ impl MatchHistory {
         clan: Option<u32>,
     ) -> Result<Vec<MatchSummary>, PersistError> {
         let connection = self.reader();
+        let Some((end, id)) = cursor(&connection, before)? else {
+            return Ok(Vec::new());
+        };
         let rows: Vec<MatchSummary> = match clan {
             None => {
                 let mut statement = connection.prepare_cached(&format!(
                     "SELECT {SUMMARY} FROM g26_matches m
-                     WHERE m.kind = 'public' AND m.id < ?1 ORDER BY m.id DESC LIMIT ?2"
+                     WHERE m.kind = 'public' AND (m.ended_at, m.id) < (?1, ?2)
+                     ORDER BY m.ended_at DESC, m.id DESC LIMIT ?3"
                 ))?;
-                let rows = statement.query_map(params![upper(before), bounded(limit)], |row| {
-                    summary_at(row, 0)
-                })?;
+                let rows = statement
+                    .query_map(params![end, id, bounded(limit)], |row| summary_at(row, 0))?;
                 rows.collect::<Result<_, _>>()?
             }
             Some(clan_id) => {
                 let mut statement = connection.prepare_cached(&format!(
                     "SELECT {SUMMARY}
                      FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
-                     WHERE p.clan_id = ?1 AND p.match_id < ?2 AND m.kind = 'public'
-                     GROUP BY p.match_id ORDER BY p.match_id DESC LIMIT ?3"
+                     WHERE p.clan_id = ?1 AND (p.ended_at, p.match_id) < (?2, ?3)
+                       AND m.kind = 'public'
+                     GROUP BY p.ended_at, p.match_id
+                     ORDER BY p.ended_at DESC, p.match_id DESC LIMIT ?4"
                 ))?;
                 let rows = statement
-                    .query_map(params![clan_id, upper(before), bounded(limit)], |row| {
+                    .query_map(params![clan_id, end, id, bounded(limit)], |row| {
                         summary_at(row, 0)
                     })?;
                 rows.collect::<Result<_, _>>()?
@@ -2115,10 +2229,25 @@ impl MatchHistory {
             [],
             |row| u64_at(row, 0),
         )?;
+        let first = |source: Source| -> rusqlite::Result<Option<u64>> {
+            connection.query_row(
+                "SELECT MIN(ended_at) FROM g26_matches WHERE kind = 'public' AND source = ?1",
+                [source.as_str()],
+                |row| Ok(row.get::<_, Option<i64>>(0)?.map(|at| at.max(0) as u64)),
+            )
+        };
+        let recorded = connection.query_row(
+            "SELECT COUNT(*) FROM g26_matches WHERE kind = 'public' AND source = 'recording'",
+            [],
+            |row| u64_at(row, 0),
+        )?;
         Ok(AllTime {
             players,
             matches,
             totals,
+            live_since: first(Source::Live)?,
+            recorded,
+            recorded_since: first(Source::Recording)?,
         })
     }
 
@@ -2346,8 +2475,33 @@ fn best_query() -> String {
 }
 
 /// A page's upper bound: everything with `None`.
-fn upper(before: Option<u64>) -> i64 {
-    before.map_or(i64::MAX, |id| id.min(i64::MAX as u64) as i64)
+/// Where a list of matches "before `before`" starts: past the match
+/// numbered `before`, in the order the matches ended (`ended_at`, then the
+/// number). `None` for the newest first; a number that names no match is
+/// past the latest match numbered under it. `None` back: no match is before
+/// it.
+fn cursor(connection: &Connection, before: Option<u64>) -> rusqlite::Result<Option<(i64, i64)>> {
+    let Some(before) = before else {
+        return Ok(Some((i64::MAX, i64::MAX)));
+    };
+    let before = before.min(i64::MAX as u64) as i64;
+    if let Some(found) = connection
+        .query_row(
+            "SELECT ended_at, id FROM g26_matches WHERE id = ?1",
+            [before],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?
+    {
+        return Ok(Some(found));
+    }
+    connection
+        .query_row(
+            "SELECT ended_at, id + 1 FROM g26_matches WHERE id < ?1 ORDER BY id DESC LIMIT 1",
+            [before],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
 }
 
 /// A list's length, 1 to [`MatchHistory::MAX_ROWS`].
@@ -2402,7 +2556,7 @@ mod tests {
             } else {
                 Outcome::Lost
             },
-            rating: 100,
+            rating: Some(100),
             score,
             kills,
             deaths,
@@ -2501,6 +2655,7 @@ mod tests {
     fn record(kind: MatchKind, ended_at: u64) -> MatchRecord {
         static MATCHES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
         MatchRecord {
+            source: Source::Live,
             replay_id: ReplayId::new(
                 MATCHES.fetch_add(1, Ordering::Relaxed),
                 std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at),
@@ -2670,12 +2825,9 @@ mod tests {
         let alice = since.iter().find(|(player, _)| player.account_id == 10).unwrap();
         assert_eq!(alice.1.earned, earned);
         assert_eq!(history.all_time().unwrap().totals.earned.experience, 150 + 150);
-
-        // A server of before still writes into the tables after the step.
-        old_match(&Connection::open(dir.db()).unwrap(), 2000, 300_000);
-        let card = history.player(10).unwrap().unwrap();
-        assert_eq!(card.totals.played_ms, 1_800_000);
-        assert_eq!(card.totals.earned, earned);
+        // A server of before the step no longer writes into the tables: the
+        // backfill's step after it (26) gives a line its match's end, and a
+        // server of before refuses the newer schema (`NewerSchema`).
     }
 
     #[test]
@@ -2730,6 +2882,141 @@ mod tests {
         );
         assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
         assert_eq!(history.player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap().len(), 2);
+    }
+
+    /// A match of before the history written after it (made again from its
+    /// recording) takes the next number, and is listed by its end: after
+    /// the newer ones in every list, pages and days alike. Its line may have
+    /// no rating; the matches of srp keep their numbers.
+    #[test]
+    fn matches_are_listed_by_their_end_whatever_their_number() {
+        let dir = TempDir::new("by-end");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 5_000)).unwrap();
+        repository.record_match(&record(PUBLIC, 6_000)).unwrap();
+        let mut old = record(PUBLIC, 1_000);
+        old.source = Source::Recording;
+        for player in &mut old.players {
+            player.line.rating = None;
+        }
+        repository.record_match(&old).unwrap();
+        repository.record_match(&record(PUBLIC, 7_000)).unwrap();
+        // Numbers in the order of writing: 1 (5000), 2 (6000), 3 (1000), 4 (7000).
+        let ids = |list: Vec<MatchSummary>| list.iter().map(|m| m.id).collect::<Vec<_>>();
+        assert_eq!(ids(history.matches(None, 10, None).unwrap()), [4, 2, 1, 3]);
+        assert_eq!(ids(history.matches(Some(2), 10, None).unwrap()), [1, 3]);
+        assert_eq!(ids(history.matches(Some(1), 1, None).unwrap()), [3]);
+        assert_eq!(
+            ids(history.matches(Some(3), 10, None).unwrap()),
+            Vec::<u64>::new()
+        );
+        // A number of no match: past the latest one numbered under it.
+        assert_eq!(
+            ids(history.matches(Some(99), 10, None).unwrap()),
+            [4, 2, 1, 3]
+        );
+        assert_eq!(
+            ids(history.matches(None, 10, Some(7)).unwrap()),
+            [4, 2, 1, 3]
+        );
+        assert_eq!(ids(history.matches(Some(1), 10, Some(7)).unwrap()), [3]);
+        let played: Vec<(u64, Option<u16>)> = history
+            .player_matches(10, None, 10)
+            .unwrap()
+            .iter()
+            .map(|played| (played.summary.id, played.line.rating))
+            .collect();
+        assert_eq!(
+            played,
+            [(4, Some(100)), (2, Some(100)), (1, Some(100)), (3, None)]
+        );
+        let paged: Vec<u64> = history
+            .player_matches(10, Some(1), 10)
+            .unwrap()
+            .iter()
+            .map(|played| played.summary.id)
+            .collect();
+        assert_eq!(paged, [3]);
+        // The days of a period hold the old match by its end.
+        assert_eq!(history.player_days(10, 0).unwrap()[0].1.matches, 4);
+        assert_eq!(history.player_days(10, 2_000).unwrap()[0].1.matches, 3);
+        // When the history began, and what it holds of before.
+        let all = history.all_time().unwrap();
+        assert_eq!(
+            (all.live_since, all.recorded, all.recorded_since),
+            (Some(5_000), 1, Some(1_000))
+        );
+    }
+
+    /// The backfill's step (26) on a file of the step before: the lines keep
+    /// everything, with their match's end; the matches are srp's own.
+    #[test]
+    fn the_backfill_step_keeps_the_lines_and_gives_them_their_end() {
+        let dir = TempDir::new("backfill-step");
+        let own = MIGRATIONS
+            .iter()
+            .position(|step| *step == BACKFILL_MIGRATION)
+            .expect("the step is in the list");
+        {
+            let connection = Connection::open(dir.db()).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
+                )
+                .unwrap();
+            for earlier in &MIGRATIONS[..own] {
+                connection.execute_batch(earlier).unwrap();
+            }
+            connection
+                .execute(
+                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
+                    [own as i64],
+                )
+                .unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO g26_matches (game_match_id, replay_id, ended_at, duration_ms, map_id,
+                         game_mode, match_level, kind, eligibility, winner, team0_points, team1_points)
+                     VALUES (7, 'rec026g_20261121-000000_00000007', 4242, 900000, 3, 2, 12, 'public',
+                         'counted', 'team0', 5, 3);
+                     INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place,
+                         presence, rating, score, kills, deaths, assists, headshots, grenade_kills,
+                         melee_kills, batteries, captures, artefacts, shots, hits, seat, outcome,
+                         played_ms, experience)
+                     VALUES (1, 10, NULL, 0, 1, 'finished', 123, 200, 9, 3, 1, 2, 0, 0, 0, 0, 0,
+                         50, 20, 0, 'won', 900000, 77);",
+                )
+                .unwrap();
+        }
+        let (_repository, history) = repository(&dir);
+        let connection = Connection::open(dir.db()).unwrap();
+        let (ended, rating, experience): (i64, Option<u16>, Option<u32>) = connection
+            .query_row(
+                "SELECT ended_at, rating, experience FROM g26_match_players WHERE match_id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!((ended, rating, experience), (4242, Some(123), Some(77)));
+        let source: String = connection
+            .query_row("SELECT source FROM g26_matches WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(source, "live");
+        let played = history.player_matches(10, None, 5).unwrap();
+        assert_eq!((played.len(), played[0].line.kills), (1, 9));
+        // A line may now have no rating.
+        connection
+            .execute(
+                "UPDATE g26_match_players SET rating = NULL WHERE match_id = 1",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            history.player_matches(10, None, 5).unwrap()[0].line.rating,
+            None
+        );
     }
 
     #[test]
@@ -3065,6 +3352,7 @@ mod tests {
         for _ in 0..9 {
             repository
                 .record_match(&MatchRecord {
+                    source: Source::Live,
                     replay_id: record(PUBLIC, 100).replay_id,
                     ..played.clone()
                 })
@@ -3564,6 +3852,7 @@ mod tests {
             ),
             // Not public: never counted.
             MatchRecord {
+                source: Source::Live,
                 kind: MatchKind::Private,
                 ..with(Winner::FirstTeam, vec![of_clan(10, line(0, 1, 999, 99, 0))])
             },
@@ -3655,14 +3944,23 @@ mod tests {
         };
         for (sql, index) in [
             (
-                "SELECT * FROM g26_match_players p WHERE p.account_id = 1 AND p.match_id < 9
-                 ORDER BY p.match_id DESC LIMIT 5",
+                "SELECT * FROM g26_match_players p WHERE p.account_id = 1
+                   AND (p.ended_at, p.match_id) < (9, 9)
+                 ORDER BY p.ended_at DESC, p.match_id DESC LIMIT 5",
                 "g26_match_players_by_account",
             ),
             (
-                "SELECT id FROM g26_matches m WHERE m.kind = 'public' AND m.id < 9
-                 ORDER BY m.id DESC LIMIT 5",
-                "",
+                "SELECT id FROM g26_matches m WHERE m.kind = 'public'
+                   AND (m.ended_at, m.id) < (9, 9)
+                 ORDER BY m.ended_at DESC, m.id DESC LIMIT 5",
+                "g26_matches_public",
+            ),
+            (
+                "SELECT p.match_id FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+                 WHERE p.clan_id = 7 AND (p.ended_at, p.match_id) < (9, 9) AND m.kind = 'public'
+                 GROUP BY p.ended_at, p.match_id
+                 ORDER BY p.ended_at DESC, p.match_id DESC LIMIT 5",
+                "g26_match_players_by_clan",
             ),
             (
                 "SELECT * FROM g26_player_totals t ORDER BY t.kills DESC LIMIT 5",
@@ -3687,6 +3985,18 @@ mod tests {
             assert!(!plan.contains("TEMP B-TREE"), "{sql}: {plan}");
             assert!(plan.contains(index), "{sql}: {plan}");
         }
+        // A player's days read its lines of the period alone, by their end
+        // (their sums by day need a sort: 90 days at most).
+        let days = plan(
+            "SELECT date(m.ended_at, 'unixepoch') AS day, COUNT(*)
+             FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+             WHERE p.account_id = 1 AND p.ended_at >= 5 AND m.eligibility = 'counted'
+             GROUP BY day",
+        );
+        assert!(
+            days.contains("g26_match_players_by_account (account_id=? AND ended_at>?)"),
+            "{days}"
+        );
     }
 
     #[test]

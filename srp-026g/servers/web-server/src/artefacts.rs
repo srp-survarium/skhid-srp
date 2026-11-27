@@ -1,13 +1,15 @@
 //! The wiki's artefacts, `/wiki/artefacts` on the 0.26g site: every artefact of the game data
 //! with what it gives carried (its passive) and fired (its active), its active time, cooldown and
 //! weight, its skill of the artefact tree, the rules of carrying several (docs/notes/artefacts.md,
-//! exe patches 54 and 109). Made from the server's own game data
+//! exe patches 54 and 109), and what each activation leaves of its power (the wear rule,
+//! [`ArtefactWear`]; docs/notes/artefacts.md "Wear from activation"): each kind's numbers after
+//! 0 to [`ACTIVATIONS`] activations. Made from the server's own game data
 //! ([`survarium::v026g::artefacts`], the skills tree), so it is the release's. The names
 //! are the game's: its pickup hint names each artefact.
 
 use std::fmt::Write;
 
-use srp_validate::world::Artefact as Kind;
+use srp_validate::world::{Artefact as Kind, ArtefactWear};
 use survarium::v026g::armour::BodyPart;
 use survarium::v026g::artefacts::{
     self, Affine, ArtefactConfig, Effects, Modifier, Pool, Reduction,
@@ -67,35 +69,95 @@ fn name(lang: Lang, artefact: &ArtefactConfig) -> String {
     })
 }
 
-/// A signed percentage of `fraction`.
-fn percent(fraction: f32) -> String {
-    let sign = if fraction > 0.0 { "+" } else { "" };
-    format!("{sign}{}%", number(fraction * 100.0))
+/// The activations the power tables go to: 0 to 10 (10.7 % left after the tenth).
+const ACTIVATIONS: u16 = 10;
+
+/// What a kind's effect lines are for.
+#[derive(Clone, Copy, PartialEq)]
+enum View {
+    /// The artefact table: everything a fresh copy does, at most two decimals.
+    Card,
+    /// A row of a power table: only what wears, at a copy's power (`0..=1`), one decimal.
+    Wear(f32),
 }
 
-/// A player modifier's change: a percentage, or the factor `max(0, 1 + v)` once it is no
-/// share (stamina regeneration ×6, no stamina use ×0).
-fn modifier(Modifier(value): Modifier) -> String {
-    if value.abs() < 1.0 {
-        percent(value)
-    } else {
+impl View {
+    fn power(self) -> f32 {
+        match self {
+            Self::Card => 1.0,
+            Self::Wear(power) => power,
+        }
+    }
+
+    fn number(self, value: f32) -> String {
+        match self {
+            Self::Card => number(value),
+            Self::Wear(_) => {
+                let text = format!("{value:.1}");
+                text.trim_end_matches('0').trim_end_matches('.').to_owned()
+            }
+        }
+    }
+
+    /// A signed percentage of `fraction`.
+    fn percent(self, fraction: f32) -> String {
+        let sign = if fraction > 0.0 { "+" } else { "" };
+        format!("{sign}{}%", self.number(fraction * 100.0))
+    }
+
+    /// A player modifier's change at this power (a worn Spring's node is its value times the
+    /// power, the patch's `spring_value`): a percentage, or the factor `max(0, 1 + v)` when the
+    /// fresh copy's is no share (stamina regeneration ×6), so a column keeps one form.
+    fn modifier(self, Modifier(full): Modifier) -> String {
+        let value = full * self.power();
+        if full.abs() < 1.0 {
+            self.percent(value)
+        } else {
+            format!("×{}", number((1.0 + value).max(0.0)))
+        }
+    }
+
+    /// Stamina use at this power: the game floors spending at none, so a worn copy saves its
+    /// power's share of all of it (the patch's `spring_value` of index 19: the config's -5
+    /// counts as -1).
+    fn spending(self, Modifier(full): Modifier) -> String {
+        let value = match self {
+            Self::Card => full,
+            Self::Wear(power) => full.max(-1.0) * power,
+        };
         format!("×{}", number((1.0 + value).max(0.0)))
+    }
+
+    /// `(x + add) × mul` at this power: `x + ((x + add) × mul - x) × power` (the patch's
+    /// `at_power` of an Onyx's damage and piercing and a Lifebone's regeneration), written again
+    /// as `(x + add') × mul'`.
+    fn affine(self, Affine { add, mul }: Affine) -> Affine {
+        let power = self.power();
+        let worn = 1.0 + (mul - 1.0) * power;
+        if power == 1.0 || worn == 0.0 {
+            return Affine { add, mul };
+        }
+        Affine {
+            add: add * mul * power / worn,
+            mul: worn,
+        }
     }
 }
 
-/// `(x + add) × mul` of health: its terms that change something.
-fn affine(lang: Lang, Affine { add, mul }: Affine) -> String {
+/// `(x + add) × mul` of health at `view`'s power: its terms that change something.
+fn affine(lang: Lang, view: View, full: Affine) -> String {
+    let Affine { add, mul } = view.affine(full);
     let mut terms = Vec::new();
     if add != 0.0 {
         let sign = if add > 0.0 { "+" } else { "" };
         terms.push(format!(
             "{sign}{} {}",
-            number(add * 100.0),
+            view.number(add * 100.0),
             lang.tc("unit", "HP")
         ));
     }
     if mul != 1.0 {
-        terms.push(percent(mul - 1.0));
+        terms.push(view.percent(mul - 1.0));
     }
     terms.join(" ")
 }
@@ -125,38 +187,42 @@ fn pool_names(lang: Lang, pools: &[Pool]) -> String {
 /// A line of an effect: its name and value.
 type Line = (String, String);
 
-fn onyx_lines(lang: Lang, reduction: Reduction) -> Vec<Line> {
+fn onyx_lines(lang: Lang, view: View, reduction: Reduction) -> Vec<Line> {
     vec![
-        (lang.t("Damage"), affine(lang, reduction.damage)),
-        (lang.t("Penetration"), affine(lang, reduction.piercing)),
+        (lang.t("Damage"), affine(lang, view, reduction.damage)),
+        (
+            lang.t("Penetration"),
+            affine(lang, view, reduction.piercing),
+        ),
     ]
 }
 
-/// What a kind gives carried, and fired (on top of it).
-fn lines(lang: Lang, effects: &Effects) -> (Vec<Line>, Vec<Line>) {
+/// What a kind gives carried, and fired (on top of it): all of it on the card; in a power
+/// table only what wears, at that power (what it is against and the injuries cured stay).
+fn lines(lang: Lang, effects: &Effects, view: View) -> (Vec<Line>, Vec<Line>) {
     match effects {
         Effects::Spring {
             speed,
             aim_time,
             active,
         } => {
-            let mut passive = vec![(lang.t("Movement speed"), modifier(*speed))];
-            passive.extend(aim_time.map(|aim| (lang.t("Aim time"), modifier(aim))));
-            let mut fired = vec![(lang.t("Movement speed"), modifier(active.speed))];
+            let mut passive = vec![(lang.t("Movement speed"), view.modifier(*speed))];
+            passive.extend(aim_time.map(|aim| (lang.t("Aim time"), view.modifier(aim))));
+            let mut fired = vec![(lang.t("Movement speed"), view.modifier(active.speed))];
             fired.extend(
                 active
                     .aim_time
-                    .map(|aim| (lang.t("Aim time"), modifier(aim))),
+                    .map(|aim| (lang.t("Aim time"), view.modifier(aim))),
             );
             fired.push((
                 lang.t("Stamina regeneration"),
-                modifier(active.stamina_regeneration),
+                view.modifier(active.stamina_regeneration),
             ));
-            fired.push((lang.t("Stamina use"), modifier(active.stamina_use)));
+            fired.push((lang.t("Stamina use"), view.spending(active.stamina_use)));
             fired.extend(
                 active
                     .stopping_power
-                    .map(|stop| (lang.t("Slowdown from hits"), modifier(stop))),
+                    .map(|stop| (lang.t("Slowdown from hits"), view.modifier(stop))),
             );
             (passive, fired)
         }
@@ -166,22 +232,24 @@ fn lines(lang: Lang, effects: &Effects) -> (Vec<Line>, Vec<Line>) {
             passive,
             active,
         } => {
-            // Only parts it leaves out are worth a line.
-            let mut whom = vec![(lang.t("Against"), equipment::hit_name(lang, *hit))];
-            if BodyPart::ALL.iter().any(|part| !parts.contains(part)) {
-                let mut names: Vec<String> = Vec::new();
-                for &part in parts {
-                    let name = equipment::part_name(lang, part);
-                    if !names.contains(&name) {
-                        names.push(name);
+            let mut carried = Vec::new();
+            if view == View::Card {
+                // Only parts it leaves out are worth a line.
+                carried.push((lang.t("Against"), equipment::hit_name(lang, *hit)));
+                if BodyPart::ALL.iter().any(|part| !parts.contains(part)) {
+                    let mut names: Vec<String> = Vec::new();
+                    for &part in parts {
+                        let name = equipment::part_name(lang, part);
+                        if !names.contains(&name) {
+                            names.push(name);
+                        }
                     }
+                    carried.push((lang.t("Body parts"), names.join(", ")));
                 }
-                whom.push((lang.t("Body parts"), names.join(", ")));
             }
             // The active protects the same hits: said once, in the passive.
-            let mut carried = whom;
-            carried.extend(onyx_lines(lang, *passive));
-            (carried, onyx_lines(lang, *active))
+            carried.extend(onyx_lines(lang, view, *passive));
+            (carried, onyx_lines(lang, view, *active))
         }
         Effects::Lifebone {
             regeneration,
@@ -206,15 +274,20 @@ fn lines(lang: Lang, effects: &Effects) -> (Vec<Line>, Vec<Line>) {
                         format!("{label} ({})", pool_names(lang, &pools))
                     }
                 };
+                let (speed, delay, worn_limit) =
+                    (view.affine(speed), view.affine(delay), view.affine(limit));
                 if speed.add != 0.0 || speed.mul != 1.0 {
                     let mut terms = Vec::new();
                     if speed.add != 0.0 {
                         let sign = if speed.add > 0.0 { "+" } else { "" };
                         let per_second = lang.tc("unit", "HP/s");
-                        terms.push(format!("{sign}{} {per_second}", number(speed.add * 100.0)));
+                        terms.push(format!(
+                            "{sign}{} {per_second}",
+                            view.number(speed.add * 100.0)
+                        ));
                     }
                     if speed.mul != 1.0 {
-                        terms.push(percent(speed.mul - 1.0));
+                        terms.push(view.percent(speed.mul - 1.0));
                     }
                     carried.push((of(lang.t("Regeneration")), terms.join(" ")));
                 }
@@ -224,34 +297,56 @@ fn lines(lang: Lang, effects: &Effects) -> (Vec<Line>, Vec<Line>) {
                         let sign = if delay.add > 0.0 { "+" } else { "" };
                         terms.push(format!(
                             "{sign}{} {}",
-                            number(delay.add),
+                            view.number(delay.add),
                             lang.tc("unit", "s")
                         ));
                     }
                     if delay.mul != 1.0 {
-                        terms.push(percent(delay.mul - 1.0));
+                        terms.push(view.percent(delay.mul - 1.0));
                     }
                     carried.push((of(lang.t("Regeneration delay")), terms.join(" ")));
                 }
-                // The limit is a share of the pool's maximum, at most all of it.
-                if limit.add >= 1.0 && limit.mul >= 1.0 {
-                    carried.push((of(lang.t("Regenerates up to")), "100%".to_owned()));
-                } else if limit.add != 0.0 || limit.mul != 1.0 {
+                // The limit is a share of the pool's maximum, at most all of it. A worn copy
+                // raises the pool's own limit by its power's share of what a fresh one adds.
+                let limit_terms = |Affine { add, mul }: Affine| {
                     let mut terms = Vec::new();
-                    if limit.add != 0.0 {
-                        terms.push(percent(limit.add));
+                    if add != 0.0 {
+                        terms.push(view.percent(add));
                     }
-                    if limit.mul != 1.0 {
-                        terms.push(format!("×{}", number(limit.mul)));
+                    if mul != 1.0 {
+                        terms.push(format!("×{}", number(mul)));
                     }
-                    carried.push((of(lang.t("Regenerates up to")), terms.join(" ")));
+                    terms.join(" ")
+                };
+                match view {
+                    View::Card if limit.add >= 1.0 && limit.mul >= 1.0 => {
+                        carried.push((of(lang.t("Regenerates up to")), "100%".to_owned()));
+                    }
+                    _ if limit.add == 0.0 && limit.mul == 1.0 => {}
+                    View::Card => {
+                        carried.push((of(lang.t("Regenerates up to")), limit_terms(limit)));
+                    }
+                    View::Wear(_) => {
+                        carried.push((of(lang.t("Regeneration limit")), limit_terms(worn_limit)));
+                    }
                 }
             }
-            // Exe patch 54: the active fills every pool to its maximum.
-            let mut fired = vec![(lang.t("Health"), "100%".to_owned())];
-            if !cures.is_empty() {
-                fired.push((lang.t("Cures injuries"), pool_names(lang, cures)));
-            }
+            let fired = match view {
+                // Exe patch 54: the active fills every pool to its maximum.
+                View::Card => {
+                    let mut fired = vec![(lang.t("Health"), "100%".to_owned())];
+                    if !cures.is_empty() {
+                        fired.push((lang.t("Cures injuries"), pool_names(lang, cures)));
+                    }
+                    fired
+                }
+                // A worn copy restores its power's share of each pool's missing health (the
+                // patch's `heal_amount`); it cures the same injuries.
+                View::Wear(power) => vec![(
+                    lang.t("Missing health restored"),
+                    format!("{}%", view.number(power * 100.0)),
+                )],
+            };
             (carried, fired)
         }
     }
@@ -286,6 +381,144 @@ fn skill_link(lang: Lang, id: u16) -> Option<String> {
     ))
 }
 
+/// An artefact's lobby icon, as its row shows it.
+fn picture(artefact: &ArtefactConfig) -> String {
+    crate::icons::url(
+        IconSet::Item,
+        &Dictionary::shared()
+            .item(artefact.dict_id)
+            .map_or_else(String::new, |item| item.name.clone()),
+    )
+    .map_or_else(String::new, |url| {
+        format!(
+            "<img src=\"{}\" alt=\"\" width=86 height=42 loading=lazy>",
+            escape(&url)
+        )
+    })
+}
+
+/// Resonance and Cascade: what they share of a copy works at its power, as its own skill
+/// (Spring II, Onyx II, Larkspur II: the patch's reload nodes, landing and energy).
+const RESONANCE: u16 = 541;
+const CASCADE: u16 = 542;
+
+/// A skill's name in `lang`, none without the skill.
+fn skill_name(lang: Lang, id: u16) -> Option<String> {
+    SkillsTree::shared()
+        .skill(id)
+        .map(|skill| modifiers::text(lang, &skill.name))
+}
+
+/// A copy's power after `uses` successful activations: what its passive gives now and its next
+/// activation fires with (the game's own rule).
+fn power(uses: u16) -> f32 {
+    ArtefactWear::new(uses).power()
+}
+
+/// The power section: the rule in words, the power after each activation, and each kind's
+/// numbers by activation, each kind's table folded.
+fn wear_section(lang: Lang) -> String {
+    let steps: String = (0..=ACTIVATIONS)
+        .map(|uses| {
+            format!(
+                "<li><small>{uses}</small><b>{}%</b></li>",
+                View::Wear(1.0).number(power(uses) * 100.0)
+            )
+        })
+        .collect();
+    let steps = format!(
+        "<ol class=wear-steps><li class=wear-steps-head><small>{}</small><b>{}</b></li>{steps}</ol>",
+        escape(&lang.t("Activations")),
+        escape(&lang.tc("artefact", "Power")),
+    );
+    let text = lang.t(
+        "Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.",
+    );
+
+    // Each kind's table, closed until its name opens it, as the stats' Maps board opens a map's
+    // modes (`stats-opener`, the site's style); the finer points in notes under it.
+    let mut kinds = String::new();
+    for artefact in artefacts::all() {
+        let rows: Vec<(u16, Vec<Line>, Vec<Line>)> = (0..=ACTIVATIONS)
+            .map(|uses| {
+                let (carried, fired) = lines(lang, &artefact.effects, View::Wear(power(uses)));
+                (uses, carried, fired)
+            })
+            .collect();
+        let Some((_, carried, fired)) = rows.first() else {
+            continue;
+        };
+        let head = |lines: &[Line]| -> String {
+            lines
+                .iter()
+                .map(|(label, _)| format!("<th>{}</th>", escape(label)))
+                .collect()
+        };
+        let mut body = String::new();
+        for (uses, carried, fired) in &rows {
+            let _ = write!(
+                body,
+                "<tr><th>{uses}</th><td>{}%</td>",
+                View::Wear(1.0).number(power(*uses) * 100.0)
+            );
+            for (_, value) in carried.iter().chain(fired) {
+                let _ = write!(body, "<td>{}</td>", escape(value));
+            }
+            body.push_str("</tr>");
+        }
+        let mut notes = vec![lang.t(
+            "Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.",
+        )];
+        let limit = lang.t("Regeneration limit");
+        if carried.iter().any(|(label, _)| label.starts_with(&limit)) {
+            notes.push(
+                lang.t("Regeneration limit adds to each body part's own limit, never past full."),
+            );
+        }
+        if matches!(&artefact.effects, Effects::Lifebone { cures, .. } if !cures.is_empty()) {
+            notes.push(lang.t("It still cures injuries on every activation."));
+        }
+        let skills: Vec<String> = [own_skill(artefact.kind), RESONANCE, CASCADE]
+            .into_iter()
+            .filter_map(|id| skill_name(lang, id))
+            .collect();
+        if !skills.is_empty() {
+            notes.push(lang.tf(
+                "Its skills work at its power: {skills}.",
+                &[("skills", &skills.join(", "))],
+            ));
+        }
+        let notes: String = notes
+            .iter()
+            .map(|note| format!("<p class=wiki-note>{}</p>", escape(note)))
+            .collect();
+        let _ = write!(
+            kinds,
+            "<details class=wear-kind id=\"wear-{}\"><summary class=stats-opener>{}</summary>\
+             <div class=table-scroll><table class=\"artefact-table wear-table\"><thead>\
+             <tr><th rowspan=2>{}</th><th rowspan=2>{}</th><th colspan={}>{}</th><th colspan={}>{}</th></tr>\
+             <tr>{}{}</tr></thead><tbody>{body}</tbody></table></div>{notes}</details>",
+            anchor(artefact.kind),
+            escape(&name(lang, artefact)),
+            escape(&lang.t("Activations")),
+            escape(&lang.tc("artefact", "Power")),
+            carried.len(),
+            escape(&lang.t("Passive")),
+            fired.len(),
+            escape(&lang.t("Next activation")),
+            head(carried),
+            head(fired),
+        );
+    }
+
+    format!(
+        "<section class=\"modifiers artefact-wear\" id=wear><h2>{}</h2><p class=wear-text>{}</p>\
+         {steps}<div class=wear-kinds>{kinds}</div></section>",
+        escape(&lang.t("Power per activation")),
+        escape(&text),
+    )
+}
+
 /// The page's body in `lang`.
 pub(crate) fn body(lang: Lang) -> String {
     let code = lang.code();
@@ -295,19 +528,8 @@ pub(crate) fn body(lang: Lang) -> String {
 
     let mut rows = String::new();
     for artefact in all {
-        let (carried, fired) = lines(lang, &artefact.effects);
-        let picture = crate::icons::url(
-            IconSet::Item,
-            &Dictionary::shared()
-                .item(artefact.dict_id)
-                .map_or_else(String::new, |item| item.name.clone()),
-        )
-        .map_or_else(String::new, |url| {
-            format!(
-                "<img src=\"{}\" alt=\"\" width=86 height=42 loading=lazy>",
-                escape(&url)
-            )
-        });
+        let (carried, fired) = lines(lang, &artefact.effects, View::Card);
+        let picture = picture(artefact);
         let skill = SkillsTree::shared()
             .skill(own_skill(artefact.kind))
             .and_then(|skill| {
@@ -374,11 +596,12 @@ pub(crate) fn body(lang: Lang) -> String {
     format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><h1>{}</h1></div></div>{table}\
-         <section class=modifiers><h2>{}</h2><ul class=mode-rules>{rules}</ul></section>{skills_section}",
+         <section class=modifiers><h2>{}</h2><ul class=mode-rules>{rules}</ul></section>{}{skills_section}",
         lang.t("Wiki"),
         lang.t("Artefacts"),
         lang.t("Artefacts"),
         lang.t("Rules"),
+        wear_section(lang),
     )
 }
 
@@ -422,12 +645,21 @@ mod tests {
                 Effects::Onyx {
                     passive, active, ..
                 } => vec![
-                    format!("Damage <b>{}</b>", percent(passive.damage.mul - 1.0)),
-                    format!("Damage <b>{}</b>", percent(active.damage.mul - 1.0)),
+                    format!(
+                        "Damage <b>{}</b>",
+                        View::Card.percent(passive.damage.mul - 1.0)
+                    ),
+                    format!(
+                        "Damage <b>{}</b>",
+                        View::Card.percent(active.damage.mul - 1.0)
+                    ),
                 ],
                 Effects::Spring { speed, active, .. } => vec![
-                    format!("Movement speed <b>{}</b>", percent(speed.0)),
-                    format!("Movement speed <b>{}</b>", percent(active.speed.0)),
+                    format!("Movement speed <b>{}</b>", View::Card.percent(speed.0)),
+                    format!(
+                        "Movement speed <b>{}</b>",
+                        View::Card.percent(active.speed.0)
+                    ),
                 ],
                 Effects::Lifebone { regeneration, .. } => vec![format!(
                     "Regeneration <b>+{} HP/s</b>",
@@ -439,5 +671,102 @@ mod tests {
             }
         }
         assert!(!page.contains('⟦'));
+    }
+
+    #[test]
+    fn a_worn_term_is_the_patchs_share_of_the_fresh_change() {
+        // The patch's at_power: x + ((x + add) × mul - x) × power.
+        for full in [
+            Affine {
+                add: 0.0,
+                mul: 0.25,
+            },
+            Affine { add: 0.1, mul: 1.0 },
+            Affine { add: 1.0, mul: 1.0 },
+            Affine {
+                add: -2.0,
+                mul: 0.5,
+            },
+        ] {
+            for uses in 0..=ACTIVATIONS {
+                let worn = View::Wear(power(uses)).affine(full);
+                for x in [0.03_f32, 0.5, 8.0] {
+                    let patch = x + ((x + full.add) * full.mul - x) * power(uses);
+                    assert!(
+                        ((x + worn.add) * worn.mul - patch).abs() < 1e-5,
+                        "{full:?} {uses} {x}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_kind_has_its_numbers_by_activation() {
+        let page = body(Lang::En);
+        for anchor in ["lifebone", "spring", "onyx"] {
+            assert!(
+                page.contains(&format!("<details class=wear-kind id=\"wear-{anchor}\">")),
+                "{anchor}"
+            );
+        }
+        for step in ["100%", "80%", "64%", "51.2%", "41%", "32.8%", "10.7%"] {
+            assert!(page.contains(&format!("<b>{step}</b>")), "{step}");
+        }
+        // One column a line: every row has the fresh copy's lines, in its order.
+        for artefact in artefacts::all() {
+            let labels = |uses| {
+                let (carried, fired) = lines(Lang::En, &artefact.effects, View::Wear(power(uses)));
+                carried
+                    .into_iter()
+                    .chain(fired)
+                    .map(|(label, _)| label)
+                    .collect::<Vec<_>>()
+            };
+            assert!(!labels(0).is_empty());
+            for uses in 1..=ACTIVATIONS {
+                assert_eq!(labels(uses), labels(0), "{:?} after {uses}", artefact.kind);
+            }
+        }
+        // After one activation: 80 % of each fresh change (Spring's, Onyx's from the config).
+        let after_one = |artefact: &ArtefactConfig| {
+            let (carried, fired) = lines(Lang::En, &artefact.effects, View::Wear(power(1)));
+            carried.into_iter().chain(fired).collect::<Vec<_>>()
+        };
+        let one = |fraction: f32| {
+            let text = format!("{:.1}", fraction * 0.8 * 100.0);
+            let text = text.trim_end_matches('0').trim_end_matches('.');
+            if fraction > 0.0 {
+                format!("+{text}%")
+            } else {
+                format!("{text}%")
+            }
+        };
+        for artefact in artefacts::all() {
+            let shown = after_one(artefact);
+            let has = |label: &str, value: String| {
+                assert!(
+                    shown.contains(&(label.to_owned(), value.clone())),
+                    "{label} {value}: {shown:?}"
+                );
+            };
+            match &artefact.effects {
+                Effects::Spring { speed, active, .. } => {
+                    has("Movement speed", one(speed.0));
+                    has("Movement speed", one(active.speed.0));
+                    has(
+                        "Stamina use",
+                        format!("×{}", number(1.0 + active.stamina_use.0.max(-1.0) * 0.8)),
+                    );
+                }
+                Effects::Onyx {
+                    passive, active, ..
+                } => {
+                    has("Damage", one(passive.damage.mul - 1.0));
+                    has("Damage", one(active.damage.mul - 1.0));
+                }
+                Effects::Lifebone { .. } => has("Missing health restored", "80%".to_owned()),
+            }
+        }
     }
 }

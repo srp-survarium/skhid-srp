@@ -117,6 +117,7 @@ mod artefact_hunt_cap;
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
 mod client_report;
+mod resource_checks;
 mod executable;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;
@@ -136,6 +137,9 @@ pub mod world_check;
 pub mod world_diff;
 /// A player's kills of one enemy pay at most 10 times a match.
 mod kill_cap;
+/// Matches of before the history made again from their recordings
+/// (`srp-history-backfill`).
+pub mod backfill;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;

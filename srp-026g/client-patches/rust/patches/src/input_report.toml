@@ -1,0 +1,29 @@
+name = "input_report"
+patch = 125
+
+[[hook]]
+site = "world_load.loaded"
+handler = "on_loaded"
+order = 7
+
+[[hook]]
+site = "game.tick"
+handler = "on_frame"
+order = 8
+
+[[hook]]
+site = "match_recovery.close"
+handler = "on_close"
+order = 6
+
+[[windows_callback]]
+handler = "worker"
+signature = "ThreadProc"
+
+[[windows_callback]]
+handler = "keyboard"
+signature = "LowLevelHookProc"
+
+[[windows_callback]]
+handler = "mouse"
+signature = "LowLevelHookProc"

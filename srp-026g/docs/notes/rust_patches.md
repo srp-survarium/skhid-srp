@@ -278,6 +278,13 @@ handler gets the typed arguments alone, each a binding, never a fallible one),
 and `<patch>_<handler>_entry() -> CallbackEntry<Marker>`, which vostok hands the
 game (`vostok::resources::query_track`). Patch 88's query callback is the first.
 
+A `[[windows_callback]]` row names a `handler` in the patch's `vostok`
+module and a Windows `signature` (`ThreadProc` or `LowLevelHookProc`).
+The generator emits a stdcall `RUST_CALL` entry and its private Rust binding.
+Windows may call it on a worker thread, so its shim provides the OS arguments
+alone. The input report uses this for its message-pump thread and its two
+hook procedures. Only the match thread holds the connection.
+
 A runtime vtable declaration names its source in `fields_026g.tsv`:
 
 ```toml

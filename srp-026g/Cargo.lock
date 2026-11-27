@@ -481,6 +481,8 @@ dependencies = [
  "log",
  "mapdata",
  "openssl",
+ "resources-db 0.1.0",
+ "rusqlite",
  "serde",
  "serde_json",
  "session",
