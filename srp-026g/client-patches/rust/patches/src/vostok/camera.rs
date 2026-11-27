@@ -188,13 +188,10 @@ impl<'t> Orbit<'t> {
         [0, 4, 8].map(|row| Vec3::new(v[row], v[row + 1], v[row + 2]))
     }
 
-    /// The view the director gives on is `turn` (the rows right, up and
-    /// forward) from `eye`.
-    pub fn look(&mut self, turn: [Vec3; 3], eye: Vec3) {
+    /// The view the director gives on is the game's turn from `eye`.
+    pub fn set_eye(&mut self, eye: Vec3) {
         let mut v = self.view();
-        for (row, axis) in [0, 4, 8, 12].into_iter().zip(turn.into_iter().chain([eye])) {
-            v[row..row + 3].copy_from_slice(&[axis.x, axis.y, axis.z]);
-        }
+        v[12..15].copy_from_slice(&[eye.x, eye.y, eye.z]);
         // SAFETY: as view.
         unsafe { write_floats(self.view.view(), v) }
     }
