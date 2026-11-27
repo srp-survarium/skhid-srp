@@ -4444,6 +4444,7 @@ st_srp_technical_pockets	 bolsos
 st_srp_technical_rearm	Reabre após um tiro
 st_srp_technical_smoke_duration	Duração da fumaça
 st_srp_technical_toxic_damage	Dano tóxico
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s d
 st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg

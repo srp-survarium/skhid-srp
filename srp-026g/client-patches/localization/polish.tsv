@@ -4444,6 +4444,7 @@ st_srp_technical_pockets	 kiesz.
 st_srp_technical_rearm	Otwiera się ponownie po strzale
 st_srp_technical_smoke_duration	Czas trwania dymu
 st_srp_technical_toxic_damage	Obrażenia toksyczne
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s d.
 st_srp_unit_hours	%1$s godz.
 st_srp_unit_kg	%1$s kg

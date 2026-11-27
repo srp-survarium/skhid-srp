@@ -4444,6 +4444,7 @@ st_srp_technical_pockets	 kaps.
 st_srp_technical_rearm	Po výstřelu se znovu otevře
 st_srp_technical_smoke_duration	Trvání kouře
 st_srp_technical_toxic_damage	Toxické poškození
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s d
 st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg

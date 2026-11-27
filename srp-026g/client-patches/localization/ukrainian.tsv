@@ -4444,6 +4444,7 @@ st_srp_technical_pockets	 киш.
 st_srp_technical_rearm	Знову відкривається після пострілу
 st_srp_technical_smoke_duration	Тривалість диму
 st_srp_technical_toxic_damage	Токсична шкода
+st_srp_unit_cm	%1$s см
 st_srp_unit_days	%1$s д
 st_srp_unit_hours	%1$s год
 st_srp_unit_kg	%1$s кг

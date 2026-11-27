@@ -34,6 +34,7 @@ LABELS = {"st_srp_weapon_fov_option": "Weapon FOV at the hip",
           "st_srp_weapon_fov_scope_option": "Weapon FOV in scopes",
           "st_srp_sight_distance_option": "Sight distance",
           "st_srp_sight_distance_note": "+ farther, - closer",
+          "st_srp_unit_cm": "%1$s cm",
           "st_srp_weapon_fov_world_option": "Weapon at the world FOV",
           "st_srp_weapon_view_heading": "Weapon view"}
 language.ENGLISH.update({key: text.encode() for key, text in LABELS.items()})
@@ -106,7 +107,8 @@ def main():
                f"{WORLD} with {argument!r}: {int(want)}, user.cfg written {saves} time(s), answered")
     invokes, count = new.callback("srp_weapon_view_texts")
     expect(invokes == [(language.MOVIE, "root.srp_weapon_view_texts",
-                        (LABELS["st_srp_weapon_view_heading"], LABELS["st_srp_sight_distance_note"]))]
+                        (LABELS["st_srp_weapon_view_heading"], LABELS["st_srp_sight_distance_note"],
+                         LABELS["st_srp_unit_cm"]))]
            and count == 0, "srp_weapon_view_texts: the title and the sight distance's note, nothing saved")
     for name in list(SLIDERS) + [WORLD, "srp_weapon_view_texts"]:
         invokes, count = old.callback(name, "1")

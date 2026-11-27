@@ -307,7 +307,7 @@ package
             var answers:Array = [["65", "40", "100", "1"], ["325", "200", "650", "10"], ["3250", "1625", "3250", "100"],
                 ["0", "-20", "50", "1"]];
             var answer:Function = function(t:Array):void {
-                root.srp_weapon_view_texts(t[37], t[43]);
+                root.srp_weapon_view_texts(t[37], t[43], t[44]);
                 root.srp_check_option("srp_weapon_fov_world", t[41], "0");
                 for (var n:int = 0; n < 4; ++n)
                 {
@@ -391,6 +391,28 @@ package
                 var boxEnd:Number = box.x + box.textField.x + box.textField.textWidth;
                 require(boxEnd < room, row[41] + " inside the window (" + boxEnd + " of " + room + ")");
                 require(window.note.numLines <= 2 && window.note.text == row[43], row[43] + ": the note in two lines at most");
+                // every value a slider shows, in this dictionary's unit, inside its field with the margin the
+                // game's Scaleform needs (it measured "-16 cm" wider than Ruffle: "-16 cr"), the field inside the
+                // window's frame
+                var frameRight:Number = window.getChildByName("_srp_weapon_view_window_panel").width - 6 - 4;
+                for (i = 0; i < 4; ++i)
+                {
+                    var field:TextField = sliders[i].textFieldValue;
+                    var kept:String = field.text;
+                    for each (var sample:String in window.samples(names[i]))
+                    {
+                        field.text = sample;
+                        require(field.textWidth + 10 <= field.width + 0.01 && !field.wordWrap && field.numLines == 1,
+                            names[i] + ": " + sample + " in its field with 10 px to spare (" + field.textWidth + " of "
+                            + field.width + ")");
+                    }
+                    field.text = kept;
+                    var fieldRight:Number = sliders[i].x + field.x + field.width;
+                    require(fieldRight <= frameRight, names[i] + ": its value field inside the frame (" + fieldRight + " of "
+                        + frameRight + ")");
+                }
+                require(window.withUnit(-16) == row[44].split("%1$s").join("-16"), "-16 in the dictionary's unit: "
+                    + window.withUnit(-16));
                 require(button.textField.textWidth + 4 < button.textField.width * button.scaleX || button.width > 127,
                     row[37] + " fits the button");
             }

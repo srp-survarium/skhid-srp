@@ -4444,6 +4444,7 @@ st_srp_technical_pockets	 карм.
 st_srp_technical_rearm	Снова открывается после выстрела
 st_srp_technical_smoke_duration	Длительность дыма
 st_srp_technical_toxic_damage	Токсичный урон
+st_srp_unit_cm	%1$s см
 st_srp_unit_days	%1$s д
 st_srp_unit_hours	%1$s ч
 st_srp_unit_kg	%1$s кг

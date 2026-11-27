@@ -60,8 +60,12 @@ package
             srp_sight_distance: 1};
         private static const DEFAULTS:Object = {srp_weapon_fov: 65, srp_weapon_fov_aimed: 32.5, srp_weapon_fov_scope: 32.5,
             srp_sight_distance: 0};
-        // The distance's value text: its centimetres with a sign.
-        private static const UNIT:String = " cm";
+        // The room right of a value's text in its field (the game's Scaleform measures wider than Ruffle:
+        // "-16 cm" was cut to "-16 cr" in a field Ruffle found wide enough).
+        private static const VALUE_MARGIN:Number = 10;
+        // The widest values each slider shows, measured once its texts are there.
+        private static const SAMPLES:Object = {srp_weapon_fov: ["100", "40"], srp_weapon_fov_aimed: ["32.5", "65", "22.5"],
+            srp_weapon_fov_scope: ["16.25", "32.5", "22.75"]};
         // The button: the Graphics tab's Optimal and Default buttons' width, wider only for its text.
         private static const BUTTON_WIDTH:Number = 127;
         // The Settings window's frame (SrpSettingsGround, 650 x 565), as SrpKeysWindow lays it: its border
@@ -87,6 +91,8 @@ package
         private var titleField:TextField;
         private var closeButton:ButtonCloseWindow2;
         private var title:String = "";
+        // The dictionary's centimetres (st_srp_unit_cm: "%1$s cm", "%1$s см"), the number in place of %1$s.
+        private var unit:String = "%1$s cm";
         // A slider's saved value in its units and its steps a unit, by name; absent until the exe answers.
         private var saved:Object = {};
         private var units:Object = {};
@@ -206,6 +212,10 @@ package
             title = String(values[0]);
             button.label = title;
             note.text = String(values[1]);
+            if (values.length >= 3 && String(values[2]).indexOf("%1$s") >= 0)
+            {
+                unit = String(values[2]);
+            }
             shown();
         }
 
@@ -407,6 +417,7 @@ package
                 slider.y = at - slider.textField.y;
                 at = slider.y + slider.slider.y + slider.slider.height + ROW_GAP;
             }
+            fitValues();
             centimetres();
             note.defaultTextFormat = SrpLanguage.noteFormat(content);
             note.setTextFormat(note.defaultTextFormat);
@@ -501,15 +512,53 @@ package
             }
         }
 
-        // The distance's value in centimetres with its sign ("+10 cm", "0 cm", "-5 cm"), where the slider
-        // shows its number.
+        // The distance's value in the dictionary's centimetres with its sign ("+10 cm", "0 cm", "-5 cm"; a
+        // plain hyphen, as the stock sliders show a number), where the slider shows its number.
         private function centimetres(event:Event = null):void
         {
             var slider:SrvOptionSlider = sliders[DISTANCE];
             if (slider.textFieldValue != null)
             {
-                var value:int = Math.round(slider.selectedIndex);
-                slider.textFieldValue.text = (value > 0 ? "+" : "") + value + UNIT;
+                slider.textFieldValue.text = withUnit(Math.round(slider.selectedIndex));
+            }
+        }
+
+        public function withUnit(value:int):String
+        {
+            return unit.split("%1$s").join((value > 0 ? "+" : "") + value);
+        }
+
+        // The values each slider shows, the widest of them: its own SAMPLES, the distance's ends in the
+        // dictionary's unit.
+        public function samples(key:String):Array
+        {
+            return key == DISTANCE ? [withUnit(-20), withUnit(50), withUnit(-10)] : SAMPLES[key];
+        }
+
+        // Each value field one line, as wide as the widest value it shows and VALUE_MARGIN more (never
+        // narrower than the stock field), growing to its right.
+        private function fitValues():void
+        {
+            for each (var key:String in SLIDERS)
+            {
+                var field:TextField = sliders[key].textFieldValue;
+                if (field == null)
+                {
+                    continue;
+                }
+                var shown:String = field.text;
+                field.wordWrap = false;
+                var widest:Number = 0;
+                for each (var sample:String in samples(key))
+                {
+                    field.text = sample;
+                    widest = Math.max(widest, field.textWidth);
+                }
+                field.text = shown;
+                if (field.width < widest + VALUE_MARGIN)
+                {
+                    field.width = widest + VALUE_MARGIN;
+                }
             }
         }
 

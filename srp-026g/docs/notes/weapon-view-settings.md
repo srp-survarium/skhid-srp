@@ -112,9 +112,15 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
   the Settings' call (`weapon_view_options.rs`). A slider's answer is `name, label, saved, least,
   most, steps a unit`: 1, 10, 100 and 1, so every default and end is whole and of four digits at
   most; a negative one (the distance's) has a minus sign.
-- **The texts**: eight keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
+- **The values' fields** are one line, each as wide as the widest value its slider shows in the
+  dictionary's language ("100", "16.25", "-20 cm", "+50 cm", "см" in Cyrillic) plus 10 px: the owner's
+  first test in the game showed "-16 cm" cut to "-16 cr" in a field Ruffle had found wide enough, the
+  game's Scaleform measuring the text wider. Negative values take a plain hyphen, as the stock sliders'
+  numbers do; the unit is the dictionary's `st_srp_unit_cm` ("%1$s cm", "%1$s см"), answered with the
+  window's texts.
+- **The texts**: nine keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
   `st_srp_weapon_fov_option`, `_aimed_option`, `_scope_option`, `_world_option`,
-  `st_srp_sight_distance_option`, `st_srp_sight_distance_note`, `st_srp_world_fov_option`).
+  `st_srp_sight_distance_option`, `st_srp_sight_distance_note`, `st_srp_unit_cm`, `st_srp_world_fov_option`).
 
 ## The log
 

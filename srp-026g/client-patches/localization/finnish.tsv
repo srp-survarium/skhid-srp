@@ -4444,6 +4444,7 @@ st_srp_technical_pockets	 taskua
 st_srp_technical_rearm	Aukeaa uudelleen ammuttaessa
 st_srp_technical_smoke_duration	Savun kesto
 st_srp_technical_toxic_damage	Myrkkyvahinko
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s pv
 st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
