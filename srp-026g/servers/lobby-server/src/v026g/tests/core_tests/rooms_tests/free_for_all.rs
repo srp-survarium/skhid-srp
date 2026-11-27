@@ -156,38 +156,16 @@ fn a_full_room_plays_a_free_for_all_with_every_member() {
     assert_eq!(world.core.rooms.get(key).unwrap().in_match, accounts(&world, &members));
 }
 
-/// A room with bots (8 a team) fills a free-for-all with the server's bots
-/// as a match of two teams: its two members and fourteen bots. Here its maps
-/// have a bots' map file; the release's have none, so no room with bots
-/// holds one (`ffa.md`).
+/// A room with bots holds no free-for-all, even with its maps named as bots'
+/// maps: the server's bots play none (the match server refuses them in one),
+/// so the lobby takes no such map into a room with bots (`pvb::bots_play`).
 #[test]
-fn a_room_with_bots_fills_a_free_for_all_as_a_match_of_two_teams() {
-    use survarium::v026g::lobby::rooms::ROOM_CREATE_BOTS;
-
+fn a_room_with_bots_holds_no_free_for_all() {
     let mut world = free_for_all_world();
     world.core.settings.pvb.enabled = true;
     world.core.settings.pvb.bot_maps = free_for_alls();
-    let alice = world.connect("Alice");
-    rows(&mut world, alice, ROOM_PIN_BASE + 1234, 1);
-    let made = rows(&mut world, alice, ROOM_CREATE_BOTS, 1);
-    assert_eq!(header(&made)[1], "R", "{made:?}");
-    let key: u32 = header(&made)[KEY].parse().unwrap();
-    assert!(world.core.rooms.get(key).unwrap().with_bots());
-    let bob = world.connect("Bob");
-    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
-    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
-    world.take(alice);
-    world.take(bob);
-    let (ticket, _) = sent_to_match(&press_start(&mut world, alice)).expect("a match");
-    assert_eq!(sent_to_match(&world.take(bob)).map(|(id, _)| id), Some(ticket));
-    let setup = last_setup(&world);
-    assert_eq!(setup.players.len(), 16);
-    assert_eq!(seated(&setup), accounts(&world, &[alice, bob]));
-    let bots = setup.players.iter().filter(|player| player.driven).count();
-    assert_eq!(bots, 14);
-    // The members first, the bots after them.
-    assert!(setup.players[..2].iter().all(|player| !player.driven));
-    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::VsBots);
+    assert!(!world.core.settings.pvb.bot_maps.is_empty());
+    assert!(world.core.settings.pvb.bot_maps_ready().is_empty());
 }
 
 /// A private room's owner starts a free-for-all alone: a match of one, the

@@ -85,13 +85,19 @@ fn sides(registry: &MatchRegistry, match_id: u32) -> (Vec<u8>, Vec<(u8, u8)>) {
     )
 }
 
-/// Every place of a free-for-all, the server's bots too, is on a side of
-/// its own (4 + its place) and in no squad, whatever the lobby seated it
-/// as; its static info builds, and says the kills that win.
+/// Every place of a free-for-all is on a side of its own (4 + its place)
+/// and in no squad, whatever the lobby seated it as; its static info
+/// builds, and says the kills that win. The server's bots play none: a
+/// free-for-all with a place of theirs is refused (`bots::objective::Mode::
+/// of_rules`: they know two teams only).
 #[test]
 fn a_free_for_all_gives_every_place_a_side_of_its_own_and_no_squad() {
     let registry = MatchRegistry::new("127.0.0.1", 1236);
-    let ticket = registry.create(seated(5, map_id(), &[3, 4])).unwrap();
+    assert!(matches!(
+        registry.create(seated(5, map_id(), &[3, 4])),
+        Err(crate::v026g::registry::CreateError::Map(_))
+    ));
+    let ticket = registry.create(seated(5, map_id(), &[])).unwrap();
     let (teams, options) = sides(&registry, ticket.match_id);
     assert_eq!(teams, [4, 5, 6, 7, 8]);
     assert_eq!(options, [(4, 0), (5, 0), (6, 0), (7, 0), (8, 0)]);
@@ -102,16 +108,15 @@ fn a_free_for_all_gives_every_place_a_side_of_its_own_and_no_squad() {
     assert_eq!(formed.played.mode(), GameMode::FreeForAll);
     assert_eq!(
         formed.places.iter().map(|place| place.driven).collect::<Vec<_>>(),
-        [false, false, false, true, true]
+        [false; 5]
     );
     // srp's entry after the options: tag 3, the kill target.
     assert_eq!(free_for_all().kills_to_win, 30);
     assert!(formed.info.options().ends_with(&srp_entry()));
-    // Its players have their seats; a bot has none.
-    for place in 0..3 {
+    // Its players have their seats.
+    for place in 0..5 {
         assert_eq!(registry.seat(session_of(place)).map(|seat| seat.place), Some(place as u8));
     }
-    assert_eq!(registry.seat(0), None);
 }
 
 /// A match of two teams is made as the lobby seated it: its teams and

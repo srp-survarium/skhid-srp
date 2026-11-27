@@ -278,9 +278,14 @@ impl Config {
         Self { bot_maps, map_files, ..self }
     }
 
-    /// [A197] The maps a room with bots may hold now: [`Self::bot_maps`] whose bots' built files are there at this call.
+    /// [A197] The maps a room with bots may hold now: [`Self::bot_maps`] of the bots' modes ([`bots_play`]: a
+    /// setting that names another is not taken) whose bots' built files are there at this call.
     pub fn bot_maps_ready(&self) -> Vec<MapId> {
-        self.bot_maps.iter().copied().filter(|&id| maps::map_mode(id).is_some_and(|map| self.map_files.ready(map).is_ok())).collect()
+        self.bot_maps
+            .iter()
+            .copied()
+            .filter(|&id| maps::map_mode(id).is_some_and(|map| bots_play(map.mode) && self.map_files.ready(map).is_ok()))
+            .collect()
     }
 }
 
@@ -308,16 +313,18 @@ fn parse_rusher_kits(value: &str) -> Result<RusherKits, String> {
 /// map in `dir` (`SRP_MAPDATA_DIR`, the match server's: without one its
 /// bots only run their script).
 pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<MapId> {
-    maps.filter(|map| {
-        matches!(
-            map.mode,
-            maps::GameMode::Batteries
-                | maps::GameMode::TimedBatteries
-                | maps::GameMode::TeamDeathmatch
-        ) && dir.join(mapdata::format::file_name(map.project)).is_file()
-    })
-    .map(|map| map.id)
-    .collect()
+    maps.filter(|map| bots_play(map.mode) && dir.join(mapdata::format::file_name(map.project)).is_file())
+        .map(|map| map.id)
+        .collect()
+}
+
+/// Whether the server's bots play `mode` ([`bot_maps`]): the match server refuses them in any other
+/// (`bots::objective::Mode::of_rules`).
+pub fn bots_play(mode: maps::GameMode) -> bool {
+    matches!(
+        mode,
+        maps::GameMode::Batteries | maps::GameMode::TimedBatteries | maps::GameMode::TeamDeathmatch
+    )
 }
 
 /// The offered maps as the dictionary has them: [`MAPS`], each with its
