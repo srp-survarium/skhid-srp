@@ -798,7 +798,8 @@ def memory(args):
 
 
 RESOURCE_LINE = re.compile(
-    r"^(?P<at>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\S* \[\w+\] (?P<who>.*) \(account (?P<account>\d+)\), match (?P<match>0x[0-9a-f]+), (?P<what>.*)$")
+    r"^(?:(?P<dated>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\S* |(?P<clock>\d\d:\d\d:\d\d)\S* \[resources\] )"
+    r"\[\w+\] (?P<who>.*) \(account (?P<account>\d+)\), match (?P<match>0x[0-9a-f]+), (?P<what>.*)$")
 
 
 def resource_lines(text):
@@ -809,6 +810,8 @@ def resource_lines(text):
         if not found:
             continue
         row = found.groupdict()
+        dated, clock = row.pop("dated"), row.pop("clock")
+        row["at"] = dated or clock
         row["account"] = int(row["account"])
         what = row["what"]
         row["as_release"] = what.endswith(": as the release") or bool(re.search(r": \d+ files as the release$", what))
@@ -825,7 +828,7 @@ def resources(args):
         text = read_newest(args.log_file, window)
     rows = list(resource_lines(text))
     if not rows:
-        sys.exit("moderate: no file checks in the read (clients before patch 215 send none)")
+        sys.exit("moderate: no file checks in the log window")
     if args.account:
         target = args.account.casefold()
         rows = [row for row in rows if str(row["account"]) == target or row["who"].casefold() == target]
@@ -1088,7 +1091,7 @@ def main():
     p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")
     p.set_defaults(run=memory)
     p = commands.add_parser("resources", help="games' files against the release's (resources.log), the differing ones")
-    p.add_argument("--log-file", help="read this local resources.log and its rotations")
+    p.add_argument("--log-file", help="read local resources.log or the launcher’s runtime/server.log, including rotations")
     p.add_argument("--account", help="only this account's lines (name or id)")
     p.add_argument("--all", action="store_true", help="the lines as the release too")
     p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")

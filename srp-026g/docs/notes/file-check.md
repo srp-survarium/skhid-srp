@@ -3,6 +3,8 @@
 The match server records which files differ from the local reference build in
 `logs/resources.log`, with the player, account, match and asset path. Read a
 local test log with `release/moderate resources --log-file logs/resources.log`.
+The local-clients launcher writes the same events to `runtime/server.log`
+in its setup directory. Pass that file to `--log-file` for a launcher run.
 Add `--all` to include clean replies.
 
 Every match checks its vegetation files, the archived `startup.cfg` and the

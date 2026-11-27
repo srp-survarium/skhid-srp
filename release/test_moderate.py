@@ -114,6 +114,12 @@ class ResourcesTests(unittest.TestCase):
         self.assertEqual(len(lines), 2)
         self.assertTrue(all("player (7)" in line for line in lines))
 
+    def test_combined_local_log_selects_only_the_resources_target(self):
+        line = "17:00:04.000Z [resources] [INFO] player (account 7), match 0x1235, mounts 12: as the release"
+        rows = list(moderate.resource_lines(line + "\n" + line.replace("[resources]", "[input]")))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["at"], rows[0]["who"], rows[0]["as_release"]), ("17:00:04", "player", True))
+
     def test_local_log_file(self):
         with tempfile.NamedTemporaryFile(mode="w") as log:
             log.write(self.LOG)
