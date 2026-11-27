@@ -27,9 +27,11 @@ served by `servers/web-server/src/maps.rs`.
   that project keeps. One kind of spawn: one swatch, no team in the tooltip. Yellow is not the owner's pick: the
   grey of a point of no team did not read on the minimaps.
 - The markers are the game's own HUD minimap icons (hud.swf `Minimap._icons`), painted in one blue and one red alike
-  (players, containers, ammo stashes: no discs). The battery is the kill feed's battery icon without its burst (the
-  owner, 2026-11-15: "we can use the same icon on website (without strike)"): the electrobox mesh in three-quarter
-  view, white faces over a dark silhouette, a vector SVG (`make_battery_icon.py`), drawn untinted with the outline.
+  (players, containers, ammo stashes: no discs). The battery is the Protective device's mode icon (the owner,
+  2026-11-27: "for batteries let's use 'protective device' mode icon on wiki"; "it is the original one everyone
+  knows"): the lobby's loading-screen icon (`SrvGameModeIcons`, a 61x55 bitmap), the very file the modes page shows
+  (`/wiki/icons/modes/`), in its own colours with the outline, 24 px on the map and 18 in the legend (the file is
+  64 px: sharp at twice the density). It replaced the kill feed's battery without its burst (2026-11-15).
   Artefacts are their lobby icons alone, no circle.
 - The site's header: the calculator's look (paper, ink rule, PT Sans Narrow), separators between Home | Wiki,
   the page shown in the accent colour (Home too). The calculator and the maps are sections of the wiki (the owner,
