@@ -253,9 +253,158 @@ impl<'t> ReloadLoad<'t> {
     }
 }
 
+/// One of the two clip sets a two-clip reload chooses between, as its picks
+/// (get_weapon_lexeme and the hands') index them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReloadClip {
+    /// State 314's tactical clips; state 311's one shell's.
+    First,
+    /// State 314's empty clips; state 311's two shells'.
+    Second,
+}
+
+impl ReloadClip {
+    fn of(second: bool) -> ReloadClip {
+        if second { ReloadClip::Second } else { ReloadClip::First }
+    }
+
+    fn bit(self) -> u32 {
+        match self {
+            ReloadClip::First => 0,
+            ReloadClip::Second => 1,
+        }
+    }
+}
+
+/// The reload classes' clip table: the state's own +144h, four pairs of
+/// handles, pick (0 or 1) + 2 * posture (every constructor: 0x30E2FA,
+/// 0x30F6AC, 0x30FF8C).
+const PICKS_OFFSET: u32 = 0x144;
+const PICK_BYTES: u32 = 8;
+const PICKS: u32 = 4;
+/// m_index_of_animation_to_wait before a reload's first pick (initialize
+/// 0x30DA60, finalize 0x30E476).
+const NOT_PICKED: u8 = 0xFF;
+
+/// The clip set a reload state's m_index_of_animation_to_wait (+134h) names:
+/// what its get_weapon_lexeme wrote, `(pick * 8 + state + 144h - [+130h]) >> 2`
+/// (0x30FEE4, 0x30F5FA), the world's byte after a deserialize (0x30DC7C).
+/// None before the reload's first pick (0FFh), or for an index that is not a
+/// pick of the table.
+fn saved_clip(index: u8, handles: u32, state: u32) -> Option<ReloadClip> {
+    if index == NOT_PICKED {
+        return None;
+    }
+    let offset = (u32::from(index) * 4).wrapping_add(handles).wrapping_sub(state.wrapping_add(PICKS_OFFSET));
+    if offset % PICK_BYTES != 0 || offset / PICK_BYTES >= PICKS {
+        return None;
+    }
+    Some(ReloadClip::of((offset / PICK_BYTES) & 1 == 1))
+}
+
+/// Where a two-clip reload picks a clip set, and the register its pick is in
+/// there (sites_026g.tsv's reload.pick_*).
+#[derive(Clone, Copy)]
+enum PickSite {
+    /// 314's weapon clips (reload.pick_empty): EBX, before +134h is written.
+    Magazine,
+    /// 314's hands (reload.pick_empty_hands): EAX, after.
+    MagazineHands,
+    /// 311's weapon clips (reload.pick_two_shells): ECX, before.
+    Shells,
+    /// 311's hands (reload.pick_two_shells_hands): ESI, after.
+    ShellHands,
+}
+
+/// A two-clip reload's pick at one of its sites: the game's own (from the
+/// weapon's rounds now) in a register, and the clip set the reload picked
+/// before, which the game keeps in +134h (and in a world).
+pub struct ClipPick<'c, 't> {
+    ctx: &'c mut Context<'t>,
+    register: super::Reg,
+    saved: Option<ReloadClip>,
+    loaded: u8,
+}
+
+impl<'c, 't> ClipPick<'c, 't> {
+    fn at(ctx: &'c mut Context<'t>, site: PickSite) -> Option<ClipPick<'c, 't>> {
+        use super::Reg;
+        // SAFETY: the context is this site's, EDI the live reload state the
+        // pick reads (every site's code reads +120h, +130h, +134h of it the
+        // same way); its weapon the game's.
+        let (state, register) = unsafe {
+            match site {
+                PickSite::Magazine => (raw::site::reload_pick_empty::state(ctx)?, Reg::Ebx),
+                PickSite::MagazineHands => (raw::site::reload_pick_empty_hands::state(ctx)?, Reg::Eax),
+                PickSite::Shells => (raw::site::reload_pick_two_shells::state(ctx)?, Reg::Ecx),
+                PickSite::ShellHands => (raw::site::reload_pick_two_shells_hands::state(ctx)?, Reg::Esi),
+            }
+        };
+        // SAFETY: as above.
+        let (index, handles, loaded) = unsafe {
+            (read(state.index_of_animation_to_wait()), read(state.animation_handles()), read(state.weapon()?.loaded()))
+        };
+        let saved = saved_clip(index, handles, state.address());
+        Some(ClipPick { ctx, register, saved, loaded })
+    }
+
+    /// At `reload.pick_empty`: 314's weapon clips, before this pick is saved.
+    pub fn magazine(ctx: &'c mut Context<'t>) -> Option<ClipPick<'c, 't>> {
+        ClipPick::at(ctx, PickSite::Magazine)
+    }
+
+    /// At `reload.pick_empty_hands`: 314's hands, after the weapon's pick is saved.
+    pub fn magazine_hands(ctx: &'c mut Context<'t>) -> Option<ClipPick<'c, 't>> {
+        ClipPick::at(ctx, PickSite::MagazineHands)
+    }
+
+    /// At `reload.pick_two_shells`: 311's weapon clips, before this pick is saved.
+    pub fn shells(ctx: &'c mut Context<'t>) -> Option<ClipPick<'c, 't>> {
+        ClipPick::at(ctx, PickSite::Shells)
+    }
+
+    /// At `reload.pick_two_shells_hands`: 311's hands, after the weapon's pick is saved.
+    pub fn shell_hands(ctx: &'c mut Context<'t>) -> Option<ClipPick<'c, 't>> {
+        ClipPick::at(ctx, PickSite::ShellHands)
+    }
+
+    /// The clip set +134h names: at the weapon sites the reload's last pick
+    /// (None at its first), at the hands sites this rebuild's weapon pick.
+    pub fn saved(&self) -> Option<ReloadClip> {
+        self.saved
+    }
+
+    /// The weapon's rounds in the magazine now (+5E5h).
+    pub fn loaded(&self) -> u8 {
+        self.loaded
+    }
+
+    /// The pick the game's code goes on with.
+    pub fn choose(self, clip: ReloadClip) {
+        self.ctx.set_reg(self.register, clip.bit());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_saved_clip_of_each_index() {
+        let state = 0x3000_0000;
+        let handles = state + PICKS_OFFSET;
+        // pick + 2 * posture, as 0x30FEE4 writes it: (pick * 8) >> 2
+        assert_eq!(saved_clip(0, handles, state), Some(ReloadClip::First));
+        assert_eq!(saved_clip(2, handles, state), Some(ReloadClip::Second));
+        assert_eq!(saved_clip(4, handles, state), Some(ReloadClip::First));
+        assert_eq!(saved_clip(6, handles, state), Some(ReloadClip::Second));
+        assert_eq!(saved_clip(NOT_PICKED, handles, state), None);
+        for index in [1, 3, 5, 7, 8, 0x20] {
+            assert_eq!(saved_clip(index, handles, state), None, "{index}");
+        }
+        // a table elsewhere: the index is relative to it
+        assert_eq!(saved_clip(4, handles - 8, state), Some(ReloadClip::Second));
+    }
 
     #[test]
     fn only_the_seated_domain_is_an_event() {
