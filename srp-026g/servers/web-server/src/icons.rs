@@ -3,7 +3,8 @@
 //! filter buttons), each quest's (`ui.icon`, the quest list's) and each
 //! faction's (the quest window's faction tab), and each map's picture as the
 //! rooms draw it (the lobby's table `MapRenders.tsv` names it: the rooms and
-//! the site read the one table), and each mode's loading-screen icon. Built per release with the calculator
+//! the site read the one table), each mode's loading-screen icon, and the
+//! wiki index's tile pictures the other sets have too small. Built per release with the calculator
 //! (`srp-026g/scripts/damage-calc/build_site.py`, through
 //! `srp-026g/scripts/wiki/build_icons.py`) into `../wiki/icons/`; every file
 //! is part of the binary, `../wiki/icons/files.rs` lists them. The
@@ -33,6 +34,10 @@ pub(crate) enum IconSet {
     /// By the loading screen's mode icon frame (`ui.icon` + 1), or
     /// `twist-<lobby mode>` for a free-for-all's twist: `SrvGameModeIcons`.
     Mode,
+    /// By the wiki index's section, a tile's picture where the sets above
+    /// have none big enough for a tile; `<section>@2x` its copy for screens
+    /// of twice the density.
+    Tile,
 }
 
 impl IconSet {
@@ -45,6 +50,7 @@ impl IconSet {
             Self::Faction => "factions",
             Self::Map => "maps",
             Self::Mode => "modes",
+            Self::Tile => "tiles",
         }
     }
 }

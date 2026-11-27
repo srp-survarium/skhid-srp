@@ -1223,7 +1223,9 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             let files: Vec<&str> = picture
                 .match_indices("?v=")
                 .map(|(at, _)| {
-                    let start = picture[..at].rfind(['"', '\'']).unwrap() + 1;
+                    // An address starts after a quote, or after the space
+                    // before it in a srcset.
+                    let start = picture[..at].rfind(['"', '\'', ' ']).unwrap() + 1;
                     &picture[start..at]
                 })
                 .collect();

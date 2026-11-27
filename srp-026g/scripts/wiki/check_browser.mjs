@@ -63,6 +63,16 @@ try {
     }).concat(new Set([...document.querySelectorAll('.wiki-pic')].map(box => box.offsetHeight)).size === 1 ? [] : ['box sizes differ']));
   })()`)), []);
   await screenshot('wiki');
+  // The Maps tile's picture comes at twice the size for a screen of twice the density.
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 2});
+  await navigate('/wiki');
+  assert.match(await evaluate(`(async () => {
+    const img = document.querySelector('.wiki-link[href^="/wiki/maps"] img');
+    img.scrollIntoView();
+    await img.decode();
+    return img.currentSrc;
+  })()`), /\/tiles\/maps@2x\.webp\?v=/);
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/wiki/weapons');
   await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
   const total = await evaluate("document.querySelectorAll('.weapon').length");
