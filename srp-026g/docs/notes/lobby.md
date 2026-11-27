@@ -87,7 +87,7 @@ The transport layer itself (UDP header, acks, ordering) is not covered here; see
 | 0xA6 | inline 0x2750C0 | admin text clear | — | NEW |
 | 0xA7 | inline 0x274F95 | `u32, str, u16`, read and ignored | — | NEW (no effect) |
 | 0xA8 | inline 0x274FF8 → 0x28A400 | premium discount store / post reward | — | NEW |
-| 0xA9 | inline 0x274FBA → 0x28AB20 | premium discount | — | NEW |
+| 0xA9 | inline 0x274FBA → 0x28AB20 | premium discount; srp never sends it. srp's scope reticles use the id instead (`reticle-choice.md`), and patch `reticle` takes them before the jump table (0x274A39), so the case never runs on them | — | NEW |
 | 0xAA | inline 0x2750EB | forced sign-out to login, shows `st_login_menu_status_sign_in_already_online` | — | NEW |
 
 GONE from 0.21d: 0x36 07 (had no handler anyway), 0x37 ping answer (unless 0xA7), messaging 0xCA sign-in reply, the 0x36 01 / 0x36 02 split.

@@ -148,6 +148,21 @@ impl LobbyInventory<'_> {
         unsafe { Some(LobbyItem { id, dict: *record.dict(), records: upgrades::read(record.upgrades()) }) }
     }
 
+    /// Sends the lobby `46 05 <active kit> <item> <item> <u64 value>`, srp's reticle of a scope
+    /// item (patch `reticle`), by send_apply_decal as the decal editor's accept does. Its own
+    /// write after the send goes to the item's record of its own id: a scope item has none (no
+    /// upgrade is ever put on one), so it writes nothing and copies the account's items.
+    pub fn send_reticle(&self, item: u32, value: u64) {
+        // SAFETY: the lobby client and its active kit, on the lobby's thread; send_apply_decal
+        // begins and sends the request on the client's own link (none: nothing goes, 0x37A12A)
+        // and writes only a record of the item whose id is the item's own, then copies the
+        // account's items.
+        unsafe {
+            let kit = *self.client.active_kit();
+            raw::engine_send_apply_decal(Some(self.client), kit, item, item, value as u32, (value >> 32) as u32);
+        }
+    }
+
     /// Sends the lobby `46 05`, the value of `upgrade` on `host` (the active
     /// kit first), as the decal editor's accept does (0x263A28..0x263A5C),
     /// then gives the host `records` (the host's own with the values the

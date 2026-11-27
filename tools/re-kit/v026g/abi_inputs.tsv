@@ -6872,3 +6872,20 @@ va	name	location	role	basis
 0x00119760	vostok::render::camouflage_decal_cook_parameters::camouflage_decal_cook_parameters	entry ESP+4	P's layout: two decal layers of 270h at +0 (0x119740 each: a float4x4, then four 8Ch buffer_strings at +40h), the camouflage's four 8Ch buffer_strings (80h of room, 0x40530) at +520h, +5ACh, +638h, +6C4h, constructed apart (+4E0h..+520h left as they are), an identity float4x4 at +750h (0x33390's), +790h, +794h, +79Ch and +7A0h zeroed, the bake's name at +7A4h over 104h bytes at +7B0h ('/' at +8B4h)	observed
 0x002ac6c0	survarium::particle_game_effect_presenter::effect_data::operator=	ESI	the entry written (on_event's stop at 0x2AC615: each entry of the stopped effect, from an empty one)	observed
 0x002ac6c0	survarium::particle_game_effect_presenter::effect_data::operator=	EAX	the entry copied: its effect reference (0x2A9B10), resource and child, its particle (count +0D0h) and two floats	observed
+0x00274a00	survarium::lobby_client::on_message_received	ECX	the lobby client (EBX from 0x274A1A)	observed
+0x00274a00	survarium::lobby_client::on_message_received	entry ESP+4	the message's id, its low byte read (DL, 0x274A10)	observed
+0x00274a00	survarium::lobby_client::on_message_received	entry ESP+8	the message's reader {begin, cursor, size}, the cursor at the body ([ebp+0Ch], 0x274A46)	observed
+0x00511700	Scaleform::GFx::Movie::CreateObject	ECX	the movie holder (+0Ch the GFx movie), as Invoke's	observed
+0x00511700	Scaleform::GFx::Movie::CreateObject	entry ESP+4	the value the new object is written into (a GFx value of 18h bytes)	observed
+0x00511700	Scaleform::GFx::Movie::CreateObject	entry ESP+8	the class name, 0 for a plain Object (0x288636)	observed
+0x00511700	Scaleform::GFx::Movie::CreateObject	entry ESP+12	the constructor's arguments, 0 for none	observed
+0x00511700	Scaleform::GFx::Movie::CreateObject	entry ESP+16	the count of the arguments	observed
+0x00511710	Scaleform::GFx::Movie::CreateArray	ECX	the movie holder (+0Ch the GFx movie), as Invoke's	observed
+0x00511710	Scaleform::GFx::Movie::CreateArray	entry ESP+4	the value the new array is written into (a GFx value of 18h bytes)	observed
+0x00798340	Scaleform::GFx::AS3ValueObjectInterface::SetElement	ECX	the object interface (an array's GFx value's +0)	observed
+0x00798340	Scaleform::GFx::AS3ValueObjectInterface::SetElement	entry ESP+4	the target array, the array's own data (its GFx value's +8; its +20h the AS3 array, 0x798390)	observed
+0x00798340	Scaleform::GFx::AS3ValueObjectInterface::SetElement	entry ESP+8	the element's index	observed
+0x00798340	Scaleform::GFx::AS3ValueObjectInterface::SetElement	entry ESP+12	the element to set (a GFx value)	observed
+0x0078e610	Scaleform::GFx::AS3ValueObjectInterface::ObjectRelease	ECX	the object interface (the released GFx value's +0)	observed
+0x0078e610	Scaleform::GFx::AS3ValueObjectInterface::ObjectRelease	entry ESP+4	the GFx value released (its +4 the type read, 0x78E614)	observed
+0x0078e610	Scaleform::GFx::AS3ValueObjectInterface::ObjectRelease	entry ESP+8	the target whose count drops, the value's own data (its +8; setup_inventory_data passes [ebp-64h], 0x2886A0)	observed

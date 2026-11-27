@@ -114,7 +114,7 @@ own timer; `ItemControlPanel` shows `rerollTime / 60` minutes). srp sends
 |---|---|---|
 | `46 01` | u32 active kit, **u32 host item, u32 cosmetic item, u8 slot**, u64 0 | `relocate_upgrade_item(item, upgrade, slot)` (0x29A984: args 0, 1, 2 in order) |
 | `46 02` | u32 active kit, u32 cosmetic item; **u32 host item** with patch 30 (§6) | `drop_upgrade_item(item, upgrade)`: the stock exe sends only the second (0x29AAD5 → 0x2708C0; 0x29A9E1 reads the first for a log line) |
-| `46 05` | u32 active kit, **u32 host item, u32 cosmetic item**, u64 value | the decal editor 0x263950; the client then finds the host and the cosmetic's record and writes the value itself (0x270A1A..0x270AC6); patch 207 sends it for a second sight's side (`srp_set_upgrade_value`, client_patch.md 3.111) |
+| `46 05` | u32 active kit, **u32 host item, u32 cosmetic item**, u64 value | the decal editor 0x263950; the client then finds the host and the cosmetic's record and writes the value itself (0x270A1A..0x270AC6); patch 207 sends it for a second sight's side (`srp_set_upgrade_value`, client_patch.md 3.111); patch `reticle` sends it with host == cosmetic == a scope item for its reticle (`srp_set_reticle`, the value `pattern \| size << 8 \| colour << 16 \| brightness << 24 \| 52h << 56`, `reticle-choice.md`) |
 | `46 06` | u32 item | `item_reroll_opened` |
 | `46 07` | u32 item, u32 modification id (`item.mods[index]`), **bool gold** | `reroll_item_modifier(item, index, money type)` |
 | `46 08` | u32 item, u32 old modification id, **u32 the place of the choice (0..2)**; srp's window sends 3 to keep the old one ([reroll-keep-old.md](reroll-keep-old.md)) | `modifier_choosed(item, index, modifiersList2.selectedIndex)`: the third is an index into the three offered, not an id |

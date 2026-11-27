@@ -73,6 +73,8 @@ pub mod lobby_menu;
 mod lobby_call;
 pub use lobby_call::{LobbyCall, LobbyInventory, LobbyItem, NotGiven};
 pub mod login;
+pub mod names;
+pub mod scope_reticle;
 pub mod openssl;
 pub mod mouse;
 pub mod mouse_device;

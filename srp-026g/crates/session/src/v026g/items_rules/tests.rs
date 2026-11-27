@@ -194,7 +194,10 @@ fn cosmetics_go_on_and_come_off() {
     assert_eq!(account.item(other).unwrap().upgrades.len(), 1);
 
     // The decal editor's value (a vest: nothing to send).
-    assert!(!place_upgrade(&mut account, vest, first, 0x0102_0304_0506_0708).unwrap());
+    assert_eq!(
+        place_upgrade(&mut account, vest, first, 0x0102_0304_0506_0708).unwrap(),
+        Placed::Upgrade { weapon: false }
+    );
     let held = |account: &Account, host: u32, upgrade: u32| {
         account
             .item(host)
@@ -607,7 +610,7 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
         .unwrap();
     takes(
         &mut client,
-        &wire::after_change(&account).unwrap()[0],
+        &wire::inventory(&account).unwrap(),
         &account,
     );
 
@@ -1972,7 +1975,10 @@ fn a_decal_placed_on_a_weapon_asks_for_the_account() {
         item_id: rifle,
         count: 1,
     });
-    assert!(place_upgrade(&mut account, rifle, decal_id, 0x0102_0304_0506_0708).unwrap());
+    assert_eq!(
+        place_upgrade(&mut account, rifle, decal_id, 0x0102_0304_0506_0708).unwrap(),
+        Placed::Upgrade { weapon: true }
+    );
     let held = account.item(rifle).unwrap().upgrades[0];
     assert_eq!((held.value, held.param), (0x0102_0304_0506_0708, 0));
     assert_ne!(account.kits[0].revision, revision);
@@ -2109,4 +2115,58 @@ fn a_weapons_camouflage_named_by_its_kit_comes_off_by_its_dict_id() {
     account.item_mut(rifle).unwrap().upgrades = vec![scoped, camo(worn)];
     assert_eq!(detach_upgrade(&mut account, rifle, worn), Ok(Detached::Off));
     assert_eq!(account.item(rifle).unwrap().upgrades, [scoped]);
+}
+
+/// `46 05` with a scope item as host and upgrade: its reticle, held against its lists; anything
+/// else refused with nothing changed.
+#[test]
+fn a_scope_items_reticle_is_set_through_46_05() {
+    use survarium::v026g::reticles::fixtures;
+    const LEUPOLD: u16 = 69;
+    const PSO: u16 = 304;
+    let reticles = fixtures::reticles(&[LEUPOLD]);
+    let modules = Modules::shared();
+    let mut account = Account::new("Reticle");
+    let scope = account.add_item(LEUPOLD, FULL_CONDITION);
+    let plain = account.add_item(PSO, FULL_CONDITION);
+    let numbers = |pattern, size, colour, brightness| Numbers {
+        pattern,
+        size,
+        colour,
+        brightness,
+    };
+    let value = |n: Numbers| n.value();
+    let chosen = numbers(1, 3, 1, 10);
+    assert_eq!(
+        place_upgrade_with(&mut account, modules, &reticles, scope, scope, value(chosen)),
+        Ok(Placed::Reticle)
+    );
+    assert_eq!(account.reticles.of(scope).numbers(), chosen);
+    let before = account.clone();
+    for (item, raw) in [
+        // past a list, or a brightness over 10
+        (scope, value(numbers(2, 0, 0, 6))),
+        (scope, value(numbers(0, 4, 0, 6))),
+        (scope, value(numbers(0, 0, 2, 6))),
+        (scope, value(numbers(0, 0, 0, 11))),
+        // no mark, or bytes past the four
+        (scope, 0x0000_0000_0100_0101),
+        (scope, value(chosen) | 1 << 40),
+        // a scope item with no lists, an item the account lacks
+        (plain, value(numbers(0, 0, 0, 6))),
+        (999, value(numbers(0, 0, 0, 6))),
+    ] {
+        assert!(
+            place_upgrade_with(&mut account, modules, &reticles, item, item, raw).is_err(),
+            "{item} {raw:#x}"
+        );
+        assert_eq!(account, before);
+    }
+    // The default again: no choice is kept.
+    let default = survarium::v026g::reticles::Reticle::DEFAULT.value();
+    assert_eq!(
+        place_upgrade_with(&mut account, modules, &reticles, scope, scope, default),
+        Ok(Placed::Reticle)
+    );
+    assert_eq!(account.reticles.chosen().count(), 0);
 }

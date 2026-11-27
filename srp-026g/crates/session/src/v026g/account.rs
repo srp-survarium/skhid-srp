@@ -217,6 +217,9 @@ pub struct Account {
     /// The face it is drawn with, one an account (`face-choice.md`): 0 until
     /// it chooses one in the lobby.
     pub face: Face,
+    /// The reticle it chose for each of its scope items (`reticle-choice.md`): none until it
+    /// chooses one in the lobby.
+    pub reticles: super::reticles::ScopeReticles,
 }
 
 /// The pockets of a kit's `slots` ([`POCKET_SLOTS`]) holding an item type
@@ -350,6 +353,7 @@ impl Account {
             presets: [const { None }; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
             face: Face::DEFAULT,
+            reticles: Default::default(),
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {
@@ -657,6 +661,8 @@ impl Account {
         // An upgrade whose cosmetic is gone (sold) is no upgrade, and the
         // kits wearing the item it was on show another one.
         let stripped = super::items_rules::drop_gone_upgrades(&mut self.inventory);
+        // A scope item that is gone takes its reticle with it.
+        self.reticles.keep_owned(&self.inventory);
         let mut any = false;
         for index in 0..self.kits.len() {
             let mut slots = self.kits[index].slots;
