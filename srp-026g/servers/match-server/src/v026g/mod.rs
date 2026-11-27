@@ -117,6 +117,7 @@ mod artefact_hunt_cap;
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
 mod client_report;
+mod resource_checks;
 mod executable;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;

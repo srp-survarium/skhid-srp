@@ -3,6 +3,62 @@
 Canonical plan: [PLAN-RUST-CLIENT.md](PLAN-RUST-CLIENT.md). Newest session first.
 Statuses distinguish implementation, host/native testing, real play and release.
 
+## 2026-11-27 — local grass and character resource checks
+
+The local integration combines `d39e185bb` (including input summaries from
+PR #2737) with the file checker from `562b21616`. Patch 218 uses report
+kind 4 alongside the input summary at kind 3. Its loaded, frame and close
+callbacks run after the input callbacks. The server compares the archived
+startup configuration, map vegetation, base and patch indexes, and a sample
+of character appearance assets. See [file checks](notes/file-check.md).
+
+`tools/test-build 74 private/resource-check exe server` built the paired
+local client and server. The same worktree’s `srp-game-data build` produced
+the reference from the stock archive and the 55 local patches pinned in
+`release/patches.tsv`. All 55 hashes matched. `srp-check-game-data`
+accepted the database.
+
+| Local artifact | SHA-256 |
+|---|---|
+| `private/resource-check/survarium_skhid.exe` | `e93f2b38ea9f5acc0147e01e8b0d4757355e450e4a7d0c9842a38434277205c8` |
+| `private/resource-check/srp` | `8de09f85802fc45b045c18fd01993930a49112ef67eeb4adb69b5f660edc1464` |
+| `private/resource-check/server-game-data.db` | `5cb96b38501e4496890643a476955017715e13634d8cfe17a6d95abd82f60067` |
+
+The i686 client reader matched all 7,698 reference entries (1,368 MB) in
+121 bounded requests over real local archives. Four original character
+filenames contain spaces. The shared parser accepts them and rejects
+control characters. A separate request for `v011e_level_03/day_2` matched
+all 382 answers, including the archive tables. The client regression
+changes equal-length outfit bytes and empties the grass layer. The server
+regression checks the player’s log line names both affected paths.
+
+The reviewed pair above includes main through `7bcf5d2dd`. The Wine fixture
+used all 2,549,452 bytes of the built executable’s Rust arena, verified
+against its PE section. The load, dispatch, tick and close hooks used real
+Win32 reads of the stock archive and all 55 patches. The test intercepted
+the match transport and verified all 383 answers (382 reference entries and
+one missing file), across 12 parts and 1,272 ticks. A duplicate request
+produced one answer. Closing and loading again produced a fresh offer.
+The fixture and its output are in `private/resource-check/native/`.
+
+The match server, wire parser, archive crate, Rust patches and moderation
+reader passed their focused tests. The reader also passed against the local
+launcher's combined log format. The native executable-report and mouse
+hooks passed. The game and host world validators agreed on all 6,739
+sampled worlds and their mutations. The broader world-corpus check
+reproduced the earlier 20,357 passes, 25,435 refusals and 3,700 unchecked.
+Of the 95 selected repository checks, 88 passed. Alongside the corpus,
+the existing failure cases were the bot map count (17 vs 25), lobby bonus
+rolls, Vostok anomalies, the second-sight view, the stock breath-hit
+fixture and the weather pack’s `srp_lamps` comparison.
+
+A separate loopback run used the local revision 75 executable and the
+quick-build content patch and reference database produced by the checks.
+The game reached the sign-in screen under Wine. A full match and native
+Windows testing remain unverified. From the checkout, read the local
+launcher's log with `release/moderate resources --log-file <setup>/runtime/server.log`.
+Local builds only.
+
 ## 2026-11-27 — match input summaries integrated on current main
 
 On `32b1952f4`, the attachment view uses position 7 on `game.tick`.

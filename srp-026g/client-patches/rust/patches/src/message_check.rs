@@ -14,6 +14,7 @@ pub fn on_message(ctx: &mut Context<'_>) -> Flow<MessageCheckOnMessageExit> {
         return Flow::Exit(MessageCheckOnMessageExit::Refused);
     };
     if message.executable_reply() { return Flow::Exit(MessageCheckOnMessageExit::Refused); }
+    if message.file_check_request() { return Flow::Exit(MessageCheckOnMessageExit::Refused); }
     let Some(fault) = message.fault() else { return Flow::Continue; };
     let (id, len) = (message.id(), message.payload_len().unwrap_or(0));
     message.discard();

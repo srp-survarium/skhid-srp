@@ -594,6 +594,8 @@ pub struct Client {
     /// What a correct server never causes.
     pub faults: Vec<String>,
     pub executable_replies: Vec<srp_validate::executable::Reply>,
+    /// The resource checks' requests it was sent (`srp_validate::checks`).
+    pub check_requests: Vec<Vec<u8>>,
     /// Leaves the game drops (tick, player): sent before it played the
     /// player's entry (`leave_match` 0x2D18A0 reads the entered mask of the
     /// newest tick it played at or before the leave's, 0x2D1B4B..0x2D1B9D).
@@ -699,6 +701,7 @@ impl Client {
             skipped: Vec::new(),
             faults: Vec::new(),
             executable_replies: Vec::new(),
+            check_requests: Vec::new(),
             dropped_leaves: Vec::new(),
             auto_prepare: true,
             prepares: Vec::new(),
@@ -1117,6 +1120,11 @@ impl Client {
     }
 
     fn deliver(&mut self, id: u8, payload: &[u8]) {
+        if id == id::STATIC_INFO && payload.starts_with(&srp_validate::checks::REQUEST_MAGIC) {
+            if srp_validate::checks::Request::parse(payload).is_some() { self.check_requests.push(payload.to_vec()); }
+            else { self.faults.push("invalid resource check request".into()); }
+            return;
+        }
         if id == id::STATIC_INFO && payload.starts_with(&srp_validate::executable::REPLY_MAGIC) {
             if let Some(reply) = srp_validate::executable::Reply::parse(payload) { self.executable_replies.push(reply); }
             else { self.faults.push("invalid executable reply".into()); }
