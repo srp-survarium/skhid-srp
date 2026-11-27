@@ -109,6 +109,7 @@ pub mod step;
 pub mod system;
 pub mod modules;
 pub mod executable;
+pub mod file_check;
 pub mod module_watch;
 pub(crate) mod input_report;
 pub mod voices;

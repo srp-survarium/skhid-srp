@@ -3,6 +3,43 @@
 Canonical plan: [PLAN-RUST-CLIENT.md](PLAN-RUST-CLIENT.md). Newest session first.
 Statuses distinguish implementation, host/native testing, real play and release.
 
+## 2026-11-27 — local grass and character resource checks
+
+The local integration combines `d39e185bb` (including input summaries from
+PR #2737) with the file checker from `562b21616`. Patch 218 uses report
+kind 4 alongside the input summary at kind 3. Its loaded, frame and close
+callbacks run after the input callbacks. The server compares the archived
+startup configuration, map vegetation, base and patch indexes, and a sample
+of character appearance assets. See [file checks](notes/file-check.md).
+
+`tools/test-build 74 private/resource-check exe server` built the paired
+local client and server. The same worktree’s `srp-game-data build` produced
+the reference from the stock archive and the 55 local patches pinned in
+`release/patches.tsv`. All 55 hashes matched. `srp-check-game-data`
+accepted the database.
+
+| Local artifact | SHA-256 |
+|---|---|
+| `private/resource-check/survarium_skhid.exe` | `b303930b3ccb0506e97d1ccb4288ad3de166f50e7d2e3de20aa5cbabcbec1b02` |
+| `private/resource-check/srp` | `76f28e8c9d8a6235baef55937788363ba40bc0e67310a47fa6151d49b92c7a55` |
+| `private/resource-check/server-game-data.db` | `5cb96b38501e4496890643a476955017715e13634d8cfe17a6d95abd82f60067` |
+
+The i686 client reader matched all 7,698 reference entries (1,368 MB) in
+121 bounded requests over real local archives. Four original character
+filenames contain spaces. The shared parser accepts them and rejects
+control characters. A separate request for `v011e_level_03/day_2` matched
+all 382 answers, including the archive tables. The client regression
+changes equal-length outfit bytes and empties the grass layer. The server
+regression checks the player’s log line names both affected paths.
+
+The match server, wire parser, archive crate, Rust patches and local
+moderation reader passed their focused tests. The broader `cargo:srp`
+check reproduced the previously recorded 17 vs 25 bot-map failure.
+For a local match, set `SRP_GAME_DATA` to the database above and use the
+paired executables. Read the server log with
+`release/moderate resources --log-file logs/resources.log`. A played match
+and native Windows testing remain pending. Local build only.
+
 ## 2026-11-27 — match input summaries integrated on current main
 
 On `32b1952f4`, the attachment view uses position 7 on `game.tick`.

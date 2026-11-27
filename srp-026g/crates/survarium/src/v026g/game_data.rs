@@ -37,6 +37,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use binary_config_parser::tree::ConfigValue;
+use resources_db::checked::{CHECKED, Checked};
 use resources_db::Archive;
 pub use resources_db::server::Provenance;
 use resources_db::server::{GAMEPLAY, LOCALIZATIONS, PROJECT_MARKER, PROJECTS};
@@ -86,6 +87,9 @@ pub struct GameData {
     /// each its `client_project` cut to its `server_objects` and the client
     /// objects a world saves ([`resources_db::server::objects_of`]).
     projects: BTreeMap<String, Vec<u8>>,
+    /// The files a match asks the players' games to hash
+    /// ([`resources_db::checked`]); none in data made before it had them.
+    checked: Checked,
 }
 
 impl GameData {
@@ -119,11 +123,17 @@ impl GameData {
         for (project, path) in project_paths {
             projects.insert(project, read(archive, &path)?);
         }
+        let checked = match archive.read(CHECKED).map_err(|cause| error(cause.to_string()))? {
+            Some(text) => Checked::parse(&String::from_utf8_lossy(&text))
+                .map_err(|cause| error(cause.to_string()))?,
+            None => Checked::default(),
+        };
         Ok(Self {
             origin,
             provenance: data.provenance,
             files,
             projects,
+            checked,
         })
     }
 
@@ -140,6 +150,7 @@ impl GameData {
         with_blackout_maps(&mut data.files);
         with_free_for_all_maps(&mut data.files, &mut data.projects);
         with_faces(&mut data.files);
+        with_checks(&mut data);
         data
     }
 
@@ -174,6 +185,12 @@ impl GameData {
         self.projects.get(project).map(Vec::as_slice)
     }
 
+    /// The files a match asks the players' games to hash, and what each
+    /// should be ([`resources_db::checked`]).
+    pub fn checked(&self) -> &Checked {
+        &self.checked
+    }
+
     /// This data with `files` over it, as a patch lays its files: a file
     /// of `gameplay/` or a localization by its path, a project as
     /// `projects/<project>/client_project` (what the data keeps of one:
@@ -185,6 +202,7 @@ impl GameData {
             provenance: self.provenance.clone(),
             files: self.files.clone(),
             projects: self.projects.clone(),
+            checked: self.checked.clone(),
         };
         for (path, bytes) in files {
             let project = path
@@ -262,6 +280,23 @@ const BLACKOUT_EDITS: &str = include_str!("../../../../scripts/content-edit/blac
 /// whose battery config `files` has, a copy of that config at the entry's
 /// name, with the list's strings replaced and its values added, and the
 /// entry.
+/// What a match of the test data checks (`resources_db::checked`): every
+/// project its `client_project` as the data has it, and a `startup.cfg` of
+/// the tests' own; the test archive has no vegetation.
+fn with_checks(data: &mut GameData) {
+    use resources_db::checked::Sum;
+    const STARTUP: &str = "startup.cfg";
+    let mut checked = Checked::default();
+    checked.files.insert(STARTUP.to_owned(), Sum::of(b"test startup.cfg\n").expect("small"));
+    checked.always.insert(STARTUP.to_owned());
+    for (project, bytes) in &data.projects {
+        let path = format!("{PROJECTS}{project}{PROJECT_MARKER}");
+        checked.files.insert(path.clone(), Sum::of(bytes).expect("small"));
+        checked.projects.insert(project.clone(), [path].into());
+    }
+    data.checked = checked;
+}
+
 fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
     fn text(value: &serde_json::Value) -> String {
         value.as_str().expect("a text").to_owned()

@@ -720,6 +720,8 @@ struct Peer {
     /// `Carrier::key`): each once, however often the client resends it.
     reports_heard: BTreeSet<(u8, u8, u8)>,
     executable: super::executable::Receiver,
+    /// Its game's resource check (`resource_checks`): offered, asked, logged.
+    checks: super::resource_checks::Check,
     /// Its game's code blocks (client patch 125), after the executable.
     code: super::executable::Blocks,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
@@ -1427,6 +1429,7 @@ impl Game {
             world_receipts: WorldReceipts::default(),
             reports_heard: BTreeSet::new(),
             executable: super::executable::Receiver::default(),
+            checks: super::resource_checks::Check::default(),
             code: super::executable::Blocks::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
@@ -1592,8 +1595,29 @@ impl Game {
         ) else {
             return true;
         };
-        if carrier.match_id == super::registry::static_id(self.id) && peer.reports_heard.insert(carrier.key()) {
+        if carrier.match_id != super::registry::static_id(self.id) || !peer.reports_heard.insert(carrier.key()) {
+            return true;
+        }
+        let srp_validate::report::Body::Checks(part) = &carrier.body else {
             super::client_report::log(&carrier, &place.name, place.account_id, self.id);
+            return true;
+        };
+        use super::resource_checks::{Action, RESOURCES, Release, Whom};
+        let data = survarium::v026g::game_data::shared();
+        let patches: Vec<u8> = data.provenance.patches.iter().filter_map(|patch| u8::try_from(patch.number).ok()).collect();
+        let release = Release { checked: data.checked(), patches: &patches, project: self.formed.played.map().project };
+        let whom = Whom { name: &place.name, account: place.account_id, match_id: self.id, seed: carrier.match_id };
+        let (check, actions) = std::mem::take(&mut peer.checks).step(part, &release, &whom);
+        peer.checks = check;
+        for action in actions {
+            match action {
+                // Only a game that offered a check is sent its request,
+                // resent until acked: it may be busy loading its world.
+                Action::Send(request) => {
+                    let _ = peer.transport.send_kept(survarium::v026g::match_msgs::id::STATIC_INFO, &request);
+                }
+                Action::Log(line) => log::info!(target: RESOURCES, "{line}"),
+            }
         }
         true
     }
@@ -6851,6 +6875,16 @@ impl Game {
     /// The parts of its client reports (client patch 126 on) logged.
     pub fn report_parts_heard(&self, index: usize) -> usize {
         self.peers[index].as_ref().map_or(0, |peer| peer.reports_heard.len())
+    }
+
+    /// Where its game's resource check is: `unoffered`, `asked`, `logged`.
+    pub fn resource_check(&self, index: usize) -> Option<&'static str> {
+        use super::resource_checks::Check;
+        self.peers[index].as_ref().map(|peer| match peer.checks {
+            Check::Unoffered => "unoffered",
+            Check::Asked(_) => "asked",
+            Check::Logged => "logged",
+        })
     }
 
     pub fn loads_refused(&self, index: usize) -> u32 {
