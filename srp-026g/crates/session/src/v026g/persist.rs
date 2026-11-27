@@ -176,6 +176,8 @@ const MIGRATIONS: &[&str] = &[
     presets::PERK_MIGRATION,
     // 25: the experience each match paid for its play, and its sums (`history`).
     history::EXPERIENCE_MIGRATION,
+    // 26: each preset kit's name, the saved presets given the kits' names (`presets`).
+    presets::NAMES_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -666,7 +668,7 @@ impl GameRepository for SqliteGameRepository {
                         room_settings: None,
                         mode_introductions: Default::default(),
                         drop_cards: Vec::new(),
-                        presets: [None; super::presets::PRESETS],
+                        presets: [const { None }; super::presets::PRESETS],
                         active_preset: super::presets::FIRST_PRESET,
                         face: Default::default(),
                     },

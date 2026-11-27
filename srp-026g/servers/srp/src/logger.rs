@@ -40,12 +40,13 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// lines of those targets, client patch 126's memory reports (about 2.5 KB
 /// a player a match) and patch 125's module reports (about 2 KB), weeks of
 /// them for `release/moderate memory` and `release/moderate modules`.
-const SERVERS: [(&str, u64, u32); 7] = [
+const SERVERS: [(&str, u64, u32); 8] = [
     ("login", 2 << 20, 4),
     ("lobby", 4 << 20, 16),
     ("match", 8 << 20, 32),
     ("web", 2 << 20, 2),
     ("srp", 4 << 20, 4),
+    ("input", 4 << 20, 16),
     ("modules", 4 << 20, 16),
     ("memory", 4 << 20, 16),
 ];
@@ -236,10 +237,12 @@ fn civil_from_days(days: u64) -> (u64, u64, u64) {
 }
 
 /// Which server's log a record belongs to, decided from its target prefix
-/// (a client report's kind its own file: `memory`, `modules`).
+/// (client reports have their own files: `memory`, `modules`, `input`).
 fn server_for_target(target: &str) -> &'static str {
     if target == "memory" {
         "memory"
+    } else if target == "input" {
+        "input"
     } else if target == "modules" {
         "modules"
     } else if target.starts_with("login_server") {
@@ -317,7 +320,7 @@ mod tests {
 
     #[test]
     fn client_reports_go_to_their_own_files() {
-        for kind in ["memory", "modules"] {
+        for kind in ["memory", "modules", "input"] {
             assert_eq!(server_for_target(kind), kind);
             assert!(SERVERS.iter().any(|&(server, _, _)| server == kind));
         }

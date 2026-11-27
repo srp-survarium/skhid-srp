@@ -625,17 +625,38 @@ fn skills_are_answered_with_the_skills_and_the_kits_that_carry_them() {
     };
     assert!(own.body.kits[0].modifiers.iter().any(|value| *value != 0.0));
 
-    // Taking a point back is refused, and the skills are sent as they are.
+    // A point taken back (the owner, 2026-11-27): free, answered as a set
+    // spent is, with the kits that no longer carry it.
+    let silver = world.account(alice).generic_money;
     world.ask(alice, request::skills(&[]));
+    assert_eq!(world.client(alice).ids, [0x8C, 0x89, 0x87, 0x8B]);
+    let decoded = world.take(alice);
+    assert!(matches!(
+        &decoded[0],
+        Decoded::Skills { skills, .. } if skills.is_empty()
+    ));
+    let Decoded::Account(own) = &decoded[2] else {
+        panic!("{:?}", decoded[2]);
+    };
+    assert!(own.body.kits[0].modifiers.iter().all(|value| *value == 0.0));
+    assert_eq!(world.account(alice).generic_money, silver);
+
+    // A set the tree refuses is refused, and the skills are sent as they are.
+    world.ask(alice, request::skills(&[(101, 1)]));
+    world.take(alice);
+    world.ask(alice, request::skills(&[(101, 1), (999, 1)]));
     assert_eq!(world.client(alice).ids, [0x84, 0x8C]);
     let decoded = world.take(alice);
     assert_eq!(
         denial(&decoded, 0x48).as_deref(),
         Some("st_player_skills_check_failed")
     );
+    assert!(matches!(
+        &decoded[1],
+        Decoded::Skills { skills, .. } if *skills == [(101, 1)]
+    ));
 
     // A reset of the branch, free.
-    let silver = world.account(alice).generic_money;
     world.ask(alice, request::reset_skills(0, 0));
     let decoded = world.take(alice);
     assert!(matches!(
