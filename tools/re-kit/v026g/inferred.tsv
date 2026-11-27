@@ -3725,3 +3725,4 @@ va	status	ref_021d	name
 0x00528900	inferred-medium		Scaleform::Render::RBGenericImpl::RenderBufferManager::CreateTempRenderTarget
 0x00529110	inferred-medium		Scaleform::Render::FilterPrimitive::GetCacheResults
 0x005298c0	inferred-medium		Scaleform::Render::FilterPrimitive::SetCacheResults
+0x002ac6c0	inferred-high		survarium::particle_game_effect_presenter::effect_data::operator=

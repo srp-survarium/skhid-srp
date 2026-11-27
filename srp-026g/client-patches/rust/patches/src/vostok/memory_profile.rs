@@ -178,6 +178,13 @@ impl<T> Room<T> {
     }
 }
 
+/// Its items, as [`Room::items`].
+impl<T> AsMut<[T]> for Room<T> {
+    fn as_mut(&mut self) -> &mut [T] {
+        self.items()
+    }
+}
+
 impl<T> Drop for Room<T> {
     fn drop(&mut self) {
         const MEM_RELEASE: u32 = 0x8000;

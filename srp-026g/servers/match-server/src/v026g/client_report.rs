@@ -24,6 +24,8 @@ pub fn log(carrier: &Carrier, name: &str, account: u32, match_id: u32) {
             summary.moment.wire(), summary.counts.key_down, summary.counts.button_down, summary.counts.mouse_move),
         Body::Memory(part) => log::info!(target: MEMORY, "{}", memory_line(carrier, &part, name, account, match_id)),
         Body::Modules(part) => log::info!(target: MODULES, "{}", modules_line(carrier, &part, name, account, match_id)),
+        // Compared, not logged as they come: `resource_checks`.
+        Body::Checks(_) => {}
     }
 }
 

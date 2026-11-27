@@ -2741,7 +2741,7 @@ va	name	source	ret_cleanup	result
 0x00318620	survarium::serialize_local_time	manual	0
 0x00318690	survarium::deserialize_local_time	manual	0	EAX: time in ms
 0x0023c050	survarium::game_world_ui::set_player_icon_position	manual	4	
-0x002dda80	survarium::game_effect_player::resolve_link	manual	8	
+0x002dda80	survarium::game_effect_player::resolve_link	manual	8	the wrapper's cell set to the last of the player's effects (+2Ch, next +4Ch) whose resource (+10h) is the wrapper's (+4), its child +8 when not -1; 0 when none or the wrapper's resource is 0
 0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	manual	4	
 0x002ac290	survarium::particle_game_effect_presenter::play_effect	manual	8	
 0x002ac310	survarium::particle_game_effect_presenter::update_effect	manual	8	
@@ -2863,3 +2863,4 @@ va	name	source	ret_cleanup	result
 0x001b1840	vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]	manual	4	AL: 1 leaves the surface out (accumulate_motion_vectors' remove_if 0x1B66B0 / 0x1B65D0): no G-buffer effect (effects +2Ch 0), or a skinned key (render surface +48h 8, 10h, 20h, 40h) that the list does not keep or a static one that it does not
 0x000396c0	vostok::collision::loose_oct_tree::unmove_all	manual	0	none; every item's moved flag (+2Ch) cleared through 0x396B0 (0x3A890 walks the tree); renderer::render calls it on the scene's tree (scene +9B7664h, vtable +34h) at the end of each frame (0x13DE6B)
 0x005298c0	Scaleform::Render::FilterPrimitive::SetCacheResults	manual	12	void; writes the state (+18h), takes up to two of the results (AddRef) into +1Ch/+20h and lets the old ones go (Release), 0 for the rest
+0x002ac6c0	survarium::particle_game_effect_presenter::effect_data::operator=	manual	0	EAX: the entry written (ESI)

@@ -943,6 +943,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednoho druhu se sčítají (pasiv Onyxu se násobí); počítají se nejvýše 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivace Pružiny a Ostrožky se přičítá k pasivu; aktivace Onyxu ho nahrazuje.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Onyxy aktivované společně: jedno snížení, o 1 s déle za každou další kopii.
+Power per activation	Síla po aktivacích
+Activations	Aktivace
+Power	Síla	artefact
+Next activation	Další aktivace
+Regeneration limit	Mez regenerace
+Missing health restored	Obnovené chybějící zdraví
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Každá aktivace nechá artefaktu 80% síly: 100 → 80 → 64 → 51%… Nikdy se nevyčerpá a síla zůstává u té kopie, dokud nezískáte novou.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Každý řádek: po tolika aktivacích — pasiv teď a další aktivace. Slábnou jen kopie, které klávesa aktivuje.
+It still cures injuries on every activation.	Dál léčí zranění při každé aktivaci.
+Its skills work at its power: {skills}.	Jeho dovednosti působí jeho silou: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Mez regenerace se přičítá k vlastní mezi každé části těla, nikdy nad plnou.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomálie

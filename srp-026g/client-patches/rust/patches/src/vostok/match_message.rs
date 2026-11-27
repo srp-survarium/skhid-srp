@@ -149,6 +149,19 @@ impl<'t> Message<'t> {
         true
     }
 
+    /// Consume the file check's request (an 0xE4 of its own prefix, patch
+    /// 218) before the native options handler, a malformed one too.
+    pub fn file_check_request(&self) -> bool {
+        let Payload::Readable { bytes, end } = &self.payload else { return false };
+        if self.id != srp_validate::messages::id::STATIC_INFO || !bytes.starts_with(&srp_validate::checks::REQUEST_MAGIC) { return false; }
+        if let Some(connection) = super::packet_recovery::Connection::of(self.client, self._thread) {
+            super::file_check::request(self._thread, connection.key(), bytes);
+        }
+        // SAFETY: end is the checked reader boundary from at_dispatch.
+        unsafe { self.reader.set_cursor(*end); }
+        true
+    }
+
     pub fn id(&self) -> u8 { self.id }
     /// Its payload's length; none when the reader's bounds do not hold.
     pub fn payload_len(&self) -> Option<usize> {
