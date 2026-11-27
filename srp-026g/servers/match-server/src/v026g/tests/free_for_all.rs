@@ -486,8 +486,20 @@ fn a_pistols_match_gives_everyone_the_same_two_pistol_kits() {
     use survarium::v026g::pistols::Pair;
     use survarium::v026g::roulette::Band;
     use survarium::v026g::twist::{Armed, Played, Twist};
+    use survarium::v026g::match_msgs::static_info::MatchKit;
+    // Every place with three kits, as an account has.
+    let three = |mut player: MatchPlayer| {
+        while player.profile.kits.len() < 3 {
+            let id = player.profile.kits.len() as u32 + 1;
+            player.profile.kits.push(MatchKit::empty(id, ""));
+        }
+        player
+    };
     let registry = MatchRegistry::new("127.0.0.1", 1239);
     let mut made = setup(2, map_id());
+    for player in &mut made.players {
+        *player = three(player.clone());
+    }
     let map = maps::MatchMap::of(map_id()).unwrap();
     let mut roll = 0;
     let pair = Pair::deal(Band::Low, &mut |n| {
@@ -498,7 +510,7 @@ fn a_pistols_match_gives_everyone_the_same_two_pistol_kits() {
     let id = registry.create_growing(made).unwrap().match_id;
     assert_eq!(registry.formed(id).unwrap().played.twist(), Some(Twist::Pistols));
     registry.set_admitting(id, 2, Ok(Instant::now() + Duration::from_secs(60)), LivePhase::Playing);
-    assert!(registry.join_running(id, newcomer(2, 0)).is_ok());
+    assert!(registry.join_running(id, three(newcomer(2, 0))).is_ok());
     let formed = registry.formed(id).unwrap();
     let options = parse_options(formed.info.options(), Dictionary::shared()).expect("options a client reads");
     assert_eq!(options.players, formed.profiles, "the clients get what the server keeps");

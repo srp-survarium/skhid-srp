@@ -649,7 +649,11 @@ mod tests {
         let page = body(Lang::En, &Pools::every_playable());
         let plain = page.split_once("<section class=mode-version id=plain>").unwrap().1;
         assert!(plain.contains(">Free for all</h3><ul class=mode-rules><li>25 % of FFA cards.</li><li>Everyone plays his own kits.</li></ul>"), "{plain:.300}");
-        assert!(plain.contains("src=\"/wiki/icons/modes/6.webp"), "Free for All's own icon: {plain:.200}");
+        // The plain one's icon is the mode's own (its maps' `ui.icon`).
+        let section = page.split_once("<section class=\"modifiers mode\" id=free-for-all><h2>").unwrap().1;
+        let icon = section.split_once("alt=\"\">").unwrap().0;
+        assert!(icon.starts_with("<img class=mode-icon src=\"/wiki/icons/modes/"), "{icon}");
+        assert!(plain.starts_with(&format!("<h3>{icon}alt=\"\">Free for all</h3>")), "Free for All's own icon: {plain:.200}");
         let pistols = page.split_once("<section class=mode-version id=pistols>").unwrap().1;
         assert!(pistols.contains("src=\"/wiki/icons/modes/twist-18.webp"), "{pistols:.200}");
         assert!(pistols.contains(">FFA: Pistols</h3><ul class=mode-rules><li>10 % of FFA cards.</li><li>Everyone plays the same 2 random kits, each with one pistol; the third kit stays empty.</li><li>Pistols of levels 0–5: TT-33, "), "{pistols:.600}");
