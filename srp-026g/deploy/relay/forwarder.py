@@ -123,27 +123,43 @@ class BackendUDP(asyncio.DatagramProtocol):
         logging.debug("backend UDP %s: %s", self.front.port, error)
 
 
-async def tunnel(reader, writer, remote, upstream):
+class Cut(Exception):
+    """How a tunnel ended other than closed: the way and the side, said once."""
+
+
+WRITE = 10
+
+
+async def tunnel(reader, writer, remote, upstream, carried):
     """Copy both ways until the server's side ends or the tunnel is idle.
     Idle is the tunnel's, not one direction's: a download sends nothing the
-    other way for minutes."""
+    other way for minutes. `carried` counts the bytes of each way."""
     active = time.monotonic()
 
-    async def copy(source, target):
+    async def copy(source, target, way, sides):
         nonlocal active
+        source_side, target_side = sides
         while True:
             left = active + IDLE - time.monotonic()
             if left <= 0:
-                raise TimeoutError("idle tunnel")
+                raise Cut(f"idle {IDLE} s")
             try:
                 data = await asyncio.wait_for(source.read(65536), left)
             except TimeoutError:
                 continue
+            except OSError as error:
+                raise Cut(f"{way}: {source_side}: {error}") from error
             if not data:
                 break
             active = time.monotonic()
-            target.write(data)
-            await asyncio.wait_for(target.drain(), 10)
+            carried[way] += len(data)
+            try:
+                target.write(data)
+                await asyncio.wait_for(target.drain(), WRITE)
+            except TimeoutError as error:
+                raise Cut(f"{way}: {target_side} took nothing for {WRITE} s") from error
+            except OSError as error:
+                raise Cut(f"{way}: {target_side}: {error}") from error
         if target.can_write_eof():
             target.write_eof()
 
@@ -151,9 +167,29 @@ async def tunnel(reader, writer, remote, upstream):
     # more can be answered: the tunnel ends, and a silent client does not hold
     # its slot. An error in either half ends both.
     async with asyncio.TaskGroup() as group:
-        asking = group.create_task(copy(reader, upstream))
-        await copy(remote, writer)
+        asking = group.create_task(copy(reader, upstream, "up", ("client", "server")))
+        await copy(remote, writer, "down", ("server", "client"))
         asking.cancel()
+
+
+def report(service, client, start, carried, end):
+    """One line per connection, once it is closed."""
+    while isinstance(end, ExceptionGroup):
+        end = end.exceptions[0]
+    if isinstance(end, Cut):
+        end = str(end)
+    elif isinstance(end, BaseException):
+        end = f"{type(end).__name__}: {end}"
+    if not carried["down"] and not end.startswith(("refused", "not forwarded")):
+        end += ", no reply"
+    logging.info("%s %s:%d: %.1f s, up %d bytes, down %d bytes, %s", service, *client,
+                 time.monotonic() - start, carried["up"], carried["down"], end)
+
+
+def is_power_of_ten(n):
+    while n > 1 and n % 10 == 0:
+        n //= 10
+    return n == 1
 
 
 class Slots:
@@ -163,11 +199,18 @@ class Slots:
         self.limit, self.each = limit, each
         self.held = {}
 
+    def full(self, ip):
+        """Why `ip` may not open one more, or None."""
+        if self.held.get(ip, 0) >= self.each:
+            return f"{self.each} connections of its address open"
+        if sum(self.held.values()) >= self.limit:
+            return f"{self.limit} connections open"
+        return None
+
     def take(self, ip):
-        held = self.held.get(ip, 0)
-        if held >= self.each or sum(self.held.values()) >= self.limit:
+        if self.full(ip):
             return False
-        self.held[ip] = held + 1
+        self.held[ip] = self.held.get(ip, 0) + 1
         return True
 
     def free(self, ip):
@@ -177,27 +220,60 @@ class Slots:
 
 
 class Login:
-    def __init__(self, public, backend, port, limit=256):
+    def __init__(self, public, backend, port, limit=256, service="login"):
         self.public, self.backend, self.port = public, backend, port
+        self.service = service
         self.slots = Slots(limit)
         self.budget = Budget(rate=2, burst=10)
+        self.refusals = {}
+        # The connections being carried, to end at a stop.
+        self.open = set()
+
+    def refuse(self, client):
+        """Takes a slot for `client`, or says why not (the 1st, 10th, 100th,
+        ... of each reason) and refuses."""
+        if not self.budget.take(client[0], time.monotonic()):
+            why = (f"over the allowance of its address ({self.budget.rate}/s, "
+                   f"burst {self.budget.burst})")
+        elif not (why := self.slots.full(client[0])):
+            self.slots.take(client[0])
+            return False
+        count = self.refusals[why] = self.refusals.get(why, 0) + 1
+        if is_power_of_ten(count):
+            logging.warning("%s %s:%d refused: %s; %d such so far", self.service, *client, why, count)
+        return True
+
+    async def connect(self, host, port, **options):
+        """The server's connection, or `Cut` saying it was not reached."""
+        try:
+            return await asyncio.wait_for(asyncio.open_connection(host, port, **options), 10)
+        except TimeoutError as error:
+            raise Cut(f"not forwarded: the server {host}:{port} not reached in 10 s") from error
+        except OSError as error:
+            raise Cut(f"not forwarded: the server {host}:{port} not reached: {error}") from error
 
     async def accept(self, reader, writer):
         client = writer.get_extra_info("peername")
-        if not self.budget.take(client[0], time.monotonic()) or not self.slots.take(client[0]):
+        if self.refuse(client):
             writer.close()
             return
+        self.open.add(asyncio.current_task())
         upstream = None
+        start, carried, end = time.monotonic(), {"up": 0, "down": 0}, "closed"
         try:
-            remote, upstream = await asyncio.wait_for(
-                asyncio.open_connection(self.backend, self.port, family=socket.AF_INET), 10)
+            remote, upstream = await self.connect(self.backend, self.port, family=socket.AF_INET)
             upstream.write(header(client, self.public, self.port, 0x11))
             await upstream.drain()
 
-            await tunnel(reader, writer, remote, upstream)
-        except (OSError, TimeoutError, ExceptionGroup) as error:
-            logging.debug("login from %s failed: %s", client, error)
+            await tunnel(reader, writer, remote, upstream, carried)
+        except (OSError, TimeoutError, Cut, ExceptionGroup) as error:
+            end = error
+        except asyncio.CancelledError:
+            end = "at stop"
+            raise
         finally:
+            report(self.service, client, start, carried, end)
+            self.open.discard(asyncio.current_task())
             self.slots.free(client[0])
             writer.close()
             if upstream:
@@ -206,47 +282,77 @@ class Login:
 
 class HTTPS(Login):
     """CONNECT to one configured HTTPS origin, never an open proxy."""
+    def __init__(self, public, origin, port, limit=128):
+        super().__init__(public, origin, port, limit, "CONNECT")
+
     async def accept(self, reader, writer):
         client = writer.get_extra_info("peername")
-        if not self.budget.take(client[0], time.monotonic()) or not self.slots.take(client[0]):
+        if self.refuse(client):
             writer.close()
             return
+        self.open.add(asyncio.current_task())
         upstream = None
+        start, carried, end = time.monotonic(), {"up": 0, "down": 0}, "closed"
         try:
             request = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 10)
             expected = f"CONNECT {self.backend}:443 HTTP/1.1".encode()
             if len(request) > 4096 or request.split(b"\r\n", 1)[0] != expected:
+                end = "refused: not the origin"
                 writer.write(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 await writer.drain()
                 return
-            remote, upstream = await asyncio.wait_for(asyncio.open_connection(self.backend, 443), 10)
+            remote, upstream = await self.connect(self.backend, 443)
             writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             await writer.drain()
 
-            await tunnel(reader, writer, remote, upstream)
-        except (OSError, TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError, ExceptionGroup) as error:
-            logging.debug("HTTPS tunnel from %s failed: %s", client, error)
+            await tunnel(reader, writer, remote, upstream, carried)
+        except (OSError, TimeoutError, Cut, asyncio.IncompleteReadError, asyncio.LimitOverrunError,
+                ExceptionGroup) as error:
+            end = error
+        except asyncio.CancelledError:
+            end = "at stop"
+            raise
         finally:
+            report(self.service, client, start, carried, end)
+            self.open.discard(asyncio.current_task())
             self.slots.free(client[0])
             writer.close()
             if upstream:
                 upstream.close()
 
 
+async def stop_on_signal(servers, services):
+    """Waits for SIGTERM or SIGINT, says what is open, and ends it: each
+    connection's line says `at stop`. A server's close would wait for them."""
+    loop = asyncio.get_running_loop()
+    stopped = asyncio.Future()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, stopped.set_result, sig)
+    sig = await stopped
+    logging.info("stopping on %s: %s", signal.Signals(sig).name,
+                 ", ".join(f"{len(s.open)} {s.service}" for s in services) + " connections open")
+    for server in servers:
+        server.close()
+    tasks = [task for s in services for task in s.open]
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
 async def run_https(args):
-    proxy = HTTPS(args.public, args.https_origin, 443, limit=128)
+    proxy = HTTPS(args.public, args.https_origin, 443)
     server = await asyncio.start_server(proxy.accept, args.bind, 8080, family=socket.AF_INET, limit=4096)
     # The site under the relay's own name: its HTTPS port goes to the origin's
     # web server unopened, which is told the visitor's address as the login is.
-    site = Login(args.public, args.backend, args.site_port)
+    site = Login(args.public, args.backend, args.site_port, service="site")
     passed = await asyncio.start_server(site.accept, args.bind, args.site_port, family=socket.AF_INET)
-    logging.info("HTTPS relay ready for %s:443, site on %s", args.https_origin, args.site_port)
-    stopped = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, stopped.set)
+    logging.info("ready: CONNECT on %s:8080 to %s:443 only, %d at once; site on %s:%d to %s:%d, "
+                 "%d at once; %d an address, %s/s (burst %s) an address; idle %d s",
+                 args.bind, args.https_origin, proxy.slots.limit, args.bind, args.site_port,
+                 args.backend, args.site_port, site.slots.limit, site.slots.each,
+                 site.budget.rate, site.budget.burst, IDLE)
     async with server, passed:
-        await stopped.wait()
+        await stop_on_signal((server, passed), (proxy, site))
 
 
 async def run(args):
@@ -254,7 +360,7 @@ async def run(args):
     transports = []
     login = Login(args.public, args.backend, args.login_port)
     server = await asyncio.start_server(login.accept, args.bind, args.login_port, family=socket.AF_INET)
-    https = HTTPS(args.public, args.https_origin, 443, limit=128)
+    https = HTTPS(args.public, args.https_origin, 443)
     proxy = await asyncio.start_server(https.accept, args.bind, 8080, family=socket.AF_INET, limit=4096)
     try:
         for port in (args.lobby_port, args.match_port, args.match_port + 1):
@@ -269,10 +375,7 @@ async def run(args):
         logging.info("relay %s -> %s ready: login %s, lobby %s, match %s, voice %s",
                      args.public, args.backend, args.login_port, args.lobby_port,
                      args.match_port, args.match_port + 1)
-        stopped = asyncio.Event()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, stopped.set)
-        await stopped.wait()
+        await stop_on_signal((server, proxy), (login, https))
     finally:
         server.close()
         proxy.close()

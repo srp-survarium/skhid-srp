@@ -11,13 +11,19 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
 §2.16.4.
 
 - **Five presets an account, one active,** kept with it in srp.db (`g26_preset_slots`,
-  `g26_preset_active`, `g26_preset_declined`).
+  `g26_preset_active`, `g26_preset_declined`, `g26_preset_names`).
 - **A preset** is the contents of the three kits (Profile 1, 2, 3: every slot, weapons, ammo,
-  armour, pockets): the owned item in each slot, and for a stack its units, and what each kit made
+  armour, pockets): the owned item in each slot, and for a stack its units, what each kit made
   of its perks' slots (Artifact Container, Deep Pockets or Supply Pocket; `artefact-skills.md`;
-  the owner's pick of 2026-11-22: each preset's kit keeps its own; a preset that holds only that is
-  kept too). Not the kits' names,
-  nor which kit is played [choice].
+  the owner's pick of 2026-11-22: each preset's kit keeps its own), and each kit's name (the
+  owner's report of 2026-11-27: "I had equip3 kit1 renamed to 'bot farmer 8000k', then in the
+  same session I switched to equip1 and there kit1 name stayed"; a rename, `49 00`, names the kit
+  of the active preset only). A preset that holds only perk choices or names is kept too. Not
+  which kit is played [choice].
+  - Until 2026-11-27 a kit had one name in every preset. The schema step that keeps the names
+    (`persist/presets.rs`, `NAMES_MIGRATION`) gave every saved preset the kits' names as they
+    were then, so nothing players saw changed at that release (the owner's choice); an empty
+    preset stays unnamed.
 - **The active preset is the kits.** It is kept nowhere else, so every change of a kit (a move,
   the ammo window, a purchase dropped onto a slot, a sale or craft that takes an item, a match's
   ammo, a repair of the kits at load) is the active preset's, with nothing to save and no path
@@ -48,7 +54,8 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     item or money, never takes anything the account does not own.
   - Refused (nothing changes) while the player is in a match or on its way to one.
   - **An empty preset chosen starts empty** (the owner's, 2026-10-23: "empty presets should start
-    empty and not copy items from previous preset"): the three kits are emptied. A kit names
+    empty and not copy items from previous preset"): the three kits are emptied and unnamed (the
+    client shows its own names for them). A kit names
     owned items, it holds none, so every item stays in the inventory as it was (stacks whole):
     nothing is made, sold or lost; the preset left keeps its kits as its snapshot, and choosing
     it again puts them back exactly. The empty one chosen again changes nothing.
