@@ -1,7 +1,7 @@
 # Vostok Radar Station (v0.69)
 
 0.69d's Vostok Radar Station (its `level_03`, day) as a map of its own beside 0.26g's Vostok, in
-content pack `vostok-069d@3`. The owner's asks: "let's do them" (2026-11-16, with School, Rudnya v0.21
+content pack `vostok-069d@4`. The owner's asks: "let's do them" (2026-11-16, with School, Rudnya v0.21
 and Cologne); on 2026-11-22: port it properly, as Rudnya (v0.69) was, "rebuild and check". Made by
 the same 0.69d rules as Rudnya (v0.69) @4 (`rudnya-069d.md`), with no per-map tuning.
 
@@ -55,6 +55,13 @@ tiled-mask switch, `vertex_blend_alpha_test_technique2_tiled_mask`). What change
   its own technique's template (`metal_solanka_metal_rust_02_vc`).
 - Vostok 0.69d has no local probes (layer 1), no gradient boxes and no cylinder lights: exe patch 203's
   tiers, the gradient and the cylinder change nothing here. Object counts are @2's.
+
+@4 (the owner's game of 2026-11-27: "the crates around have white smears from the ammunition
+crate"): decals at 0.69d's own size where it is fractional (resource-porter #104). The template's
+integer `decal_width`/`decal_height` (2) had stayed: the resupply cases' bullet icons
+(`editor_decals_bullet_for_box_base`, 0.25 m in 0.69d and in native Vostok) were drawn 2 m,
+projected down the case's sides and onto the crates beside it. 6 decals in each mode; only the
+two projects change against @3.
 
 ## What 0.69d changed against 0.26g's Vostok
 
