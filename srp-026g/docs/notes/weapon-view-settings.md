@@ -13,7 +13,8 @@ Settings → Gameplay. The world's slider (patch 22's `uro_fov`, patch 83's slid
 window (its frame and title band, its title, its close button, the screen dimmed behind it; Esc, the
 close button or a press beside it closes it). It holds the tab's own controls in their look: the stock
 slider with its label in the headings' look and its value (as World FOV), the HUD group's checkbox, and
-a note in the "Applies after restart." look. Every value is a
+a note in the "Applies after restart." look. Above them a preview (below) shows the AK-12 aimed at the
+window's values. Every value is a
 console variable kept in `user.cfg`, so it can also be set from the console.
 
 | Variable | In the window | Range | Default | What it does |
@@ -118,9 +119,42 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
   game's Scaleform measuring the text wider. Negative values take a plain hyphen, as the stock sliders'
   numbers do; the unit is the dictionary's `st_srp_unit_cm` ("%1$s cm", "%1$s см"), answered with the
   window's texts.
-- **The texts**: nine keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
+- **The texts**: thirteen keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
   `st_srp_weapon_fov_option`, `_aimed_option`, `_scope_option`, `_world_option`,
-  `st_srp_sight_distance_option`, `st_srp_sight_distance_note`, `st_srp_unit_cm`, `st_srp_world_fov_option`).
+  `st_srp_sight_distance_option`, `st_srp_sight_distance_note`, `st_srp_unit_cm`, `st_srp_world_fov_option`;
+  the preview's `st_srp_weapon_view_iron`, `_red_dot`, `_scope` and `_preview_note`).
+
+## The preview
+
+At the window's top, three of the tab's standard buttons (Iron sights, Red dot, Scope) over a
+300x169 picture of the AK-12 fully aimed (`SrpWeaponPreview.as`) over its iron sights, an EOTech 552
+or the 1P69 Hyperon (one gun in every view; the AK-12 takes no PSO-1), and the note "AK-12 preview;
+the sight distance approximate". There is no hip view. Moving a slider shows its view: the scopes'
+slider the scope, the sights' and the distance's the iron sights (or the red dot when it is shown);
+the hip slider and the checkbox only draw it again. The World FOV slider's value, pending or not,
+draws the world.
+
+- **The pictures** are offline renders and one capture, 11 bitmaps of the movie, about 370 KB
+  (`flash/main_menu/bitmaps/SrpPreview*`, made by `scripts/weapon-view-preview`):
+  - the gun's layers (PNG with alpha, 450x253) at 0.69d0's 32.5 degrees, drawn as patch 161 draws
+    it: the iron sights at the gun's `aim` locator and aim_offset, the EOTech's eye from this crate's
+    resolve, the 1P69's aimed model alone at its own eye; the iron sights and the EOTech at -20, 0,
+    +25 and +50 cm of sight distance (the exe's clamps: the AK-12's iron eye no nearer than revision
+    73's, the EOTech's no nearer than 6 cm);
+  - the world: two headless captures of Vostok (map 123, `scripts/capture`) from a roof, looking at a
+    yard 30 m away, at 100 degrees vertical (the widest world drawn: the iron sights' at uro_fov 100
+    is 94.8) and at 20 for the scope, with a stock soldier (a scavenger's outfit, the lobby's idle
+    pose) rendered offline into both standing at that point: so the iron sights and the red dot sit
+    on him, and the scope shows him at its zoom.
+- **The angles are exact.** A layer made at 32.5 degrees drawn at angle `a` is the layer scaled about
+  the centre by tan(16.25) / tan(a / 2): the game's held projection is that same scale of everything
+  held. The world is scaled the same way to its angle at the sight's zoom (patch 22: 65 z + (uro_fov -
+  65) max(0, (z - 0.25) / 0.75); the iron sights' zoom 0.909, the EOTech's 0.8, the 1P69's 0.25).
+  "Weapon at the world FOV" draws the gun at that world angle.
+- **The distance is approximate**: the two renders around it crossfaded (10 cm: the 0 cm one with
+  the +25 cm one at 40 %), which the note says.
+- The picture is drawn into one bitmap of its size, so nothing reaches past the pane; the window has
+  no bottom band (the Settings' button bar is not part of its frame).
 
 ## The log
 
@@ -205,7 +239,11 @@ revision 73's 16.25, covers more of the screen. A mask like 0.69d0's would be a 
   - every dictionary's labels and the distance's note inside the window;
   - Esc and the close button close it, its changes still pending;
   - Apply sends the steps, and Cancel and the exe's answers keep or restore the saved values;
-  - the checkbox greys the angles.
+  - the checkbox greys the angles;
+  - the preview: the slider moved picks its view and selects its tab, a tab picks its view, the
+    layer's scale is tan(16.25) / tan(a / 2) at the sights' and the scopes' angles and at the world's
+    with the checkbox, the scope's world at 16.25 degrees, 10 cm crossfades two renders at 40 %;
+    every dictionary's tab names inside their buttons with 10 px to spare and the note in two lines.
   - Screenshot `settings-weapon-view.png`.
 
 **Not run:** a game. To look at in one (1280x720, `uro_fov 65`):

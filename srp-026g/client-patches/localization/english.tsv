@@ -4513,6 +4513,10 @@ st_srp_weapon_sway_cycle	Sway cycle
 st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
 st_srp_weapon_view_heading	Weapon view
+st_srp_weapon_view_iron	Iron sights
+st_srp_weapon_view_preview_note	AK-12 preview; the sight distance approximate
+st_srp_weapon_view_red_dot	Red dot
+st_srp_weapon_view_scope	Scope
 st_srp_weapon_with_kit	With kit
 st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain

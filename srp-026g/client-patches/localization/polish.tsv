@@ -4513,6 +4513,10 @@ st_srp_weapon_sway_cycle	Cykl kołysania
 st_srp_weapon_sway_horizontal	Kołysanie poziome
 st_srp_weapon_sway_vertical	Kołysanie pionowe
 st_srp_weapon_view_heading	Widok broni
+st_srp_weapon_view_iron	Przyrządy
+st_srp_weapon_view_preview_note	Podgląd AK-12; odległość celownika przybliżona
+st_srp_weapon_view_red_dot	Kolimator
+st_srp_weapon_view_scope	Luneta
 st_srp_weapon_with_kit	Z zestawem
 st_srp_weapon_with_kit_skills	Z zestawem i umiejętnościami
 st_srp_weather_before_rain	przed deszczem

@@ -14,7 +14,9 @@
 # - SettingsHarness.as also: patch 218's Weapon view (docs/notes/weapon-view-settings.md): the tab's standard
 #   button under the field of view, its window in the Settings' skin (Key bindings' frame, title and close
 #   button) at 1280x720 and the movie scaled 1.5, the tab's slider and checkbox look, every dictionary's labels
-#   and note inside it, Apply, Cancel, Esc, the checkbox greying the angles; screenshot settings-weapon-view.png;
+#   and note inside it, Apply, Cancel, Esc, the checkbox greying the angles; its preview (the slider moved picks
+#   its view, the tabs, the held and world scales, the distance's crossfade, every dictionary's tab names
+#   fitting); screenshot settings-weapon-view.png;
 # - HudHarness.as: the crosshair's hit marker: all, a kill's mark only, none (a kill through a wall,
 #   exe patch 167, as a kill's mark only); the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
@@ -53,7 +55,8 @@ keys = ('st_srp_hit_markers_all', 'st_srp_hide_scores_option', 'st_srp_options_h
         'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint', 'st_srp_hit_markers_kill',
         'st_srp_hit_markers_hidden', 'st_srp_weapon_view_heading', 'st_srp_weapon_fov_option',
         'st_srp_weapon_fov_aimed_option', 'st_srp_weapon_fov_scope_option', 'st_srp_weapon_fov_world_option',
-        'st_srp_sight_distance_option', 'st_srp_sight_distance_note', 'st_srp_unit_cm')
+        'st_srp_sight_distance_option', 'st_srp_sight_distance_note', 'st_srp_unit_cm', 'st_srp_weapon_view_iron',
+        'st_srp_weapon_view_red_dot', 'st_srp_weapon_view_scope', 'st_srp_weapon_view_preview_note')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
@@ -96,4 +99,5 @@ harness_report 'SETTINGS .*\|HUD .*' SettingsHarness.log HudHarness.log
     && grep -q "SETTINGS borders pass" "$work/SettingsHarness.log" && grep -q "SETTINGS apply-cancel pass" "$work/SettingsHarness.log" \
     && grep -q "SETTINGS Graphics: Vulkan options pass" "$work/SettingsHarness.log" \
     && grep -q "SETTINGS weapon view pass" "$work/SettingsHarness.log" \
+    && grep -q "SETTINGS weapon view preview pass" "$work/SettingsHarness.log" \
     && grep -q "HUD RESULT pass" "$work/HudHarness.log"

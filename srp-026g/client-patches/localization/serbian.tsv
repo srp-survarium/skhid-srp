@@ -4513,6 +4513,10 @@ st_srp_weapon_sway_cycle	Ciklus ljuljanja
 st_srp_weapon_sway_horizontal	Vodoravno ljuljanje
 st_srp_weapon_sway_vertical	Uspravno ljuljanje
 st_srp_weapon_view_heading	Prikaz oružja
+st_srp_weapon_view_iron	Nišan
+st_srp_weapon_view_preview_note	Pregled AK-12; udaljenost nišana približna
+st_srp_weapon_view_red_dot	Kolimator
+st_srp_weapon_view_scope	Optika
 st_srp_weapon_with_kit	Sa kompletom
 st_srp_weapon_with_kit_skills	Sa kompletom i veštinama
 st_srp_weather_before_rain	pred kišu

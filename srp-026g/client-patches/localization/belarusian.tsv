@@ -4513,6 +4513,10 @@ st_srp_weapon_sway_cycle	Перыяд разгойдвання
 st_srp_weapon_sway_horizontal	Разгойдванне ў бакі
 st_srp_weapon_sway_vertical	Разгойдванне ўверх-уніз
 st_srp_weapon_view_heading	Выгляд зброі
+st_srp_weapon_view_iron	Мушка
+st_srp_weapon_view_preview_note	Папярэдні выгляд AK-12; адлегласць да прыцэла прыблізная
+st_srp_weapon_view_red_dot	Каліматар
+st_srp_weapon_view_scope	Оптыка
 st_srp_weapon_with_kit	З камплектам
 st_srp_weapon_with_kit_skills	З камплектам і навыкамі
 st_srp_weather_before_rain	перад дажджом

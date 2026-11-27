@@ -4513,6 +4513,10 @@ st_srp_weapon_sway_cycle	Период раскачивания
 st_srp_weapon_sway_horizontal	Раскачивание в стороны
 st_srp_weapon_sway_vertical	Раскачивание вверх-вниз
 st_srp_weapon_view_heading	Вид оружия
+st_srp_weapon_view_iron	Мушка
+st_srp_weapon_view_preview_note	Предпросмотр AK-12; расстояние до прицела приблизительно
+st_srp_weapon_view_red_dot	Коллиматор
+st_srp_weapon_view_scope	Оптика
 st_srp_weapon_with_kit	С комплектом
 st_srp_weapon_with_kit_skills	С комплектом и навыками
 st_srp_weather_before_rain	перед дождём

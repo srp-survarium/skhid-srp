@@ -744,6 +744,11 @@ package survarium.menu
          this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
          this._weaponView = new SrpWeaponView(this.settings_content);
          addChild(this._weaponView);
+         // its preview's world at the World FOV slider's value (pending too)
+         this._weaponView.worldFov = function():Number
+         {
+            return _fov.slider.visible ? _fov.slider.selectedIndex : 65;
+         };
          for each(var weaponControl:Object in this._weaponView.controls)
          {
             this._changed[weaponControl] = 0;
@@ -1045,6 +1050,7 @@ package survarium.menu
       protected function fovChanged(event:Event) : void
       {
          this.listChanged(this._fov.slider,this._fov.pending);
+         this._weaponView.refresh();
       }
 
       // A move or a toggle of the weapon view's, each control pending while it is not the saved value.

@@ -307,7 +307,7 @@ package
             var answers:Array = [["65", "40", "100", "1"], ["325", "200", "650", "10"], ["3250", "1625", "3250", "100"],
                 ["0", "-20", "50", "1"]];
             var answer:Function = function(t:Array):void {
-                root.srp_weapon_view_texts(t[37], t[43], t[44]);
+                root.srp_weapon_view_texts(t[37], t[43], t[44], t[45], t[46], t[47], t[48]);
                 root.srp_check_option("srp_weapon_fov_world", t[41], "0");
                 for (var n:int = 0; n < 4; ++n)
                 {
@@ -360,9 +360,10 @@ package
                 var area:Rectangle = panel.getBounds(stage);
                 require(area.left >= 0 && area.top >= 0 && area.right <= stage.stageWidth && area.bottom <= stage.stageHeight,
                     when + ": the window on the screen (" + area + ")");
-                var rows:Array = [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note];
+                var rows:Array = [window.tabs[0], window.preview, window.previewNote, sliders[0], sliders[1], sliders[2], box,
+                    sliders[3], window.note];
                 var inner:Rectangle = new Rectangle(area.left + 6, area.top + 39 * panel.scaleY, area.width - 12,
-                    area.height - (39 + 22) * panel.scaleY);
+                    area.height - (39 + 6) * panel.scaleY);
                 for (var k:int = 0; k < rows.length; ++k)
                 {
                     var r:Rectangle = rows[k].getBounds(stage);
@@ -375,6 +376,7 @@ package
                 }
             };
             inside("at 1280x720");
+            checkPreview(window, sliders, box, texts);
             // every dictionary's labels and note inside the window
             for each (var row:Array in texts)
             {
@@ -470,6 +472,64 @@ package
             window.close();
             root.scaleX = root.scaleY = was;
             trace("SETTINGS weapon view pass: the button at " + button.x + "," + button.y + ", " + button.width + " wide");
+        }
+
+        // The preview (SrpWeaponPreview): its tabs the tab's standard buttons, the one shown selected, the
+        // slider being moved picking its view; the gun's layer filling the pane at 32.5 degrees and
+        // tan(16.25) / tan(a / 2) of it at a, the world at the World FOV's angle for the sight; the checkbox
+        // the gun at the world's angle; the distance two renders crossfaded; every dictionary's tab names
+        // inside their buttons with the game's margin, the note in two lines.
+        private function checkPreview(window:*, sliders:Array, box:*, texts:Array):void
+        {
+            var preview:* = window.preview;
+            var Preview:* = loader.contentLoaderInfo.applicationDomain.getDefinition("SrpWeaponPreview");
+            // the gun's layers the last draw drew (the world is the first), each {scale, alpha}
+            var layer:Function = function():Array {
+                return preview.drawn.slice(1);
+            };
+            sliders[2].slider.value = 20;
+            require(preview.shown == Preview.SCOPE && window.tabs[2].selected && !window.tabs[0].selected,
+                "the scope slider moved: the scope view, its tab selected");
+            var shown:Array = layer();
+            require(shown.length == 1 && Math.abs(shown[0].scale - Preview.scaleOf(32.5, 20)) < 1e-3,
+                "the scope at 20 degrees: its layer " + Preview.scaleOf(32.5, 20) + " times (" + (shown.length ? shown[0].scale : -1) + ")");
+            require(Math.abs(preview.drawn[0].scale - Preview.scaleOf(20, Preview.worldAngle(65, 0.25))) < 1e-3,
+                "the scope's world at the 1P69's 16.25 degrees");
+            sliders[1].slider.value = 52;
+            require(preview.shown == Preview.IRON && window.tabs[0].selected, "the sights' slider moved: the iron sights' view");
+            shown = layer();
+            require(shown.length == 1 && Math.abs(shown[0].scale - Preview.scaleOf(32.5, 52)) < 1e-3,
+                "the iron sights at 52 degrees: the layer " + Preview.scaleOf(32.5, 52) + " times (" + (shown.length ? shown[0].scale : -1) + ", " + shown.length + " layers, " + sliders[1].selectedIndex + ")");
+            sliders[3].slider.value = 10;
+            shown = layer();
+            require(shown.length == 2 && Math.abs(shown[1].alpha - 0.4) < 0.02, "10 cm: the 0 and +25 cm renders crossfaded ("
+                + shown.length + ")");
+            box.selected = true;
+            window.refresh();
+            shown = layer();
+            var world:Number = Preview.worldAngle(65, 0.909);
+            require(Math.abs(shown[0].scale - Preview.scaleOf(32.5, world)) < 1e-3, "the checkbox: the gun at the world's "
+                + world + " degrees");
+            box.selected = false;
+            window.tabs[1].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
+            require(preview.shown == Preview.RED_DOT && window.tabs[1].selected, "the red dot's tab: its view");
+            sliders[1].slider.value = 32.5;
+            sliders[2].slider.value = 32.5;
+            sliders[3].slider.value = 0;
+            for each (var row:Array in texts)
+            {
+                for (var t:int = 0; t < 3; ++t)
+                {
+                    var tab:* = window.tabs[t];
+                    tab.label = row[45 + t];
+                    tab.validateNow();
+                    require(tab.textField.textWidth + 10 <= tab.textField.width * tab.scaleX + 0.01, row[45 + t]
+                        + " in its tab with 10 px to spare (" + tab.textField.textWidth + " of " + tab.textField.width * tab.scaleX + ")");
+                }
+                window.previewNote.text = row[48];
+                require(window.previewNote.numLines <= 2, row[48] + ": the preview's note in two lines at most");
+            }
+            trace("SETTINGS weapon view preview pass");
         }
 
         private function span(item:*):Array

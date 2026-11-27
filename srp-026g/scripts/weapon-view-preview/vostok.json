@@ -1,0 +1,61 @@
+{
+ "capture": {
+  "size": "1920x1080",
+  "settle_ms": 6000,
+  "user_cfg": {
+   "r_texture_quality": "2",
+   "r_shadow_quality": "3",
+   "r_lighting_quality": "2",
+   "r_shading_quality": "2",
+   "r_decorations_quality": "2",
+   "r_post_process_quality": "2",
+   "r_ambient_occlusion_quality": "3",
+   "r_ssdo": "on",
+   "r_particles_quality": "2",
+   "r_geometry_quality": "1",
+   "r_motion_blur_quality": "0",
+   "r_max_anisotropic": "16",
+   "r_antialiasing_method": "2"
+  }
+ },
+ "poses": [
+  {
+   "name": "yard",
+   "fov": 100,
+   "position": [
+    34.6352,
+    14.87,
+    0.7494
+   ],
+   "forward": [
+    0.8983,
+    -0.4341,
+    0.0677
+   ],
+   "target": [
+    61.747,
+    0.87,
+    2.7937
+   ]
+  },
+  {
+   "name": "yard-scope",
+   "fov": 20,
+   "position": [
+    34.6352,
+    14.87,
+    0.7494
+   ],
+   "forward": [
+    0.8983,
+    -0.4341,
+    0.0677
+   ],
+   "target": [
+    61.747,
+    0.87,
+    2.7937
+   ]
+  }
+ ]
+}

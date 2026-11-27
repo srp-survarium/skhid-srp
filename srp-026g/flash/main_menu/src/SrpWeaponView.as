@@ -71,12 +71,19 @@ package
         // The Settings window's frame (SrpSettingsGround, 650 x 565), as SrpKeysWindow lays it: its border
         // and its title's band kept, its inside stretched; the title and the close button where the Settings
         // window has them.
-        private static const FRAME_LEFT:Number = 6, FRAME_RIGHT:Number = 6, FRAME_TOP:Number = 39, FRAME_BOTTOM:Number = 22;
+        private static const FRAME_LEFT:Number = 6, FRAME_RIGHT:Number = 6, FRAME_TOP:Number = 39, FRAME_BOTTOM:Number = 6;
+        // The art's bottom: the Settings window's button bar (its dark band, rows 543 to 558) is left out, the
+        // inside running on to the frame's own edge, its last 6 rows (the owner: "the bottom dark band is
+        // unnecessary").
+        private static const ART_INSIDE_END:Number = 543;
         private static const TITLE_Y:Number = 6.75, CLOSE_RIGHT:Number = 34.5, CLOSE_SCALE:Number = 0.756;
         // Inside the frame's sides and over its bottom; the window's inside width; to the screen's edges.
         private static const SIDE:Number = 22, SPACE:Number = 12, INSIDE:Number = 300, MARGIN:Number = 12;
         // The rows: a slider's next row under its track, the checkbox's row (the HUD group's step).
         private static const ROW_GAP:Number = 12;
+        // The preview's tabs: SetingsButton's height, the room between two.
+        private static const TAB_HEIGHT:Number = 26;
+        private static const TAB_GAP:Number = 4;
         private static const BOX_ROW:Number = 35;
 
         // The tab's button that opens the window.
@@ -84,6 +91,12 @@ package
         public var sliders:Object = {};
         public var box:CheckBoxSkinned;
         public var note:TextField;
+        // The preview (SrpWeaponPreview), its three views' tabs (the tab's standard buttons) and its note.
+        public var preview:SrpWeaponPreview;
+        public var tabs:Array = [];
+        public var previewNote:TextField;
+        // The player's World FOV (Settings gives the World FOV slider's value), for the preview's world.
+        public var worldFov:Function = null;
         private var content:MovieClip;
         private var backdrop:Sprite;
         private var panel:Sprite;
@@ -159,6 +172,61 @@ package
             note.multiline = true;
             note.autoSize = TextFieldAutoSize.LEFT;
             panel.addChild(note);
+            preview = new SrpWeaponPreview();
+            panel.addChild(preview);
+            for (var view:int = 0; view < 3; view++)
+            {
+                var tab:SetingsButton = new SetingsButton();
+                tab.name = NAME + "_tab" + view;
+                tab.autoSize = "none";
+                tab.toggle = true;
+                tab.focusable = true;
+                tab.alpha = 1;
+                tab.addEventListener(ButtonEvent.CLICK, onTab);
+                panel.addChild(tab);
+                tabs.push(tab);
+            }
+            previewNote = new TextField();
+            previewNote.name = NAME + "_preview_note";
+            previewNote.selectable = previewNote.mouseEnabled = false;
+            previewNote.wordWrap = true;
+            previewNote.multiline = true;
+            previewNote.autoSize = TextFieldAutoSize.LEFT;
+            panel.addChild(previewNote);
+            // the slider being moved picks the view it shows; every move draws it again
+            sliders[SIGHTS].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(-1); });
+            sliders[SCOPES].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(SrpWeaponPreview.SCOPE); });
+            sliders[DISTANCE].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(-1); });
+            sliders[HIP].addEventListener(IndexEvent.INDEX_CHANGE, refresh);
+            box.addEventListener(Event.SELECT, refresh);
+        }
+
+        // The view shown: `view`, or (-1) one of the sights' (the one shown, or the iron sights after the scope).
+        private function pick(view:int):void
+        {
+            if (view < 0)
+            {
+                view = preview.shown == SrpWeaponPreview.SCOPE ? SrpWeaponPreview.IRON : preview.shown;
+            }
+            preview.shown = view;
+            refresh();
+        }
+
+        private function onTab(event:ButtonEvent):void
+        {
+            pick(tabs.indexOf(event.currentTarget));
+        }
+
+        // The preview of the values the window shows (pending ones too), and its tabs.
+        public function refresh(event:Event = null):void
+        {
+            for (var view:int = 0; view < tabs.length; view++)
+            {
+                tabs[view].selected = view == preview.shown;
+            }
+            var uro:Number = worldFov != null ? Number(worldFov()) : 65;
+            preview.draw(sliders[SIGHTS].selectedIndex, sliders[SCOPES].selectedIndex, box.selected,
+                sliders[DISTANCE].selectedIndex, uro > 0 ? uro : 65);
         }
 
         // Whether `name` is one of this group's sliders.
@@ -215,6 +283,15 @@ package
             if (values.length >= 3 && String(values[2]).indexOf("%1$s") >= 0)
             {
                 unit = String(values[2]);
+            }
+            // the preview's three views' names and its note
+            for (var view:int = 0; view < tabs.length && 3 + view < values.length; view++)
+            {
+                tabs[view].label = String(values[3 + view]);
+            }
+            if (values.length >= 7)
+            {
+                previewNote.text = String(values[6]);
             }
             shown();
         }
@@ -400,6 +477,26 @@ package
             g.endFill();
             var left:Number = FRAME_LEFT + SIDE;
             var at:Number = FRAME_TOP + SPACE;
+            // the preview's tabs, the tab's standard buttons side by side across the inside, the preview under them
+            var tabWidth:Number = (INSIDE - 2 * TAB_GAP) / tabs.length;
+            for (var view:int = 0; view < tabs.length; view++)
+            {
+                tabs[view].x = left + view * (tabWidth + TAB_GAP);
+                tabs[view].y = at;
+                tabs[view].width = tabWidth;
+                tabs[view].validateNow();
+            }
+            at += TAB_HEIGHT + 6;
+            preview.x = left;
+            preview.y = at;
+            at += SrpWeaponPreview.HEIGHT + 4;
+            previewNote.defaultTextFormat = SrpLanguage.noteFormat(content);
+            previewNote.setTextFormat(previewNote.defaultTextFormat);
+            previewNote.embedFonts = true;
+            previewNote.x = left;
+            previewNote.width = INSIDE;
+            previewNote.y = at;
+            at = previewNote.y + previewNote.textHeight + 4 + ROW_GAP;
             for each (var key:String in SLIDERS)
             {
                 var slider:SrvOptionSlider = sliders[key];
@@ -419,6 +516,7 @@ package
             }
             fitValues();
             centimetres();
+            refresh();
             note.defaultTextFormat = SrpLanguage.noteFormat(content);
             note.setTextFormat(note.defaultTextFormat);
             note.embedFonts = true;
@@ -447,7 +545,8 @@ package
             var g:Graphics = frame.graphics;
             g.clear();
             var xs:Array = [0, FRAME_LEFT, art.width - FRAME_RIGHT, art.width];
-            var ys:Array = [0, FRAME_TOP, art.height - FRAME_BOTTOM, art.height];
+            // each part's source rows: the title band, the inside to the button bar, the frame's bottom edge
+            var ys:Array = [[0, FRAME_TOP], [FRAME_TOP, ART_INSIDE_END], [art.height - FRAME_BOTTOM, art.height]];
             var tx:Array = [0, FRAME_LEFT, w - FRAME_RIGHT, w];
             var ty:Array = [0, FRAME_TOP, h - FRAME_BOTTOM, h];
             for (var i:int = 0; i < 3; i++)
@@ -455,8 +554,8 @@ package
                 for (var j:int = 0; j < 3; j++)
                 {
                     var sx:Number = (tx[i + 1] - tx[i]) / (xs[i + 1] - xs[i]);
-                    var sy:Number = (ty[j + 1] - ty[j]) / (ys[j + 1] - ys[j]);
-                    var m:Matrix = new Matrix(sx, 0, 0, sy, tx[i] - xs[i] * sx, ty[j] - ys[j] * sy);
+                    var sy:Number = (ty[j + 1] - ty[j]) / (ys[j][1] - ys[j][0]);
+                    var m:Matrix = new Matrix(sx, 0, 0, sy, tx[i] - xs[i] * sx, ty[j] - ys[j][0] * sy);
                     g.beginBitmapFill(art, m, false, true);
                     g.drawRect(tx[i], ty[j], tx[i + 1] - tx[i], ty[j + 1] - ty[j]);
                     g.endFill();

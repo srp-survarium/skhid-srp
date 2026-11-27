@@ -4513,6 +4513,10 @@ st_srp_weapon_sway_cycle	Verwackelperiode
 st_srp_weapon_sway_horizontal	Horizontales Verwackeln
 st_srp_weapon_sway_vertical	Vertikales Verwackeln
 st_srp_weapon_view_heading	Waffenansicht
+st_srp_weapon_view_iron	Kimme
+st_srp_weapon_view_preview_note	AK-12-Vorschau; Visierabstand ungefähr
+st_srp_weapon_view_red_dot	Rotpunkt
+st_srp_weapon_view_scope	Zielfernrohr
 st_srp_weapon_with_kit	Mit Loadout
 st_srp_weapon_with_kit_skills	Mit Loadout und Fähigkeiten
 st_srp_weather_before_rain	vor dem Regen
