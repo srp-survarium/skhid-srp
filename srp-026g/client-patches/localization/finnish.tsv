@@ -4215,6 +4215,13 @@ st_srp_mode_roulette_high	FFA: Ruletti
 st_srp_mode_roulette_low	FFA: Ruletti
 st_srp_mode_roulette_mid	FFA: Ruletti
 st_srp_mode_team_deathmatch	Joukkuetaistelu
+st_srp_modification_dovetail	Sivukiinnike
+st_srp_modification_empty	Tyhjä
+st_srp_modification_handguard_rail	Etutukin kisko
+st_srp_modification_rail_adapter	Kiskosovitin
+st_srp_modification_receiver_rail	Rungon kisko
+st_srp_modification_stock	Vakio
+st_srp_modification_tactical_forend	Taktinen etutukki
 st_srp_mount_barrel	Piippu
 st_srp_mount_gas_tube	Kaasuputki
 st_srp_mount_handguard	Etutukki

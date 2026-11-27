@@ -4215,6 +4215,13 @@ st_srp_mode_roulette_high	FFA: Рулетка
 st_srp_mode_roulette_low	FFA: Рулетка
 st_srp_mode_roulette_mid	FFA: Рулетка
 st_srp_mode_team_deathmatch	Камандны бой
+st_srp_modification_dovetail	Бакавое мацаванне
+st_srp_modification_empty	Пуста
+st_srp_modification_handguard_rail	Планка цаўя
+st_srp_modification_rail_adapter	Адаптар планкі
+st_srp_modification_receiver_rail	Планка каробкі
+st_srp_modification_stock	Стандартны
+st_srp_modification_tactical_forend	Тактычнае цаўё
 st_srp_mount_barrel	Ствол
 st_srp_mount_gas_tube	Газаадвод
 st_srp_mount_handguard	Цаўё

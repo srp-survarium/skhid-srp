@@ -1,0 +1,36 @@
+# The ways of an optic onto a modification markers' gun: the way's number (the kit record's,
+# weapon_modules::mounts) and the slot it stands in.
+# Written by srp-026g/scripts/weapon-modules/modification_slots.py from the listed weapon-modules
+# pack's record: do not edit.
+list	weapon:int	optic:int	way:int	slot:int
+ways	3	2101	0	86
+ways	3	2102	0	86
+ways	3	2104	0	71
+ways	3	2105	0	71
+ways	3	2106	0	71
+ways	3	2106	1	68
+ways	3	2107	0	71
+ways	3	2107	1	68
+ways	3	2108	0	71
+ways	3	2108	1	68
+ways	3	2109	0	71
+ways	3	2109	1	68
+ways	3	2110	0	71
+ways	3	2110	1	68
+ways	3	2112	0	71
+ways	3	2112	1	68
+ways	3	2113	0	71
+ways	3	2113	1	68
+ways	3	2114	0	71
+ways	3	2114	1	68
+ways	3	2115	0	71
+ways	3	2115	1	68
+ways	3	2116	0	71
+ways	3	2116	1	68
+ways	3	2117	0	71
+ways	3	2117	1	68
+ways	3	2118	0	71
+ways	3	2118	1	68
+ways	3	2119	0	71
+ways	3	2120	0	71
+ways	3	2120	1	68

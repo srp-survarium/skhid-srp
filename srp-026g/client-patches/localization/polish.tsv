@@ -4215,6 +4215,13 @@ st_srp_mode_roulette_high	FFA: Ruletka
 st_srp_mode_roulette_low	FFA: Ruletka
 st_srp_mode_roulette_mid	FFA: Ruletka
 st_srp_mode_team_deathmatch	Walka drużynowa
+st_srp_modification_dovetail	Montaż boczny
+st_srp_modification_empty	Pusty
+st_srp_modification_handguard_rail	Szyna łoża
+st_srp_modification_rail_adapter	Adapter szyny
+st_srp_modification_receiver_rail	Szyna komory
+st_srp_modification_stock	Standardowy
+st_srp_modification_tactical_forend	Taktyczne łoże
 st_srp_mount_barrel	Lufa
 st_srp_mount_gas_tube	Rura gazowa
 st_srp_mount_handguard	Łoże
