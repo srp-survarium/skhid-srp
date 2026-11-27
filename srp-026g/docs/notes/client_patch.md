@@ -5102,3 +5102,47 @@ cook data made by the game's constructor (0x127C30), then bake_decals' record lo
 - A build without the hook fails the Duty, Freedom and HUD cases.
 
 **Not run:** a game. The bake's look on the legs was only rendered offline for #2687.
+
+### 3.115 The player's weapon view (written 2026-11-27, README patch 219) — PROVEN in the code and under Unicorn; not run in a game
+
+The owner, 2026-11-27: the sights of revision 74 should be customizable, not old or new. The settings,
+their defaults and ranges, the scopes' surround and what to look at are in `weapon-view-settings.md`.
+
+**The angles** (patch 161's lens, `attachments/view.rs`):
+
+- `weapon_view.camera` (0x1F3505) reads the five console variables once a frame.
+- `srp_weapon_fov_world` gives no lens: the foreground pass keeps the world's projection, as
+  revision 73.
+- Otherwise each of the gun's two factors is multiplied by its scale before 0.69d0's interpolation
+  (`Profile::focal_at`): the hip's, and the sights' or the scopes' by what the gun is aimed through
+  (the table's `Relief` of its fitted optic). A scale of exactly 1.0 gives revision 74's floats.
+- `weapon_view.no_gun` takes the hip's scale.
+- `trig::focal_length` takes half-angles up to 90 degrees: past 45 it is sin / cos of the
+  complement, each fdlibm kernel within its range; to 45 its floats are unchanged.
+
+**The eye** (patch 219, two lohooks):
+
+- `hands_ik.aim_alignment` (0x295AA5, order 2, after patch 172) reads the call's pushed argument:
+  `[esp]`, the `Item` bone's matrix (EDI = [ebp+0Ch] plus its index x 40h, pushed at 0x295AA4;
+  `hands_ik_frame.item`). The weapon at `[esp+1Ch]` must be the one the camera sampled; then
+  `-shift` times that matrix's third row is kept for the return.
+- `hands_ik.aim_aligned` (0x295AB2, `movss xmm0,[esp+0Ch]`, 6 bytes; no branch into 0x295AB3..B7; ESI
+  the result, esp+24h of the site) adds it to the result's translation. Then comes the progress's
+  blend (0xEF780 below 1) and the copy to the `Weapon` bone (0x295AFA).
+- **Why that is the aim offset `shift` larger.** calculate_aim_alignment gives
+  `inverse(T(0,0,a) x rotY(pi) x L x B) x Item`. With `a + s` that is the same matrix times
+  `Item^-1 x T(0,0,-s) x Item`, a translation of `-s` times Item's third row (row vectors).
+- The shift: minus the player's centimetres (farther), for iron sights no more than
+  `aim_offset_026g - [+6D8h]` nearer, +6D8h the translation z of the aim offset matrix (the cook makes
+  it at 0x24A8E7 with 0x573C0, the identity at 0x24A8F2 without the key). A sight in the gun's eye
+  plane: `Relief::shift` (never within 6 cm of its reticle).
+- Nothing is written to the weapon. The camera, the `Item` bone and everything a world holds are
+  as they were.
+
+**The Settings' call** (`options.callback`, order 5): see `weapon-view-settings.md`.
+
+**Checked:** `check_attachments_026g.py` and `check_weapon_view_options_026g.py`, as
+`weapon-view-settings.md` says. `check_aim_pose_026g.py` still passes: it stops at the call's return,
+before the new site.
+
+**Not run:** a game.

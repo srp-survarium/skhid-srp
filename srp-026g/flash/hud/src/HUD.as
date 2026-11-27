@@ -42,6 +42,7 @@ package
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
    import survarium.controls.DeathEyes;
+   import survarium.controls.ShortMessage;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
@@ -218,8 +219,6 @@ package
       protected var _context_distance:Number = 0;
       
       protected var _last_rotation:Number = -1;
-      
-      protected var _parameterizedTimeout:uint;
       
       protected var _reflow:Boolean = false;
       
@@ -470,6 +469,9 @@ package
          addChild(this.connectionInfo);
          contextInfo3 = new SrvContextMessage3();
          addChild(this.contextInfo3);
+         _message = new ShortMessage(this.contextInfo3);
+         _revealPopup = new ShortMessage(new SrvContextMessage3());
+         addChild(this._revealPopup.clip);
          contextInfo2 = new SrvContextMessage();
          addChild(this.contextInfo2);
          contextInfo = new SrvContextInfo();
@@ -496,7 +498,6 @@ package
          this.tabMinimap.centerPlayer = false;
          this.minimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
          this.tabMinimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
-         this.contextInfo3.visible = false;
          var _iconContainer:IconContainer = new IconContainer("inventoryitems",171,83,new hudItems(),true,0,0,0,false);
          this.quick_slots.registerIconContainer(_iconContainer);
          var grayBitmaps:Dictionary = new Dictionary();
@@ -659,10 +660,12 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
-      // Freeze Tag: the popups of a last one fighting's reveal (freeze_tag_reveal), and the text of
-      // the one shown (null: none of ours).
+      // The game's short message (set_parameterized_message: contextInfo3, timed by ShortMessage).
+      private var _message:ShortMessage;
+      // Freeze Tag: the popups of a last one fighting's reveal (freeze_tag_reveal): which to show, and
+      // the popup itself, a short message of its own.
       private var _revealNotice:RevealNotice = new RevealNotice();
-      private var _revealPopup:String = null;
+      private var _revealPopup:ShortMessage;
       private var _freezeContext:Object = null;
 
       private static const FREEZE_BAR_WIDTH:Number = 120;
@@ -1099,6 +1102,11 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
+         this._revealPopup.clip.layoutData = new LayoutData();
+         this._revealPopup.clip.layoutData.alignV = "top";
+         this._revealPopup.clip.layoutData.alignH = "center";
+         this._revealPopup.clip.layoutData.offsetV = this.stageHeight / 100 * REVEAL_POPUP_SHIFT;
+         this._revealPopup.clip.layoutData.offsetH = 0;
          // At the right edge, under mid-height (the owner, 2026-11-11: "usually you want those on
          // the right"; 0.69's were on the left): under the kill feed and the container's icon, over
          // the player's info. Its rows end at its x and it has no width of its own.
@@ -1993,36 +2001,66 @@ package
       // A last one fighting's reveal, sent each frame (exe patch 160, freeze_tag::on_hud;
       // RevealNotice): each side's whose (0 none, 1 the viewer, 2 his last teammate, 3 the enemy's
       // last one) and the ms left (0: revealed). A side that starts counting, or is revealed, gives
-      // one short popup, the game's own message (set_parameterized_message, small, 30% down the
-      // screen: under the mode notice), which hides itself after its few seconds; no countdown.
+      // one short popup: the game's short message's art, small, 30% down the screen (under the mode
+      // notice), REVEAL_POPUP_MS fully shown between its fades; no countdown. A copy of the message
+      // of its own: no other message (an Onyx's hint) takes its place.
       public static const REVEAL_POPUP_SIZE:uint = 22;
       public static const REVEAL_POPUP_SHIFT:uint = 30;
+      public static const REVEAL_POPUP_MS:uint = 4000;
 
       public function freeze_tag_reveal(own:uint, ownLeft:uint, enemy:uint, enemyLeft:uint) : void
       {
          this._revealNotice.tell(own,ownLeft,enemy,enemyLeft);
+         // A popup told while one is shown (a thaw, then down to one again) refreshes it.
          if(this._revealNotice.text != null)
          {
-            this._revealPopup = this._revealNotice.text;
-            // The same text again (a thaw, then down to one again) starts the popup afresh.
-            this.contextInfo3.mc_text.contextText.text = "";
-            this.set_parameterized_message(this._revealPopup,REVEAL_POPUP_SIZE,REVEAL_POPUP_SHIFT,this._revealNotice.time);
+            this.showShortMessage(this._revealPopup,this._revealNotice.text,REVEAL_POPUP_SIZE,REVEAL_POPUP_SHIFT,REVEAL_POPUP_MS);
          }
       }
 
-      // A new match or another mode: no side counted; a popup of ours still shown goes.
+      // A new match or another mode: no side counted; a popup still shown goes.
       private function resetRevealNotice() : void
       {
          this._revealNotice.reset();
-         if(this._revealPopup != null && this.contextInfo3.visible && this.contextInfo3.mc_text.contextText.text == this._revealPopup)
+         this._revealPopup.hide();
+      }
+
+      // The reveal's popup, for the harness (scripts/freeze-tag-hud).
+      public function get revealPopup() : ShortMessage
+      {
+         return this._revealPopup;
+      }
+
+      // A short message shown or refreshed from now: on top of the root's parts, its first line
+      // `shift` % down the screen; then its fades and its end each frame (followShortMessages).
+      private function showShortMessage(message:ShortMessage, text:String, size:uint, shift:uint, holdMs:Number) : void
+      {
+         var now:int = getTimer();
+         message.show(text,size,holdMs,now);
+         var clip:MovieClip = message.clip;
+         var textField:TextField = clip.mc_text.contextText;
+         addChild(clip);
+         if(clip.layoutData)
          {
-            if(this._parameterizedTimeout)
-            {
-               clearTimeout(this._parameterizedTimeout);
-            }
-            this.hideParameterized();
+            clip.layoutData.offsetV = this.stageHeight / 100 * shift - textField.textHeight / textField.numLines;
          }
-         this._revealPopup = null;
+         if(this.layout)
+         {
+            this.layout.reflow();
+         }
+         this.followShortMessages();
+      }
+
+      // Each frame while a short message is shown: its alpha, its end.
+      private function followShortMessages(event:Event = null) : void
+      {
+         var now:int = getTimer();
+         var shown:Boolean = this._message.draw(now);
+         shown = this._revealPopup.draw(now) || shown;
+         if(shown)
+            addEventListener(Event.ENTER_FRAME,this.followShortMessages);
+         else
+            removeEventListener(Event.ENTER_FRAME,this.followShortMessages);
       }
 
       private function showRevealed(places:RevealedPlaces) : void
@@ -2072,53 +2110,21 @@ package
          this.contextInfo2.visible = bool;
       }
       
+      // The game's short message (show_parametrized_message 0x2375C0, and the exe patches' through
+      // it): `time` ms fully shown between its fades (0: until the next), `fonSize` its text's size,
+      // its first line `shift` % down the screen. Told again while shown, it is refreshed.
       public function set_parameterized_message(text:String, fonSize:uint, shift:uint, time:uint = 2500) : void
       {
          // %s in a message is its time on screen, in seconds (Onyx's activation hint: its active's time, exe patch 54).
          text = text.split("%s").join(String(Math.ceil(time / 1000)));
-         if(!this.contextInfo3.visible)
-         {
-            this.contextInfo3.visible = true;
-         }
-         addChild(this.contextInfo3);
-         if(this.contextInfo3.currentFrame == this.contextInfo3.totalFrames)
-         {
-            this.contextInfo3.gotoAndPlay(0);
-         }
-         var textField:TextField = this.contextInfo3.mc_text.contextText;
-         var fm:TextFormat = textField.getTextFormat();
-         fm.size = fonSize;
-         textField.defaultTextFormat = fm;
-         textField.autoSize = TextFieldAutoSize.LEFT;
-         textField.setTextFormat(fm);
-         if(textField.text != text)
-         {
-            this.contextInfo3.gotoAndPlay(0);
-            textField.text = text;
-         }
-         if(this.contextInfo3.layoutData)
-         {
-            this.contextInfo3.layoutData.offsetV = this.stageHeight / 100 * shift - textField.textHeight / textField.numLines;
-         }
-         if(this.layout)
-         {
-            this.layout.reflow();
-         }
-         if(this._parameterizedTimeout)
-         {
-            clearTimeout(this._parameterizedTimeout);
-         }
-         if(time)
-         {
-            _parameterizedTimeout = setTimeout(this.hideParameterized,time);
-         }
+         this.showShortMessage(this._message,text,fonSize,shift,time != 0 ? time : Number.POSITIVE_INFINITY);
       }
-      
+
       public function hideParameterized() : void
       {
-         this.contextInfo3.gotoAndPlay("hide");
+         this._message.fadeOut(getTimer());
       }
-      
+
       public function set_warning_message(text:String, time:int = 2500) : void
       {
          if(!this.connectionInfo.visible)

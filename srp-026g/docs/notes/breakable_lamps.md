@@ -171,6 +171,196 @@ order: the bottles take places among the lamps, and these maps' worlds save
 three lamps more (`simulation_changes.tsv`). Their collision gone, a bullet
 through a bottle is no longer stopped or slowed by its glass.
 
+## Rows of their own
+
+A row may say its own `break_material`, `effect_material` and `leftover`
+over the table's (each left out: the table's): a skeleton's cap among
+Vostok's lamps marks as stone and leaves its body, a tin can among School's
+plays its metal hit, a wash-stand tank among Rudnya's figures says glass
+(`lamps.rs`'s `Look`, one a row). The client's marks rule is a row's: a mark
+of a row's material inside its bounds is skipped while its leftover says so.
+`check_built` reads a row's leftover against its fixture (a figure's body,
+every other glass). The later lists below add rows to tables an earlier list
+made, their new visuals at the end of `render_visuals` (`content_edit.py`'s
+`add_entry` with `"at_end": true`: Rudnya's Research projects end in two
+transmitter slots at one place, which `"after"` would match twice), by
+`scripts/breakable-lamps/fixtures.py`; entries alike across a level's
+projects are one, its files `projects/<level>/*/client_project`.
+
+## Skeleton caps on every map
+
+The owner (2026-11-27): the cap on every map, not Rudnya's alone.
+`skeleton-cap-2.json` (`scripts/skeleton-cap/make_other_edits.py`) makes
+every other sitting skeleton a row of its project's lamp table,
+`skeleton_cap<k>`, as Rudnya's (below, "Loose pieces"), its look stone and
+leftover body of its own: Vostok (1), Chemical Plant (2), the Fort (1), the
+three Londons (4 each), v0.11's Vostok and Chemical Plant (2 each), v0.21's
+Vostok, Chemical Plant and Fort; 132 projects. Pack `skeleton-cap@2` adds
+the v0.11, v0.32 and v0.42 copies of the skeleton (the same cap; v0.11's two
+LODs), version 1's models the same bytes.
+
+## Kitchen ware
+
+The owner (2026-11-27, "shoot the can"): `kitchen-ware-1.json`
+(`scripts/kitchen-ware`) makes the maps' small kitchen things rows of their
+projects' tables, their collision objects out (as the bottles'), 137
+projects:
+
+- whole things, `ware<k>`: School's tin cans (3, and v0.21's), the teapots of
+  Mamayev Kurgan (stock, v0.21) and the three Londons, Rudnya's wash-stand
+  tanks (2: stock, v0.21, v0.69), v0.11 Vostok's can, teapot and pan. The
+  intact visual is the map's; the loose piece pack `kitchen-ware@1`'s
+  `srp_<name>_loose`, the whole model (every LOD) about its LOD0 bounds'
+  centre, of kind `ware` with its capsule in the row (`half`, `radius`,
+  `axis`: along the bounds' longest side, its radius the mean of the other
+  two half sides; a can's 6 + 10 cm along y). The client turns the body so
+  its capsule (the body's X) lies along that axis (`WareAxis`) and draws the
+  visual back from it (`PieceKind::drawn`). `LoneBody::ware_shot` throws it
+  2.2 m/s up and 2.6 m/s along the shot's level direction with 10 rad/s of
+  tumble (some 1.5 m from a table), `ware_kicked` 1.9 and 2.3 after; a shot
+  within its capsule's half length knocks it on. Its break is the bullet's
+  hit of its own collision material (17, thin metal; the pan's 18).
+- ceramic, `ceramic<k>`: Rudnya's three clay jugs and its pot (stock, v0.21,
+  the v0.69 port's jug), the bottle's surface and material: eight shards
+  each (`bottle-shards`' cut: 2 cm triangles, two-sided, its seeds spread
+  over the surface by `far_seeds`), kind `shard`, its break bullet x glass.
+  Every jug is placed at scale 1.225; a loose piece's seat is rigid, so its
+  shards are cut from the mesh at that scale (`SCALE`) and placed unscaled.
+
+Rudnya's projects have 35 pieces (a cap, 32 shards, 2 tanks), v0.21 Rudnya's
+43.
+
+## Vector's capsules
+
+`lab-capsule-glass-1.json` (`scripts/lab-capsule`): Vector Laboratory's four
+glass capsules (`props/chemicalflaskcentre/lab_flask`, 3.7 m tall, the lower
+floor) are glass tubes of two halves, the capsule's front and its door, a
+model of its own beside it (`lab_flaskdoor`; the owner, 2026-11-27: "only
+one wall, even if I shoot another"). Each half is a row of its project's
+table (18), `capsule<k>` and `door<k>`. Its bounds are the glass's
+(`capsuleglass_s`, a cylinder's segment of radius 0.70 m, 0.61 to 3.07 m up
+in the capsule: a shot at the frame below is no hit); the intact visual the
+model, the broken one pack `lab-capsule-glass@1`'s `srp_<model>_broken`
+(every LOD's glass surface out of its settings) placed as it; the glass's 16
+shards its loose pieces, cut to 20 cm triangles jagged by up to 6 cm, some
+40 cm a piece, a few hundred triangles each. The table's look: bullet x
+glass along the glass's height (ten bursts), leftover glass: the glass
+collision stays, as a lamp's, unmarked.
+
+A shard is of kind `pane_shard` (`PieceKind::PaneShard`): its row gives its
+glass's level outward normal there (`out_x/y/z`, from the cylinder's axis,
+fitted to the glass: `make_pack.py`'s `axis_of`) and its long side
+(`along_x/y/z`, its points' principal axis), both in its model's frame. Its
+body (`ShardSize::Pane`: a capsule 50 cm long of radius 2 cm, 1.5 kg;
+glass's grip) lies along the shard (`pane_frame`: the body's X along it, its
+Z out) and `LoneBody::pane_shattered` drops it out of the frame: 1.3 m/s
+out, 0.4 up, 0.3 along the shot, toppling outward at 2 rad/s. The first
+build threw them as a bottle's, the body's X the model's whatever the shard
+and 1 m/s along the shot (the owner: "they fall too slowly and not all glass
+breaks"): into the tube, its glass's collision kept them up. Vector's
+projects have 128 pieces (the most) and bind 473 objects.
+
+## Vector's jars
+
+`lab-jars-1.json` (`scripts/lab-jars`; the owner, 2026-11-27, of the racks
+of jars on Vector's lower floor: "I expected those one"): Vector's racks
+(`props/lab/chemical_flask`, five a project) hold ten glass jars each, 36 cm
+across and 1.06 m tall, on rods, one surface (`windows_broken_s`) of ten
+closed parts. The list sets each rack visual's names to pack
+`lab-jars@1`'s `srp_chemical_flask_frame` (the rack without its glass; its
+collision object, the rack's, keeps the jars' glass) and makes each jar a
+row, `jar<r>_<k>` (rack r in the project's order, jar k by its centre, x
+then z): its bounds 1 cm larger, its glass line its axis, the jar alone
+(`srp_chemical_flask_jar<k>`) drawn while intact and its stump
+(`_broken`: its bottom under a jagged rim 6 to 22 cm high) while broken,
+both at the jar's centre. Its loose pieces are the glass over the rim as five
+shards (`_glass<j>`: strips around the jar, its seeds around its wall at one
+height; the owner: "jar racks don't have shards"), of kind `pane_shard`, out
+from the jar's axis. The racks' collision objects take the pack's
+`srp_chemical_flask_collision`: the rack's without its jars' ten glass
+capsules (the owner: "glass bullet holes are left", "even though glass was
+destroyed": a jar's capsule reached 18 cm over the jar, past its bounds, and
+stayed once it broke). A bullet breaks a jar on its way through, to what is
+behind. Vector has 157 rows and 378 pieces a project.
+
+A shard knocked again (a shot within its reach, a blast) plays its
+fixture's hit once at it, its look's (`Piece::look`: glass on a shard, metal
+on a can, stone on a cap): at most four a shot or a blast (the owner:
+"hitting shards doesn't make glass sound").
+
+A pane shard bursts out of its glass (`pane_shattered`: 5 cm out at once,
+clear of the glass's collision, 1.6 to 2.8 m/s out, a throw of its own from
+its place's `scatter`) and lands with its own grip (`PANE_GRIP`: held near
+the ground under 1 m/s, some 30 cm of skid); a loose body steps up to 0.1 s
+a frame (`LONE_SUBSTEPS`), real time down to 10 frames a second (the
+owner: "they drop slowly and just lie on ground").
+
+A project keeps 384 pieces (`MAX_PIECES`, `MAX_LOOSE`), each a pose of some
+100 bytes (`Perch`); only a piece in the air has a body (`Bodies`, 128 of
+some 290 bytes: `MAX_FLYING`). A piece that would take off while every body
+flies waits where it is (struck, on its seat) for one to land. The first
+build gave every piece a body, and 128 pieces were the most the registry's
+plan (built on the main thread's 1 MB stack) could hold.
+
+## Vector's windows
+
+`vector-windows-1.json` (`scripts/vector-windows`; the owner, 2026-11-27, of
+the boiler room's metal-framed glass: break it as the capsules): Vector's
+glazed partitions are no model of their own but the surface `glass_s`
+(`tiled/window/glass`) of its building `level/07/base_a`, a render visual at
+the origin of each of its 18 projects (no other map has it); their glass's
+collision is the building's collision object's (`coll_glass`). The
+building's vertical glass stands in 23 bays: the boiler room's partitions
+(z -27.5, x 68.1), the back wall's high windows (z -31.5), two more; each
+part two-sided (a quad and its twin 2 cm off), a bay the vertical parts of a
+plane meeting along it (`make_pack.py`'s `bays`). Its flat glass (tabletops,
+the floor's) stays as it is. The list sets the building visual's names to
+pack `vector-windows@1`'s `srp_base_a_frame` (the building, its `glass_s`
+the flat glass alone, every other surface as it is: 5.6 MB) and makes each
+bay a row, `pane<k>`: its bounds 3 cm off its plane and 1 cm along it, its
+glass line its height through its middle, the bay alone
+(`srp_base_a_pane<k>`) drawn while intact and what its frame keeps
+(`_broken`: each part's glass 1 to 7 cm in from its edges, jagged, a part
+and its twin alike) while broken, both at the bay's centre. No pieces
+(Vector's projects have the most); the game's glass burst is its break, the
+glass's collision stays (leftover glass). Vector has 180 rows a project.
+
+## Bells
+
+School's wall bells (`props/electric/bell_school`, four a project, School's
+21 and v0.21's 10) ring when shot (the owner, 2026-11-27: "should be
+directional and just once or every n seconds"). `school-bells-1.json`
+(`scripts/school-bells/make_edits.py`) adds rows `bell<k>` of `"reaction":
+"ring"` and `"ring_every": 4`: the bell's bounds (2 cm larger) and its middle
+(the glass line), no visual, no piece, no light. A ring row is no fixture of
+the history: `LampCount` counts the breaking rows (a table of bells alone is
+refused). Its `model::Bell` is `Silent`, `Due` (a shot or a blast reached
+its bounds since the last frame) or `Rang { at }`; a strike within
+`ring_every` of its ring is not heard (a burst's next bullets, a bullet
+resimulated after a rollback). The frame (`game_world.after_move`, on the
+game's thread, outside the registry's lock) plays each due bell's ring at its
+middle, a point sound of the world's scene (`GameWorld::play_sound_at`, as
+the corpse shot's): heard from where the bell is, by everyone near (each
+client its own bullets' and blasts', as it draws them). The bells have no
+collision: the ray reaches their bounds on its way to the wall.
+
+The ring is one of ten takes, each the collection
+`sounds/collections/props/school_bell_srp/ring_<k>` (`RING_TAKES`, asked at
+the first frame of a project with bells; a take missing is silent and the
+log says so), pack `school-bell@1` (`scripts/school-bells`): a wrecked
+Soviet electric school bell, synthesized (`synth.py`, the owner: "give me
+many versions, this should sound post-apocalypse like"; no build of the game
+has a bell): a dying battery, a rusted dome, bad contacts, a cracked dome, a
+bent dome, far down the corridor, a cold start, a drowned one, an old one
+still working, a dent mid-ring (the owner kept all of synth.py's but its
+single clang and stuck hammer). Which take is the shot's (the owner,
+2026-11-27: "can be w/some randomness, so everyone hears the same one"):
+`model::shot_seed`, a bullet's start (a blast's centre) to the centimetre,
+mixed with the bell's row (`bell_seed`: each bell of a blast its own), the
+same in every game that simulates the shot and in a rollback's; the first
+strike of a frame is the one heard. Vorbis mono, the stock metal hit's
+options (3D, the `material_hit` preset: heard to 35 m).
+
 ## Room probes
 
 In a ported map most of a room's light is its environment probe's, whose
@@ -427,11 +617,13 @@ The piece is drawn while its fixture is broken. Its flight is
 `lamps::model::Flight`, one machine per piece: `Seated`, `Struck` (broken by a
 push this client saw: a bullet's ray, or the direction from a blast's centre),
 `Kicked` (off its seat, struck again where it was), `Flying` and `Lying`;
-how it flies is its `kind` (`PieceKind`): `headwear` (the default, the cap)
-or `shard` (a bottle's: `ragdoll::LoneBody::shattered`, a capsule 9.4 cm long
+how it flies is its `kind` (`PieceKind`): `headwear` (the default, the cap),
+`shard` (a bottle's: `ragdoll::LoneBody::shattered`, a capsule 9.4 cm long
 of 50 g thrown 1 m/s up, 1.2 m/s out from the glass's middle and 1.5 m/s
-along the shot, `shard_kicked` after; a shot within 6 cm knocks it on). A
-project has at most 32 pieces, and 64 level rays a frame for them. A
+along the shot, `shard_kicked` after; a shot within 6 cm knocks it on),
+`pane_shard` (Vector's capsule glass, "Vector's capsules") or `ware` (a
+whole thing, "Kitchen ware"). A project has at most 384 pieces (Vector's
+378), 128 of them in the air at once, and 96 level rays a frame for them. A
 break strikes the fixture's pieces under the bullets' lock; a later bullet
 whose segment passes within 14 cm of a flying or lying piece's centre, or a
 blast whose splash reaches its centre, kicks it on (the owner, 2026-11-26:

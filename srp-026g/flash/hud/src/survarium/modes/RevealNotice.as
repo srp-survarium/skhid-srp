@@ -8,8 +8,8 @@ package survarium.modes
    // state and the match's time, the same in every game): whose and the ms left (0: revealed). A side
    // that starts counting gives one popup with its seconds left at that moment, rounded ("Last enemy
    // revealed in 15 s"; a late joiner's or a resynced game's real number); one that is revealed gives
-   // "... revealed on the map". No ticking: the frames between tell nothing. The popup is the game's
-   // own short message (HUD.set_parameterized_message), which hides itself after its time.
+   // "... revealed on the map". No ticking: the frames between tell nothing. The popup is a short
+   // message of its own (HUD.freeze_tag_reveal, ShortMessage), shown for its few seconds.
    public class RevealNotice
    {
       // Whose (the exe's numbers): the viewer himself, his last teammate, the enemy's last one.
@@ -22,23 +22,17 @@ package survarium.modes
       private static const COUNTING:uint = 1;
       private static const REVEALED:uint = 2;
 
-      // The popup's time on screen: down to one, then revealed (shorter).
-      public static const COUNTING_MS:uint = 4000;
-      public static const REVEALED_MS:uint = 3000;
-
       // Own side's phase, the other side's.
       private var _phases:Array = [NONE,NONE];
 
-      // The popup's text and its time, or null for none this frame (each side's that changed phase).
+      // The popup's text, or null for none this frame (each side's that changed phase).
       public var text:String = null;
-      public var time:uint = 0;
 
-      // Each side's whose (0 none) and ms left until he is revealed (0: he is). Sets text and time
-      // when a side starts counting or is revealed.
+      // Each side's whose (0 none) and ms left until he is revealed (0: he is). Sets text when a side
+      // starts counting or is revealed.
       public function tell(own:uint, ownLeft:uint, enemy:uint, enemyLeft:uint) : void
       {
          var lines:Array = [];
-         var revealedOnly:Boolean = true;
          var sides:Array = [[own,ownLeft],[enemy,enemyLeft]];
          for(var i:int = 0; i < 2; i++)
          {
@@ -48,12 +42,10 @@ package survarium.modes
             if(phase != this._phases[i] && phase != NONE)
             {
                lines.push(line(who,left));
-               revealedOnly = revealedOnly && phase == REVEALED;
             }
             this._phases[i] = phase;
          }
          text = lines.length ? lines.join("\n") : null;
-         time = revealedOnly ? REVEALED_MS : COUNTING_MS;
       }
 
       public function reset() : void

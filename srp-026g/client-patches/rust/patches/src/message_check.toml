@@ -1,6 +1,6 @@
 name = "message_check"
 patch = 114
-uses = ["packet_recovery", "executable_report"]
+uses = ["packet_recovery", "executable_report", "file_check"]
 
 [[hook]]
 site = "match_dispatch.message"

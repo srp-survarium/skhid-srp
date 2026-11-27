@@ -271,12 +271,13 @@ fn run(args: &[String]) -> Result<(), String> {
             })?;
             let made = resources_db::server::Input::of(&out).map_err(|e| e.to_string())?;
             println!(
-                "{}: {} bytes, sha256 {}, {} gameplay files, {} projects, made of:",
+                "{}: {} bytes, sha256 {}, {} gameplay files, {} projects, {} checked files, made of:",
                 out.display(),
                 made.size,
                 made.sha256,
                 built.gameplay,
                 built.projects,
+                built.checked,
             );
             print(&built.provenance);
             Ok(())

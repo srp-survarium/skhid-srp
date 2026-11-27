@@ -4183,7 +4183,7 @@ st_srp_medical_324_description	When an antitoxin takes effect, stamina restored:
 st_srp_medical_324_name	Second Wind
 st_srp_medical_331_description	Replaces the secondary weapon slot with an additional supply pocket.
 st_srp_medical_331_name	Supply Pocket
-st_srp_medical_332_description	Bonus to maximum health of arms and legs:
+st_srp_medical_332_description	Bonus to maximum health of arms and legs (does not raise the pain threshold):
 st_srp_medical_332_name	Strong Bones
 st_srp_medical_333_description	While an antitoxin is active, bonus to reload speed:
 st_srp_medical_333_name	Concentration
@@ -4395,6 +4395,8 @@ st_srp_shop_not_owned	Hide owned
 st_srp_shop_not_owned_hint	Show only the items you do not own
 st_srp_side_left	Left
 st_srp_side_right	Right
+st_srp_sight_distance_note	+ farther, - closer
+st_srp_sight_distance_option	Sight distance
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s
@@ -4444,6 +4446,7 @@ st_srp_technical_pockets	 pockets
 st_srp_technical_rearm	Opens again after a shot
 st_srp_technical_smoke_duration	Smoke duration
 st_srp_technical_toxic_damage	Toxic damage
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s d
 st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
@@ -4483,6 +4486,10 @@ st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time
+st_srp_weapon_fov_aimed_option	Weapon FOV over sights
+st_srp_weapon_fov_option	Weapon FOV at the hip
+st_srp_weapon_fov_scope_option	Weapon FOV in scopes
+st_srp_weapon_fov_world_option	Weapon at the world FOV
 st_srp_weapon_full_damage	Full damage up to
 st_srp_weapon_hip_spread	Hip-fire spread
 st_srp_weapon_holster_time	Holster time
@@ -4507,6 +4514,11 @@ st_srp_weapon_stats	Weapon stats
 st_srp_weapon_sway_cycle	Sway cycle
 st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
+st_srp_weapon_view_heading	Weapon view
+st_srp_weapon_view_hip	Hip
+st_srp_weapon_view_iron	Iron sights
+st_srp_weapon_view_red_dot	Red dot
+st_srp_weapon_view_scope	Scope
 st_srp_weapon_with_kit	With kit
 st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain
@@ -4521,6 +4533,7 @@ st_srp_weight_penalty	%1$s% weight penalty
 st_srp_weight_speed	Movement speed
 st_srp_weight_sprint_stamina	Sprint stamina use
 st_srp_weight_title	Weight effects
+st_srp_world_fov_option	World FOV
 st_stamina_boost_name	Second wind
 st_stamina_boost_time_description	Energy recovered by killing the enemy:
 st_stamina_loss_on_hit_description	Stamina penalty when wounded.

@@ -47,13 +47,19 @@ the mode. This note is the specification: the rules below are 0.46c2's; where 0.
   world"); before the fade's end, it respawns him with everyone.
 - **No new round** with less than 90 s of match time left (`time_needed_to_continue_match`): the
   match ends (scores differ) or goes to sudden death (equal).
-- **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start: a
-  death comes back at the wave the hud shows when he dies, however near it is (the owner,
-  2026-11-23: dead 4 s before a wave he waited for the next one; 0.46c2 waits at least 7 s,
-  `time_needed_to_respawn`, below). The respawn modifier (the radio) has no effect: everyone
-  respawns in the same waves (the owner, 2026-11-23: "No effect in wave modes"). The hud counts to
-  the next wave beside the match time, for everyone, the same time as the game's "Respawn in" line
-  (srp's addition: "HUD calls", "The respawn wave").
+- **Respawn in a round:** in waves every 20 s (`respawn_time`; 0.46c2's 15 s until the owner's
+  2026-11-27: "make timers 20 seconds now since we removed wait time", edit list
+  artefact-hunt-waves-1), at the moments the match clock shows a multiple of it (14:40, 14:20..;
+  both teams' the same waves): a death comes back at the wave the hud shows when he dies,
+  however near it is (the owner, 2026-11-23: dead 4 s before a wave he waited for the next one;
+  0.46c2 waits at least 7 s, `time_needed_to_respawn`, below). The respawn modifier (the radio)
+  has no effect: everyone respawns in the same waves (the owner, 2026-11-23: "No effect in wave
+  modes"). The hud counts to the next wave beside the match time, for everyone, the same time as
+  the game's "Respawn in" line
+  (srp's addition: "HUD calls", "The respawn wave"). The clock and the wave show their seconds
+  rounded up alike, so the clock less the wave is always a multiple of `respawn_time` (the owner,
+  2026-11-27: "the general timer and wave timer should be similar", 14:53 beside 14 while the
+  clock was rounded down).
 - **Match time** 900 s (`match_time`). When it runs out: the higher score wins at once; equal scores:
   sudden death.
 - **Sudden death,** 180 s (`draw_additional_time`): no respawns; a team with nobody left gives the
@@ -323,7 +329,9 @@ says what of this design is built, and what turned out otherwise).
 - **The native clock.** The client time rule's fill 0x267B10 writes hud+4 = whole seconds left, 0
   once over, which update_ui shows as `root.set_match_time` ("" for 0, 0x236A23). Our slot 17 runs
   after it (`fill_match_hud_state` 0x2D36D0..0x2D36E0 calls the rules in the vector's order) and
-  writes hud+4 = `Hud::clock_ms / 1000`: the same number before 900 s, sudden death's own after.
+  writes hud+4 = `Hud::clock_seconds` (the ms left rounded up, as the wave's and the respawn line's:
+  until 2026-11-27 rounded down, the native rule's form, which showed 14:53 beside the wave's 14
+  where both now show 14:54 and 14), sudden death's own after 900 s.
   What `[core+18F54h]` vtable+1Ch, called after the rules, writes into the hud state was not read:
   LIKELY not +4, since the native time rule's +4, written before it, is what the hud shows.
 
@@ -340,8 +348,8 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
   return address of the floor call; EAX = D, EDI the rule, EBX the victim's player, `[ESP+20h]` the
   time). In this mode, with `Rule::respawn_at(params, time)` = `Some(at)`, it sets `EAX = at -
   time` in place of D (the modifier dropped); the native grid and store follow. The time: the first
-  multiple of 15 s from the match's start after the death's step (the wave the hud shows at that
-  step). `None` (before the start, after the end) leaves the native delay.
+  wave after the death's step (a moment the clock shows a multiple of `respawn_time`, 20 s; the
+  wave the hud shows at that step). `None` (before the start, after the end) leaves the native delay.
   - The tick spawns a place whose time **equals** the step's time (0x3168BA `cmp [edx],ecx / jnz`):
     a time must be a grid time, which is why the native rounding is kept and the rule's time is
     never stored directly.
@@ -946,7 +954,7 @@ re-simulation undoes: Research has the same exposure.
   | 19 | carrier's team | 0, 1; 2 none |
   | 20 | the viewed player carries | 0, 1 |
   | 21 | ms to the next respawn wave | 1..#22 in a hunt out of sudden death; else 0 |
-  | 22 | a wave's whole length, ms | `respawn_time` (15000) with #21; else 0 |
+  | 22 | a wave's whole length, ms | `respawn_time` (20000) with #21; else 0 |
   | 23 | bases | 2 |
   | 24..29 | a base: team, x, -z | team 0's first |
 
@@ -962,7 +970,8 @@ re-simulation undoes: Research has the same exposure.
 - **The respawn wave** (#21, #22; the owner, 2026-11-22: "for art hunt since respawns there are
   timer based, this timer should also be visible", "exactly like in dirty bomb", "a smaller timer
   after the main one"). `Rule::hud`'s `wave`: in a round's hunt out of sudden death, the time from
-  now to the first multiple of `respawn_time` from the match's start after now (the arithmetic of
+  now to the next moment the clock shows a multiple of `respawn_time` (the multiples from the
+  match's start, 900 s being one; the arithmetic of
   `Rule::respawn_at`, one function: a wave of this very step has come, the respawn rule's tick
   being before the hud's); `None` before the start, in the 3 s, the fade and the countdown (respawns
   held), in sudden death and once over. The game spawns a wave at the simulation step at or after

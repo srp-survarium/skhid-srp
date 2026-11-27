@@ -326,6 +326,31 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     13, 99, with no way down within 5 m drops as native Vostok's (`--stranded-ok 13`; before the
     roofs' list the check found only the border box's top, 140 m up: of roofs as near, the lower
     is taken first); the checkpoint's roof spawn, 100, where native Vostok's is. 44 -> 73 points.
+- **Rudnya's picks on Rudnya (v0.69)** (the owner, 2026-11-27: "can rudnya 69 use the same ffa
+  spots as 26?", "note that geometry might have changed a bit"). Content edit
+  `ffa-rudnya-v069-picks-1`, from `scripts/ffa-mode/rudnya-v069-picks.tsv` (`picks --shift 1.5
+  --roofs 49,8,10,42 --harmful-ok 45 --roof-place ...` on `v069d_level_01/day_8`, map 169) and
+  `make_picks_edits.py rudnya-v069`, in its own project only; after `ffa-cover-maps-1`, whose 44
+  points it replaces.
+  - The frame is native Rudnya's, with no offset or rotation: the 84 collision models placed once in
+    both Team Deathmatch projects stand at the same place (0.000 m), the first collision under a
+    4 m grid over native's play area is within 10 cm at 3,386 of 3,458 samples (the rest are props
+    and roofs that 0.69d changed), and 32 of native's 43 Team Deathmatch spawns have a 0.69d spawn
+    within 10 cm (the 43 stand within 13 cm of 0.69d's ground).
+  - All 56 picks pass the checks there, none moved in plan (`--shift` found nothing to do): 51 at
+    native's height, 1, 6, 23 and 38 up 5, 3, 19 and 8 cm, 13 down 1 cm; 45 1.49 m from the swamp
+    anomaly as on native (`--harmful-ok 45`). The first 44 take point_ids 405-448 (position and
+    rotation only), 12 new 449-460. 53 hold the cover rule (native 52: 25 is past the band here).
+  - The four roof spawns, 461-464, stay at native Rudnya's places (`--roof-place <pick>=<x,y,z>`:
+    the place on its ground, body clear, 2 m from harmful zones, a way down, the roof search's flat
+    floor not asked): 49 on its roof 10 cm under native's stored height (native's is the walk
+    grid's cell, 9.7 cm over its collision), 8, 10 and 42 at native's height within 6 cm, down by
+    drops of 2.6, 1.8 and 2.7 m. The roof search alone (`--roofs` without `--roof-place`) keeps 49
+    and 42 but puts 8 0.56 m in from its roof's edge, and 10 on the rock outcrop west of its
+    building: 0.69d's roof there is a broken one sloping over 20 degrees with a 1.8 m step 1.5 m
+    off (a hole or its edge), where native's lower part was a walk away.
+  - Pictures of the moved picks and both places of roofs 8 and 10 (capture.py, map 169):
+    `/mnt/toshiba/skhid-captures/rudnya-v069-ffa-2026-11-27/`.
 - **Vostok's roofs** (the owner, 2026-11-15: "note that roof doesn't have collision so we want to
   add it", "we also added one spawn on top of another roof which doesn't have good collision too",
   "to all vostok maps"). Content edit `ffa-vostok-roofs-1` (`scripts/ffa-mode/
@@ -411,6 +436,29 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - Every one on its ground (0 to 22 cm: 6, 9 and 24 lowered), body clear and 2 m from harmful
     zones; 39 hold the spawn rule, 18, 31 and 34 have no cover, kept as his. 16 and 28 stand
     0.35 m apart, both kept.
+  - 2026-11-27, nine more (43-51;
+    `private/spawn-examples/fire-station-2026-11-27.tsv`: the 42 and the 9, as the list is made
+    again from the projects the rows above it leave): the list retuned, 42-47 his 43-48 in the
+    points the list removed before, 49-51 new points 48-50 (copies of point 0: 20 m exclusion,
+    500 ms protection; named `ffa_fire_station_<id>`, the team named with the id: the STALKER
+    maps count point ids anew in each team). 48 -> 51 points. All nine on their ground where he
+    stood, body clear, 2 m from harmful zones; 44, 46 and 48 have no cover, kept as his. 43 stands
+    2.2 m from 6 (0.8 m lower, facing within 3 degrees of it) and 45 2.4 m from 30 (facing within
+    1 degree): near, both kept as every pick; the others 4.5 m or more from any spawn.
+- **London (v0.32) at the owner's picks more** (2026-11-27: 26 `where` places on
+  `v032a_level_09/day_8`, `private/spawn-examples/london-v032-2026-11-27.tsv`). Content edit
+  `ffa-london-v032-picks-1`, from `scripts/ffa-mode/london-v032-picks.tsv` (`picks --add --shift
+  1.5 --project v032a_level_09/day_8`, on the project as players have it) and `make_picks_edits.py
+  london-v032` (its `Map` `adds`), after `ffa-london-v032-1`, which makes the project; Free for
+  All has only that weather (map 163):
+  - All 26 facing as he faced, as new points 70-95 after the 50 there (`--add`: those stay as
+    they are), copies of point 20 (20 m exclusion, 500 ms protection, its int ally radius 1, as
+    the 50). 50 -> 76 points, within the respawn's 128 (exe patch 142).
+  - Every one on its ground (0 to 12 cm: 13 lowered), body clear, 2 m from harmful zones; 24
+    0.75 m off his place (his has no floor the walk grid reaches from the other spawns; `--shift`
+    found the nearest that does, at his height). 19 of them hold the spawn rule; 6, 10, 16, 17, 22
+    and 24 stand in the perimeter band and 19 has no cover, kept as his. Each 4.1 m or more from
+    any other spawn and 14.7 m or more from the 50 there: places the 50 left empty.
 - **Chemical Plant at the owner's picks** (2026-11-16: 97 `where` places on day_8,
   `private/spawn-examples/chemical-plant-2026-11-16.txt`). Content edit
   `ffa-chemical-plant-picks-1`, from `scripts/ffa-mode/chemical-plant-picks.tsv` (`picks --project
@@ -540,7 +588,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 | v021d_level_06 Mamayev Kurgan | day | 22 authored |
 | v011e_level_04 Chemical Plant | day | 22 authored |
 | v011e_level_03 Vostok Radar Station | day | 22 authored |
-| v069d_level_01 Rudnya | day | 22 authored |
+| v069d_level_01 Rudnya | day | 22 authored (60 of native Rudnya's since ffa-rudnya-v069-picks-1) |
 
 - `maps_dict` ids 46-60 and 154-163 retain their meanings; the five ports use
   164, 165, 167, 168 and 169 in table order. IDs 166/175 already belong to ports.
@@ -705,10 +753,10 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     free-for-all map, always twisted; drawing the twist first would have left it out of half the
     free-for-all cards (the plain ones), and every other map's twist shares stay as they are. Of
     all free-for-all cards, plain falls from 30 % to about 29.1 % (one map in 33).
-  - A private room's free-for-all is plain (below), so its pool never holds such a map: the
-    create window does not list it (`Core::private_entries`), and a private room's pool leaves it
-    out whatever it was made with (`Rooms::create_with_pool`: a saved window with it, the default
-    pool). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
+  - A private room's free-for-all is plain (below), and it holds such a map as any other and plays
+    it plain (the owner, 2026-11-27: "this is because we removed FFA from them, which is fine for
+    pub lobbies, not for private ones"; from 2026-11-22 to then the create window did not list it
+    and a private room's pool left it out). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
   Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
   present in private room creations"): a private room's free-for-all card is always plain Free for

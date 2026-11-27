@@ -144,7 +144,9 @@ pub mod particle_room;
 pub mod message_check;
 pub mod packet_recovery;
 pub mod module_report;
+mod input_report;
 pub mod executable_report;
+pub mod file_check;
 pub mod memory_report;
 pub mod memory_profile;
 pub mod hud_cursor;
@@ -205,6 +207,8 @@ pub mod probe_tiers;
 pub mod faces;
 // patch 217: an additional model with camo_available takes its item's camouflage (the exoskeletons' legs)
 pub mod additional_camo;
+// patch 219: the player's weapon view (the held gun's own angles, the world's projection, the sight distance)
+pub mod weapon_view_options;
 pub mod geometry_share;
 // patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
 pub mod attachments;

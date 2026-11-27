@@ -363,10 +363,11 @@ impl VulkanList {
 const MAX_CHOICES: usize = 6;
 
 /// The Gameplay tab's field of view slider: the engine's `uro_fov` (patch
-/// 22), which the Settings name by it; its label the video options' own key
-/// (their option 7 names no variable: the original's dead "fov").
+/// 22), which the Settings name by it; its label "World FOV" (srp's key: the
+/// world's, beside patch 219's weapon view; the video options' own
+/// `st_fov_option` stays their dead option 7's).
 pub const FIELD_OF_VIEW: &CStr = c"uro_fov";
-const FIELD_OF_VIEW_LABEL: &CStr = c"st_fov_option";
+const FIELD_OF_VIEW_LABEL: &CStr = c"st_srp_world_fov_option";
 
 /// The nearest whole degrees to the variable's value (user.cfg may hold a
 /// fraction).

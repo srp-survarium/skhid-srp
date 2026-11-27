@@ -611,7 +611,18 @@
       [TEXT.assists, row => n(row.assists)], [TEXT.shots, row => n(row.shots)], [TEXT.accuracy, aim],
       [TEXT.hours, row => hours.format(row.played_s / 3600)]], data && [data], 1);
     box.classList.add('stats-all');
-    return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box];
+    return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box, ...historyNote(data)];
+  }
+  // When the history began, and what it has of before: the matches made again from their
+  // recordings, which are not all of them.
+  function historyNote(data) {
+    if (!data || !data.since) return [];
+    const on = at => day.format(new Date(at * 1000));
+    const text = data.recorded
+      ? TEXT.historySinceRecorded.replaceAll('{0}', on(data.since)).replace('{1}', numbers.format(data.recorded.matches))
+        .replace('{2}', on(data.recorded.since))
+      : TEXT.historySince.replace('{0}', on(data.since));
+    return [el('p', {className: 'stats-note'}, text)];
   }
 
   // The Maps and Modes boards (maps, modes): the counted public matches of a period (`&period=`,

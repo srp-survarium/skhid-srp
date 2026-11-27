@@ -2552,3 +2552,4 @@ va	status	ref_021d	name
 0x0030f5a0	reviewed	0x001f2a4d	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
 0x0030f4f0	reviewed		survarium::double_barreled_weapon_core_reload_state::get_hands_lexeme [descriptive]
 0x0030fdf0	reviewed	0x001f314e	survarium::pistol_weapon_core_reload_state::weapon_and_hands_expression
+0x00244d40	verified		survarium::weapon::calculate_aim_alignment

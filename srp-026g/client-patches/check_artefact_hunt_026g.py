@@ -562,7 +562,7 @@ def main():
     # 13. Slot 17 through the hud's loop: the points, the clock's seconds.
     hud = run.allocate(0x100)
     run.call(0x2D36B0, args=(CORE, hud, now), until=0x2D36E2)
-    seconds = (900000 - (now - START)) // 1000
+    seconds = -(-(900000 - (now - START)) // 1000)  # rounded up, as the wave (Hud::clock_seconds)
     check("driven: slot 17 through fill_match_hud_state's loop: 0 / 1 and the match's seconds left",
           run.read(hud + 0x90, 2) == 0 and run.read(hud + 0x92, 2) == 1 and run.read(hud + 4) == seconds,
           f"{run.read(hud + 4)} against {seconds}")

@@ -84,11 +84,19 @@ fn kernel_cos(r: f64) -> f64 {
     1.0 - (0.5 * z - z * p)
 }
 
-/// Vertical focal length of a perspective projection with half-angle in (0, pi/4].
+/// Vertical focal length of a perspective projection with half-angle in
+/// (0, pi/2): cos / sin up to pi/4, beyond it sin / cos of the angle's
+/// complement (each kernel within its own range; patch 219's widest held
+/// angle, 100 degrees at the hip, is a half-angle of 50).
 pub fn focal_length(half_angle: f64) -> Option<f32> {
-    if !(half_angle > 0.0 && half_angle <= FRAC_PI_4) { return None; }
-    let focal = (kernel_cos(half_angle) / kernel_sin(half_angle)) as f32;
-    focal.is_finite().then_some(focal)
+    if !(half_angle > 0.0 && half_angle < FRAC_PI_2) { return None; }
+    let focal = if half_angle <= FRAC_PI_4 {
+        (kernel_cos(half_angle) / kernel_sin(half_angle)) as f32
+    } else {
+        let complement = FRAC_PI_2 - half_angle;
+        (kernel_sin(complement) / kernel_cos(complement)) as f32
+    };
+    (focal.is_finite() && focal > 0.0).then_some(focal)
 }
 
 /// `y` as a float, unless it is too near a float midpoint to be sure.
@@ -195,6 +203,18 @@ pub fn atan2(y: f32, x: f32) -> Option<f32> {
 mod tests {
     use super::*;
     use core::arch::asm;
+
+    #[test]
+    fn a_focal_length_to_a_half_angle_under_90_degrees() {
+        for degrees in [1.0_f64, 8.125, 16.25, 30.0, 45.0, 46.0, 50.0, 60.0, 89.0] {
+            let half = degrees.to_radians();
+            let focal = focal_length(half).unwrap();
+            assert!((f64::from(focal) - 1.0 / half.tan()).abs() < 1e-6 * f64::from(focal).max(1.0), "{degrees}");
+        }
+        for bad in [0.0, -0.1, FRAC_PI_2, 2.0, f64::NAN] {
+            assert!(focal_length(bad).is_none());
+        }
+    }
 
     /// The x87's answer, stored as a float (as the game's callers store it).
     fn x87(x: f32, op: u8) -> f32 {

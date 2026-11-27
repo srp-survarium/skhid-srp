@@ -462,7 +462,6 @@ Nobody yet.	Пока никого.
 Modes	Режимы
 Every mode: its rules, numbers and maps.	Все режимы: правила, числа и карты.
 Versions	Версии
-Public rooms only	Только публичные комнаты
 Private rooms only	Только приватные комнаты
 Not offered now	Сейчас не предлагается
 Respawn after {0} s.	Возрождение через {0} с.
@@ -943,6 +942,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копии одного вида складываются (пассив Оникса перемножается); действуют не больше 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активация Пружины и Живокоста добавляется к пассиву; Оникса — заменяет его.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Ониксы, активированные вместе: одно уменьшение, на 1 с дольше за каждую лишнюю копию.
+Power per activation	Сила после активаций
+Activations	Активации
+Power	Сила	artefact
+Next activation	Следующая активация
+Regeneration limit	Предел регенерации
+Missing health restored	Восстановление недостающего здоровья
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Каждая активация оставляет артефакту 80% силы: 100 → 80 → 64 → 51%… Он не истощается, а сила остаётся с этой копией, пока вы не получите новую.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Каждая строка: после стольких активаций — пассив сейчас и следующая активация. Слабеют только копии, которые активировала клавиша.
+It still cures injuries on every activation.	Он по-прежнему лечит травмы при каждой активации.
+Its skills work at its power: {skills}.	Его навыки действуют с его силой: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Предел регенерации прибавляется к собственному пределу каждой части тела, но не выше полного.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Аномалии
@@ -1001,3 +1011,5 @@ night	ночь	weather
 before rain	перед дождём	weather
 Weathers	Погода
 Variants	Варианты
+History since {0}.	История с {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	История с {0}, а также {1} более ранних матчей, восстановленных по их записям, с {2}; матчи до {0} есть не все.

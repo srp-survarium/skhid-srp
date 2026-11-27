@@ -462,7 +462,6 @@ Nobody yet.	Noch niemand.
 Modes	Modi
 Every mode: its rules, numbers and maps.	Jeder Modus: Regeln, Zahlen und Karten.
 Versions	Varianten
-Public rooms only	Nur öffentliche Räume
 Private rooms only	Nur private Räume
 Not offered now	Derzeit nicht angeboten
 Respawn after {0} s.	Respawn nach {0} s.
@@ -943,6 +942,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopien einer Art addieren sich (das Passiv von Onyx multipliziert sich); höchstens 4 zählen.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Das Aktiv von Feder und Lebknochen kommt zum Passiv hinzu; das von Onyx ersetzt es.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Zusammen aktivierte Onyx: eine Verringerung, je weitere Kopie 1 s länger.
+Power per activation	Stärke pro Aktivierung
+Activations	Aktivierungen
+Power	Stärke	artefact
+Next activation	Nächste Aktivierung
+Regeneration limit	Regenerationsgrenze
+Missing health restored	Wiederhergestellte fehlende Gesundheit
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Jede Aktivierung lässt einem Artefakt 80% seiner Stärke: 100 → 80 → 64 → 51%… Es verbraucht sich nie, und die Stärke bleibt bei dieser Kopie, bis du eine neue bekommst.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Jede Zeile: nach so vielen Aktivierungen das Passiv jetzt und die nächste Aktivierung. Nur Kopien, die ein Tastendruck aktiviert, werden schwächer.
+It still cures injuries on every activation.	Er heilt weiterhin bei jeder Aktivierung Verletzungen.
+Its skills work at its power: {skills}.	Seine Fertigkeiten wirken mit seiner Stärke: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Die Regenerationsgrenze kommt zur eigenen Grenze jedes Körperteils hinzu, nie über voll hinaus.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomalien
@@ -1001,3 +1011,5 @@ night	Nacht	weather
 before rain	vor dem Regen	weather
 Weathers	Wetter
 Variants	Varianten
+History since {0}.	Verlauf seit {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Verlauf seit {0}, dazu {1} frühere Spiele, aus ihren Aufzeichnungen wiederhergestellt, ab {2}; die Spiele vor dem {0} sind nicht vollständig.

@@ -3133,3 +3133,39 @@ fn the_room_list_puts_the_londons_between_the_021_and_069_maps() {
         .collect();
     assert_eq!(order, [61, 166, 181, 279, 276, 290, 270, 200]);
 }
+
+/// The pool the movie is sent lists every map a room shows, page by page, each offered to the
+/// create window (`offered` 1, each row's index its bit): the movie names and draws the cards,
+/// rooms and matches by it, and a private room may hold every one of them, a free-for-all played
+/// with a twist only too (the test data's [`TEST_TWISTS_ONLY`], Military Warehouses in the live
+/// data; the owner, 2026-11-27: "which is fine for pub lobbies, not for private ones").
+#[test]
+fn the_pool_sent_offers_every_room_entry() {
+    use survarium::v026g::game_data::TEST_TWISTS_ONLY;
+    use survarium::v026g::lobby::rooms::POOL_PAGE_ROWS;
+
+    // Every playable map in the pool: that one too.
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.maps = maps::playable().map(|map| map.id).collect();
+    let mut world = World::with_settings(settings);
+    let alice = world.connect("Alice");
+    let every: Vec<MapId> = world
+        .core
+        .room_entries()
+        .iter()
+        .map(|entry| entry.map_id)
+        .collect();
+    assert!(every.contains(&TEST_TWISTS_ONLY));
+    let mut listed = Vec::new();
+    for page in 0..=every.len() / POOL_PAGE_ROWS {
+        let rows = rows(&mut world, alice, ROOM_POOL_BASE + page as u32, 255);
+        assert_eq!(rows[0], format!("S1;M;{};{page}", every.len()));
+        for row in &rows[1..] {
+            let fields: Vec<&str> = row.split(';').collect();
+            assert_eq!((fields.len(), fields[0]), (8, listed.len().to_string().as_str()), "{row}");
+            assert_eq!(fields[7], "1", "offered: {row}");
+            listed.push(fields[1].parse::<MapId>().unwrap());
+        }
+    }
+    assert_eq!(listed, every);
+}

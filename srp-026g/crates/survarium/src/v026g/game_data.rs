@@ -37,6 +37,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use binary_config_parser::tree::ConfigValue;
+use resources_db::checked::{CHECKED, Checked};
 use resources_db::Archive;
 pub use resources_db::server::Provenance;
 use resources_db::server::{GAMEPLAY, LOCALIZATIONS, PROJECT_MARKER, PROJECTS};
@@ -86,6 +87,9 @@ pub struct GameData {
     /// each its `client_project` cut to its `server_objects` and the client
     /// objects a world saves ([`resources_db::server::objects_of`]).
     projects: BTreeMap<String, Vec<u8>>,
+    /// The files a match asks the players' games to hash
+    /// ([`resources_db::checked`]); none in data made before it had them.
+    checked: Checked,
 }
 
 impl GameData {
@@ -119,11 +123,17 @@ impl GameData {
         for (project, path) in project_paths {
             projects.insert(project, read(archive, &path)?);
         }
+        let checked = match archive.read(CHECKED).map_err(|cause| error(cause.to_string()))? {
+            Some(text) => Checked::parse(&String::from_utf8_lossy(&text))
+                .map_err(|cause| error(cause.to_string()))?,
+            None => Checked::default(),
+        };
         Ok(Self {
             origin,
             provenance: data.provenance,
             files,
             projects,
+            checked,
         })
     }
 
@@ -139,7 +149,9 @@ impl GameData {
         with_pocket_units(&mut data.files);
         with_blackout_maps(&mut data.files);
         with_free_for_all_maps(&mut data.files, &mut data.projects);
+        with_twists_only_map(&mut data.files);
         with_faces(&mut data.files);
+        with_checks(&mut data);
         data
     }
 
@@ -174,6 +186,12 @@ impl GameData {
         self.projects.get(project).map(Vec::as_slice)
     }
 
+    /// The files a match asks the players' games to hash, and what each
+    /// should be ([`resources_db::checked`]).
+    pub fn checked(&self) -> &Checked {
+        &self.checked
+    }
+
     /// This data with `files` over it, as a patch lays its files: a file
     /// of `gameplay/` or a localization by its path, a project as
     /// `projects/<project>/client_project` (what the data keeps of one:
@@ -185,6 +203,7 @@ impl GameData {
             provenance: self.provenance.clone(),
             files: self.files.clone(),
             projects: self.projects.clone(),
+            checked: self.checked.clone(),
         };
         for (path, bytes) in files {
             let project = path
@@ -262,6 +281,23 @@ const BLACKOUT_EDITS: &str = include_str!("../../../../scripts/content-edit/blac
 /// whose battery config `files` has, a copy of that config at the entry's
 /// name, with the list's strings replaced and its values added, and the
 /// entry.
+/// What a match of the test data checks (`resources_db::checked`): every
+/// project its `client_project` as the data has it, and a `startup.cfg` of
+/// the tests' own; the test archive has no vegetation.
+fn with_checks(data: &mut GameData) {
+    use resources_db::checked::Sum;
+    const STARTUP: &str = "startup.cfg";
+    let mut checked = Checked::default();
+    checked.files.insert(STARTUP.to_owned(), Sum::of(b"test startup.cfg\n").expect("small"));
+    checked.always.insert(STARTUP.to_owned());
+    for (project, bytes) in &data.projects {
+        let path = format!("{PROJECTS}{project}{PROJECT_MARKER}");
+        checked.files.insert(path.clone(), Sum::of(bytes).expect("small"));
+        checked.projects.insert(project.clone(), [path].into());
+    }
+    data.checked = checked;
+}
+
 fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
     fn text(value: &serde_json::Value) -> String {
         value.as_str().expect("a text").to_owned()
@@ -350,6 +386,14 @@ const FREE_FOR_ALL_PROJECTS: &str = include_str!("../../../../scripts/content-ed
 /// `replace_string` of `match_making_params.map_name`, after
 /// [`FREE_FOR_ALL_EDITS`] (its crates' removal is not the test data's).
 const FREE_FOR_ALL_REPOINT: &str = include_str!("../../../../scripts/content-edit/no-ammo-crates-1.json");
+
+/// The live data's map played with a twist only (`MapMode::twists_only`): Military Warehouses'
+/// Free for All, maps_dict 43, by this edit list. The test data lacks it, so
+/// [`with_twists_only_map`] lays the list's one value on [`TEST_TWISTS_ONLY`]'s config instead.
+const TWISTS_ONLY_EDITS: &str = include_str!("../../../../scripts/content-edit/ffa-twists-only-1.json");
+/// The test data's map played with a twist only: level 8's Free for All before rain.
+pub const TEST_TWISTS_ONLY: super::dictionary::MapId = super::dictionary::MapId::new(162);
+const TEST_TWISTS_ONLY_CONFIG: &str = "gameplay/game_modes/ffa/level_08_prerain_8.options";
 
 /// `files` and `projects` with [`FREE_FOR_ALL_PROJECTS`]' copies, then
 /// [`FREE_FOR_ALL_EDITS`], then [`FREE_FOR_ALL_REPOINT`]'s `replace_string`,
@@ -594,6 +638,30 @@ fn with_free_for_all_maps(
             None => files.insert(path, bytes),
         };
     }
+}
+
+/// [`TWISTS_ONLY_EDITS`]' one `add_value` (`mode.srp_twists_only = true`) on
+/// [`TEST_TWISTS_ONLY_CONFIG`], made by [`with_free_for_all_maps`].
+fn with_twists_only_map(files: &mut BTreeMap<String, Vec<u8>>) {
+    let edits: serde_json::Value =
+        serde_json::from_str(TWISTS_ONLY_EDITS).expect("the edit list reads");
+    let [add] = edits["add_value"].as_array().expect("its add_value").as_slice() else {
+        panic!("ffa-twists-only-1.json adds one value")
+    };
+    let text = |key: &str| add[key].as_str().expect("a text").to_owned();
+    let path = TEST_TWISTS_ONLY_CONFIG;
+    let mut config = ConfigValue::parse(&files[path]).expect("the config parses");
+    let ConfigValue::Named(sections) = &mut config else {
+        panic!("{path} is a named table")
+    };
+    let Some((_, ConfigValue::Named(table))) =
+        sections.iter_mut().find(|(name, _)| *name == text("table"))
+    else {
+        panic!("{path} has its table")
+    };
+    let value = add["value"].as_bool().expect("a bool");
+    table.push((text("key"), ConfigValue::Boolean(value)));
+    files.insert(path.to_owned(), config.to_bytes().expect("a config"));
 }
 
 /// The faces the test data has: [`TEST_FACES`] entries of `body_parts.heads`,

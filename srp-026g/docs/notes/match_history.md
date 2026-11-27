@@ -214,6 +214,53 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   none), skills.
 - What happened inside a match (kills in time order) and the game's own lists (Watch, Replays)
   are #1537's, on top of this.
+- Each match says where it comes from (`source`, migration 27): `live`, written by srp at its end,
+  or `recording`, made again later from its recording (below). A line keeps its match's end
+  (`ended_at`) for the order of a player's and a clan's matches.
+
+## Matches of before the history
+
+The history began with revision 68 (2026-11-20 16:57 UTC). The matches of before it that a kept
+recording gives (`*.srprec`, `SRP_RECORD_DIR`: every match of six players or more) are made again
+from it, the owner's go of 2026-11-27 ("can we collect older stats too?"), and added to srp.db once,
+marked `recording`.
+
+- What exists (2026-11-27): the recordings of 14 Oct 09:04 to 18 Oct 04:16 UTC (all of them: the
+  live host's backup of 2026-10-18 on the jump host), and of 25 Oct and 2 to 17 Nov kept off the live
+  host by the corpora of `private/` (2 to 4 Nov nearly every match, the days after a part). The live
+  host keeps three days of recordings (`SRP_RECORD_MAX_MB`): 18 Oct to 1 Nov and 18 to 20 Nov are
+  gone. An archive of those used is on the owner's external drive.
+- `srp-history-backfill extract` reads each recording with one server game data (the kits of the
+  match options are read with it): the header, the result note, and the world srp trusted last (the
+  upload of the result's `trusted_snapshot_ms`). That world must say every place's kills and
+  deaths as the result does, or the match is left out; a free-for-all's counters may be ahead of its
+  standing by two (its standing is its first terminal world's, kept through the closing delay,
+  `game.rs::observe`). The games of before exe patch 92 wrote a battery's record without its
+  progress and held steps (`snapshot::BatteryRecords::BeforePatch92`): read so only here, never by a
+  live match.
+- `srp-history-backfill bundle` makes each match as srp's settlement had it (`MatchResult`, its
+  latest place of an account that came back, `rewards::Judged`) and writes it by the code srp writes
+  a match with (`rewards::history_record`, `GameRepository::record_match`), into a copy of srp.db.
+  Its eligibility, outcome, places, totals by player, clan and item are srp's own by that. The
+  bundle holds those rows and what they added to the totals.
+- `scripts/history-backfill/apply.py` adds the bundle to srp.db at a release, with srp stopped (the
+  release's one-off scripts): a dry run first, on the newest copy, whose numbers the owner sees. It
+  never touches the accounts, their ratings, the balance, `level_stats`, `map_plays`, rewards or
+  quests: those took the matches when they were played. `--undo` takes them out again.
+- Left out: a match of a room with a PIN (its report says so; a recording does not), one against
+  the server's bots, a free-for-all from revision 59 (2026-11-14 15:39 UTC; its twist, Racket or
+  Saloon, is not recorded), a recording that stopped before the match's end.
+- What a line lacks: its rating after unless a report of the srp.db copies (`g26_results`) or srp's
+  settle line in the logs says it (`null` else); its experience (`null`: the pay of then is not kept);
+  weapons (no game of before exe patch 165, 2026-11-22, counted them). A kit is the one the match
+  gave (the options), not the account's as the match ended; a player that did nothing has no kit
+  (srp kept the kit it played); where the options do not read with today's game data (their srp block
+  of then), a kit has no items and a line no clan.
+- The check against srp itself: the recordings of 94 matches srp wrote live, made again into a copy
+  whose history was emptied, compared by `scripts/history-backfill/compare_live.py`: 1223 lines,
+  every number equal (score, kills, deaths, every counter, place, seat, presence, outcome, time); 70
+  lines without their clan (the 12 matches whose options did not read); 1995 kits with their
+  counters equal, 1653 of the 1776 with items the same items; 5 free-for-alls of a twist (left out).
 
 ## The API
 
@@ -222,9 +269,12 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   non-public one (a list of an unknown player is `200` with no matches), `503 {"error":"no history"}`
   when srp keeps no database (`SRP_DB=off`), `500 {"error":"failed"}` when its read fails (logged).
 - No settings of its own: it reads the `srp.db` srp writes.
-- Paging is by match number: `before=<id>` gives the matches older than `id`; `next` is the value
-  for the next page after a full one, `null` after a shorter one (a full last page is followed by
-  an empty one). `limit` is 1..50 (default 15).
+- Every list of matches is in the order they ended, newest first (`ended_at`, the number breaking a
+  tie): a match of before the history written later (below) has a higher number than the matches
+  after it, and is listed among them by its end. Paging is by a match: `before=<id>` gives the
+  matches that ended before the match `id` (a number of no match: before the latest match numbered
+  under it); `next` is the value for the next page after a full one, `null` after a shorter one (a
+  full last page is followed by an empty one). `limit` is 1..50 (default 15).
 
 Common objects:
 
@@ -254,7 +304,8 @@ Common objects:
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,
   "accuracy":0.31,"kits":[...]`. `outcome` is `"won"`, `"lost"` or `"neither"`; a line has its
-  `played_s` and `experience` too (`null` before migration 25).
+  `played_s` and `experience` too (`null` before migration 25). `rating` is `null` when not known
+  (a match made again from its recording that no report or log said it of).
 - A kit of a line (`kits`, the kits the player used, by place): `{"kit":0,"kills":12,
   "headshots":3,"shots":380,"hits":120,"accuracy":0.316,"weapons":[{"slot":7,"id":155,
   "key":"ak_74m","name":"AK-74M"},{"slot":10,"id":60,"name":"TT-33"}],"armour":[{"slot":0,"id":301,
@@ -448,11 +499,16 @@ accounts left out. A day's lines are read (its matches by their end, each one's 
 ### `GET /api/history/totals`
 
 Everything counted, added up: the players with a counted match, the counted matches, and those
-players' totals together.
+players' totals together. `since`: when the history began (the end of the first public match srp
+wrote, Unix seconds; `null` before one); `recorded`: the public matches of before it made again from
+their recordings and the first one's end (`null` with none). The page says both under All time
+("History since 20 Nov 2026, plus 1,007 earlier matches made again from their recordings, from 14
+Oct 2026 on; the matches of before 20 Nov 2026 are not all there").
 
 ```json
 {"players":812,"matches":5120,"kills":415000,"assists":96000,"shots":21400000,"hits":5560000,
- "accuracy":0.26,"played_s":41000000}
+ "accuracy":0.26,"played_s":41000000,"since":1795194723,
+ "recorded":{"matches":1007,"since":1791976000}}
 ```
 
 ### `GET /api/history/clans?by=<key>&order=<desc|asc>&limit=<n>`

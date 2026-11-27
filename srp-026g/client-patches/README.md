@@ -144,6 +144,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
 | `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
+| `rust/patches/src/file_check.rs`, `src/file_check.toml` | Patch 218 checks archive indexes, map vegetation and sampled character appearance files. The match server writes discrepancies to `logs/resources.log`. See [file checks](../docs/notes/file-check.md). |
 | `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` + `sites_026g.tsv` -> `raw_026g.rs` (`engine_026g.py`, at every build) | The framework: `raw` (generated: a typed handle per kind with its fields, the functions typed by them, each site's typed registers), `vostok` (the safe API over those handles and the hook system), the patch modules. `docs/notes/rust_patches.md` |
 | `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -155,6 +156,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
+| `rust/patches/src/weapon_view_options.rs`, `src/weapon_view_options.toml`, `src/attachments/view.rs`, `src/vostok/weapon_view.rs`, `check_weapon_view_options_026g.py`, `check_attachments_026g.py` | Patch 219: the player's weapon view kept in user.cfg (`srp_weapon_fov`, `srp_weapon_fov_aimed`, `srp_weapon_fov_scope`, `srp_weapon_fov_world`, `srp_sight_distance`): patch 161's lens scaled by them or off (the world's projection), and the hands' aim alignment moved along the eye's line toward revision 73's eye (`hands_ik.aim_alignment` after patch 172, `hands_ik.aim_aligned` at the call's return); the Settings' Gameplay "Weapon view" window (`../flash/main_menu/src/SrpWeaponView.as`); its checks run the registration and the Settings' call, the lens and the alignment beside the original's with the aim offset moved (needs Unicorn; `tools/check hud-options`, `tools/check attachments`; `../docs/notes/weapon-view-settings.md`) |
 | `rust/patches/src/additional_camo.rs`, `src/additional_camo.toml`, `src/vostok/skin_cook.rs`, `check_additional_camo_026g.py` | Patch 217: an additional model whose `additional_models` entry has `camo_available: true` takes its item's camouflage (the exoskeleton bodies' legs, exo-camo@2): one lohook at the end of a kit slot of the character's cook (`skin_cook.item_done`, 0x20563D) gives its record the item's camouflage layer, the bake flag and a name of its own, and bake_decals bakes it; its check runs the cook's additional models, the slot's end and bake_decals' loop in the original and the build, and a broken build (needs Unicorn; `tools/check additional-camo`) |
 | `rust/patches/src/scaleform_temp_target.rs`, `src/scaleform_temp_target.toml`, `src/vostok/scaleform_filter.rs`, `check_scaleform_temp_target_026g.py` | Patch 216: a Scaleform filter whose temporary render target Direct3D did not make is drawn without its filter (HAL::PushFilters) or, cached one pass from its target, not drawn that frame and its cache let go (drawCachedFilter), never pushed as a null target (revision 73's crash at 0x2B3777): two lohooks at CreateTempRenderTarget's returns; its check runs PushFilters, PopFilters, PushRenderTarget, PopRenderTarget and drawCachedFilter on a made-up HAL, the original and two broken builds beside (needs Unicorn; `tools/check scaleform-temp-target`) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
@@ -655,7 +657,7 @@ The bytecode builder that made it (`login_hint_026g.py`) is in git history only.
 
 ## Field-of-view slider
 
-Settings → Gameplay, a group of the right column under the HUD group: its heading "FOV:" in the headings' look (`st_fov_option`, with the colon
+Settings → Gameplay, a group of the right column under the HUD group: its heading "World FOV:" in the headings' look (`st_srp_world_fov_option`, the world's field of view beside patch 219's weapon view under it; `st_fov_option` until then, with the colon
 gamma has, as "Friends:" and "HUD:" are), the stock slider under it, 50 to 100 (`../flash/main_menu/src/SrpFieldOfView.as`; 2026-11-06, the owner: "we can move fov
 to game maybe?", for the Graphics tab's Vulkan options' button). Exe patch 83 keeps it: `uro_fov` in the
 Settings' call answers `root.srp_slider_option(name, label, degrees, least, most)` and sets whole degrees
@@ -5303,12 +5305,33 @@ lohooks after the searches) returns from `on_event` when the search found
 nothing, with a line in `srp_patches.log`; the native code runs unchanged
 when the entry is there.
 
+The 2026-11-27 crashes (rev74, three reports of one player in 70 minutes,
+`ACCESS_VIOLATION (read of 0x00000030)` at 0x2AC94D while reading another
+player's state; each run's last line the particle stop ignored above). A
+particle presenter's `deserialize` 0x2AC870 links each saved entry by
+`resolve_link` 0x2DDA80, which matches the entry's resource against its
+player's effects and keeps the last it meets: two effects of one resource (two
+copies of an artefact kind glowing at once, more often since rev74's copies
+fire past the native counter) come back with both entries on the last. That
+effect's stop empties every entry it matches (0x2AC6C0 at 0x2AC615) and erases
+only the last (0x2AC678); the second effect's stop finds none (ignored). The
+emptied entry has no resource, so `serialize` 0x2AC720 writes it with no link,
+and its next read (every rollback) finds no effect and reads the effect's
++30h at 0. A fourth lohook (`effect_presenter.particle_read_entry`, 0x2AC92B)
+passes such an entry's two floats over and goes on with the next, with a
+line naming its resource (0 for an emptied entry); an entry whose effect its
+player plays is read as before.
+
 `check_effect_presenters_026g.py <stock exe>` runs both presenters (made by
 the third-person presenter's constructor) on a stop and an update of an
-effect they hold and of one they do not, in the original and the build, at
-the four stack alignments (64 cases): the original frees the seed, faults or
-erases before the list; the build returns and changes nothing; a held
-effect's stop and update are the original's byte for byte. Not played.
+effect they hold and of one they do not, and the particle presenter's
+deserialize of an emptied entry and of one of a resource its player does not
+play, in the original and the build, at the four stack alignments (128
+cases, two emptied entries in one stream among them): the original frees the seed, faults or erases before the list, and
+faults at 0x2AC94D on the read; the build returns and changes nothing, and
+reads the stream to its end with no entry; a held effect's stop and update,
+and a played effect's entry from the read's site, are the original's byte
+for byte. Not played.
 
 ## Room for a presenter's particle effects (patch 122, unreleased)
 
@@ -7166,3 +7189,34 @@ srp: additional_camo: an item's camouflage not given to its additional models: i
 
 The look only: nothing a match computes. Checked with `check_additional_camo_026g.py` (Unicorn;
 `tools/check additional-camo`); not run in a game. The addresses: `../docs/notes/client_patch.md` 3.114.
+
+## The player's weapon view (patch 219, unreleased)
+
+The owner, 2026-11-27: some players prefer revision 73's sights, and "it shouldn't be old/new, it
+should be more customizable". Settings → Gameplay: under the "World FOV:" slider, a "Weapon view"
+button (the tab's standard one) opens a window in the Settings' skin, as the Key bindings window, with
+five values kept in user.cfg (also console variables):
+
+- `srp_weapon_fov`: the held gun's angle at the hip, a rifle's degrees (40 to 100, 65);
+- `srp_weapon_fov_aimed`: fully aimed over iron sights and collimators (20 to 65, 32.5);
+- `srp_weapon_fov_scope`: through magnified scopes (16.25 to 32.5, 32.5);
+- `srp_weapon_fov_world`: everything held at the world's projection, as before revision 74 (off);
+- `srp_sight_distance` ("Sight distance", "+ farther, - closer"): centimetres along the eye's line
+  from 0.69d0's eye, -20 to +50, aimed over iron sights and collimators (0); never nearer than 6 cm
+  to a collimator's reticle, nor iron sights nearer than the nearer eye a release drew.
+
+Each gun keeps 0.69d0's own ratio to the angles; the 14 guns with an optic of their own are as before.
+The defaults are revision 74 bit for bit; the checkbox is revision 73's projection. A saved
+value takes effect at the next frame, in a match too.
+
+Patch 161's lens is scaled by the angles or left off. Patch 219 registers the values, answers the
+Settings and moves the hands' aim alignment by the sight distance along the eye's own line: the
+`calculate_aim_alignment` result with a larger `aim_offset` (`hands_ik.aim_alignment`,
+`hands_ik.aim_aligned`). The rows of `srp_weapon_views` (weapon-view-069.json) carry each moved gun's
+revision 73 iron-sight `aim_offset` (`aim_offset_026g`), the iron sights' nearest. Its texts are eight
+keys in every dictionary.
+
+The look only: the camera, the shot, the recoil, the spread and what a world holds are the game's;
+no `simulation_changes.tsv` row. Checked with Unicorn (`check_attachments_026g.py`,
+`check_weapon_view_options_026g.py`) and Ruffle (`../scripts/hud-options/check.sh`); not run in a
+game. The reasoning: `../docs/notes/weapon-view-settings.md`, `../docs/notes/client_patch.md` 3.115.

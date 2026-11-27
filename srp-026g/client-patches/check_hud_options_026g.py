@@ -140,7 +140,7 @@ language.ENGLISH.update({"st_srp_hit_markers_all": b"All hit markers", "st_srp_h
                          "st_srp_vulkan_frame_limit": b"Frame rate limit", "st_srp_vulkan_overlay": b"Performance overlay",
                          "st_srp_vulkan_off": b"Off", "st_srp_vulkan_overlay_fps": b"FPS",
                          "st_srp_vulkan_overlay_frametimes": b"FPS+graph", "st_srp_vulkan_overlay_full": b"Full",
-                         "st_fov_option": b"FOV"})
+                         "st_srp_world_fov_option": b"World FOV"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
 # lie in check_language_026g.py's DATA: these are their own)
@@ -753,12 +753,13 @@ def main():
     b_regs, b_sp, b_head = ours.start()
     # patch 81's `srp_lobby`, a later member of the site's chain, registers after these; patch
     # 133's command `where` (order 6), then patch 66's voice variables (order 7), the game volume's and patch 156's
-    # `collision` last, at the head
+    # `collision`, then patch 219's five (order 10) last, at the head
     nodes = [node for node in registered(ours, b_head, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["collision", "s_ingame_volume", "srp_microphone", "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_chat_volume",
+           and names == ["srp_weapon_fov_world", "srp_sight_distance", "srp_weapon_fov_scope", "srp_weapon_fov_aimed",
+                         "srp_weapon_fov", "collision", "s_ingame_volume", "srp_microphone", "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_chat_volume",
                          "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume",
                          "srp_hide_hit_markers", "srp_dxvk_overlay", "srp_dxvk_frame_limit", "srp_dxvk_dedicated_gpu",
                          "srp_dxvk_tear_free", "srp_dxvk_low_latency", "srp_dxvk", "srp_hide_crosshair", "srp_map_names",
@@ -1307,7 +1308,7 @@ def field_of_view(original, patched, expect):
         ("\"80\"", "80", 80.0, 1),
     ]:
         invokes, count = r.callback("uro_fov", argument)
-        answer = ("uro_fov", "FOV", str(int(want)), "50", "100")
+        answer = ("uro_fov", "World FOV", str(int(want)), "50", "100")
         expect(invokes == [(language.MOVIE, "root.srp_slider_option", answer)] and count == saves and value() == want,
                f"uro_fov with {case}: {want:g} degrees, user.cfg written {saves} time(s), the answer its degrees and range"
                + ("" if invokes == [(language.MOVIE, "root.srp_slider_option", answer)] else f": {invokes}"))

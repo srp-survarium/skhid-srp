@@ -8,6 +8,7 @@ import unittest
 import make_edits as edits
 import make_pack as pack
 import make_bottles as bottles_tool
+import fixtures
 
 
 class Lamps(unittest.TestCase):
@@ -405,6 +406,86 @@ class Lamps(unittest.TestCase):
                                              ('collision_objects', (4, [record(c) for c in objects[:2]]))])))
         with self.assertRaisesRegex(ValueError, '0 walker_collision objects'):
             bottles_tool.collisions(path, bytes(lone))
+
+    def later_list_project(self, things, table_leftover=None):
+        """A project of a lamp, `things` (visuals) and a lamp table of the lamp alone."""
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        lamp = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        visuals = [lamp] + things
+        for v in visuals:
+            v.setdefault('lib_name', v['visual_name'])
+        data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals])),
+                                             ('client_objects', (4, []))])))
+        row = fixtures.row([-.1, 4.8, -.1], [.1, 5.01, .1], [0., 4.9, 0.], [0., 4.9, 0.],
+                           visuals={'intact0': {'index': 0, 'state': 0}}, lights={})
+        table = {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': {'lamp0': row}}
+        if table_leftover:
+            table['leftover'] = table_leftover
+        edits.c.add_value(data, '', 'srp_lamps', table)
+        return data
+
+    def test_a_tin_can_jumps_off_whole_its_capsule_the_client_s(self):
+        # kitchen-ware-1 (the owner, 2026-11-27, "shoot the can"): the can's
+        # loose copy at its centre, unscaled, kind 'ware' with its capsule.
+        can = dict(visual_name='props/kitchen/can', position=[3., 1., 0.], rotation=[0., .5, 0.], scale=[1., 1., 1.])
+        data = self.later_list_project([can])
+        placer = fixtures.Placer('p', edits.tree(bytes(data))['render_visuals'])
+        loose = placer.place(can, edits.WARE_LOOSE['props/kitchen/can'], [3., 1.157, 0.])
+        self.assertEqual((loose, placer.entries[0]['at_end']), (2, True))
+        for entry in placer.entries:
+            edits.c.add_entry(data, entry['list'], None, entry['like'], entry['values'])
+        piece = {'index': loose, 'kind': 'ware', 'half': .059, 'radius': .1, 'axis': 'y'}
+        row = fixtures.row([2.9, 1., -.1], [3.1, 1.32, .1], [3., 1.157, 0.], [3., 1.157, 0.], break_material=17,
+                           effect_material=7, leftover='glass', visuals={'intact0': {'index': 1, 'state': 0}},
+                           lights={}, loose={'piece0': piece})
+        good = bytearray(data)
+        edits.c.add_value(good, 'srp_lamps/lamps', 'ware0', row)
+        self.assertEqual(edits.check_built('p', good), [])
+        for wrong in ({'axis': 'w'}, {'radius': 0}, {'half': .7}):
+            bad = bytearray(data)
+            edits.c.add_value(bad, 'srp_lamps/lamps', 'ware0', dict(row, loose={'piece0': dict(piece, **wrong)}))
+            self.assertEqual(len(edits.check_built('p', bad)), 1, wrong)
+
+    def test_a_bell_rings_with_nothing_bound_and_needs_its_bell(self):
+        bell = dict(visual_name='props/electric/bell_school', position=[10., 2., 0.], rotation=[0., 0., 0.],
+                    scale=[1., 1., 1.])
+        data = self.later_list_project([bell])
+        row = fixtures.row([9.8, 1.98, -.1], [10.2, 2.31, .02], [10., 2.15, -.04], [10., 2.15, -.04],
+                           reaction='ring', ring_every=4.0, visuals={}, lights={})
+        good = bytearray(data)
+        edits.c.add_value(good, 'srp_lamps/lamps', 'bell0', row)
+        self.assertEqual(edits.check_built('p', good), [])
+        for wrong in ({'ring_every': 0}, {'min_x': 10.5, 'max_x': 11.}, {'visuals': {'intact0': {'index': 1, 'state': 0}}}):
+            bad = bytearray(data)
+            edits.c.add_value(bad, 'srp_lamps/lamps', 'bell0', dict(row, **wrong))
+            self.assertTrue(edits.check_built('p', bad), wrong)
+
+    def test_each_row_marks_by_its_own_leftover(self):
+        # A skeleton's cap in a table of lamps says leftover body itself; a
+        # lamp in a table of figures (Rudnya's) glass itself.
+        skeleton = dict(visual_name='character/human/static/remains/skeleton_sitting1', position=[5., 0., 5.],
+                        rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        cap = dict(row=fixtures.row([5.1, .6, 5.1], [5.3, .9, 5.3], [5.2, .76, 5.2], [5.2, .76, 5.2],
+                                    visuals={'intact0': {'index': 1, 'state': 0}}, lights={}))
+        for leftover, problems in ((None, 1), ('body', 0)):
+            data = self.later_list_project([dict(skeleton)])
+            row = dict(cap['row'], **({'leftover': leftover} if leftover else {}))
+            edits.c.add_value(data, 'srp_lamps/lamps', 'skeleton_cap0', row)
+            self.assertEqual(len(edits.check_built('p', data)), problems, leftover)
+        data = self.later_list_project([dict(skeleton)], table_leftover='body')
+        self.assertEqual(len(edits.check_built('p', data)), 1, 'the lamp of a figures table says glass itself')
+
+    def test_at_end_places_after_a_twin_last_visual(self):
+        # Rudnya's Research projects end in two transmitter slots at one place:
+        # "after" would match both.
+        slot = dict(visual_name='item/quest/transmitter_slot', position=[1., 1., 1.], rotation=[0., 0., 0.],
+                    scale=[1., 1., 1.])
+        can = dict(visual_name='props/kitchen/can', position=[3., 1., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        data = self.later_list_project([can, dict(slot), dict(slot)])
+        self.assertEqual(edits.c.add_entry(data, 'render_visuals', None, fixtures.where(dict(can, lib_name=can['visual_name'])),
+                                           {'visual_name': 'x', 'lib_name': 'x'}), 4)
+        self.assertEqual(edits.tree(bytes(data))['render_visuals'][-1]['visual_name'], 'x')
 
     def test_manifest_bindings_are_bounded_and_have_one_owner(self):
         path = Path(__file__).resolve().parents[1] / 'content-edit/breakable-lamps-1.json'

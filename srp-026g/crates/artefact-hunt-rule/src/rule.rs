@@ -355,7 +355,8 @@ pub struct Hud {
     pub phase: Phase,
     pub score: [u8; 2],
     pub goal: u8,
-    /// The clock shown: the match time left, in sudden death its own.
+    /// The clock shown: the match time left, in sudden death its own
+    /// ([`Hud::clock_seconds`] its whole seconds).
     pub clock_ms: u32,
     pub clock_total_ms: u32,
     pub sudden_death: SuddenShown,
@@ -378,11 +379,39 @@ pub struct Hud {
 }
 
 /// The next respawn wave as the hud shows it: the ms to it and a wave's
-/// whole length. Everyone's: a death respawns in it ([`Rule::respawn_at`]).
+/// whole length. Everyone's, both teams' alike: a death respawns in it
+/// ([`Rule::respawn_at`]). The waves are the clock's multiples of
+/// `respawn_time`, so [`Hud::clock_seconds`] less [`Wave::seconds`] is such a
+/// multiple at every moment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Wave {
     pub left_ms: u32,
     pub total_ms: u32,
+}
+
+/// The whole seconds a time left is shown in: rounded up, as the game's own
+/// countdowns (the respawn line, 0x316C20) and the movie's wave number
+/// (`ArtefactHuntWave`): a countdown shows 0 only once it has run out.
+pub const fn seconds_shown(ms: u32) -> u32 {
+    ms.div_ceil(1000)
+}
+
+impl Hud {
+    /// The clock's whole seconds, what the game shows of it (slot 17's
+    /// hud+4): rounded up as the wave's, so that a wave comes as the clock
+    /// turns to a multiple of `respawn_time` (the owner, 2026-11-27: "the
+    /// general timer and wave timer should be similar", 14:53 beside 14,
+    /// the clock rounded down).
+    pub const fn clock_seconds(&self) -> u32 {
+        seconds_shown(self.clock_ms)
+    }
+}
+
+impl Wave {
+    /// The wave's whole seconds left, as the movie shows them.
+    pub const fn seconds(&self) -> u32 {
+        seconds_shown(self.left_ms)
+    }
 }
 
 impl Rule {
@@ -547,8 +576,8 @@ impl Rule {
 
     /// When a player dead at `death` (his death event's time) comes back
     /// while the match is played and deaths respawn: at the wave the hud
-    /// showed at his death's step (the first multiple of `respawn_time` from
-    /// the match's start after that step), everyone's alike: the respawn
+    /// showed at his death's step (the first wave after that step: a moment
+    /// the clock shows a multiple of `respawn_time`), everyone's alike: the respawn
     /// modifier (the radio) has no effect in waves (the owner, 2026-11-23).
     /// 0.46c2 (0x785598..0x7856C4) takes the wave at or after `death +
     /// time_needed_to_respawn` (7 s), so a death in the 7 s before a wave
@@ -1032,11 +1061,15 @@ impl Rule {
 
 /// The one time test of a delivery made at `until` less
 /// `time_before_new_round` with the scores after it.
-/// The first wave (a multiple of `respawn_time` from the match's start) at or
-/// after `passed` ms from the start, in ms from the start.
+/// The first wave at or after `passed` ms from the match's start (not the
+/// start itself), in ms from the start. The waves are the moments the
+/// clock shows a multiple of `respawn_time` (`match_time` less a wave is one),
+/// both teams' the same: the multiples of `respawn_time` from the start when
+/// `match_time` is one (every map's, 900 s), else shifted by what is left.
 fn wave_from(params: &Params, passed: u32) -> u32 {
     let wave = params.respawn_wave.get();
-    (passed.saturating_sub(1) / wave + 1) * wave
+    let shift = (wave - params.match_time.get() % wave) % wave;
+    (passed.saturating_add(shift).saturating_sub(1) / wave + 1) * wave - shift
 }
 
 fn after(params: &Params, start: Time, until: Time, score: [u8; 2]) -> After {

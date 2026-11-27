@@ -10,9 +10,11 @@
 //! magic[8]  u32 match_id  u8 kind  u8 part  u8 parts  body (the kind's)
 //!   kind 1 memory: crate::memory
 //!   kind 2 modules: crate::modules
+//!   kind 3 injected input counts: crate::input_report
+//!   kind 4 checks: crate::checks
 //! ```
 
-use crate::{memory, modules};
+use crate::{checks, input_report, memory, modules};
 
 /// An E0 chunk can never start so (offset 0xFFFF is past any total), and
 /// the receipts' ([`crate::recovery::MAGIC`]) and the resource
@@ -23,6 +25,7 @@ const HEADER: usize = MAGIC.len() + 4 + 3;
 pub const MAX_SIZE: usize = 480;
 const _: () = assert!(HEADER + memory::MAX_BODY <= MAX_SIZE);
 const _: () = assert!(HEADER + modules::MAX_BODY <= MAX_SIZE);
+const _: () = assert!(HEADER + checks::MAX_BODY <= MAX_SIZE);
 
 /// When in a match a report was made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -72,6 +75,8 @@ pub fn carrier_len(bytes: &[u8]) -> Option<usize> {
     let len = match header.get(MAGIC.len().checked_add(4)?)? {
         1 => memory::body_len(body)?,
         2 => modules::body_len(body)?,
+        3 => input_report::SIZE,
+        4 => checks::body_len(body)?,
         _ => return None,
     };
     let len = HEADER.checked_add(len)?;
@@ -82,6 +87,8 @@ pub fn carrier_len(bytes: &[u8]) -> Option<usize> {
 pub enum Report {
     Memory(memory::Report),
     Modules(modules::Report),
+    Input(input_report::Summary),
+    Checks(checks::Report),
 }
 
 impl Report {
@@ -89,6 +96,8 @@ impl Report {
         match self {
             Report::Memory(_) => 1,
             Report::Modules(_) => 2,
+            Report::Input(_) => 3,
+            Report::Checks(_) => 4,
         }
     }
 
@@ -97,6 +106,8 @@ impl Report {
         match self {
             Report::Memory(report) => report.parts(),
             Report::Modules(report) => report.parts(),
+            Report::Input(_) => 1,
+            Report::Checks(report) => report.parts(),
         }
     }
 
@@ -112,6 +123,9 @@ impl Report {
         let len = match self {
             Report::Memory(report) => report.put_part(part, body)?,
             Report::Modules(report) => report.put_part(part, body)?,
+            Report::Input(summary) if part == 0 => summary.write(body)?,
+            Report::Input(_) => return None,
+            Report::Checks(report) => report.put_part(part, body)?,
         };
         Some((bytes, HEADER.checked_add(len)?))
     }
@@ -122,6 +136,8 @@ impl Report {
 pub enum Body {
     Memory(memory::Part),
     Modules(modules::Part),
+    Input(input_report::Summary),
+    Checks(checks::Part),
 }
 
 /// One carrier as the server reads it.
@@ -154,6 +170,8 @@ impl Carrier {
         let body = match kind {
             1 if parts <= memory::MAX_PARTS => Body::Memory(memory::Part::parse(body, part == 0, full)?),
             2 if parts <= modules::MAX_PARTS => Body::Modules(modules::Part::parse(body, full)?),
+            3 if parts == 1 => Body::Input(input_report::Summary::parse(body)?),
+            4 if parts <= checks::MAX_PARTS => Body::Checks(checks::Part::parse(body, part)?),
             _ => return None,
         };
         Some(Carrier { match_id: u32::from_le_bytes(id.try_into().ok()?), part, parts, body })
@@ -166,6 +184,9 @@ impl Carrier {
         match self.body {
             Body::Memory(part) => (1, part.moment.byte(), self.part),
             Body::Modules(part) => (2, part.moment.byte(), self.part),
+            Body::Input(summary) => (3, summary.moment.wire().byte(), self.part),
+            // The offer and the answer.
+            Body::Checks(part) => (4, part.round(), self.part),
         }
     }
 }

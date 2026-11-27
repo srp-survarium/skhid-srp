@@ -76,6 +76,34 @@ impl File {
         (done != 0).then_some(got)
     }
 
+    /// Up to `into.len()` bytes at `offset` from the file's start (64 bits:
+    /// `resources.db` is 6 GB): how many, fewer only at its end; none when
+    /// the seek or a read failed.
+    pub fn read_at(&mut self, offset: u64, into: &mut [u8]) -> Option<usize> {
+        let seek = set_file_pointer()?;
+        let (low, mut high) = (offset as u32, (offset >> 32) as u32);
+        // SAFETY: kernel32's own export, an open handle, `high` ours;
+        // FILE_BEGIN. It answers the new position's low half, the high
+        // half into `high`.
+        let at = unsafe { raw::engine_set_file_pointer(seek, self.0, low, (&raw mut high).cast(), 0) };
+        // SetFilePointer can return all ones for either a valid position or an error.
+        // SAFETY: GetLastError reads this thread's status immediately after the seek.
+        if at == u32::MAX && unsafe { (raw::engine_get_last_error)() } != 0 {
+            return None;
+        }
+        if at != low || u64::from(high) != offset >> 32 {
+            return None;
+        }
+        let mut done = 0;
+        while done < into.len() {
+            match self.read(into.get_mut(done..)?)? {
+                0 => break,
+                n => done += n as usize,
+            }
+        }
+        Some(done)
+    }
+
     /// Writes `bytes` (what WriteFile says is not asked).
     pub fn write(&mut self, bytes: &[u8]) {
         let mut wrote = 0;
@@ -92,6 +120,18 @@ impl Drop for File {
         unsafe {
             (raw::engine_close_handle)(self.0);
         }
+    }
+}
+
+/// kernel32's SetFilePointer, which the exe does not import.
+fn set_file_pointer() -> Option<core::ptr::NonNull<c_void>> {
+    // SAFETY: a module every process has, NUL-ended export names.
+    unsafe {
+        let kernel = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
+        if kernel.is_null() {
+            return None;
+        }
+        core::ptr::NonNull::new((raw::engine_get_proc_address)(kernel, c"SetFilePointer".as_ptr().cast()))
     }
 }
 

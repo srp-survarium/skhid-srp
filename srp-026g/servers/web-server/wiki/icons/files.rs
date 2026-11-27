@@ -595,4 +595,7 @@ files! {
     "quests/7.webp" => "image/webp",
     "quests/8.webp" => "image/webp",
     "quests/9.webp" => "image/webp",
+    "tiles/maps.webp" => "image/webp",
+    "tiles/maps@2x.webp" => "image/webp",
+    "tiles/quests.webp" => "image/webp",
 }

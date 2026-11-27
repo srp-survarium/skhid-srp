@@ -462,7 +462,6 @@ Nobody yet.	Пакуль нікога.
 Modes	Рэжымы
 Every mode: its rules, numbers and maps.	Усе рэжымы: правілы, лікі і карты.
 Versions	Версіі
-Public rooms only	Толькі публічныя пакоі
 Private rooms only	Толькі прыватныя пакоі
 Not offered now	Цяпер не прапануецца
 Respawn after {0} s.	Адраджэнне праз {0} с.
@@ -943,6 +942,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копіі аднаго віду складваюцца (пасіў Онікса памнажаецца); дзейнічаюць не больш за 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Актывацыя Спружыны і Жывакосту дадаецца да пасіву; Онікса — замяняе яго.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Оніксы, актываваныя разам: адно памяншэнне, на 1 с даўжэй за кожную дадатковую копію.
+Power per activation	Сіла пасля актывацый
+Activations	Актывацыі
+Power	Сіла	artefact
+Next activation	Наступная актывацыя
+Regeneration limit	Мяжа рэгенерацыі
+Missing health restored	Аднаўленне страчанага здароўя
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Кожная актывацыя пакідае артэфакту 80% сілы: 100 → 80 → 64 → 51%… Ён не вычэрпваецца, а сіла застаецца з гэтай копіяй, пакуль вы не атрымаеце новую.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Кожны радок: пасля столькіх актывацый — пасіў цяпер і наступная актывацыя. Слабеюць толькі копіі, якія актывавала клавіша.
+It still cures injuries on every activation.	Ён па-ранейшаму лечыць траўмы пры кожнай актывацыі.
+Its skills work at its power: {skills}.	Яго навыкі дзейнічаюць з яго сілай: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Мяжа рэгенерацыі дадаецца да ўласнай мяжы кожнай часткі цела, але не вышэй за поўную.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Анамаліі
@@ -1001,3 +1011,5 @@ night	ноч	weather
 before rain	перад дажджом	weather
 Weathers	Надвор'е
 Variants	Варыянты
+History since {0}.	Гісторыя з {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Гісторыя з {0}, а таксама {1} ранейшых матчаў, адноўленых з іх запісаў, ад {2}; матчы да {0} ёсць не ўсе.

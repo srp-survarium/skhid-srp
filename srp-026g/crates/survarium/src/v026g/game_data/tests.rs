@@ -96,6 +96,7 @@ fn srp_needs_readable_server_game_data() {
     with_blackout_maps(&mut files);
     let mut projects = opened.projects.clone();
     with_free_for_all_maps(&mut files, &mut projects);
+    with_twists_only_map(&mut files);
     with_faces(&mut files);
     assert_eq!(files, shared().files);
     assert_eq!(projects, shared().projects);

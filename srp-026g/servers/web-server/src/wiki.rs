@@ -49,8 +49,11 @@ pub(crate) fn moved(path: &str) -> Option<&'static str> {
 /// shows it.
 enum Picture {
     /// A picture (its address with its version), whole: an item's, a
-    /// skill's, an emblem, a mode's icon, a map.
+    /// skill's, a mode's icon, the factions' emblems.
     Image(Option<String>),
+    /// A picture and its copy at twice the size (their addresses with their
+    /// versions), for the browser to pick by the screen's density.
+    Dense(Option<(String, String)>),
     /// Lobby glyphs (their addresses), in the accent colour.
     Glyphs(Vec<Option<String>>),
     /// A drawing of the section's own (an SVG), in the page's colours.
@@ -66,6 +69,14 @@ impl Picture {
                 format!(
                     "<img src=\"{}\" alt=\"\" loading=lazy decoding=async>",
                     escape(url)
+                )
+            }),
+            Self::Dense(urls) => urls.as_ref().map_or_else(String::new, |(url, double)| {
+                format!(
+                    "<img src=\"{}\" srcset=\"{} 1x, {} 2x\" alt=\"\" loading=lazy decoding=async>",
+                    escape(url),
+                    escape(url),
+                    escape(double)
                 )
             }),
             Self::Glyphs(urls) => {
@@ -115,6 +126,11 @@ fn section(lang: Lang, path: &str, name: &str, line: &str, picture: &Picture) ->
 /// name, line and picture.
 fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
     let item = |name: &str| Picture::Image(icons::url(IconSet::Item, name));
+    let tile = |name: &str| {
+        Picture::Dense(
+            icons::url(IconSet::Tile, name).zip(icons::url(IconSet::Tile, &format!("{name}@2x"))),
+        )
+    };
     [
         (
             skills::PATH,
@@ -154,7 +170,7 @@ fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
             maps::PATH,
             lang.t("Maps"),
             lang.t("Spawns, batteries, chargers, containers and artefacts on every map."),
-            Picture::Image(icons::url(IconSet::Map, "1_1")),
+            tile("maps"),
         ),
         (
             artefacts::PATH,
@@ -166,7 +182,7 @@ fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
             quests::PATH,
             lang.t("Quests"),
             lang.t("Every faction quest: its goal at each reputation level and what it pays."),
-            Picture::Image(icons::url(IconSet::Faction, "1")),
+            Picture::Image(icons::url(IconSet::Tile, "quests")),
         ),
         (
             damage::PATH,
