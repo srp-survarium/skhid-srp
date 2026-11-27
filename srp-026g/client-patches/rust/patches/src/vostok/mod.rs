@@ -91,6 +91,7 @@ pub mod resources;
 pub mod skin_cook;
 pub mod renderer;
 pub mod render_stage;
+pub mod probe_tiers;
 pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;

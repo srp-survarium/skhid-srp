@@ -1969,3 +1969,38 @@ survarium::regen_args	record	0x8	ptr<survarium::lifebone_regeneration>	regenerat
 survarium::regen_tick	rate	0	f32	Pool regeneration rate.
 survarium::regen_tick	delay	4	u32	Pool regeneration delay in ms.
 survarium::regen_tick	limit	8	f32	Pool regeneration limit.
+vostok::render::probe_draw_frame	stage	0x8	ptr<vostok::render::stage_ambient_lighting>	stage_ambient_lighting::render_environment_probes's (0x180980, push ebp / mov ebp,esp) EBP frame: its argument, the stage (mov ebx,[ebp+8] at 0x18098D, again at 0x181474 and 0x181519)
+vostok::render::probe_loop_frame	probe	0x10	ptr<vostok::render::environment_probe>	render_environment_probes's ESP frame inside its probe loop (the pushes of each call popped again): [esp+10h] the probe being drawn (0x180BB2)
+vostok::render::probe_loop_frame	position	0x28	ptr<vostok::render::probe_slot>	[esp+28h]: the loop's place in the sorted list (0x180B64 the first, 0x181644 the next; read at the head 0x180B90)
+vostok::render::probe_loop_frame	probe_index	0x30	u32	[esp+30h]: the probe's number in the list (0 at 0x180B60, inc at 0x18163D), sent as probe_index (0x181574)
+vostok::render::probe_loop_frame	pass	0x34	u32	[esp+34h]: the probe's pass, 0 front faces then 1 back faces (0x181627..0x181633), the technique written at 0x181109
+vostok::render::probe_loop_frame	end	0x64	ptr<vostok::render::probe_slot>	[esp+64h]: the sorted list's end (scene_view+16CF8h, 0x180B68)
+vostok::render::probe_slot	probe	0x0	ptr<vostok::render::environment_probe>	one place of the scene view's sorted probe list (+16CF4h..+16CF8h): the probe (mov esi,[eax] at 0x180B94)
+vostok::render::probe_slot	size	0x4	size	a place is a pointer: the loop steps 4 (0x181641)
+vostok::render::environment_probe	radius	0x320	f32	the probe's radius plus its tie-breaker +380h (set_properties 0x1C3722): the visible list's sort key, largest first (sort_by_size_predicate 0x1BA0C7); for a box nothing else draws by it (renderer-026g.md 5.3); a 0.69d scene's local probe has it below 0 (patch 203)
+vostok::render::environment_probe	smart_attenuation	0x33A	u8	smart_attenuation (render_environment_probes reads it into the effect's index, 0x180D59)
+vostok::render::environment_probe	geometry	0x33C	u32	0 sphere, 1 box (any other value drawn as a box: 0x180BC4)
+vostok::render::stage_ambient_lighting	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (render_environment_probes 0x1809AE; clear_surfaces 0x180824)
+vostok::render::renderer_context	targets	0x119C	ptr<vostok::render::render_target_table>	the render targets' table (renderer_context::get_rt 0x11C1D0: index x A0h + 98h)
+vostok::render::render_target_table	accum_ambient_lights	0x1498	ptr<vostok::render::render_target>	$user$accum_ambient_lights, rt 32 (R8G8B8A8_UNORM): stage_ambient_lighting::clear_surfaces binds it and clears it to 1 (0x18082D..0x1808C7), the ambient lights' list A lerps into it after the probes (0x181FB3)
+vostok::render::render_target	view	0x14	u32	the target's render-target view, what the backend's slots hold (0x180848 into +298Ch)
+vostok::render::backend	render_target0	0x298C	u32	the bound render targets' views, slot 0 (+2990h, +2994h, +2998h slots 1 to 3; render_environment_probes binds accum_diffuse and accum_specular there, 0x180AAB..0x180AFE, clear_render_targets 0x3C8800 clears every one not 0)
+vostok::render::backend	render_target1	0x2990	u32	slot 1 (see render_target0)
+vostok::render::backend	render_target2	0x2994	u32	slot 2
+vostok::render::backend	render_target3	0x2998	u32	slot 3
+vostok::render::backend	render_target0_changed	0x71	u8	1: slot 0 changed since the targets were last set on the device (each slot's write sets its byte, 0x180A27..0x180A5D)
+vostok::render::backend	render_target1_changed	0x72	u8	slot 1's
+vostok::render::backend	render_target2_changed	0x73	u8	slot 2's
+vostok::render::backend	render_target3_changed	0x74	u8	slot 3's
+vostok::render::effect_compiler	blend	0x503A0	obj<vostok::render::blend_record>	the pass's blend: the state descriptor's (+5033Ch) eight render-target records from +64h (state_descriptor::set_alpha_blend 0x3E2EA0 writes all eight)
+vostok::render::blend_record	enable	0x0	u32	blending on (set_alpha_blend's ESP+8)
+vostok::render::blend_record	source	0x4	u32	the colour's source factor, D3D11_BLEND (1 zero, 2 one, 5 source alpha, 6 its inverse)
+vostok::render::blend_record	destination	0x8	u32	the colour's destination factor
+vostok::render::blend_record	operation	0xC	u32	the colour's operation, D3D11_BLEND_OP (1 add, 3 reverse subtract: destination minus source)
+vostok::render::blend_record	alpha_source	0x10	u32	the alpha's source factor
+vostok::render::blend_record	alpha_destination	0x14	u32	the alpha's destination factor
+vostok::render::blend_record	alpha_operation	0x18	u32	the alpha's operation (set_alpha_blend writes 1, add)
+vostok::render::blend_record	size	0x20	size	one record a render target, eight of them
+vostok::render::probe_loop_frame	scene_view	0x44	ptr<vostok::render::scene_view>	[esp+44h]: the frame's scene view (renderer context +4170h, 0x1809C1), its sorted probes at +16CF4h
+vostok::render::scene_view	sorted_probes	0x16CF4	ptr<vostok::render::probe_slot>	the frame's visible probes, sorted largest radius first (stage_visibility::execute_stage 0x1B6B54), their end at +16CF8h: render_environment_probes draws them in this order (0x180B54)
+vostok::render::scene_view	mie_fog_base_height	0x280	f32	the environment's mie_fog_base_height (environment +168h, load_environment_properties_impl 0x34ED38; the frame's atmosphere_parameters3.w, 0x14A00E): the content's scene markers ride in it (0.21 ports -32022..-32291, London 329xx, a 0.69d map's exposure profile 33000 + its 0.69d level, 33100 the 0.69d lobby room; three-maps-021-lighting)

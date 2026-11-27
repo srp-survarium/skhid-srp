@@ -7117,3 +7117,23 @@ srp: scaleform_temp_target: a cached filter's last target (45 x 45) was not made
 The interface's rendering only: nothing a match computes. Checked with
 `check_scaleform_temp_target_026g.py` (Unicorn; `tools/check scaleform-temp-target`); not run in a
 game. The addresses: `../docs/notes/client_patch.md` 3.113.
+
+## A 0.69d scene's local probes as 0.69d composes them (patch 203, unreleased)
+
+On a ported 0.69d map (Rudnya v0.69) the light between two abutting interior probes is 0.69d's,
+not a bright seam (the tester's church nave, 2026-11-23: "strange light line in the middle").
+0.69d averages the probes of its local tier by their weights and shows the global tier only where
+the local weights leave room; 0.26g lerps every probe over the ones before it, so the outdoor
+light of the global probes showed through the falloff bands where two local probes meet.
+
+The 0.69d converter marks a local probe by a radius below 0 (resource-porter, `local_probe_radius`).
+In a scene whose environment carries a 0.69d marker (`mie_fog_base_height` 33000 + its level, the
+lobby room 33100), the Rust `probe_tiers` draws such probes, which the sort puts after every
+global one, three more times after the globals: their weights into `$user$accum_ambient_lights`,
+then the light under them damped by what the weights cover, then their light shared by the
+weights. The four box probe effects compile six more techniques for it with three program
+families of the lighting pack (three-maps-021-lighting@16, `environment_probe_tier_*`). Any other
+scene, and any probe of a radius at or above 0, draws as before (stock level_07 has a probe of
+radius -0.4: it stays 0.26g's). The exe patch, the lighting pack and the map's pack ship together.
+Rendering only: nothing a match computes or a world holds changes
+(`../docs/notes/probe-tiers-069d.md`, `../docs/notes/client_patch.md` section 3.108).
