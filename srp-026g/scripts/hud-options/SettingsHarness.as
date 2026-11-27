@@ -307,7 +307,7 @@ package
             var answers:Array = [["65", "40", "100", "1"], ["325", "200", "650", "10"], ["3250", "1625", "3250", "100"],
                 ["0", "-20", "50", "1"]];
             var answer:Function = function(t:Array):void {
-                root.srp_weapon_view_texts(t[37], t[43], t[44], t[45], t[46], t[47], t[48]);
+                root.srp_weapon_view_texts(t[37], t[43], t[44], t[45], t[46], t[47]);
                 root.srp_check_option("srp_weapon_fov_world", t[41], "0");
                 for (var n:int = 0; n < 4; ++n)
                 {
@@ -360,8 +360,8 @@ package
                 var area:Rectangle = panel.getBounds(stage);
                 require(area.left >= 0 && area.top >= 0 && area.right <= stage.stageWidth && area.bottom <= stage.stageHeight,
                     when + ": the window on the screen (" + area + ")");
-                // two columns: the preview's (its tabs, the picture, its note) left of the controls'
-                var columns:Array = [[window.tabs[0], window.preview, window.previewNote],
+                // two columns: the preview's (its tabs, the picture) left of the controls'
+                var columns:Array = [[window.tabs[0], window.preview],
                     [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note]];
                 var inner:Rectangle = new Rectangle(area.left + 6, area.top + 39 * panel.scaleY, area.width - 12,
                     area.height - (39 + 6) * panel.scaleY);
@@ -378,13 +378,21 @@ package
                         }
                     }
                 }
-                var right:Number = Math.max(window.tabs[2].getBounds(stage).right, window.preview.getBounds(stage).right,
-                    window.previewNote.getBounds(stage).right);
+                var right:Number = Math.max(window.tabs[2].getBounds(stage).right, window.preview.getBounds(stage).right);
                 for each (var control:* in columns[1])
                 {
                     require(right <= control.getBounds(stage).left + 1, when + ": the preview's column left of " + control.name);
                 }
                 require(window.preview.width >= 560 * panel.scaleX - 1, when + ": the preview 560 wide (" + window.preview.width + ")");
+                // the first label's text at the picture's top; the tabs centred over the picture
+                var picture:Rectangle = window.preview.getBounds(stage);
+                // (a text field's text starts 2 px under its top)
+                var labelTop:Number = sliders[0].textField.getBounds(stage).top + 2 * panel.scaleY;
+                require(Math.abs(labelTop - picture.top) <= 2 * panel.scaleY, when + ": the first label at the picture's top ("
+                    + labelTop + ", " + picture.top + ")");
+                var tabsSpan:Rectangle = window.tabs[0].getBounds(stage).union(window.tabs[2].getBounds(stage));
+                require(Math.abs((tabsSpan.left + tabsSpan.right) / 2 - (picture.left + picture.right) / 2) <= 2,
+                    when + ": the tabs centred over the picture (" + tabsSpan + ", " + picture + ")");
             };
             inside("at 1280x720");
             checkPreview(window, sliders, box, texts);
@@ -489,7 +497,7 @@ package
         // slider being moved picking its view; the gun's layer filling the pane at 32.5 degrees and
         // tan(16.25) / tan(a / 2) of it at a, the world at the World FOV's angle for the sight; the checkbox
         // the gun at the world's angle; the distance two renders crossfaded; every dictionary's tab names
-        // inside their buttons with the game's margin, the note in two lines.
+        // inside their buttons with the game's margin.
         private function checkPreview(window:*, sliders:Array, box:*, texts:Array):void
         {
             var preview:* = window.preview;
@@ -541,8 +549,6 @@ package
                     require(tab.textField.textWidth + 10 <= tab.textField.width * tab.scaleX + 0.01, row[45 + t]
                         + " in its tab with 10 px to spare (" + tab.textField.textWidth + " of " + tab.textField.width * tab.scaleX + ")");
                 }
-                window.previewNote.text = row[48];
-                require(window.previewNote.numLines <= 2, row[48] + ": the preview's note in two lines at most");
             }
             trace("SETTINGS weapon view preview pass");
         }

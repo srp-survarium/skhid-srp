@@ -92,10 +92,9 @@ package
         public var sliders:Object = {};
         public var box:CheckBoxSkinned;
         public var note:TextField;
-        // The preview (SrpWeaponPreview), its three views' tabs (the Settings window's tabs) and its note.
+        // The preview (SrpWeaponPreview) and its three views' tabs (the Settings window's tabs).
         public var preview:SrpWeaponPreview;
         public var tabs:Array = [];
-        public var previewNote:TextField;
         // The player's World FOV (Settings gives the World FOV slider's value), for the preview's world.
         public var worldFov:Function = null;
         private var content:MovieClip;
@@ -188,13 +187,6 @@ package
                 panel.addChild(tab);
                 tabs.push(tab);
             }
-            previewNote = new TextField();
-            previewNote.name = NAME + "_preview_note";
-            previewNote.selectable = previewNote.mouseEnabled = false;
-            previewNote.wordWrap = true;
-            previewNote.multiline = true;
-            previewNote.autoSize = TextFieldAutoSize.LEFT;
-            panel.addChild(previewNote);
             // the slider being moved picks the view it shows; every move draws it again
             sliders[SIGHTS].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(-1); });
             sliders[SCOPES].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(SrpWeaponPreview.SCOPE); });
@@ -286,14 +278,10 @@ package
             {
                 unit = String(values[2]);
             }
-            // the preview's three views' names and its note
+            // the preview's three views' names
             for (var view:int = 0; view < tabs.length && 3 + view < values.length; view++)
             {
                 tabs[view].label = String(values[3 + view]);
-            }
-            if (values.length >= 7)
-            {
-                previewNote.text = String(values[6]);
             }
             shown();
         }
@@ -480,30 +468,30 @@ package
             var left:Number = FRAME_LEFT + SIDE;
             var top:Number = FRAME_TOP + SPACE;
             var at:Number = top;
-            // the preview's column: the tabs side by side at their own width from its left (the Settings
-            // window's tab bar: no room between), the preview under them, its note
-            var tabX:Number = left;
+            // the preview's column: the tabs side by side at their own width (the Settings window's tab bar:
+            // no room between), centred over the preview under them
+            var tabsWidth:Number = 0;
             for (var view:int = 0; view < tabs.length; view++)
+            {
+                tabs[view].validateNow();
+                tabsWidth += tabs[view].width;
+            }
+            var tabX:Number = left + Math.round((SrpWeaponPreview.WIDTH - tabsWidth) / 2);
+            for (view = 0; view < tabs.length; view++)
             {
                 tabs[view].x = tabX;
                 tabs[view].y = at;
-                tabs[view].validateNow();
                 tabX += tabs[view].width;
             }
             at += TAB_HEIGHT + 4;
             preview.x = left;
             preview.y = at;
-            at += SrpWeaponPreview.HEIGHT + 4;
-            previewNote.defaultTextFormat = SrpLanguage.noteFormat(content);
-            previewNote.setTextFormat(previewNote.defaultTextFormat);
-            previewNote.embedFonts = true;
-            previewNote.x = left;
-            previewNote.width = SrpWeaponPreview.WIDTH;
-            previewNote.y = at;
-            var previewBottom:Number = previewNote.y + previewNote.textHeight + 4;
-            // the controls' column, right of it
+            var previewBottom:Number = at + SrpWeaponPreview.HEIGHT;
+            // the controls' column, right of it, its first label's text at the picture's top (the owner: "text
+            // can be on the level of the image")
             left += SrpWeaponPreview.WIDTH + COLUMN_GAP;
-            at = top + 4;
+            // (a text field's text starts 2 px under its top)
+            at = preview.y - 2;
             for each (var key:String in SLIDERS)
             {
                 var slider:SrvOptionSlider = sliders[key];

@@ -4514,7 +4514,6 @@ st_srp_weapon_sway_horizontal	Vaakasuora heilunta
 st_srp_weapon_sway_vertical	Pystysuora heilunta
 st_srp_weapon_view_heading	Aseen näkymä
 st_srp_weapon_view_iron	Avotähtäin
-st_srp_weapon_view_preview_note	AK-12-esikatselu; tähtäimen etäisyys likimääräinen
 st_srp_weapon_view_red_dot	Punapiste
 st_srp_weapon_view_scope	Kiikari
 st_srp_weapon_with_kit	Varustesetillä

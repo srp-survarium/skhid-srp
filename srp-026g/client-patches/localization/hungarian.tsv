@@ -4514,7 +4514,6 @@ st_srp_weapon_sway_horizontal	Vízszintes kilengés
 st_srp_weapon_sway_vertical	Függőleges kilengés
 st_srp_weapon_view_heading	Fegyvernézet
 st_srp_weapon_view_iron	Irányzék
-st_srp_weapon_view_preview_note	AK-12 előnézet; az irányzék távolsága közelítő
 st_srp_weapon_view_red_dot	Vöröspont
 st_srp_weapon_view_scope	Távcső
 st_srp_weapon_with_kit	Összeállítással

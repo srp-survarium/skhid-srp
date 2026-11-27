@@ -119,18 +119,20 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
   game's Scaleform measuring the text wider. Negative values take a plain hyphen, as the stock sliders'
   numbers do; the unit is the dictionary's `st_srp_unit_cm` ("%1$s cm", "%1$s см"), answered with the
   window's texts.
-- **The texts**: thirteen keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
+- **The texts**: twelve keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
   `st_srp_weapon_fov_option`, `_aimed_option`, `_scope_option`, `_world_option`,
   `st_srp_sight_distance_option`, `st_srp_sight_distance_note`, `st_srp_unit_cm`, `st_srp_world_fov_option`;
-  the preview's `st_srp_weapon_view_iron`, `_red_dot`, `_scope` and `_preview_note`).
+  the preview's `st_srp_weapon_view_iron`, `_red_dot` and `_scope`).
 
 ## The preview
 
 The window has two columns (940 px wide at 1x, inside the screen at 1280x720 and scaled 1.5): on the
 left the Settings window's own tabs (Iron sights, Red dot, Scope; its tab bar's renderer, the
-selected one lit with the orange line under it) over a 560x315 picture of the AK-12 fully aimed (`SrpWeaponPreview.as`) over its iron sights, an EOTech 552
-or the 1P69 Hyperon (one gun in every view; the AK-12 takes no PSO-1), and the note "AK-12 preview;
-the sight distance approximate"; the controls on the right. There is no hip view. Moving a slider shows its view: the scopes'
+selected one lit with the orange line under it), centred over a 560x315 picture of the AK-12 fully
+aimed (`SrpWeaponPreview.as`) over its iron sights, an EOTech 552 or the 1P69 Hyperon (one gun in
+every view; the AK-12 takes no PSO-1); on the right the controls, the first label's text at the
+picture's top (the owner: "text can be on the level of the image"). No note under the picture (the
+owner had it taken out). There is no hip view. Moving a slider shows its view: the scopes'
 slider the scope, the sights' and the distance's the iron sights (or the red dot when it is shown);
 the hip slider and the checkbox only draw it again. The World FOV slider's value, pending or not,
 draws the world.
@@ -153,7 +155,7 @@ draws the world.
   65) max(0, (z - 0.25) / 0.75); the iron sights' zoom 0.909, the EOTech's 0.8, the 1P69's 0.25).
   "Weapon at the world FOV" draws the gun at that world angle.
 - **The distance is approximate**: the two renders around it crossfaded (10 cm: the 0 cm one with
-  the +25 cm one at 40 %), which the note says.
+  the +25 cm one at 40 %).
 - The picture is drawn into one bitmap of its size, so nothing reaches past the pane; the window has
   no bottom band (the Settings' button bar is not part of its frame).
 
@@ -244,7 +246,8 @@ revision 73's 16.25, covers more of the screen. A mask like 0.69d0's would be a 
   - the preview: the slider moved picks its view and selects its tab, a tab picks its view, the
     layer's scale is tan(16.25) / tan(a / 2) at the sights' and the scopes' angles and at the world's
     with the checkbox, the scope's world at 16.25 degrees, 10 cm crossfades two renders at 40 %;
-    every dictionary's tab names inside their buttons with 10 px to spare and the note in two lines.
+    every dictionary's tab names inside their buttons with 10 px to spare; the two columns inside the
+    frame, the first label at the picture's top, the tabs centred over it.
   - Screenshot `settings-weapon-view.png`.
 
 **Not run:** a game. To look at in one (1280x720, `uro_fov 65`):

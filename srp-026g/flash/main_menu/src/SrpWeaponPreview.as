@@ -20,7 +20,7 @@ package
     //   65 z + (uro_fov - 65) max(0, (z - 0.25) / 0.75); the iron sights' zoom 0.909, the EOTech's 0.8, the
     //   1P69's 0.25), the player's World FOV.
     // - "Weapon at the world FOV" draws the gun at that world angle, as the game does.
-    // - The sight distance crossfades the two renders around it: approximate (the note under it says so).
+    // - The sight distance crossfades the two renders around it: approximate.
     public class SrpWeaponPreview extends Sprite
     {
         public static const IRON:int = 0;
