@@ -11,7 +11,7 @@ content-edit/ffa-london-v042-1.json: in each weather, as every Free for All map 
 
 - its own project v044a_level_09/<weather>_8, a copy of the Team Deathmatch project <weather>_4
   (ffa-projects-1's rule), without ammo crates (make_no_crates_edits' rule, the breakable lamps'
-  visual indices after a removed model following);
+  visual and loose-piece indices after a removed model following);
 - its config gameplay/game_modes/ffa/v044a_level_09_<w>_8.options, a copy of the Team Deathmatch
   config as mode 8 (ffa-1's rule, as ffa-stalker-3 makes Station's): rules 93, 91, 94 without 90,
   st_mode_08_name and _description, 30 kills to win, the mode's icon 5 (ffa-icon-1's), its
@@ -88,15 +88,18 @@ def no_crates(tree, path):
             removed.append({'file': path, 'list': 'client_objects',
                             'where': {'game_object_type': o['game_object_type'], 'full_name': o['full_name']}})
     gone = sorted(i for i, _ in models)
+    # Every render_visuals index of the lamp table follows: its fixtures' (visuals) and the loose
+    # pieces' (skeleton-cap-2's caps, kitchen-ware-1's ware) alike.
     for lamp, row in tree.get('srp_lamps', {}).get('lamps', {}).items():
-        for key, visual in row['visuals'].items():
-            index = visual['index']
-            if index in gone:
-                raise ValueError(f'{path}: lamp {lamp} {key} is a crate\'s model')
-            below = sum(i < index for i in gone)
-            if below:
-                lamps.append({'file': path, 'path': f'srp_lamps/lamps/{lamp}/visuals/{key}/index',
-                              'from': index, 'to': index - below})
+        for table in ('visuals', 'loose'):
+            for key, visual in row.get(table, {}).items():
+                index = visual['index']
+                if index in gone:
+                    raise ValueError(f'{path}: lamp {lamp} {table} {key} is a crate\'s model')
+                below = sum(i < index for i in gone)
+                if below:
+                    lamps.append({'file': path, 'path': f'srp_lamps/lamps/{lamp}/{table}/{key}/index',
+                                  'from': index, 'to': index - below})
     for _, v in models:
         removed.append({'file': path, 'list': 'render_visuals',
                         'where': {'lib_name': v['lib_name'], 'position': crates_rule.at(v['position'])}})
