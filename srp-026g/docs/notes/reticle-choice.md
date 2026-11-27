@@ -321,18 +321,21 @@ srp_reticle = {
     reticle model is also in the scene.
   - Its transform is the optic's `aim` place in the aimed model's frame (the modules table's, as
     the dot is placed today), times `scale(size)`, times `[weapon+660h]`.
-  - Its material parameters are `constant_emissive = rgb` and `constant_emissive_multiplier`,
-    taken from the brightness.
+  - Its emission is the shader constant `solid_color_specular` = `rgb` times the brightness's
+    multiplier, on the material appended to the pattern's model ("The drawing, as built").
   - The same applies to a second sight's aimed model with its own optic.
   - Models are queried when first needed and kept for the process.
 
 ### The content (pack `<pack>`)
 
-- 0.69d0's 13 reticle meshes, recentred and scaled by the porter, under `weapons/reticles_069/`.
+- 0.69d0's 13 reticle meshes as ten pattern models (the dot's four sizes are one model, the
+  size list its scales), each as 0.69d0's (its origin the aiming point, its size 0.69d0's), under
+  `weapons/reticles_069/`.
   Each name is 0.69d0's without the optic and size prefix: `dot`, `eotech_ring`, `eotech_xr308`,
   `ncstar_cross`, `ncstar_bullseye`, `ncstar_starburst`, `cobra_cross`, `cobra_tick`,
   `cobra_tick_dot`, `dppro_triangle`.
-- The atlas and the noise texture.
+- The atlas (the noise texture is not used: 0.26g's forward stage has one transparency map, which
+  is the atlas's alpha).
 - The one material.
 - The ten collimators' aimed models without the baked dot.
 
@@ -345,6 +348,63 @@ srp_reticle = {
 - The texts are `st_srp_reticle_title` ("Change reticle:", 0.69d0's words), `_pattern`, `_size`, `_colour`, `_brightness`,
   and one key for each pattern and colour name, in the 12 languages of
   `client-patches/localization/`.
+
+## The drawing, as built [srp] (`feat/reticle-draw`)
+
+**Decision: (a), the renderer's appended material.** One model a pattern, one material for every
+pattern; colour, size and brightness are the exe's. Seen in a game (headless capture rig,
+`private/local-clients-reticle-choice/`, 2026-11-27; the AK-74M with the NcSTAR 4, the exe's table
+replaced by a stub that steps every 3 s; `captures/proof-a6/`, `sheet-centre-x2.png` the screen's
+middle 160 px of each picture): the red dot at size 1 and 0.4 (6 and 4 px across at 1280x720,
+centred within 0.5 px), the cross red then green, the green cross at brightness 0, 6 and 10
+(dim, as today's dot, bright with the bloom's halo); gone when the aim is let go, back when aimed
+again. The ten patterns: `captures/proof-patterns/`.
+
+**How the renderer draws an appended material** (PROVEN, instructions read; rows in the re-kit):
+
+- `stage_forward::render_forward_models` 0x1AB340 draws each forward surface with its own
+  material's forward effect, then, for each entry of its model instance's appended list (+1CCh,
+  `append_material` 0x1595B0), the entry's material effects for the surface's key
+  (`material_effects_instance::get_material_effects` 0x16B070 on entry +90Ch, the key the
+  render surface's +48h): `apply_pass`, the entry's parameters over the shader's constants
+  (0x159350, each 0x159AD0), then `render_forward_model` 0x1AB0F0 (0x1AB4BB..0x1AB550).
+- So an appended "material" is a **material effects instance** (what a render surface's +1Ch
+  is), not a material resource: a class 30 material appended crashed the foreground pass
+  (ACCESS_VIOLATION at 0x1AB514, its +21Ch read as a list). The patch appends the pattern model's
+  own surface's (`get_all_surfaces` 0x159700, the first surface instance's +38h, +1Ch).
+- A parameter is a handle {id, name, kind} the renderer fills (`register_material_parameter`
+  0x24D30, the id by the name, 0x3C8BC0); `set_model_material_parameter_impl` 0x24E60 copies the
+  value into the command and the render thread keeps it per appended entry (0x159550, 0x1592E0).
+- forward_default's compile (0x1D9512..0x1D9652) sends `constant_emissive.rgb` times
+  `constant_emissive_multiplier`, and 1, as one float4, `solid_color_specular`; the transparency
+  is `solid_transparency`. So the reticle's one parameter is `solid_color_specular` =
+  (r, g, b) x multiplier, 1.
+
+**The material** (`weapons/reticles_069/reticle`, made of the players' emitter, patch 21's loc2
+`collimator_glowing_dot_red`): the atlas as its emissive and its transparency map
+(`use_temissive`, `use_ttransparency`), added (`blend_mode` 2: its black is nothing), both sides,
+no fade by the view's angle, `constant_transparency` 1 and `constant_emissive_multiplier` **0**:
+the model's own pass adds black, the appended copy draws the reticle. `forward_base.ps` has a
+program of that switch set for every vertex input type.
+
+**The brightness**: 6 (0.69d0's default) is today's emitter's 20; each step a factor of the
+square root of two: 2.5, 3.54, 5, 7.07, 10, 14.1, 20, 28.3, 40, 56.6, 80 for 0 to 10.
+
+**The frame**: the module's `aim` locator of the modules table (the attach's eye; the porter
+refuses a collimator whose slots give two) at its origin, in the eye's axes (a locator's frame
+on its slot is the locator after a half turn about y, `Placement::child`, which the camera
+takes), scaled by the size about that origin, times the aimed model's frame (+660h, or the second
+sight's part's frame as patch 161's draw put it). The origin is where the players' dot was baked
+(pack version 8), centred within 0.5 px on every gun then.
+
+**The lifecycle**: at `attachments.draw` (0x245017, after patch 161's draw), every frame: the
+pattern is in the scene exactly while the optic's aimed model is (its in-scene byte), else the
+second sight's; it leaves at `attachments.hidden`, `.culled`, `.release` and Artefact carry's
+hiding of the gun. One reticle is shown at a time. A pattern's model is asked for on the game's
+thread (`game.tick`, one query at a time) the first time a draw wants it, and kept for the process
+with its material appended once; the emission is set when it changes.
+
+**Checks**: `check_reticle_026g.py` (Unicorn, row `reticle`); `scope-reticles` (the edit list).
 
 ## More optics and patterns later
 
