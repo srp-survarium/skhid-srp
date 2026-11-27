@@ -589,12 +589,17 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 | v011e_level_04 Chemical Plant | day | 22 authored |
 | v011e_level_03 Vostok Radar Station | day | 22 authored |
 | v069d_level_01 Rudnya | day | 22 authored (60 of native Rudnya's since ffa-rudnya-v069-picks-1) |
+| v044a_level_09 London (v0.42) | day, rain, evening | the owner's 20 picks (ffa-london-v042-1) |
 
 - `maps_dict` ids 46-60 and 154-163 retain their meanings; the five ports use
   164, 165, 167, 168 and 169 in table order. IDs 166/175 already belong to ports.
 - `ffa-ported-1.json` follows `ffa-1.json`, cloning each port's final day TDM config
   and adding only team-2 points. These ports have no other TDM weather variant.
 - The FFA projects are new files (33, one per FFA config's map); TDM's are unchanged.
+- London (v0.42) (2026-11-27, `ffa-london-v042-1`, `make_london_v042_edits.py`; `london-v042.md`,
+  "Free for All"): maps_dict 503-505 (day, rain, evening), its configs and `<weather>_8` copies made
+  by its own list as `ffa-stalker-3` makes Station's (mode 8, rules 93, 91, 94, 30 kills, icon 5, no
+  ammo crates), the manifest's last row on its files; the owner's 20 picks as its points.
 
 London also has six additional central spawns requested on 2026-11-12, recorded
 in `scripts/ffa-mode/london-center.tsv`. The `central` authoring binary checks
