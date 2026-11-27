@@ -227,3 +227,29 @@ fn executable_exchange_keeps_playing_and_rejects_bad_hashes_and_other_matches() 
     assert_eq!(bench.stages(), "LLL");
     bench.assert_no_faults();
 }
+
+#[test]
+fn injected_input_totals_are_deduplicated_and_scoped_to_the_reporting_peer_and_match() {
+    use srp_validate::input_report::{Counts, Summary, When};
+    use srp_validate::modules::Minute;
+    use srp_validate::report::Report;
+
+    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    assert!(bench.until(10_000, |b| b.stages() == "LLL"));
+    let match_id = bench.clients[0].model.options.as_ref().unwrap().match_id;
+    for moment in [When::Minute(Minute::FIRST), When::Ended] {
+        let report = Report::Input(Summary { moment, counts: Counts { key_down: 1, button_down: 3, mouse_move: 2 } });
+        for _ in 0..2 {
+            let (bytes, len) = report.part(match_id, 0).unwrap();
+            bench.clients[0].send(id::LEAVE, &bytes[..len], true);
+            let (other, len) = report.part(match_id ^ 1, 0).unwrap();
+            bench.clients[1].send(id::LEAVE, &other[..len], true);
+        }
+    }
+    bench.run(2_000);
+    assert_eq!(bench.game().report_parts_heard(0), 2);
+    assert_eq!(bench.game().report_parts_heard(1), 0);
+    assert_eq!(bench.stages(), "LLL");
+    bench.assert_no_faults();
+}

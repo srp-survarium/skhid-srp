@@ -5,6 +5,22 @@ were loaded since its first instruction, and which other programs' always-on-top
 (overlays) are over it. The server writes it to a log; `release/moderate modules` reads the
 log across all games.
 
+## Injected input
+
+The match client also sends client-report kind 3. A dedicated Win32 thread installs
+`WH_KEYBOARD_LL` and `WH_MOUSE_LL` after the first world loads. It counts injected
+key-downs (including repeats and system keys), button-downs and mouse moves while
+the top-level window the game presents to is in the foreground. The report contains
+three cumulative u32 counters. The client keeps no key codes, text, button identities,
+coordinates, per-event times or process names from the input hooks.
+
+A changed total is sent at the next minute check, independently of overlay changes.
+Closing a match sends the final totals if both hooks were installed and the connection
+can still send. A missing report means no observation is available. The match server
+deduplicates retries by connection and moment and writes `logs/input.log` with the
+account and match. The flag identifies injected input, which accessibility and
+remapping software can also generate. Reports are for review only.
+
 ## The rules
 
 - **Only logged.** No automatic action, nothing in the db, nothing a player sees. Discord,

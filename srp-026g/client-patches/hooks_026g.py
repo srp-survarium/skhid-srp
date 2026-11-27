@@ -1006,9 +1006,34 @@ def asm_text(hs, tables=(), exe=None):
 
 
 def outputs(tomls=None, functions=None, sites=None, exe=None):
+    tomls = read_tomls() if tomls is None else tomls
     hs = hooks(tomls, functions, sites, exe)
     tables = runtime_vtables(tomls, hs)
-    return {RS: rs_text(hs, tables).encode(), ASM: asm_text(hs, tables, exe).encode()}
+    rust, asm = rs_text(hs, tables), asm_text(hs, tables, exe)
+    # Windows calls these on a 4-byte-aligned stack. RUST_CALL aligns it for
+    # Rust, preserves EAX as the result and pops the stdcall arguments.
+    signatures = {"ThreadProc": ["*mut c_void"], "LowLevelHookProc": ["i32", "u32", "*const c_void"]}
+    for patch in tomls:
+        for row in patch.get("windows_callback", ()):
+            name, handler = patch["name"], row["handler"]
+            params = signatures.get(row["signature"])
+            if params is None or not re.fullmatch(r"[a-z][a-z0-9_]*", handler):
+                raise Bad(f"{name}: invalid Windows callback {row}")
+            entry = f"{name}_{handler}"
+            args = ", ".join(f"a{i}: {ty}" for i, ty in enumerate(params))
+            passed = ", ".join(f"a{i}" for i in range(len(params)))
+            asm += f"\nsection .text\nglobal {entry}\n{entry}:\n    RUST_CALL hook_{entry}, {len(params)}, {4 * len(params)}\n"
+            rust += f'''
+unsafe extern "stdcall" {{ pub(super) fn {entry}({args}) -> u32; }}
+/// # Safety
+/// Only the aligned Windows callback entry above may call this shim.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn hook_{entry}({args}) -> u32 {{
+    // SAFETY: the entry forwards the OS callback's original arguments.
+    unsafe {{ super::{name}::{handler}({passed}) }}
+}}
+'''
+    return {RS: rust.encode(), ASM: asm.encode()}
 
 
 def installs(exe=None, tomls=None, functions=None, sites=None):

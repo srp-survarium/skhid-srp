@@ -20,6 +20,7 @@
 #[cfg(test)]
 extern crate std;
 
+pub mod input_report;
 pub mod memory;
 pub mod messages;
 pub mod modules;
