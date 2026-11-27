@@ -110,6 +110,7 @@ pub mod system;
 pub mod modules;
 pub mod executable;
 pub mod module_watch;
+pub(crate) mod input_report;
 pub mod voices;
 pub mod voice;
 pub mod settings;

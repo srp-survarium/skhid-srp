@@ -3,6 +3,61 @@
 Canonical plan: [PLAN-RUST-CLIENT.md](PLAN-RUST-CLIENT.md). Newest session first.
 Statuses distinguish implementation, host/native testing, real play and release.
 
+## 2026-11-27 — match input summaries integrated on current main
+
+On `32b1952f4`, the attachment view uses position 7 on `game.tick`.
+The input summary takes position 8. `tools/check patches-crate` passed
+601 client tests (2 ignored) and Clippy. `tools/check executable-report-native`,
+`tools/check attachments`, `tools/check cargo:srp-validate` and
+`tools/check cargo:match-server` passed.
+The Wine fixture rebuilt against this tree's arena passed foreground and
+background input, an unchanged minute, match close and a new match. Output
+is in the worktree's `private/input-report-build/rebased/smoke.log`.
+`tools/check cargo:srp` passed the log-routing test and reproduced the
+existing bot-map row count failure (17 rows, expected 25). Standalone
+`cargo clippy -p srp --all-targets -- -D warnings` passed. Native Windows
+and a played match remain unverified.
+
+## 2026-11-25 — local foreground input reports
+
+On base `9c16410b7`, client-report kind 3 carries cumulative injected key-downs,
+mouse button-downs and movements during a foreground match. The match server
+logs each connection and moment once in `logs/input.log`. The existing module
+report retains kind 2. This addition does not move a migration gate.
+
+- Implemented locally in the Rust arena, shared parser and match server.
+  `tools/test-build 73 private/input-report-build exe server` built the local
+  test pair, with the final exe built by retrying the exe part. SHA-256 of
+  the exe is `43373975f0dc55e5baee7f8e4230976114204fb6f4b8327f4db104f5c5257fe6`,
+  and of the server `cb4573e4c61f9d9048f5752f8aa6ece481bb17a9395c38190286dce52bb10600`.
+- `tools/check patches-crate` passed the i686 tests (536 passed, 2 ignored)
+  and Clippy. Wire tests covered exact length, part/moment bounds and retry
+  keys. The match-server bench sent duplicate and wrong-match reports over
+  its transport and checked the recipient counts and match state.
+- Isolated Wine/Xvfb fixture with this build's actual arena, two windows,
+  real Win32 hooks and `SendInput`, a stub game connection and a controlled
+  minute clock. First minute had 1 key-down, 1 button-down and 1 move.
+  Background input produced no minute report. End had 2/1/1 and the next
+  match ended at 0/0/0. The fixture’s 1,775,308 arena bytes matched the final exe's
+  `.srpx` byte for byte. Fixture and output are under the local worktree's
+  `private/input-report-build/smoke/`.
+- Broad checks also hit failures for the lobby modification-roll table and
+  the bot-match map count. Both failures are present at the unmodified base
+  (check cache keys `cargo:survarium 8c5b68c76916` and `cargo:srp b8ee5a66087f`).
+  The world corpus also gave the same totals as previous runs, with 25,683
+  refusals among 49,450 checked and 42 worlds unchecked. No world or
+  simulation format changed. Native `world-drift` agreed on all 6,739
+  sampled worlds and their mutations. The 0.21 weather content check found
+  the existing `v021d_level_05/evening_2` `srp_lamps` mismatch. The
+  `breath-hit` fixture expects unchanged stock bytes through 0x31D970.
+  The six differing bytes are the base's `technical.breath_vibration` hook
+  at 0x31D95B. The Freeze Tag fixture also saw the base's death animation
+  resource query in addition to its frozen-body effect, as in the earlier
+  `freeze-native-78ae9ec774f6` check log.
+- Handoff for in-game verification: use the paired local binaries with a
+  test match and inspect `logs/input.log`. Native Windows and a played match
+  are unverified. Nothing was released.
+
 ## 2026-11-04 — resync retry clock PR reviewed and merged
 
 Reviewed PR #1157 against main `7f73a839e`; no blocking findings. Preserving
