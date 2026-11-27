@@ -163,7 +163,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
-| `rust/patches/src/camera_walls.rs`, `src/camera_walls.toml`, `src/vostok/camera.rs` (`Orbit`), `check_camera_walls_026g.py` | Patch 132: the orbit camera (the warmup's before the start) stays on the player's side of the level, in front of the first wall between the pivot and the eye, smoothly, and no nearer than 0.75 m (out of the body; the view held or turned sideways where there is less room): a lohook after update_camera's view update (0x1F3650); its check runs update_camera from its start, the original beside, ray_test a stand-in (needs Unicorn) |
+| `rust/patches/src/camera_walls.rs`, `src/camera_walls.toml`, `src/vostok/camera.rs` (`Orbit`), `check_camera_walls_026g.py` | Patch 132: the orbit camera (the warmup's before the start) stays on the player's side of the level, in front of the first wall between the pivot and the eye, smoothly, its spawn 0.75 m out of the body (the orbit's yaw turned a little to a side if it must be), then the game's own movement, only pulled in front of walls: a lohook after update_camera's view update (0x1F3650); its check runs update_camera from its start, the original beside, ray_test a stand-in (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; and a foot step in a logic state with no foot material (movement 0: on site, dead) is dropped at on_foot_step's read of it (0x2A6545), which read the word before the boots' table (a rev71 crash in step_manager::on_step); its check runs the handler in both exes (needs Unicorn) |
@@ -6068,30 +6068,39 @@ wheel's distance, which is kept, so the wheel moves the eye at once as before. N
 the game's view, untouched. Nothing a match computes. `../docs/notes/client_patch.md` section 3.103
 has the evidence.
 
-The eye never comes nearer the pivot than 0.75 m, so it stays out of the body (revision 72's put it
-up to the pivot where the wall behind was near: a player tucked in a corner saw the inside of his
-model, the owner, 2026-11-23). That is 0.69d's third-person camera's rule (its tick 0x2002AE3B0:
-the same pivot, ray and 0.2 m margin, and the camera placed only where the room is above 0.75 m,
-else left where it was). So where the way has less room the view shown the frame before is held,
-tested again by a ray of its own; and where that has none either (an orbit that starts in the
-corner) the orbit is turned sideways about the level's up, its pitch kept, 15 degrees to one side
-and the other, nearest first, up to the far side (the owner, of the first version that raised the
-eye over the head: "shouldn't camera just move sideways for first view?"), and the first whose eye
-has the room is shown, then held as above. Where none has it (walls all round), the one with the
-most room, in front of its wall.
+The spawn's view is out of the body (revision 72's could start inside it: a player tucked in a
+corner saw the inside of his model, the owner, 2026-11-23). A new orbit (the warmup's first frame)
+whose way has less than 0.75 m of room (0.69d's third-person camera's rule, its tick 0x2002AE3B0: the
+same pivot, ray and 0.2 m margin) is turned about the level's up by the least 5-degree steps to one
+side or the other whose way has it (the owner: "camera can move a bit to the side"); where none has
+it, the way with the most room. The turn goes into the orbit's own yaw (the handler's +34Ch, which
+process_warmup_mode adds the drag to), so from the next frame the game's orbit is there and the
+first drag goes on from it, with nothing to hand over. After that the movement is the game's own:
+the drag's yaw and pitch, the wheel's distance, and only the pull above, with no nearest (by a wall
+close behind the eye may come into the body). Revision 73 kept every view 0.75 m out by holding the
+view shown the frame before where the way had less room: the drag did nothing until the way had the
+room again (held up to 56 frames on end by a wall 0.5 m behind, 172 in a corner, for ever in a box;
+the owner, 2026-11-27: "the camera now gets stuck"; then "let's have the original logic for moving
+camera when player has controls (walls are not passed through though)", "it is just spawn camera
+position should not be inside character"). Rays a frame: one or two; a spawn with no room up to 71
+more, once.
 
 Checked: `check_camera_walls_026g.py` runs update_camera from its start in both exes, a frame a
-call (the game's own orbit code; ray_test a plane or nothing, the performance counter a clock of
-its own): no wall, the original's view and registers bit for bit, one ray; a new orbit with a wall,
-the eye at once in front of it with the original's turn; a new orbit with a wall 0.6 m out across
-the way, in a corner (walls 0.3 m behind and to the left) or with walls 0.3 m behind and to both
-sides, the orbit turned sideways to the open side at eye level, the eye 0.75 m out or more in front
-of the walls, then held; an orbit turning to a way 0.5 m from a wall, the frame before's view held, and back on a free
-way the eye on it no nearer than 0.75 m; a wall that comes in an orbit, the eye in
-front of it at once; one that goes, the eye out by the rate above, and the original's view again
-once the wall has gone; a turning orbit, the second ray where the way will be, and a wall only it
-meets pulling the eye in by the rate above; the first person, a spectator and a player without a
-physics world, the original's. Run in a game (the owner, 2026-11-23: eased in, "almost good", the
+call (the game's own orbit code; ray_test planes or nothing, the performance counter a clock of
+its own): no wall, the original's view and registers bit for bit, one ray; a new orbit with a wall
+1.3 m or more out, the eye at once in front of it with the original's turn and yaw; a spawn with a
+wall 0.6 m out across the way, in a corner (walls 0.3 m behind and to the left), with walls 0.3 m
+behind and to both sides or in a box 1.5 m wide, its yaw turned 55, 75, 150 and 35 degrees, the view
+the original's at that yaw with the eye 0.75 m out or more in front of the walls, in a cupboard 0.8 m
+wide the way with the most room; the next frame the same view, the first drag the original's turn on
+from there; an orbit going on turning to a way 0.5 m from a wall, the player's turn and the eye at
+once 0.3 m out; a wall that comes in an orbit, the eye in front of it at once; one that goes, the eye
+out by the rate above, and the original's view again once the wall has gone; a turning orbit, the
+second ray where the way will be, and a wall only it meets pulling the eye in by the rate above; the
+drag round and round from the spawn's yaw (3 degrees a frame twice, 1 back once) by a wall, in a
+corner, a dead end, a box, under a ceiling and in a cupboard, the turn and the eye's way the
+original's at every frame, the eye in front of every wall; the first person, a spectator and a player
+without a physics world, the original's. Run in a game (the owner, 2026-11-23: eased in, "almost good", the
 eye briefly behind a wall; the ray ahead since).
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
 
