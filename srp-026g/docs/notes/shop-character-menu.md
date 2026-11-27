@@ -47,6 +47,17 @@ with inventory ... not character, but character menu ... with 3 profiles current
   happened to be selected (the shop's list has no row of a kit item), and for a shop entry locked at
   its seller while another seller sells the item unlocked (Buy is listed by what the shop sells,
   `buyable`; the greyed row takes no selection). Checked by `scripts/inventory-menu/check.sh`.
+- **Sell in a kit item's menu in the shop** (the owner, 2026-11-27: "when in shop rmb on equipment
+  there is no sell button"): the menu lists Sell for every owned item, in the shop as in the
+  inventory: a kit's weapon, ammo, armour, pocket item (`InventoryList.showContextMenu`). The stock
+  menu left Sell out of the shop altogether, where it listed only the shop's entries; the kits came
+  to the shop with this note and Sell stayed out. Sell sells the item the menu was opened on
+  (`InventoryList.sellMenuItem`), not the list's selected row (none in the shop), at a quarter of
+  its cost after the sale's question, which names the loadouts that use it. A worn item is sold as
+  from the inventory: the server takes it off every kit (`rules::sell`, `Account::sync_kits`).
+  The click on a kit's ammo or medkit in the shop opened no menu at all in Ruffle: the card read
+  `clip_size` off its sealed `ItemData` and threw (`ItemCard.slotUpdate`), before the menu.
+  Checked by `scripts/inventory-menu/check.sh` (check `inventory-menu`).
 - **The shop's own entries** (its list, its card) offer none of them, as before: Buy only.
 - **Server:** a refused reroll window, reroll or repair logs the item id the client sent.
 - Code: `InventoryList.set visible`, `InventoryList.showContextMenu`, `InventoryList.buyMenuItem`,

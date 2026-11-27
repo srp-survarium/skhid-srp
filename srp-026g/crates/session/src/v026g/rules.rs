@@ -2507,6 +2507,108 @@ mod tests {
         assert_eq!(account.inventory.len(), loadouts::starter_stash().len());
     }
 
+    /// Armour a kit wears sells as any item (the owner, 2026-11-27: the
+    /// shop's right-click menu on a kit's equipment had no Sell): the pay is
+    /// what the lobby shows, a quarter of its cost; it comes off every kit
+    /// that wears it, each kit left as taking it off would leave it.
+    #[test]
+    fn selling_worn_armour_takes_it_off_every_kit() {
+        use survarium::v026g::item_params::item_params;
+        let dictionary = Dictionary::shared();
+        let rounds = dict("ammo_5.45x39_7n6m");
+        let clip = item_params(rounds).unwrap().clip_size;
+        let mut account = rich_and_known(0);
+        let helmet = account.add_item(dict("ren_helmet_1"), FULL_CONDITION);
+        let torso = account.add_item(dict("ren_torso_5"), FULL_CONDITION);
+        // Its own modification 1051 adds two ammo bags to the kit's three.
+        account.item_mut(torso).unwrap().modifications = vec![(1051, false)];
+        let ammo = account.add_item(rounds, 1000);
+        account.kits[0].slots[8] = Some(KitSlot {
+            item_id: ammo,
+            count: 3 * clip,
+        });
+        let helmet = account.item(helmet).unwrap().clone();
+        let torso = account.item(torso).unwrap().clone();
+        // Kit 1 wears the helmet and the torso, kit 2 the torso.
+        move_items(
+            &mut account,
+            1,
+            &[
+                relocation(&helmet, INVENTORY_SLOT, 0, 1),
+                relocation(&torso, INVENTORY_SLOT, 2, 1),
+            ],
+            NOW,
+        )
+        .unwrap();
+        move_items(
+            &mut account,
+            2,
+            &[relocation(&torso, INVENTORY_SLOT, 2, 1)],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[8].unwrap().count, 5 * clip);
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        let money = account.generic_money;
+        let mut taken_off = account.clone();
+        for kit in [1, 2] {
+            move_items(
+                &mut taken_off,
+                kit,
+                &[relocation(&torso, 2, INVENTORY_SLOT, 1)],
+                NOW,
+            )
+            .unwrap();
+        }
+
+        let sold = sell(&mut account, torso.item_id, 1).unwrap();
+        let base_cost = dictionary.item(torso.dict_id).unwrap().base_cost;
+        assert!(base_cost > 0);
+        assert_eq!(
+            sold,
+            Sold {
+                item_id: torso.item_id,
+                dict_id: torso.dict_id,
+                amount: 1,
+                money: base_cost / 4
+            }
+        );
+        assert_eq!(
+            u64::from(sold.money),
+            prices::sell_price(dictionary, torso.dict_id, 1)
+        );
+        // The shop's price, which the lobby's question shows a quarter of.
+        if let Some(record) = prices::price(torso.dict_id) {
+            assert_eq!(sold.money, record.cost / 4);
+        }
+        assert_eq!(account.generic_money, money + sold.money);
+        assert!(account.item(torso.item_id).is_none());
+        // Off both kits, the rest as taking it off leaves it (the helmet on,
+        // the ammunition as it was: the server takes none off, the lobby's to do).
+        for (kit, off) in account.kits.iter().zip(&taken_off.kits).take(2) {
+            assert_eq!(kit.slots[2], None);
+            assert_eq!(kit.slots, off.slots);
+        }
+        assert_eq!(
+            account.kits[0].slots[0].map(|held| held.item_id),
+            Some(helmet.item_id)
+        );
+        assert_eq!(account.kits[0].revision, revisions[0] + 1);
+        assert_eq!(account.kits[1].revision, revisions[1] + 1);
+        for (kit, before) in account.kits.iter().zip(&revisions).skip(2) {
+            assert_eq!(kit.revision, *before);
+        }
+
+        // The helmet next, the kit's last armour piece of the two.
+        let sold = sell(&mut account, helmet.item_id, 1).unwrap();
+        assert_eq!(
+            u64::from(sold.money),
+            prices::sell_price(dictionary, helmet.dict_id, 1)
+        );
+        assert_eq!(account.kits[0].slots[0], None);
+        assert_eq!(account.kits[0].revision, revisions[0] + 2);
+    }
+
     #[test]
     fn nothing_is_paid_in_gold() {
         let prices = service_prices();

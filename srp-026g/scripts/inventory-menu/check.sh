@@ -16,7 +16,7 @@ harness_compile "$here/InventoryMenuHarness.as" 1280,720
 # The native Scaleform placements Ruffle refuses, so the list's and the card's named children exist.
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf" --slider-labels
 harness_display 1280x720
-HARNESS_TIMEOUT=120 harness_run InventoryMenuHarness.log -p low --width 1280 --height 720 InventoryMenuHarness.swf
+HARNESS_TIMEOUT=120 harness_run InventoryMenuHarness.log -p low --dummy-external-interface --width 1280 --height 720 InventoryMenuHarness.swf
 wait_for InventoryMenuHarness.log 'INVMENU RESULT' 1200 || true
 harness_stop
 harness_report 'INVMENU .*' InventoryMenuHarness.log
