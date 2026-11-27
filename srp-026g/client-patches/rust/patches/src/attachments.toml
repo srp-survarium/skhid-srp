@@ -41,14 +41,17 @@ handler = "on_loaded"
 [[hook]]
 site = "attachments.draw"
 handler = "on_draw"
+order = 0
 
 [[hook]]
 site = "attachments.culled"
 handler = "on_culled"
+order = 0
 
 [[hook]]
 site = "attachments.hidden"
 handler = "on_hidden"
+order = 0
 
 [[hook]]
 site = "attachments.hands"
@@ -65,6 +68,7 @@ handler = "on_shells"
 [[hook]]
 site = "attachments.release"
 handler = "on_release"
+order = 0
 
 [[hook]]
 site = "game.tick"

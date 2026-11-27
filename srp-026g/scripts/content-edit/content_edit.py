@@ -83,7 +83,9 @@ Edits (edits.json):
                     a new key of the named table in each file, in its place by name CRC: a bool,
                     an int, a float (a number with a point), a text, a vector (a list of 2-4
                     numbers: a float2..float4, as a position), or an object (a named table of
-                    those); a file that has the key already is refused
+                    those); a file that has the key already is refused. With "indexed": true a
+                    list is an indexed table (of anything) and a vector is {"float3": [x, y, z]}
+                    (float2, float4 alike): a scope's `data/srp_reticle` lists
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
@@ -619,6 +621,21 @@ def insert_value(buf, toff, key, value):
     new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
     d, i, c, ty, cnt = rec(buf, toff)
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
+
+
+def indexed_value(value):
+    """An add_value's JSON value with "indexed": a list an indexed table, {"floatN": [...]} a
+    native vector of N numbers, an object a named table."""
+    if isinstance(value, list):
+        return {i: indexed_value(item) for i, item in enumerate(value)}
+    if isinstance(value, dict) and len(value) == 1 and next(iter(value)) in ('float2', 'float3', 'float4'):
+        (kind, numbers), = value.items()
+        if len(numbers) != int(kind[-1]):
+            raise ValueError('%s: %d numbers' % (kind, len(numbers)))
+        return [float(x) for x in numbers]
+    if isinstance(value, dict):
+        return {key: indexed_value(item) for key, item in value.items()}
+    return value
 
 
 def as_table(value, vectors=False):
@@ -2754,7 +2771,7 @@ def main():
         grown[e['file']]['/' + e['table']] += 1
     for e in edits.get('add_value', []):
         for p in e['files']:
-            add_value(buf(p), e['table'], e['key'], e['value'])
+            add_value(buf(p), e['table'], e['key'], indexed_value(e['value']) if e.get('indexed') else e['value'])
             table = '/' + e['table'] if e['table'] else ''
             added.setdefault(p, []).append('%s/%s' % (table, e['key']))
             grown.setdefault(p, {}).setdefault(table, 0)

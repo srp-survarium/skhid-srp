@@ -1,0 +1,38 @@
+# Patch <reticle> (placeholder number, claimed when the PR is nearly done): a
+# collimator's reticle chosen per scope (docs/notes/reticle-choice.md, "The
+# build's contract"). The drawing: the chosen pattern's model in the scene
+# exactly while the optic's aimed model is, at its `aim` place, in the chosen
+# colour and brightness (reticle/draw.rs; the game's side vostok/reticle.rs).
+name = "reticle"
+patch = 220
+
+# after patch 161's draw, which put the second sight's aimed model in place
+[[hook]]
+site = "attachments.draw"
+handler = "on_draw"
+order = 1
+
+[[hook]]
+site = "attachments.hidden"
+handler = "on_hidden"
+order = 1
+
+[[hook]]
+site = "attachments.culled"
+handler = "on_culled"
+order = 1
+
+[[hook]]
+site = "attachments.release"
+handler = "on_release"
+order = 1
+
+# a pattern's query, on the game's thread
+[[hook]]
+site = "game.tick"
+handler = "on_tick"
+order = 10
+
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"

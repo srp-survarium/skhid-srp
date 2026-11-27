@@ -1,0 +1,16 @@
+# The collimators' reticle lists (docs/notes/reticle-choice.md, "The data"): a row a scope item, its
+# patterns (index 0 the default; each a model weapons/reticles_069/<name> of pack weapon-modules) and
+# its colours (index 0 the default), in 0.69d0's order (gameplay/game.options: possible_reticles,
+# reticle_colors; its dot's four sizes are the size list, the same for every scope). edit.py makes
+# ../content-edit/scope-reticles-1.json of it.
+# dict	item	patterns	colours
+2108	shop_scope_cobra_ekp_8	dot,cobra_cross,cobra_tick,cobra_tick_dot	red,green
+2109	shop_scope_eotech_552	eotech_ring,eotech_xr308,dot	red,green
+2110	shop_scope_aimpoint_compm4	dot	red,green
+2111	shop_scope_docter	dot	green,red
+2112	shop_scope_leupold_deltapoint	dot,dppro_triangle	green,red
+2113	shop_scope_ncstar_4	dot,ncstar_cross,ncstar_bullseye,ncstar_starburst	red,green,blue
+2114	shop_scope_eotech_xps2	eotech_ring,eotech_xr308,dot	red,green
+2115	shop_scope_belomo_pk01	dot	red,green
+2116	shop_scope_hensoldt_rsas	dot	green,red
+2120	shop_scope_walther_comp2	dot	green,red

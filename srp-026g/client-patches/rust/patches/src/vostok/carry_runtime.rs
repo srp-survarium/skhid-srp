@@ -242,6 +242,10 @@ impl Scene {
             Some(Self { renderer: renderer.scene_renderer()?, reference: world.scene() })
         }
     }
+    /// The scene renderer the scene's commands go to.
+    pub(super) fn renderer(&self) -> raw::SceneRenderer {
+        self.renderer
+    }
     pub(super) unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
         // SAFETY: model holder and scene are retained by the live caller.
         unsafe {
@@ -408,6 +412,9 @@ pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, hidden: &mut HiddenWeapo
             // its fitted parts with it (patch 161): the gun's own draw, which
             // is skipped from here, is what keeps them in the scene
             super::attachments::out_of_scene(ctx.thread(), weapon, &scene);
+            if let Some(reticle) = super::reticle::of_scene(world) {
+                crate::reticle::draw::weapon_hidden(ctx.thread(), super::attachments::WeaponId::of(weapon), &reticle);
+            }
             return true;
         }
         let Some(record) = hidden.find(weapon.address()) else { return false };

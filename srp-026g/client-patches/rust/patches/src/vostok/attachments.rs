@@ -772,6 +772,26 @@ pub fn draw(ctx: &Context<'_>, aimed_view: impl FnOnce() -> Shown) {
     }
 }
 
+/// `attachments.draw`, after [`draw`]: the frame a part's aimed model was
+/// put at this draw, when one is in the scene (a second sight looked
+/// through in the first person). None for a weapon with nothing fitted.
+pub fn aimed_part_frame(ctx: &Context<'_>) -> Option<Affine> {
+    // SAFETY: as draw: the site's weapon and frame, alive for the draw; a
+    // part's record names a bone of the weapon's model; its models are held
+    // by its place in FITTED.
+    unsafe {
+        let weapon = raw::site::attachments_draw::weapon(ctx)?;
+        let frame = raw::site::attachments_draw::frame(ctx)?;
+        FITTED.with(ctx.thread(), |fitted| {
+            let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return None };
+            let part = parts.all().iter_mut().find(|part| part.aimed.as_ref().is_some_and(|aimed| Scene::has(aimed.get())))?;
+            let mut at = [0.0f32; 16];
+            raw::engine_weapon_locator(at.as_mut_ptr(), Some(part.at.handle()), frame.world(), frame.bones(), IDENTITY.as_ptr());
+            Some(Affine::from_matrix(&at))
+        })
+    }
+}
+
 /// Where a weapon leaves the scene with its parts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Leaving {
