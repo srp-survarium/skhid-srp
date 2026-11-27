@@ -326,6 +326,31 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     13, 99, with no way down within 5 m drops as native Vostok's (`--stranded-ok 13`; before the
     roofs' list the check found only the border box's top, 140 m up: of roofs as near, the lower
     is taken first); the checkpoint's roof spawn, 100, where native Vostok's is. 44 -> 73 points.
+- **Rudnya's picks on Rudnya (v0.69)** (the owner, 2026-11-27: "can rudnya 69 use the same ffa
+  spots as 26?", "note that geometry might have changed a bit"). Content edit
+  `ffa-rudnya-v069-picks-1`, from `scripts/ffa-mode/rudnya-v069-picks.tsv` (`picks --shift 1.5
+  --roofs 49,8,10,42 --harmful-ok 45 --roof-place ...` on `v069d_level_01/day_8`, map 169) and
+  `make_picks_edits.py rudnya-v069`, in its own project only; after `ffa-cover-maps-1`, whose 44
+  points it replaces.
+  - The frame is native Rudnya's, with no offset or rotation: the 84 collision models placed once in
+    both Team Deathmatch projects stand at the same place (0.000 m), the first collision under a
+    4 m grid over native's play area is within 10 cm at 3,386 of 3,458 samples (the rest are props
+    and roofs that 0.69d changed), and 32 of native's 43 Team Deathmatch spawns have a 0.69d spawn
+    within 10 cm (the 43 stand within 13 cm of 0.69d's ground).
+  - All 56 picks pass the checks there, none moved in plan (`--shift` found nothing to do): 51 at
+    native's height, 1, 6, 23 and 38 up 5, 3, 19 and 8 cm, 13 down 1 cm; 45 1.49 m from the swamp
+    anomaly as on native (`--harmful-ok 45`). The first 44 take point_ids 405-448 (position and
+    rotation only), 12 new 449-460. 53 hold the cover rule (native 52: 25 is past the band here).
+  - The four roof spawns, 461-464, stay at native Rudnya's places (`--roof-place <pick>=<x,y,z>`:
+    the place on its ground, body clear, 2 m from harmful zones, a way down, the roof search's flat
+    floor not asked): 49 on its roof 10 cm under native's stored height (native's is the walk
+    grid's cell, 9.7 cm over its collision), 8, 10 and 42 at native's height within 6 cm, down by
+    drops of 2.6, 1.8 and 2.7 m. The roof search alone (`--roofs` without `--roof-place`) keeps 49
+    and 42 but puts 8 0.56 m in from its roof's edge, and 10 on the rock outcrop west of its
+    building: 0.69d's roof there is a broken one sloping over 20 degrees with a 1.8 m step 1.5 m
+    off (a hole or its edge), where native's lower part was a walk away.
+  - Pictures of the moved picks and both places of roofs 8 and 10 (capture.py, map 169):
+    `/mnt/toshiba/skhid-captures/rudnya-v069-ffa-2026-11-27/`.
 - **Vostok's roofs** (the owner, 2026-11-15: "note that roof doesn't have collision so we want to
   add it", "we also added one spawn on top of another roof which doesn't have good collision too",
   "to all vostok maps"). Content edit `ffa-vostok-roofs-1` (`scripts/ffa-mode/
@@ -563,7 +588,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 | v021d_level_06 Mamayev Kurgan | day | 22 authored |
 | v011e_level_04 Chemical Plant | day | 22 authored |
 | v011e_level_03 Vostok Radar Station | day | 22 authored |
-| v069d_level_01 Rudnya | day | 22 authored |
+| v069d_level_01 Rudnya | day | 22 authored (60 of native Rudnya's since ffa-rudnya-v069-picks-1) |
 
 - `maps_dict` ids 46-60 and 154-163 retain their meanings; the five ports use
   164, 165, 167, 168 and 169 in table order. IDs 166/175 already belong to ports.
