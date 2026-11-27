@@ -253,7 +253,7 @@ says what of this design is built, and what turned out otherwise).
   | slot | function | ret | ours |
   |---|---|---|---|
   | 7 | `on_event(type, data, time)` | 0Ch | 0: `Start`; 1 `{killer, victim}`: `Died` |
-  | 8 / 9 | `entered` / `left(place, time)` | 8 | `Entered` / `Left` |
+  | 8 / 9 | `entered` / `left(place, time)` | 8 | `Entered` / `Left`; the place is the dword's low byte (below) |
   | 11 | `set_game_world_core(core)` | 4 | keeps the core, puts the tick delegate in list 1 |
   | 15 | `serialize(writer)` | 4 | `Rule::fields`, a named write a field |
   | 16 | `deserialize(reader, dword)` | 8 | `Rule::read`, then publish |
@@ -597,8 +597,25 @@ late join need nothing, and a world gains no byte.
   0x2D9ED3..0x2D9EF7 when the hit set `pending_death`, the victim still alive and in the world (his
   `on_player_death` runs at his next tick), so his feet are there for the drop; it is the only
   sender of type 1, and the respawn rule schedules only on it. `on_player_left_match` 0x2D2040 calls
-  slot 9 while the place still holds its player. `Left` is given the ground only for the rule's
-  carrier. A living player taken out by a round start is no death (`remove_alive` counts nothing)
+  slot 9 while the place still holds its player and is still in the world's active places (its bit
+  goes at 0x2D214E, after the loop). `Left` is given the ground only for the rule's carrier: the
+  ground under his feet, else his feet, as a death's drop; he lets go of it there, out of his side.
+  PROVEN, the exe: slots 8 and 9 are given the place as a dword whose upper three bytes are not the
+  place's. `process_events` 0x2D2180 counts the places in its second argument's stack slot with
+  `mov [esp+1Ch],bl` (0x2D218B, the low byte alone) and pushes that whole dword as the place
+  (0x2D2194), so its upper bytes are the roster records' pointer's; on_player_entered_match and
+  on_player_left_match push it on whole (0x2D201C, 0x2D213C), and every native rule reads the byte
+  (tdm 0x3165D3 `mov cl,[esp+8]`, kd stats 0x323A00 `movzx`). Patch 171 reads its low byte
+  (`slot_place`): through revision 74 it refused the dword whole, so no leave and no slot-8 entry
+  ever reached the rule (below, "After the live report"). Every way out of a match reaches slot 9:
+  the leaver's 0xE0, a closed link, the client timeout (10 s of silence) and a new connection for
+  the place each make the match server's 0xEA (`Game::leave`, client_patch.md "How a leave reaches
+  the other games"; the match server's tests `a_player_who_leaves_is_seen_to_go_...`,
+  `a_client_that_falls_silent_times_out`, `a_player_back_in_the_match_enters_for_the_others_first`
+  and `a_new_connection_for_a_live_place_is_its_leave_then_its_entry`). The respawn rule's own leave
+  handler (0x316BE0, the rules vector's second, before ours) takes the player out of the world
+  first; his feet stay where they were (LIKELY, not read: `remove` with 1 leaves the transform; in
+  the two-window test). A living player taken out by a round start is no death (`remove_alive` counts nothing)
   and carries nothing then (the delivery ended the carry). LIKELY, not read: that every lethal
   source goes through `hit_impl` (a suicide does).
 
@@ -755,6 +772,25 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
   - The mark: `player_icons.carrier_mark` at 0x1F2D8B (the record's `cmp [edx+178h],0`, 7 bytes):
     for the hunt's carrier of either team EAX = place x 3 and CL = 1, out at the record's compare
     0x1F2D98; for anyone else the game's own test.
+- **After the live report (2026-11-26, revision 74):** the owner: "when someone leaves and rejoins
+  in arthunt, they spawn with art on their base", "without having to carry it all the way through";
+  then "fix it, art should also drop when leaving the game". Live match 0x45331d4d (map 336), its
+  uploads' rule state: place 0 took the artefact at about 383.9 s and left at 397.6 s; the other
+  games' worlds then had the time rule's player mask and kd stats' `online` without him, and the
+  rule still his carry and his side; he came back at 412.85 s (the entry spawn at his team's
+  points, his base) and delivered at about 427.4 s, the third of team 0's five. Places 1 and 3 left
+  too and stayed on their sides. The cause: slots 8 and 9's place dword (above, "His death and
+  leaving"), taken whole, so `on_left` returned at once (`on_entered` too, which the tick's take-in
+  hid: the first test's "slot 8 comes before the team" was partly this). So, through revision 74, a
+  carrier who left kept the artefact out of the world until he came back, and came back carrying
+  it; a leaver stayed in the hud's counts, in sudden death's standing and in the way's shares.
+  Now it reads the low byte: the carrier's leave drops it where he stood (lying for
+  `vi_dropped_ttl`, the drop cue and line for both teams, anyone may take it), he comes back with
+  nothing, a leaver is out of his side, and a player whose team is known at slot 8 is in from it.
+  `check_artefact_hunt_026g.py` case 19b drives `process_events` 0x2D2180 with a carrier's leave
+  (the place dword the game's, the events pointer's upper bytes; it fails with the old handler:
+  the carrier kept, then a delivery at his base); the rule's test
+  `a_carrier_who_leaves_and_comes_back_comes_back_without_it`.
 - **Otherwise than above:**
   - the rule object's layout: tdm's slot 12 (0x267820, it writes +118h) is kept, so the blackboard is
     at +118h, the tick delegate at +120h, the core at +138h, the game at +13Ch (0x140 bytes);

@@ -3254,7 +3254,7 @@ va	name	location	role	basis
 0x003239f0	survarium::kd_stats_rule::on_player_entered_match	ECX	KD rule	inferred
 0x003239f0	survarium::kd_stats_rule::on_player_entered_match	stack+4	player index byte	inferred
 0x00323a00	survarium::kd_stats_rule::on_player_left_match	ECX	KD rule	inferred
-0x00323a00	survarium::kd_stats_rule::on_player_left_match	stack+4	player index byte	inferred
+0x00323a00	survarium::kd_stats_rule::on_player_left_match	stack+4	player index byte (movzx eax,byte [esp+4] 0x323A00: the dword's upper bytes are not the place's)	observed
 0x00323bf0	survarium::animation_analysis_result::animation_analysis_result	EDI	result object receiver	observed
 0x00323bf0	survarium::animation_analysis_result::animation_analysis_result	entry ESP+4	unsigned entry count multiplied by0x1C for leg-key-time buffer	observed
 0x00323f10	survarium::player_serialized_state::clear	ESI	player serialized state	inferred
@@ -6848,3 +6848,7 @@ va	name	location	role	basis
 0x001b1840	vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]	EAX	a render_surface_instance of the list being sorted (its +38h render surface, whose material effects 0x158870 reads)	observed
 0x001b1840	vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]	entry ESP+4	a pointer to a byte: 1 for the G-buffer list (scene view +84ACh, 0x1B1D2E), which keeps the skinned; 0 for the moved models' list (+494h, 0x1B1D90), which keeps the rest	observed
 0x000396c0	vostok::collision::loose_oct_tree::unmove_all	ECX	the tree (vtable 0x9DE254, slot +34h)	observed
+0x002d2180	survarium::game_world_core::process_events	entry ESP+4	the core (pushed to each entry and leave, 0x2D21A6 / 0x2D21BD)	observed
+0x002d2180	survarium::game_world_core::process_events	entry ESP+8	the tick's roster records, 20 x 14h (byte +0: bit 0 an entry, bit 1 a leave), the time at +1BCh; its stack slot then holds the place counter in its low byte alone (mov [esp+1Ch],bl 0x2D218B), and the whole dword is pushed as the place (0x2D2194): the upper three bytes are this pointer's	observed
+0x002d1ef0	survarium::game_world_core::on_player_entered_match	entry ESP+8	the place: a byte in a dword whose upper bytes are process_events' pointer's (0x2D2194), given whole to every rule's slot +20h (0x2D201C)	observed
+0x002d2040	survarium::game_world_core::on_player_left_match	entry ESP+8	the place: its low byte (movzx ebx,byte [esp+20h] 0x2D20B4); the dword, upper bytes process_events' pointer's (0x2D2194), given whole to every rule's slot +24h (0x2D213C); its active bit cleared after that loop (0x2D214E)	observed
