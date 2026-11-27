@@ -29,6 +29,18 @@ given an event by its `on_event` (0x2A9EF0: presenter, effect, event;
   index 0, 2 and -1 of three): the build does what the original does, to
   the byte and register.
 
+- a particle presenter's deserialize (0x2AC870: presenter ECX; a word, the
+  reader, the player's effects) of one saved entry that names no effect its
+  player plays, emptied (no link: a stop empties every entry of its effect
+  and erases only the last) and of a resource the player no longer plays:
+  the original reads the entry's effect's +30h at 0 (0x2AC94D, the
+  2026-11-27 crashes, "read of 0x00000030"); the build passes the entry's
+  two floats over, reads to the stream's end, returns with no entry, and
+  logs its line; two emptied entries in one stream, the same;
+- an entry that names an effect its player plays, from the site after its
+  link is resolved (0x2AC92B) to its particle's release (0x2AC977): the
+  build does what the original does, to the byte and register.
+
 At four stack alignments (the generated entries realign). Says nothing about
 what a match plays; the owner's test does.
 """
@@ -49,6 +61,10 @@ SOUND_UPDATE_ENTRY = 0x2AA0BD          # mov ecx,[esi+10h]: the update's entry
 PARTICLE_SEARCHED = 0x2AC656           # the particle stop after its search ([esp+14h] the index)
 PARTICLE_ERASE = 0x2AC678              # its call of the erase 0x2ACD80
 PARTICLE_RETURN = 0x2AC6B3             # its return without one
+PARTICLE_READ = 0x2AC870               # deserialize (word, reader, effects), ECX the presenter; ret 0Ch
+READ_RESOLVED = 0x2AC92B               # its entry's link just resolved (the patch's site)
+READ_EFFECT = 0x2AC94D                 # mov ecx,[ecx+30h]: the entry's effect's particle
+READ_RELEASED = 0x2AC977               # the entry's old particle let go (call 0x11540)
 SOUND_VTABLE, PARTICLE_VTABLE = 0xA0D1D0, 0xA0D2E4
 STOP_KIND, UPDATE_KIND = 1, 2
 CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT = 0x870048, 0x870108, 0x870040, 0x870090
@@ -76,7 +92,7 @@ class Game:
         for n, slot in enumerate((CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT, PROCESS_ID, THREAD_ID)):
             self.word(slot, STUBS + 0x10 * n)
             emu.hook_add(UC_HOOK_CODE, self.kernel32, begin=STUBS + 0x10 * n, end=STUBS + 0x10 * n)
-        for at in (STOP, SOUND_FREE, PARTICLE_ERASE, PARTICLE_RETURN):
+        for at in (STOP, SOUND_FREE, PARTICLE_ERASE, PARTICLE_RETURN, READ_RELEASED):
             emu.hook_add(UC_HOOK_CODE, self.on_stop, begin=at, end=at)
         self.next = MEMORY
         self.ticks = 0
@@ -198,6 +214,19 @@ class Scene:
         self.game.word(self.event + 4, kind)
         self.game.call(PARTICLE_EVENT, (self.particle, self.effect), align, edx=self.event)
 
+    def particle_read(self, stream, align):
+        """deserialize over `stream` (its entries' count first) with a
+        player that plays no effect; the reader {begin, cursor, size}."""
+        g = self.game
+        data = g.block(len(stream))
+        g.emu.mem_write(data, stream)
+        self.reader = g.block(0x10)
+        for n, value in enumerate((data, data, len(stream))):
+            g.word(self.reader + 4 * n, value)
+        self.stream_end = data + len(stream)
+        effects = g.block(0x60)                         # +2Ch its first effect: none
+        g.call(PARTICLE_READ, (0, self.reader, effects), align, ecx=self.particle)
+
 
 def check(stock_data, built_data):
     stock, ours = Game(stock_data), Game(built_data)
@@ -291,6 +320,49 @@ def check(stock_data, built_data):
             else:
                 expect(results[0] == results[1] and results[0][0] == PARTICLE_ERASE,
                        f"index {index}: the build erases as the original")
+
+        # A saved entry of no effect its player plays: emptied (its flag 0,
+        # no link), and of a resource (its flag 1, a resource word by value)
+        # the player no longer plays. Each followed by its two floats.
+        floats = struct.pack("<ff", 1.5, 2.5)
+        for name, entry, count, resource in (
+                ("an emptied entry", b"\x00", 1, 0),
+                ("an entry of a resource no longer played",
+                 b"\x01\x01" + struct.pack("<II", 0x55550000, 0xFFFFFFFF), 1, 0x55550000),
+                ("two emptied entries (the read goes on after a drop)", b"\x00", 2, 0)):
+            stream = struct.pack("<I", count) + (entry + floats) * count
+            s, o = Scene(stock), Scene(ours)
+            s.particle_read(stream, align)
+            expect(stock.fault is not None and stock.fault[0] == READ_EFFECT
+                   and stock.emu.reg_read(UC_X86_REG_ECX) == 0,
+                   f"{name}: the original reads its effect's +30h at 0 ({stock.fault})")
+            o.particle_read(stream, align)
+            expect(ours.stopped == STOP and ours.fault is None, f"{name}: the build returns ({ours.stopped}, {ours.fault})")
+            expect(ours.read(o.reader + 4) == o.stream_end, f"{name}: the build reads the stream to its end")
+            expect(ours.read(o.particle + 0xC) == ours.read(o.particle + 0x10), f"{name}: the presenter holds no entry")
+            said = [l for l in ours.lines if b"(the line above: " not in l]
+            expect(1 <= len(said) <= count and all(b"not read back" in l and (b"0x%08x" % resource) in l.lower()
+                                                   for l in said),
+                   f"{name}: its lines logged with its resource: {ours.lines}")
+
+        # An entry that names an effect its player plays, from the site to
+        # its old particle's release: the same in both.
+        results = []
+        for game in (stock, ours):
+            Scene(game)
+            effect, cell, particle, reader = game.block(0x40), game.block(0x10), game.block(0x100), game.block(0x10)
+            game.word(cell, effect + 4)                 # the weak cell: the effect + 4 while it lives
+            game.word(effect + 0x30, particle)          # its particle, counted at +0D0h
+            sp = STACK + 0x8000 - 0x200 - align
+            game.emu.mem_write(sp, bytes(0x100))
+            game.word(sp + 0x28, cell)
+            game.emu.reg_write(UC_X86_REG_EFLAGS, 0x202)
+            game.run(READ_RESOLVED, sp, ebx=reader, edi=0, esi=0x44444444, ebp=sp + 0xF0,
+                     eax=0x11111111, ecx=0x22222222, edx=0x33333333)
+            results.append((game.stopped, game.fault, tuple(game.emu.reg_read(r) for r in REGS),
+                            game.snapshot(sp, 0x100), game.read(particle + 0xD0)))
+        expect(results[0] == results[1] and results[0][0] == READ_RELEASED and results[0][4] == 1,
+               f"an entry of a played effect reads its particle as the original ({results[0][:2]}, {results[1][:2]})")
     print(f"{checks} presenter cases passed (the original's miss erases or faults, the build ignores it; "
           f"held effects as the original)")
 
