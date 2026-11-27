@@ -393,6 +393,27 @@ pub struct Tick {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Unported;
 
+/// How [`ClientBody::at_rest_or_wedged`] ended.
+#[derive(Clone, Copy, PartialEq)]
+pub enum RestEnd {
+    /// On the ground and still for [`verdict::STILL_STEPS`] steps running: the body at rest.
+    Rested(ClientBody),
+    /// Off the ground and still for [`REST_WEDGED_STEPS`] steps running: held, it never rests (no rest, ended early).
+    Held,
+    /// Neither within [`REST_STEPS_MAX`] steps (it falls on, slides on): no rest.
+    Unsettled,
+}
+
+impl RestEnd {
+    /// The body at rest, if it came to rest.
+    pub fn body(self) -> Option<ClientBody> {
+        match self {
+            Self::Rested(body) => Some(body),
+            Self::Held | Self::Unsettled => None,
+        }
+    }
+}
+
 /// The client's body: its kept controller (the only owner of its feet), the mixer's walk, the input the next step moves by and the
 /// yaw it turns by, and a forward jump under way.
 #[derive(Clone, Copy, PartialEq)]
@@ -501,8 +522,8 @@ impl ClientBody {
     /// 3-13 with its ground flag off to step 80 (rig_real_v3, 11 points), and the port's ends at the same feet to the millimetre,
     /// yet [`Self::at_rest`] plays all 40 steps on a dense rim (up to 714 triangles offered a step). Over the rests of two bench
     /// cells (12,333), none that came to rest had more than 1 such step before it. For the lip guard's rests
-    /// (`client_rest_at`); [`Self::at_rest`] stays as it is for the grid's own.
-    pub fn at_rest_or_wedged(world: &impl Walker, feet: Vec3, yaw: f32) -> Option<Self> {
+    /// (`client_rest_at`); [`Self::at_rest`] stays as it is for the grid's own. [`RestEnd::body`] is [`Self::at_rest`]'s answer.
+    pub fn at_rest_or_wedged(world: &impl Walker, feet: Vec3, yaw: f32) -> RestEnd {
         let mut c = Self::placed(feet, yaw).controller;
         let (mut still, mut held) = (0, 0);
         for _ in 0..REST_STEPS_MAX {
@@ -514,13 +535,13 @@ impl ClientBody {
             still = if ground && small { still + 1 } else { 0 };
             held = if !ground && small { held + 1 } else { 0 };
             if still >= verdict::STILL_STEPS {
-                return Some(Self::of(c, yaw));
+                return RestEnd::Rested(Self::of(c, yaw));
             }
             if held >= REST_WEDGED_STEPS {
-                return None;
+                return RestEnd::Held;
             }
         }
-        None
+        RestEnd::Unsettled
     }
 
     /// The feet.
@@ -926,13 +947,13 @@ mod tests {
         let walker = |w| Counted { client: Client { world: w }, steps: std::cell::Cell::new(0) };
         let (a, b) = (walker(&floor), walker(&floor));
         let full = ClientBody::at_rest(&a, Vec3::new(1.0, 0.0, 2.0), 0.0).map(|r| r.feet());
-        let quick = ClientBody::at_rest_or_wedged(&b, Vec3::new(1.0, 0.0, 2.0), 0.0).map(|r| r.feet());
+        let quick = ClientBody::at_rest_or_wedged(&b, Vec3::new(1.0, 0.0, 2.0), 0.0).body().map(|r| r.feet());
         assert!(full.is_some() && full == quick && a.steps.get() == b.steps.get(), "{full:?} {quick:?} {} {}", a.steps.get(), b.steps.get());
         let groove = groove();
         let (a, b) = (walker(&groove), walker(&groove));
         let feet = Vec3::new(0.0, 2.0, 0.0);
         assert!(ClientBody::at_rest(&a, feet, 0.0).is_none(), "held in the groove, never on the ground");
-        assert!(ClientBody::at_rest_or_wedged(&b, feet, 0.0).is_none());
+        assert!(ClientBody::at_rest_or_wedged(&b, feet, 0.0) == RestEnd::Held, "ended as held");
         assert_eq!(a.steps.get(), REST_STEPS_MAX);
         assert!(b.steps.get() < 20, "ended once held: {} steps", b.steps.get());
     }

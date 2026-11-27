@@ -329,7 +329,11 @@ pub(crate) fn client_rest_at(grid: &WalkGrid, at: Vec3, top: f32) -> Option<Vec3
     let back = |k: i32| k as f32 * REST_SNAP_M;
     let feet = Vec3::new(back(key.1), back(key.3) + REST_PUT_OVER_M - client_body::PUT_OVER_M, back(key.2));
     let started = std::time::Instant::now();
-    let rest = client_body::ClientBody::at_rest_or_wedged(&super::client_walker::GridWalker(grid), feet, 0.0).map(|b| b.feet());
+    let end = client_body::ClientBody::at_rest_or_wedged(&super::client_walker::GridWalker(grid), feet, 0.0);
+    if end == client_body::RestEnd::Held {
+        margin_walk_offs::rest_held();
+    }
+    let rest = end.body().map(|b| b.feet());
     margin_walk_offs::rest_made(started.elapsed());
     REST_CACHE.with_borrow_mut(|c| {
         if c.len() >= REST_CACHE_MAX {
@@ -595,6 +599,18 @@ pub(crate) mod margin_walk_offs {
     /// (rests made, their µs in all, the longest's µs) since the last call, and zero again.
     pub(crate) fn take_rests() -> (u64, f64, f64) {
         (RESTS.swap(0, Relaxed), REST_NS.swap(0, Relaxed) as f64 / 1e3, REST_MAX_NS.swap(0, Relaxed) as f64 / 1e3)
+    }
+
+    /// [lip client rest] The rests made that ended early, the body held still off the ground (`ClientBody::at_rest_or_wedged`).
+    static REST_HELD: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn rest_held() {
+        REST_HELD.fetch_add(1, Relaxed);
+    }
+
+    /// [`rest_held`]'s count since the last call, and zero again.
+    pub(crate) fn take_rest_held() -> u64 {
+        REST_HELD.swap(0, Relaxed)
     }
 
     /// A forecast called off at its margin; `only`: by the walker-ground test alone.

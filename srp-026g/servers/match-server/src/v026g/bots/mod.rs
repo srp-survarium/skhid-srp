@@ -2796,8 +2796,9 @@ impl Bots {
         ));
         let (rests, rest_us, rest_max_us) = body::margin_walk_offs::take_rests();
         let rest_hits = body::margin_walk_offs::take_rest_hits();
+        let rest_held = body::margin_walk_offs::take_rest_held();
         lines.push(format!(
-            "{}lip guard client rests at margin points since the last match end (every match on this server): {rests} made, {rest_us:.0} µs in all ({:.1} µs each, the longest {rest_max_us:.1} µs); {rest_hits} answered from the cache",
+            "{}lip guard client rests at margin points since the last match end (every match on this server): {rests} made, {rest_us:.0} µs in all ({:.1} µs each, the longest {rest_max_us:.1} µs); {rest_hits} answered from the cache; {rest_held} ended early, held still off the ground",
             nav_log::PREFIX,
             rest_us / rests.max(1) as f64
         ));
