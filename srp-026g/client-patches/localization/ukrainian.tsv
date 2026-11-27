@@ -4393,6 +4393,8 @@ st_srp_shop_not_owned	Сховати наявні
 st_srp_shop_not_owned_hint	Показувати лише те, чого у вас немає
 st_srp_side_left	Зліва
 st_srp_side_right	Справа
+st_srp_sight_distance_note	+ далі, - ближче
+st_srp_sight_distance_option	Відстань до прицілу
 st_srp_skills	Навички
 st_srp_speed_label	Швидкість
 st_srp_speed_title	Швидкість руху: %1$s
@@ -4442,6 +4444,7 @@ st_srp_technical_pockets	 киш.
 st_srp_technical_rearm	Знову відкривається після пострілу
 st_srp_technical_smoke_duration	Тривалість диму
 st_srp_technical_toxic_damage	Токсична шкода
+st_srp_unit_cm	%1$s см
 st_srp_unit_days	%1$s д
 st_srp_unit_hours	%1$s год
 st_srp_unit_kg	%1$s кг
@@ -4481,6 +4484,10 @@ st_srp_weapon069_ppsh_drum_name	ППШ-41 «Диск»
 st_srp_weapon_aim_zoom	Базове збільшення
 st_srp_weapon_chamber	Досилання набою
 st_srp_weapon_draw_time	Час діставання
+st_srp_weapon_fov_aimed_option	Поле зору зброї при прицілюванні
+st_srp_weapon_fov_option	Поле зору зброї від стегна
+st_srp_weapon_fov_scope_option	Поле зору зброї в оптиці
+st_srp_weapon_fov_world_option	Зброя з полем зору світу
 st_srp_weapon_full_damage	Повна шкода до
 st_srp_weapon_hip_spread	Розкид від стегна
 st_srp_weapon_holster_time	Час прибирання
@@ -4505,6 +4512,11 @@ st_srp_weapon_stats	Характеристики зброї
 st_srp_weapon_sway_cycle	Період розгойдування
 st_srp_weapon_sway_horizontal	Розгойдування в сторони
 st_srp_weapon_sway_vertical	Розгойдування вгору-вниз
+st_srp_weapon_view_heading	Вигляд зброї
+st_srp_weapon_view_hip	Від стегна
+st_srp_weapon_view_iron	Мушка
+st_srp_weapon_view_red_dot	Коліматор
+st_srp_weapon_view_scope	Оптика
 st_srp_weapon_with_kit	З комплектом
 st_srp_weapon_with_kit_skills	З комплектом і навичками
 st_srp_weather_before_rain	перед дощем
@@ -4519,6 +4531,7 @@ st_srp_weight_penalty	%1$s% штраф за вагу
 st_srp_weight_speed	Швидкість пересування
 st_srp_weight_sprint_stamina	Витрати енергії на спринт
 st_srp_weight_title	Вплив ваги
+st_srp_world_fov_option	Поле зору світу
 st_stamina_boost_name	Друге дихання
 st_stamina_boost_time_description	Відновлення енергії при вбивстві супротивника:
 st_stamina_loss_on_hit_description	Втрата енергії при пораненні:

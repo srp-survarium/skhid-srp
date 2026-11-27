@@ -160,6 +160,34 @@ class MovieTests(unittest.TestCase):
         self.assertEqual(swf.payload(tags[1][1]), struct.pack('<H', 8) + baseline)
         self.assertEqual(swf.symbol_classes(tags), [(8, 'Picture'), (7, 'A')])
 
+    def test_a_jpeg_with_an_alpha_is_one_jpeg3(self):
+        baseline = zlib.decompress(base64.b64decode(
+            'eNqVjjsSwjAMRFf+kI/tYAU7pKbnDBTMZIZcjUtRcAg+BdzE2CWfhqetdlZapUt6ws/TYQIRQHmQ7thDClGUUVm61lop3VbVorattaY1xnW9dx13xvjB8yrEGO1yPQ5h7EMM5QjJvKN0o3UTnHHhb9IJXENASmIIJsmUzgjlyTeq4vpPF8Wln1n+zt5gJeUSydhhsz0+0vUFtV0f5g=='))
+        alpha = bytes([0, 255, 128, 255, 255, 0])
+        raw = swf.jpeg_alpha(9, baseline, alpha)
+        body = swf.payload(raw)
+        self.assertEqual(struct.unpack_from('<HI', body), (9, len(baseline)))
+        self.assertEqual(body[6:6 + len(baseline)], baseline)
+        self.assertEqual(zlib.decompress(body[6 + len(baseline):]), alpha)
+        with self.assertRaisesRegex(ValueError, '3 x 2'):
+            swf.jpeg_alpha(9, baseline, alpha[:5])
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'bitmaps'
+            folder.mkdir()
+            (folder / 'Picture.jpg').write_bytes(baseline)
+            rgb = b''.join(bytes([a, a, a]) for a in alpha)
+            rows = b''.join(b'\0' + rgb[y * 9:(y + 1) * 9] for y in range(2))
+            def chunk(kind, data):
+                return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+            (folder / 'Picture.alpha.png').write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 3, 2, 8, 2, 0, 0, 0))
+                                                     + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+            [picture] = flash_tree.bitmaps(Path(temp))
+            self.assertEqual((picture.name, picture.alpha), ('Picture', alpha))
+            self.assertEqual(picture.define(4)[0], swf.DEFINE_BITS_JPEG3)
+            (folder / 'Other.alpha.png').write_bytes(b'')
+            with self.assertRaisesRegex(ValueError, 'without its'):
+                flash_tree.bitmaps(Path(temp))
+
     def test_every_bound_class_must_be_defined_once(self):
         original = movie([do_abc('a', 'A'), symbols((1, 'A'), (2, 'pkg.B'))])
         with self.assertRaisesRegex(ValueError, 'does not have: pkg.B'):

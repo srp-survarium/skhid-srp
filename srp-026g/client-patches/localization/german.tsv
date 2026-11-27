@@ -4393,6 +4393,8 @@ st_srp_shop_not_owned	Besitz ausblenden
 st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
 st_srp_side_left	Links
 st_srp_side_right	Rechts
+st_srp_sight_distance_note	+ weiter weg, - näher
+st_srp_sight_distance_option	Visierabstand
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
@@ -4442,6 +4444,7 @@ st_srp_technical_pockets	 Taschen
 st_srp_technical_rearm	Öffnet sich nach einem Schuss wieder
 st_srp_technical_smoke_duration	Rauchdauer
 st_srp_technical_toxic_damage	Giftschaden
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s T.
 st_srp_unit_hours	%1$s Std.
 st_srp_unit_kg	%1$s kg
@@ -4481,6 +4484,10 @@ st_srp_weapon069_ppsh_drum_name	PPSH-41 „Trommel“
 st_srp_weapon_aim_zoom	Basis-Zielzoom
 st_srp_weapon_chamber	Repetierzeit
 st_srp_weapon_draw_time	Ziehzeit
+st_srp_weapon_fov_aimed_option	Waffen-Sichtfeld beim Zielen
+st_srp_weapon_fov_option	Waffen-Sichtfeld aus der Hüfte
+st_srp_weapon_fov_scope_option	Waffen-Sichtfeld im Zielfernrohr
+st_srp_weapon_fov_world_option	Waffe im Welt-Sichtfeld
 st_srp_weapon_full_damage	Voller Schaden bis
 st_srp_weapon_hip_spread	Hüftfeuer-Streuung
 st_srp_weapon_holster_time	Wegsteckzeit
@@ -4505,6 +4512,11 @@ st_srp_weapon_stats	Waffenwerte
 st_srp_weapon_sway_cycle	Verwackelperiode
 st_srp_weapon_sway_horizontal	Horizontales Verwackeln
 st_srp_weapon_sway_vertical	Vertikales Verwackeln
+st_srp_weapon_view_heading	Waffenansicht
+st_srp_weapon_view_hip	Hüfte
+st_srp_weapon_view_iron	Kimme
+st_srp_weapon_view_red_dot	Rotpunkt
+st_srp_weapon_view_scope	Zielfernrohr
 st_srp_weapon_with_kit	Mit Loadout
 st_srp_weapon_with_kit_skills	Mit Loadout und Fähigkeiten
 st_srp_weather_before_rain	vor dem Regen
@@ -4519,6 +4531,7 @@ st_srp_weight_penalty	%1$s% Gewichtsmalus
 st_srp_weight_speed	Bewegungsgeschwindigkeit
 st_srp_weight_sprint_stamina	Energiekosten beim Sprinten
 st_srp_weight_title	Gewichtseffekte
+st_srp_world_fov_option	Welt-Sichtfeld
 st_stamina_boost_name	Zweiter Atem
 st_stamina_boost_time_description	Wiederherstellung der Energie beim Mord des Gegners:
 st_stamina_loss_on_hit_description	Energieverlust bei der Verwundung:

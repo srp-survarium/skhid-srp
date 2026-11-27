@@ -13,161 +13,184 @@
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.15
     },
     "wpn_a9_91": {
      "gun": 303,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.02
     },
     "wpn_aek_919k": {
      "gun": 2212,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ak_12": {
      "gun": 363,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ak_12_premium": {
      "gun": 2245,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ak_74m": {
      "gun": 3,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ak_74n": {
      "gun": 306,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ak_74n_premium": {
      "gun": 338,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ak_74u": {
      "gun": 13,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ak_74u_premium": {
      "gun": 2243,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_akmn": {
      "gun": 80,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_akmn_premium": {
      "gun": 2241,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_akmn_premium_2": {
      "gun": 2242,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_akmsu": {
      "gun": 2290,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_aps": {
      "gun": 126,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": -0.1
     },
     "wpn_ash_12": {
      "gun": 364,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_benelli_m4": {
      "gun": 125,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": -0.03
     },
     "wpn_beretta93r": {
      "gun": 2282,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_colt_m1911": {
      "gun": 2284,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_cz_75": {
      "gun": 2280,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_famas": {
      "gun": 2291,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_fn_fnc": {
      "gun": 2216,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.072
     },
     "wpn_fn_minimi": {
      "gun": 2264,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_fn_p90": {
      "gun": 2224,
@@ -181,28 +204,32 @@
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": -0.1
     },
     "wpn_fort_401": {
      "gun": 2273,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_g3sg1": {
      "gun": 2292,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_glock_17": {
      "gun": 2283,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_hk416": {
      "gun": 2218,
@@ -216,49 +243,56 @@
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_izh_27_lancaster_premium": {
      "gun": 337,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_izh_27_lancaster_premium_2": {
      "gun": 2251,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_jackhammer": {
      "gun": 2274,
      "fov": [
       1.0,
       0.65
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_kedr": {
      "gun": 2211,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_kiparis": {
      "gun": 88,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_kiparis_premium": {
      "gun": 332,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_kriss_vector": {
      "gun": 2223,
@@ -272,84 +306,96 @@
      "fov": [
       1.0,
       0.4
-     ]
+     ],
+     "aim_offset_026g": 0.03
     },
     "wpn_l85a2": {
      "gun": 2272,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_m4a1": {
      "gun": 2217,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_magnum": {
      "gun": 56,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_mauser_m712": {
      "gun": 2293,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_mosin_nagant": {
      "gun": 107,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": -0.02
     },
     "wpn_mp443": {
      "gun": 2281,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_mp5a1": {
      "gun": 2270,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_mp7": {
      "gun": 2220,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_mp7_silencer": {
      "gun": 2221,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_mp7_silencer_special": {
      "gun": 2222,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_mp_153": {
      "gun": 110,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.1
     },
     "wpn_msbs_carbine": {
      "gun": 2219,
@@ -363,56 +409,64 @@
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.03
     },
     "wpn_neostead_2": {
      "gun": 2230,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.03
     },
     "wpn_ots14": {
      "gun": 2261,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_pkp_pecheneg": {
      "gun": 2229,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.12
     },
     "wpn_pm": {
      "gun": 89,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": -0.05
     },
     "wpn_pp2000": {
      "gun": 367,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_ppsh": {
      "gun": 106,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.01
     },
     "wpn_ppsh_drum": {
      "gun": 2295,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.01
     },
     "wpn_rem_700": {
      "gun": 14,
@@ -433,105 +487,120 @@
      "fov": [
       1.0,
       0.4
-     ]
+     ],
+     "aim_offset_026g": 0.03
     },
     "wpn_rpd": {
      "gun": 77,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.1
     },
     "wpn_rpk": {
      "gun": 222,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_saiga_12": {
      "gun": 2227,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_saiga_12_premium": {
      "gun": 2228,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_scar_h": {
      "gun": 2262,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_sks": {
      "gun": 109,
      "fov": [
       1.0,
       0.35
-     ]
+     ],
+     "aim_offset_026g": -0.02
     },
     "wpn_sks_premium": {
      "gun": 2246,
      "fov": [
       1.0,
       0.35
-     ]
+     ],
+     "aim_offset_026g": -0.02
     },
     "wpn_sks_premium_2": {
      "gun": 2247,
      "fov": [
       1.0,
       0.35
-     ]
+     ],
+     "aim_offset_026g": -0.02
     },
     "wpn_soc_vepr": {
      "gun": 2215,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_socom16": {
      "gun": 366,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_spas_12": {
      "gun": 124,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.05
     },
     "wpn_sr2m": {
      "gun": 321,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.1
     },
     "wpn_sr3m": {
      "gun": 309,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.028
     },
     "wpn_sr3m_premium": {
      "gun": 336,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.028
     },
     "wpn_sv_98": {
      "gun": 149,
@@ -552,126 +621,144 @@
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_toz_122": {
      "gun": 12,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": -0.02
     },
     "wpn_toz_34": {
      "gun": 16,
      "fov": [
       1.0,
       0.55
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_toz_66": {
      "gun": 17,
      "fov": [
       1.0,
       0.6
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_tt_33": {
      "gun": 18,
      "fov": [
       0.75,
       0.6
-     ]
+     ],
+     "aim_offset_026g": -0.05
     },
     "wpn_ump45": {
      "gun": 324,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_uzi": {
      "gun": 55,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_uzi_premium": {
      "gun": 333,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_uzi_premium_2": {
      "gun": 2252,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_val": {
      "gun": 307,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.028
     },
     "wpn_valmet": {
      "gun": 2214,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_vepr": {
      "gun": 216,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.12
     },
     "wpn_vepr_12": {
      "gun": 2225,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": -0.05
     },
     "wpn_vepr_12_premium": {
      "gun": 2226,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": -0.05
     },
     "wpn_vepr_premium": {
      "gun": 2244,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.12
     },
     "wpn_vhs_2": {
      "gun": 2263,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_vityaz": {
      "gun": 19,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_vityaz_premium": {
      "gun": 334,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_vsk_94": {
      "gun": 305,
@@ -720,14 +807,16 @@
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     },
     "wpn_winchester_1894": {
      "gun": 90,
      "fov": [
       1.0,
       0.5
-     ]
+     ],
+     "aim_offset_026g": 0.0
     }
    }
   }

@@ -1,0 +1,31 @@
+# Patch 219: the player's weapon view (weapon_view_options.rs;
+# docs/notes/weapon-view-settings.md): the held gun's own angles at the hip,
+# over sights and through magnified scopes, the world's projection instead,
+# and the sight distance toward revision 73's eye, kept in user.cfg. Only the
+# decisions: which sites, and the handlers. configs.start after every other
+# patch's registrations (orders 1 to 9), options.callback after patches 79,
+# 83, 112 and 66 (1 to 4); patch 161's lens reads the values at its camera.
+name = "weapon_view_options"
+patch = 219
+
+[[hook]]
+site = "configs.start"
+handler = "on_configs"
+order = 10
+
+[[hook]]
+site = "options.callback"
+handler = "on_options_call"
+order = 5
+
+# process_hands_ik before calculate_aim_alignment, after patch 172 (order 1)
+# poses the eye record: the eye's move along its line taken for the call
+[[hook]]
+site = "hands_ik.aim_alignment"
+handler = "on_eye_shift"
+order = 2
+
+# the call's return: the alignment it made moved by the eye's move
+[[hook]]
+site = "hands_ik.aim_aligned"
+handler = "on_eye_aligned"

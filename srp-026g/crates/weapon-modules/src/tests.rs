@@ -1170,3 +1170,68 @@ fn an_eye_turns_toward_another() {
     let mid = back.toward(&far, 0.5).unwrap().offset;
     assert!(mid.x[0] < -0.98, "{mid:?}");
 }
+
+/// The player's sight distance (patch 219): nothing at 0; farther by
+/// exactly the distance; closer by it, but never nearer the sight than
+/// [`LEAST_RELIEF`] nor nearer than this resolver's eye where that is nearer
+/// already; a magnified scope's own eye never moves.
+#[test]
+fn the_sight_distance_moves_the_eye_along_its_line() {
+    let relief = Relief::InGunPlane { along: -0.21 };
+    assert_eq!(relief.shift(0.0).to_bits(), 0.0_f32.to_bits());
+    assert_eq!(relief.shift(f32::NAN), 0.0);
+    // 10 cm farther: an aim_offset 10 cm less (the eye toward the shooter)
+    assert!((relief.shift(0.10) + 0.10).abs() < 1e-6);
+    // 5 cm closer: 5 cm more
+    assert!((relief.shift(-0.05) - 0.05).abs() < 1e-6);
+    // 20 cm closer would leave 1 cm: as near as the least relief
+    assert!((relief.shift(-0.20) - (0.21 - LEAST_RELIEF)).abs() < 1e-6);
+    // an eye already nearer than the least: never nearer, but farther as asked
+    let near = Relief::InGunPlane { along: -0.04 };
+    assert_eq!(near.shift(-0.05), 0.0);
+    assert!((near.shift(0.05) + 0.05).abs() < 1e-6);
+    assert_eq!(Relief::Own.shift(0.3), 0.0);
+}
+
+/// The shipped table (`SRP_WEAPON_MODULES_TABLE`, as `the_shipped_table`):
+/// the eye of the M4A1's and the A-545's EOTech 552 (20.78 and 39.46 cm behind
+/// its reticle, attachments-scopes.md, "Why the EOTech looks small"); every
+/// sight in the gun's plane at least the least relief behind its reticle, so
+/// a distance farther always moves it all the way; a fitted PSO-1 keeps its
+/// own eye.
+#[test]
+fn the_shipped_table_and_the_sight_distance() {
+    let Some(path) = std::env::var_os("SRP_WEAPON_MODULES_TABLE") else { return };
+    let bytes = std::fs::read(path).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let fitted = |gun: u16, model: &str| {
+        let gun = table.gun(DictId::new(gun).unwrap()).unwrap();
+        let module = gun
+            .fits()
+            .find(|module| module.role() == Role::Fitted(Kind::Scope) && module.model().to_str().unwrap().contains(model))
+            .unwrap_or_else(|| panic!("gun {}: no {model}", gun.dict().get()));
+        match resolve(gun, Wanted { scope: Some(module.dict()), ..Wanted::default() }) {
+            Ok(Loadout::Bare(bare)) => bare.eye.unwrap().relief(),
+            _ => panic!("gun {}: {model} refused", gun.dict().get()),
+        }
+    };
+    for (gun, behind) in [(2217, 0.20781), (220, 0.39459)] {
+        let relief = fitted(gun, "eotech_552");
+        let Relief::InGunPlane { along } = relief else { panic!("gun {gun}: its own eye") };
+        assert!((-along - behind).abs() < 1e-3, "gun {gun}: {along}");
+        assert_eq!(relief.shift(0.0), 0.0);
+        assert!((relief.shift(0.25) + 0.25).abs() < 1e-6, "gun {gun}: 25 cm farther");
+        assert!((along + relief.shift(-0.5) + LEAST_RELIEF).abs() < 1e-6, "gun {gun}: at most the least relief");
+    }
+    assert_eq!(fitted(3, "scopes/pso_1_scope/"), Relief::Own, "a fitted PSO-1 on the AK-74M: its own eye");
+    let mut fits = 0;
+    for gun in table.guns() {
+        for module in gun.fits().filter(|module| module.role() == Role::Fitted(Kind::Scope)) {
+            let Ok(Loadout::Bare(bare)) = resolve(gun, Wanted { scope: Some(module.dict()), ..Wanted::default() }) else { continue };
+            let Some(Relief::InGunPlane { along }) = bare.eye.map(|eye| eye.relief()) else { continue };
+            fits += 1;
+            assert!(along <= -LEAST_RELIEF, "gun {}, sight {}: {along}", gun.dict().get(), module.dict().get());
+        }
+    }
+    assert!(fits > 800);
+}

@@ -28,6 +28,19 @@ class TestPatchTests(unittest.TestCase):
         self.assertEqual(packed, [('a/y', False), ('b/z', False), ('gameplay/g', True)])
         self.assertEqual(left, [('projects/p/client_project', ['maps.tsv'])])
 
+    def test_a_trees_bitmaps_replace_the_setups_own(self):
+        # an earlier test's movie binds A (character 5) and B (6); the tree's A takes the place of its own
+        sys.path.insert(0, str(Path(__file__).resolve().parent / 'actionscript'))
+        import swf
+        header = b'FWS\x0a' + b'\0' * 4 + b'\x00' + b'\x00\x18\x01\x00'
+        jpeg = lambda cid: swf.tag(swf.DEFINE_BITS_JPEG2, bytes([cid, 0]) + b'jpeg')
+        movie = swf.join(header, [(swf.DEFINE_BITS_JPEG2, jpeg(5)), (swf.DEFINE_BITS_JPEG2, jpeg(6)),
+                                  (swf.SYMBOL_CLASS, swf.symbol_class([(5, 'A'), (6, 'B')])),
+                                  (swf.END, b'\0\0')])
+        _, tags = swf.split(testpatch.without_bitmaps(movie, {'A'}))
+        self.assertEqual(swf.symbol_classes(tags), [(6, 'B')])
+        self.assertEqual(swf.character_ids(tags), {6})
+
     def test_a_pack_whose_other_operations_changed_is_refused(self):
         files = [{'op': 'add_file', 'path': 'a/x'}]
         table = {'op': 'dictionary_add', 'table': 'maps_dict', 'entries': [{'id': 1}]}

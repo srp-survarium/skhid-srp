@@ -148,6 +148,12 @@ package
          this.settings_window.setBindingKeys(table);
       }
       
+      // The exe's answer with the Settings' weapon view's texts (patch 219, Settings.setWeaponViewTexts).
+      public function srp_weapon_view_texts(... values) : void
+      {
+         this.settings_window.setWeaponViewTexts(values);
+      }
+      
       // The exe's answer with the Settings' HUD group's texts (patch 83, Settings.setHudTexts).
       public function srp_hud_texts(... values) : void
       {

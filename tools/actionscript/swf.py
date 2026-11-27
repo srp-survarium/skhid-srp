@@ -10,6 +10,7 @@ import zlib
 DO_ABC, DO_ABC_OLD, SYMBOL_CLASS, END = 82, 72, 76, 0
 DEFINE_BITS_LOSSLESS2 = 36
 DEFINE_BITS_JPEG2 = 21
+DEFINE_BITS_JPEG3 = 35
 DEFINE_SPRITE, SHOW_FRAME, PLACE_OBJECT2 = 39, 1, 26
 # The tags that define a character, its id their first field.
 DEFINES = {2, 6, 7, 10, 11, 14, 20, 21, 22, 32, 33, 34, 35, 36, 37, 39, 46, 48, 60, 75, 83, 84, 87, 90, 91}
@@ -256,6 +257,16 @@ def jpeg(cid, data):
             raise ValueError('a JPEG must be baseline (SOF0)')
         pos += 2 + length
     raise ValueError('no frame (SOF0) in the JPEG')
+
+
+def jpeg_alpha(cid, data, alpha):
+    """A DefineBitsJPEG3 tag: a baseline JPEG file (jpeg()) and its alpha, one byte a pixel (zlib), for a
+    picture with transparent parts far smaller than a lossless one. Its colour is premultiplied by the
+    alpha (black where it is transparent), as Flash keeps a bitmap."""
+    _, (width, height) = jpeg(cid, data)
+    if len(alpha) != width * height:
+        raise ValueError(f'the alpha is {len(alpha)} bytes, the JPEG {width} x {height}')
+    return tag(DEFINE_BITS_JPEG3, struct.pack('<HI', cid, len(data)) + data + zlib.compress(alpha, 9))
 
 
 class _Reader:

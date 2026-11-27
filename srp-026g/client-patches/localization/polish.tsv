@@ -4393,6 +4393,8 @@ st_srp_shop_not_owned	Ukryj posiadane
 st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
 st_srp_side_left	Lewa
 st_srp_side_right	Prawa
+st_srp_sight_distance_note	+ dalej, - bliżej
+st_srp_sight_distance_option	Odległość celownika
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s
@@ -4442,6 +4444,7 @@ st_srp_technical_pockets	 kiesz.
 st_srp_technical_rearm	Otwiera się ponownie po strzale
 st_srp_technical_smoke_duration	Czas trwania dymu
 st_srp_technical_toxic_damage	Obrażenia toksyczne
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s d.
 st_srp_unit_hours	%1$s godz.
 st_srp_unit_kg	%1$s kg
@@ -4481,6 +4484,10 @@ st_srp_weapon069_ppsh_drum_name	PPSz-41 „Bęben”
 st_srp_weapon_aim_zoom	Bazowe przybliżenie
 st_srp_weapon_chamber	Czas repetowania
 st_srp_weapon_draw_time	Czas wyciągnięcia
+st_srp_weapon_fov_aimed_option	FOV broni przy celowaniu
+st_srp_weapon_fov_option	FOV broni z biodra
+st_srp_weapon_fov_scope_option	FOV broni w lunecie
+st_srp_weapon_fov_world_option	Broń w FOV świata
 st_srp_weapon_full_damage	Pełne obrażenia do
 st_srp_weapon_hip_spread	Rozrzut z biodra
 st_srp_weapon_holster_time	Czas schowania
@@ -4505,6 +4512,11 @@ st_srp_weapon_stats	Statystyki broni
 st_srp_weapon_sway_cycle	Cykl kołysania
 st_srp_weapon_sway_horizontal	Kołysanie poziome
 st_srp_weapon_sway_vertical	Kołysanie pionowe
+st_srp_weapon_view_heading	Widok broni
+st_srp_weapon_view_hip	Z biodra
+st_srp_weapon_view_iron	Przyrządy
+st_srp_weapon_view_red_dot	Kolimator
+st_srp_weapon_view_scope	Luneta
 st_srp_weapon_with_kit	Z zestawem
 st_srp_weapon_with_kit_skills	Z zestawem i umiejętnościami
 st_srp_weather_before_rain	przed deszczem
@@ -4519,6 +4531,7 @@ st_srp_weight_penalty	%1$s% kary za wagę
 st_srp_weight_speed	Prędkość ruchu
 st_srp_weight_sprint_stamina	Koszty energii przy sprincie
 st_srp_weight_title	Wpływ wagi
+st_srp_world_fov_option	FOV świata
 st_stamina_boost_name	Drugi oddech
 st_stamina_boost_time_description	Odzyskanie energii po zabiciu przeciwnika:
 st_stamina_loss_on_hit_description	Utrata energii przy zranieniu:
