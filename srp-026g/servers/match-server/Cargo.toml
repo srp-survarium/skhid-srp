@@ -17,6 +17,8 @@ mapdata = { path = "../../crates/mapdata" }
 # SHA-256 of a replay file (`v026g::replay`): its sidecar, the updater's check.
 openssl = { workspace = true }
 serde_json = { workspace = true }
+# `srp-history-backfill`: a copy of srp.db and the bundle it writes.
+rusqlite = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }

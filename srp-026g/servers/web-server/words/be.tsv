@@ -1001,3 +1001,5 @@ night	ноч	weather
 before rain	перад дажджом	weather
 Weathers	Надвор'е
 Variants	Варыянты
+History since {0}.	Гісторыя з {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Гісторыя з {0}, а таксама {1} ранейшых матчаў, адноўленых з іх запісаў, ад {2}; матчы да {0} ёсць не ўсе.

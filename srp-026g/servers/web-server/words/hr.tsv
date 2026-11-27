@@ -1001,3 +1001,5 @@ night	noć	weather
 before rain	prije kiše	weather
 Weathers	Vrijeme
 Variants	Varijante
+History since {0}.	Povijest od {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Povijest od {0}, i još {1} ranijih mečeva obnovljenih iz njihovih snimki, od {2}; mečevi prije {0} nisu svi tu.

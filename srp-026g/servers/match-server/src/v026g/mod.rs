@@ -136,6 +136,9 @@ pub mod world_check;
 pub mod world_diff;
 /// A player's kills of one enemy pay at most 10 times a match.
 mod kill_cap;
+/// Matches of before the history made again from their recordings
+/// (`srp-history-backfill`).
+pub mod backfill;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;

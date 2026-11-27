@@ -178,6 +178,9 @@ const MIGRATIONS: &[&str] = &[
     history::EXPERIENCE_MIGRATION,
     // 26: each preset kit's name, the saved presets given the kits' names (`presets`).
     presets::NAMES_MIGRATION,
+    // 27: matches of before the history, their source, a line's unknown
+    // rating, and the order by the matches' end (`history`).
+    history::BACKFILL_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
