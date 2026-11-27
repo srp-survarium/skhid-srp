@@ -54,6 +54,24 @@ pub const BRIDGE_GAP_M: f32 = 1.79;
 /// [A364 C2 row 52] The most cells of no floor a bridge is tried across: [`BRIDGE_GAP_M`] over the cell (0.25 m), along a side.
 pub const BRIDGE_MAX_CELLS: usize = 7;
 
+/// The bridges the controller walked in one pass, by take-off floor: what [`WalkGrid::bridge_run`] counts a run over.
+struct Bridges(std::collections::HashMap<u32, Vec<u32>>);
+
+impl Bridges {
+    fn of(pairs: impl Iterator<Item = (u32, u32)>) -> Self {
+        let mut by: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
+        for (a, b) in pairs {
+            by.entry(a).or_default().push(b);
+        }
+        Self(by)
+    }
+
+    /// The landings of the walked bridges out of floor `a`.
+    fn from(&self, a: u32) -> &[u32] {
+        self.0.get(&a).map_or(&[], Vec::as_slice)
+    }
+}
+
 /// What the controller pass did ([`BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ControlledStats {
@@ -840,8 +858,7 @@ impl WalkGrid {
         let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
         // Only the bridges in a run at least [`BRIDGE_MIN_RUN`] wide are walked: a narrower one is crossed only by a body
         // inside its columns, which a bot steering at a point ahead of it does not keep to.
-        let all: std::collections::HashSet<(u32, u32)> =
-            old.iter().map(|&i| (wide.off[i].from, wide.off[i].to)).chain(new.iter().copied()).collect();
+        let all = Bridges::of(old.iter().map(|&i| (wide.off[i].from, wide.off[i].to)).chain(new.iter().copied()));
         for &i in &old {
             if self.bridge_run(&all, wide.off[i].from, wide.off[i].to) >= BRIDGE_MIN_RUN {
                 wide.off[i] = walked_bridge(wide.off[i]);
@@ -1167,20 +1184,36 @@ impl WalkGrid {
     }
 
     /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
-    /// either side: one floor's cell over across the bridge's way each, to a floor one cell over from `b`'s.
-    fn bridge_run(&self, all: &std::collections::HashSet<(u32, u32)>, a: u32, b: u32) -> usize {
+    /// either side: one floor's cell over across the bridge's way each, to a floor in a cell on that column's own line
+    /// toward the one over from `b`'s, two cells on or more (the same crack crossed, by a bridge as long or shorter). Before,
+    /// only a bridge of the same cells counted, and a longer one beside shorter ones stayed pressed: batt-m3's spawn exit
+    /// (level_03 day 2), a one-cell crack at x 59.72 bridged on every row from z 10.205, where the row z 9.955 has no floor at
+    /// x 59.47 and its bridge (59.97, 9.955) -> (58.97, 9.955) runs four cells: its run was 1 and the press GapJump stayed,
+    /// the route's shortest way out, and the bots' presses there failed; the exe walks it (feed_steps_v2 on rig_real_v3,
+    /// 3 of 3 walks over it equal to the port, no air step).
+    fn bridge_run(&self, all: &Bridges, a: u32, b: u32) -> usize {
         let (ia, ka) = self.cell_xz(self.cell_of[a as usize] as usize);
         let (ib, kb) = self.cell_xz(self.cell_of[b as usize] as usize);
-        let (dx, dz) = ((ib - ia) as f32, (kb - ka) as f32);
+        let (di, dk) = (ib - ia, kb - ka);
+        let (dx, dz) = (di as f32, dk as f32);
         let l = dx.hypot(dz);
         let (sx, sz) = ((-dz / l).round() as i32, (dx / l).round() as i32);
+        let steps = di.abs().max(dk.abs());
         let mut run = 1;
         for side in [1, -1] {
             for s in 1..BRIDGE_MIN_RUN as i32 {
                 let (ox, oz) = (side * s * sx, side * s * sz);
-                let (Some(ca), Some(cb)) = (self.cell_index(ia + ox, ka + oz), self.cell_index(ib + ox, kb + oz)) else { break };
+                let Some(ca) = self.cell_index(ia + ox, ka + oz) else { break };
+                // The cells of the column's line, two on to as far as `b`'s column.
+                let on_line = |c: usize| {
+                    let (i, k) = self.cell_xz(c);
+                    (2..=steps).any(|j| {
+                        let t = j as f32 / steps as f32;
+                        i == ia + ox + (dx * t).round() as i32 && k == ka + oz + (dz * t).round() as i32
+                    })
+                };
                 let found = (self.start[ca]..self.start[ca + 1])
-                    .any(|a2| (self.start[cb]..self.start[cb + 1]).any(|b2| all.contains(&(a2, b2))));
+                    .any(|a2| all.from(a2).iter().any(|&b2| on_line(self.cell_of[b2 as usize] as usize)));
                 if !found {
                     break;
                 }
@@ -1470,6 +1503,31 @@ mod tests {
         let (walked, narrow) = bridges_up(Some(0.5));
         assert_eq!(walked, 0, "the 0.5 m strip");
         assert!(narrow > 0, "the 0.5 m strip had bridges the controller walks, left pressed");
+    }
+
+    /// A one-cell crack (x 5.0-5.25, no floor in it) between two level floors 6 m wide, bridged on every row; on the row
+    /// z 3.0-3.25 the far floor's first cell (x 5.25-5.5) is missing too, so that row's bridge runs three cells, from
+    /// (4.875, 3.125) to (5.625, 3.125), beside the two-cell bridges of the rows next to it. They cross the same crack on its
+    /// line, so its run is theirs and it is walked off as they are (batt-m3's spawn exit, level_03 day 2: the row z 9.955).
+    #[test]
+    fn a_longer_bridge_beside_shorter_ones_over_the_same_crack_is_walked() {
+        let mut tris = Vec::new();
+        floor(&mut tris, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut tris, 5.25, 0.0, 10.0, 3.0, 0.0);
+        floor(&mut tris, 5.25, 3.25, 10.0, 6.0, 0.0);
+        floor(&mut tris, 5.5, 3.0, 10.0, 3.25, 0.0);
+        let body = Body { client_controller: true, ..Body::client() };
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &[], &[], OffMeshLinks::Gaps);
+        let at = |x: f32, z: f32| grid.locate_within(Vec3::new(x, 0.0, z), 0.05, 0.1).expect("a floor");
+        let (a, b) = (at(4.875, 3.125), at(5.625, 3.125));
+        let link = grid.off_link(a, b);
+        assert!(
+            link.is_some_and(|l| l.kind == LinkKind::GapJump && l.press == Takeoff::WalkOff),
+            "the three-cell bridge: {link:?}, {:?}",
+            stats.controlled
+        );
+        let (a, b) = (at(4.875, 3.375), at(5.375, 3.375));
+        assert!(grid.off_link(a, b).is_some_and(|l| l.press == Takeoff::WalkOff), "the row beside it: {:?}", grid.off_link(a, b));
     }
 
     /// [S7] The walk check's crouched retry ([`WalkGrid::walk_link`] with [`Body::walk_ceiling_stalls`]) over a 0.785 m vertical
