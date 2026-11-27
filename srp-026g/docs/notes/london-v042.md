@@ -91,6 +91,38 @@ One pass over the donor's projects, by rule (the pack's `report.json` has every 
   stations link no static, so the mode-3 projects crashed at load after the walker fix too (the
   minidump: `binary_config_value::operator[]` on the missing key). #2334 checks it too.
 
+## Free for All
+
+The owner, 2026-11-27: 20 `where` places on `v044a_level_09/day_4` (map 292,
+`private/spawn-examples/london-v044-2026-11-27.tsv`, from his `srp_patches` log). London (v0.42) had no Free
+for All; `ffa-london-v042-1.json` (`scripts/ffa-mode/make_london_v042_edits.py`, from
+`scripts/ffa-mode/london-v042-ffa-picks.tsv`) gives it one as every Free for All map has it (`ffa.md`, "Rules"):
+
+| maps_dict id | config | project |
+| ---: | --- | --- |
+| 503 | `ffa/v044a_level_09_day_8.options` | `v044a_level_09/day_8` |
+| 504 | `ffa/v044a_level_09_rain_8.options` | `v044a_level_09/rain_8` |
+| 505 | `ffa/v044a_level_09_evn_8.options` | `v044a_level_09/evening_8` |
+
+- The configs are copies of the weather's Team Deathmatch config as mode 8: rules 93, 91, 94 (TDM's 90 out),
+  `st_mode_08_name` and `_description`, `kills_to_win` 30, the mode's icon 5, `map_name` the copy. Level 32,
+  its names, build `v042` and loading pictures are TDM's. Ids 503-505: the next past Research's second
+  layout (500-502), in no dictionary, list, `mode-maps/ids.tsv` or open PR's ids on 2026-11-27.
+- The projects are copies of the Team Deathmatch projects `<weather>_4` (`ffa-projects-1`'s rule) as the
+  manifest's rows leave them, so its row is the last on them (after `skeleton-cap-2` and `kitchen-ware-1`).
+  Their two ammo crates each go whole (`no-ammo-crates-1`'s rule), the breakable lamps' visual indices after
+  the crates' models following. The team points stay; TDM's configs and projects are untouched.
+- The owner's 20 picks are team-2 points 20-39 after the teams' 0-19, facing as he faced (rotation
+  `[0, -yaw, 0]`), 20 m enemy exclusion, 500 ms protection (copies of point 0: no zones).
+  - `check-points picks --add --shift 2.5` on the three `<weather>_4` projects. The weathers share the
+    day's ground: the same 20 places in each.
+  - Each is on its ground (0 to 13 cm: 1, 4, 6, 9 and 15 lowered), body clear, 2 m from harmful zones.
+  - 2 and 5 had no floor the walk grid reaches from the spawns at his places. `--shift` put them on
+    the nearest that does at his height: 5 0.25 m off, 2 2.25 m off (-45.580, 44.238 -> -43.501, 43.377).
+  - 9 stand in the perimeter band (1, 4, 5, 7-11, 16) and are kept as his; all 20 have cover.
+  - The nearest two are 4.5 m apart (2 and 4), then 6.3 m (9 and 10).
+  - `check-points report` on the copies: every point on its ground, none near a harmful zone.
+
 ## Checked
 
 - Loaded headless on patch 169's exe (#2340) with `forward-effects@1` and this pack, no sound device
