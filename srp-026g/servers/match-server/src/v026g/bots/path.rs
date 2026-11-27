@@ -1696,6 +1696,33 @@ pub mod unverified {
     pub fn take() -> [u64; 5] {
         [&KEPT, &WALKED, &FAILED_AHEAD, &FAILED_ON_LEG, &PASSED].map(|c| c.swap(0, Relaxed))
     }
+
+    static CARRIED_GATES: AtomicU64 = AtomicU64::new(0);
+    static CARRIED_SPLICE: AtomicU64 = AtomicU64::new(0);
+    static CUT_SPLICE: AtomicU64 = AtomicU64::new(0);
+    static CARRIED_JUMP_STAND: AtomicU64 = AtomicU64::new(0);
+
+    /// Legs carried into a route made from another: through its door gates ([`super::Route::door_centred`]), a splice
+    /// ([`super::Route::spliced`]: a threat detour or a relay, the route's own legs on both sides and the detour's), a jump or a
+    /// stand put on it ([`super::Route::then_jump`], [`super::Route::from_stand`]); and the route's own legs a splice replaced
+    /// with its stretch (the detour's legs in their place).
+    pub(super) fn carried_gates(n: usize) {
+        CARRIED_GATES.fetch_add(n as u64, Relaxed);
+    }
+    pub(super) fn carried_splice(n: usize) {
+        CARRIED_SPLICE.fetch_add(n as u64, Relaxed);
+    }
+    pub(super) fn cut_splice(n: usize) {
+        CUT_SPLICE.fetch_add(n as u64, Relaxed);
+    }
+    pub(super) fn carried_jump_stand(n: usize) {
+        CARRIED_JUMP_STAND.fetch_add(n as u64, Relaxed);
+    }
+    /// Those counts, set back to 0: carried through door gates, through a splice, through a jump or a stand; cut with a
+    /// spliced stretch.
+    pub fn take_carried() -> [u64; 4] {
+        [&CARRIED_GATES, &CARRIED_SPLICE, &CARRIED_JUMP_STAND, &CUT_SPLICE].map(|c| c.swap(0, Relaxed))
+    }
 }
 
 /// [marked walk] The routes that took a marked walk since the last call, the count set back to 0.
@@ -2271,6 +2298,7 @@ impl Route {
         let mut route = Self::with_floors(points, floors);
         route.unverified = unverified.into_iter().map(|leg| UnverifiedLeg { to: shift(leg.to), ..leg }).collect();
         route.leg_paths = leg_paths;
+        unverified::carried_gates(route.unverified.len());
         route.walk_offs = walk_offs;
         route.lane_walks = lane_walks;
         route.sprint_drops = sprint_drops;
@@ -2324,6 +2352,7 @@ impl Route {
         floors.push((along + last.at.distance_xz(to), to.y));
         let mut route = Self::with_floors(points, floors);
         // [pull unknown] The jump goes after the last point: the unverified legs keep their waypoints.
+        unverified::carried_jump_stand(unverified.len());
         route.unverified = unverified;
         route.leg_paths = leg_paths;
         route.walk_offs = walk_offs;
@@ -2419,6 +2448,9 @@ impl Route {
                 legs.push(UnverifiedLeg { to: first_after, floors, ..leg });
             }
         }
+        let own = legs.len() - mid.unverified.len();
+        unverified::carried_splice(legs.len());
+        unverified::cut_splice(self.unverified.len().saturating_sub(own));
         legs
     }
 
@@ -2489,6 +2521,7 @@ impl Route {
         // [pull unknown] The body's own place goes first: the unverified legs end one waypoint later.
         route.unverified = self.unverified.into_iter().map(|leg| UnverifiedLeg { to: leg.to + 1, ..leg }).collect();
         route.leg_paths = self.leg_paths;
+        unverified::carried_jump_stand(route.unverified.len());
         route
     }
 
