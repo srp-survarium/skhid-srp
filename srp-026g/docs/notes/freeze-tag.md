@@ -61,8 +61,8 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   - **A popup, for everyone** (both teams, a spectator and a replay
     following a player; the owner, 2026-11-26: "no need for it to be a timer,
     it should be a small popup for a few seconds"): when his team goes down to
-    him, the game's short message (its art, small, 30% down the screen; a
-    copy of its own, `HUD.freeze_tag_reveal`), "Last enemy revealed in 15 s" for the other team,
+    him, Freeze Tag's notice (`HUD.freeze_tag_reveal`; "The notices' place"
+    below), "Last enemy revealed in 15 s" for the other team,
     "You are revealed in 15 s" for him and "Your last teammate is revealed in
     15 s" for his frozen teammates; the seconds left at that moment, rounded
     (a late joiner's or a resynced game's real number); no countdown after
@@ -90,6 +90,32 @@ three). No artifact rescue in this version (owner, 2026-11-17).
     the Onyx hint) stays on the display list held at frame 15 and fades by its
     alpha from the time it was told; no frame script runs again and no timeout
     ends it.
+  - **The notices' place** (the owner, 2026-11-27: "last enemy revealed are a
+    bit too low, the message should be high", "just like with batteries",
+    "check it for other messages too"). The game's own notices all come
+    through show_parametrized_message 0x2375C0, and every caller in the exe
+    but one passes 21h, 14h: the text 33 large, its first line 20% down the
+    screen, centred (the battery's in Protective device and Blackout,
+    `st_on_spawn_victory_item`, `st_bring_item_to_base`,
+    `st_on_enemy_theft_item`; a team match's end, the welcomes, the resupply,
+    the Onyx hint; the odd one is `st_time_was_resynchronized` at 0x27C1DB, 66 large at 50%).
+    The exe patches' (Free for All's welcome and verdict, Artifact Hunt's
+    taken, delivered and results, Research's welcome) pass the same
+    (`vostok::Movie::show_message`). Freeze Tag's notices take that place and
+    size too, in a copy of the message of their own (`HUD.freezeNotice`): the
+    reveal's popups (#2673's were 22 at 30%, under the mode notice) and the
+    round's and the match's result ("Round won. Next round in 3 s.",
+    "Victory — five rounds won."), which were the use widget's line; a result
+    is held while its status lasts, its seconds following, and fades with the
+    round's fade. The use widget keeps what is the player's own state, with
+    its bar: frozen and the auto-thaw's time, thawing a teammate, the help
+    line, the round's countdown beside the kits. The mode notice (under the
+    timer) and Artifact Hunt's row (its waves, the restart, sudden death, "You
+    carry the artifact") stay where they are: they are the mode's standing
+    state, not an event. While both are shown, Freeze Tag's notice goes under
+    the game's message (an Onyx hint over a reveal), and while the mode notice
+    is shown, both go under it (at a match's start: Blackout's battery
+    messages, a reveal); neither moves up while shown.
   - The game's own spotted-enemy path: `minimap.enemy_spotted`
     (update_minimap_players' test of an enemy's spotted time, 0x239505) lists
     his dot as a spotted enemy's, as Artifact Hunt's carrier and a replay's
@@ -428,7 +454,13 @@ at 105 px (`Minimap.update_objects`).
   the revealed one (told again at 8 s), and the shared message's welcome
   then Free for All's verdict (its second message), each fully shown between
   its fades, the refresh with no dip, each gone after its fade, the shared
-  clip never off the display list.
+  clip never off the display list, the reveal's popup and the shared message
+  never over one another; then, at 1920x1080, 1280x720 and 2560x1440, the
+  battery's message and Freeze Tag's notices (the reveal, the reveal with the
+  mode notice, the round's result, the match's, a reveal under an Onyx hint):
+  the same top and size as the battery's, on the screen, clear of the timer
+  and score bar, the kill feed and the mode notice, each shot
+  (freeze-<notice>-<size>.png).
 
 **The mode notice.** A Freeze Tag match shows how the mode works under the
 match timer, as Blackout's (`ModeNotice`, `mode_introductions.md` "HUD notice

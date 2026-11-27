@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # check.sh <player_icons.swf> <hud.swf> [work dir]: Freeze Tag's frozen players (docs/notes/freeze-tag.md,
 # "The frozen name") in Ruffle on a private CPU-only virtual display (lavapipe, never the GPU), each
-# harness at 1920x1080 and 1280x720, each screenshot into the work dir:
+# harness at 1920x1080, 1280x720 and 2560x1440, each screenshot into the work dir:
 # - FreezeIconsHarness.as: the player icons movie's names and arrows over heads, freeze-names-<w>x<h>.png.
 #   With FREEZE_BACKGROUND (an image of the game's screen) the tags are drawn over it, else over a sky
 #   and ground drawn by the harness;
 # - FreezeHudHarness.as: the hud movie's minimap, Tab map and Tab list, the last one fighting's mark and
 #   his reveal's popups, Freeze Tag's mode notice (every language's texts: HarnessText.as,
-#   localization-check/harness_text.py), freeze-maps-<w>x<h>.png.
+#   localization-check/harness_text.py), freeze-maps-<w>x<h>.png; then Freeze Tag's notices beside the
+#   battery's (FreezeHudHarness.PLACES), freeze-<notice>-<w>x<h>.png.
 # The two movies' ice blue must be the same. Exits 0 when every run says pass; prints their lines. A
 # work dir given is kept. Java and Flex from private/actionscript/tools.json
 # (tools/actionscript/README.md), or SRP_AS_TOOLS.
@@ -23,10 +24,11 @@ harness_work "${3:-}"
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 if [[ -n ${FREEZE_BACKGROUND:-} ]]; then cp "$FREEZE_BACKGROUND" "$work/background.png"; fi
 logs=()
-# each harness, its shot and its screenshots' name
-for run in "FreezeIconsHarness tags freeze-names" "FreezeHudHarness maps freeze-maps"; do
-    read -r harness shot png <<<"$run"
-    for size in 1920x1080 1280x720; do
+# each harness, its screenshots' names (the first: its shot's own), its other shots (each freeze-<shot>)
+places="battery reveal reveal-mode-notice round-won victory onyx-reveal"
+for run in "FreezeIconsHarness tags freeze-names" "FreezeHudHarness maps freeze-maps $places"; do
+    read -r harness shot png more <<<"$run"
+    for size in 1920x1080 1280x720 2560x1440; do
         harness_compile "$here/$harness.as" "${size/x/,}" -default-background-color=0x4A5257 -source-path+="$work"
         mv "$work/$harness.swf" "$work/$harness-$size.swf"
         harness_display "$size" ffmpeg-full
@@ -35,6 +37,11 @@ for run in "FreezeIconsHarness tags freeze-names" "FreezeHudHarness maps freeze-
         wait_for "$log" "FREEZE SHOT $shot\|FREEZE RESULT" && sleep 1 &&
             ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -video_size "$size" -i "$display" -frames:v 1 \
                 "$work/$png-$size.png"
+        for place in $more; do
+            wait_for "$log" "FREEZE SHOT $place\$\|FREEZE RESULT" && sleep 0.3 &&
+                ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -video_size "$size" -i "$display" -frames:v 1 \
+                    "$work/freeze-$place-$size.png"
+        done
         wait_for "$log" 'FREEZE RESULT' || true
         harness_stop
         logs+=("$log")
