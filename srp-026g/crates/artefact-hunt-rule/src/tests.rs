@@ -1195,6 +1195,117 @@ fn the_hud_counts_to_the_wave_a_death_now_would_wait_for() {
     assert_eq!(wave(&game, 900_000), None, "over");
 }
 
+
+/// The rule's params with waves of `respawn_time` s in a match of
+/// `match_time` s.
+fn waves_of(respawn_time: u32, match_time: u32) -> Params {
+    let raw = RawParams {
+        respawn_time,
+        match_time,
+        ..RAW
+    };
+    Params::parse(&raw, &spawners(), &BASES).unwrap()
+}
+
+/// Every ms of a whole wave cycle from `from` (ms of the match time): the
+/// clock and the wave show the same second (the clock's less the wave's is
+/// a multiple of the wave), the wave turns to its whole length as the
+/// clock turns to a multiple, and a death in the step before comes back
+/// there.
+fn clock_and_wave_agree(game: &Match, from: u32) {
+    let wave_ms = game.params.respawn_wave.get();
+    let wave_s = wave_ms / 1000;
+    let mut came = 0;
+    for at in from..=from + wave_ms {
+        let hud = game.rule.hud(&game.params, t(START + at));
+        let wave = hud.wave.expect("a wave comes");
+        let (clock, left) = (hud.clock_seconds(), wave.seconds());
+        assert_eq!(
+            (clock - left) % wave_s,
+            0,
+            "at {at} ms: the clock {}:{:02} beside the wave's {left}",
+            clock / 60,
+            clock % 60
+        );
+        assert!((1..=wave_s).contains(&left), "at {at} ms: {left}");
+        if left == wave_s && wave.left_ms == wave_ms {
+            // This very moment's wave has come: the clock is on a multiple.
+            assert_eq!(hud.clock_ms % wave_ms, 0, "at {at} ms");
+            came += 1;
+        }
+        if at % TICK == 0 && at >= TICK {
+            let back = game.rule.respawn_at(&game.params, t(START + at - TICK)).unwrap();
+            let shown = hud.clock_ms - wave.left_ms;
+            let then = game.rule.hud(&game.params, back);
+            assert_eq!(then.clock_ms, shown, "a death at {at} ms: back at the wave shown");
+            assert_eq!(then.clock_ms % wave_ms, 0, "a death at {at} ms: on the clock's multiple");
+        }
+    }
+    assert!(came >= 1, "one wave in a cycle from {from}");
+}
+
+#[test]
+fn the_wave_and_the_match_clock_show_the_same_second() {
+    // The owner, 2026-11-27: the clock 14:53 beside the wave's 14 (the
+    // clock rounded down, the wave up).
+    let game = Match::started_with(1, waves_of(20, 900));
+    let hud = game.rule.hud(&game.params, t(START + 6_500));
+    assert_eq!((hud.clock_seconds(), hud.wave.unwrap().seconds()), (894, 14), "14:54 and 14");
+    let hud = game.rule.hud(&game.params, t(START + 7_000));
+    assert_eq!((hud.clock_seconds(), hud.wave.unwrap().seconds()), (893, 13), "14:53 and 13");
+    let hud = game.rule.hud(&game.params, t(START + 20_000));
+    assert_eq!((hud.clock_seconds(), hud.wave.unwrap().seconds()), (880, 20), "14:40: the wave");
+    for game in [
+        Match::started_with(1, waves_of(20, 900)),
+        Match::started_with(1, waves_of(15, 900)),
+        // A match time no multiple of the wave: the waves stay on the clock's.
+        Match::started_with(1, waves_of(7, 900)),
+    ] {
+        clock_and_wave_agree(&game, 0);
+        clock_and_wave_agree(&game, 123_456);
+    }
+    let game = Match::started_with(1, waves_of(7, 900));
+    assert_eq!(game.rule.respawn_at(&game.params, t(START)), Some(t(START + 4_000)), "15:00 less 14:56");
+}
+
+#[test]
+fn after_a_round_restart_the_wave_and_the_clock_still_agree() {
+    for params in [waves_of(20, 900), waves_of(7, 900)] {
+        let mut game = Match::started_with(1, params);
+        game.run_to(33_350);
+        game.point_for(0);
+        assert_eq!(game.rule.hud(&game.params, t(game.now)).wave, None, "held in the restart");
+        game.next_round();
+        clock_and_wave_agree(&game, game.now - START);
+        // A second round, later.
+        game.point_for(10);
+        game.next_round();
+        clock_and_wave_agree(&game, game.now - START);
+    }
+}
+
+#[test]
+fn both_teams_respawn_in_one_wave_and_see_one_timer() {
+    let mut game = Match::started_with(1, waves_of(20, 900));
+    game.run_to(41_000);
+    game.die(1, 10.0);
+    let first = game.respawn().unwrap();
+    game.run_to(47_350);
+    game.die(12, 90.0);
+    let second = game.respawn().unwrap();
+    game.run_to(59_900);
+    game.die(13, 90.0);
+    let last = game.respawn().unwrap();
+    assert_eq!(first, t(START + 60_000), "14:00");
+    assert_eq!((first, first), (second, last), "team 0's and team 1's deaths, one wave");
+    // One hud for every viewer, whatever team: the same wave whoever died.
+    let hud = game.rule.hud(&game.params, t(game.now));
+    assert_eq!(hud.wave.unwrap().left_ms, 100);
+    let mut other = Match::started_with(1, waves_of(20, 900));
+    other.run_to(59_900);
+    assert_eq!(other.rule.hud(&other.params, t(other.now)).wave, hud.wave, "no team's death moves it");
+}
+
 #[test]
 fn the_bring_award_is_shared_by_each_carriers_part_of_the_way() {
     let mut game = Match::started(0);
