@@ -2767,6 +2767,7 @@ st_level_13_name	Vostokin tutka-asema (v0.11)
 st_level_14_name	Rudnja (v0.69)
 st_level_25_name	Koulu (v0.21)
 st_level_26_name	Tarakanovin linnoitus (v0.21)
+st_level_28_name	Vostokin tutka-asema (v0.69)
 st_level_29_name	Rudnja (v0.21)
 st_level_31_name	Kemiantehdas (v0.21)
 st_level_32_name	Lontoo (v0.42)
@@ -4135,6 +4136,7 @@ st_srp_map_vector	Vektor-laboratorio
 st_srp_map_vostok	Vostokin tutka-asema
 st_srp_map_vostok_v011	Vostokin tutka-asema (v0.11)
 st_srp_map_vostok_v021	Vostokin tutka-asema (v0.21)
+st_srp_map_vostok_v069	Vostokin tutka-asema (v0.69)
 st_srp_matches_another_joining	Toinen pelaaja liittyy
 st_srp_matches_balanced	Ottelu on jo tasapainossa
 st_srp_matches_cannot_join	Et voi liittyä nyt

@@ -470,8 +470,8 @@ package
          contextInfo3 = new SrvContextMessage3();
          addChild(this.contextInfo3);
          _message = new ShortMessage(this.contextInfo3);
-         _revealPopup = new ShortMessage(new SrvContextMessage3());
-         addChild(this._revealPopup.clip);
+         _freezeNotice = new ShortMessage(new SrvContextMessage3());
+         addChild(this._freezeNotice.clip);
          contextInfo2 = new SrvContextMessage();
          addChild(this.contextInfo2);
          contextInfo = new SrvContextInfo();
@@ -660,12 +660,18 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
-      // The game's short message (set_parameterized_message: contextInfo3, timed by ShortMessage).
+      // The game's short message (set_parameterized_message: contextInfo3, timed by ShortMessage), and
+      // the place its caller gave it (% down the screen).
       private var _message:ShortMessage;
-      // Freeze Tag: the popups of a last one fighting's reveal (freeze_tag_reveal): which to show, and
-      // the popup itself, a short message of its own.
+      private var _messageShift:uint = NOTICE_SHIFT;
+      // The mode notice's bottom when they were placed (modeNoticeFloor).
+      private var _messagesFloor:Number = Number.NEGATIVE_INFINITY;
+      // Freeze Tag's notices, a short message of their own where the game's are (freeze_tag_reveal's
+      // popups, freeze_tag_update's round and match results): which reveal popup to show, the
+      // message, and the result it holds (null: none; a popup or nothing).
       private var _revealNotice:RevealNotice = new RevealNotice();
-      private var _revealPopup:ShortMessage;
+      private var _freezeNotice:ShortMessage;
+      private var _freezeResult:String = null;
       private var _freezeContext:Object = null;
 
       private static const FREEZE_BAR_WIDTH:Number = 120;
@@ -705,6 +711,8 @@ package
             return;
          }
          this._modeNotice.place(this.stageWidth,this.underTimer());
+         if(this.modeNoticeFloor() > this._messagesFloor && (this._message.text != null || this._freezeNotice.text != null))
+            this.placeShortMessages();
          addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
       }
 
@@ -1102,11 +1110,11 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
-         this._revealPopup.clip.layoutData = new LayoutData();
-         this._revealPopup.clip.layoutData.alignV = "top";
-         this._revealPopup.clip.layoutData.alignH = "center";
-         this._revealPopup.clip.layoutData.offsetV = this.stageHeight / 100 * REVEAL_POPUP_SHIFT;
-         this._revealPopup.clip.layoutData.offsetH = 0;
+         this._freezeNotice.clip.layoutData = new LayoutData();
+         this._freezeNotice.clip.layoutData.alignV = "top";
+         this._freezeNotice.clip.layoutData.alignH = "center";
+         this._freezeNotice.clip.layoutData.offsetV = this.stageHeight / 100 * NOTICE_SHIFT;
+         this._freezeNotice.clip.layoutData.offsetH = 0;
          // At the right edge, under mid-height (the owner, 2026-11-11: "usually you want those on
          // the right"; 0.69's were on the left): under the kill feed and the container's icon, over
          // the player's info. Its rows end at its x and it has no width of its own.
@@ -1937,13 +1945,17 @@ package
          if(isFrozen && !this._freezeWasFrozen)
             ExternalInterface.call("sound_play",UiSound.DAMAGE_NOT_PIERCED);
          this._freezeWasFrozen = isFrozen;
+         this.showFreezeResult(status,remaining);
          var text:String;
-         if(status >= 1 && status <= 3)
-            text = LocalizationData.getName(status == 1 ? "st_srp_hud_freeze_win" : status == 2 ? "st_srp_hud_freeze_lose" : "st_srp_hud_freeze_draw");
+         if(status >= 1 && status <= 6)
+         {
+            // The round's and the match's result: a notice (showFreezeResult), not this line.
+            this._freezeContext = null;
+            this.refresh_context();
+            return;
+         }
          else if(status == ArtefactHuntState.COUNTDOWN)
             text = LocalizationData.getName("st_final_countdown") + " " + ArtefactHuntLook.clock(remaining);
-         else if(status >= 4 && status <= 6)
-            text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
          else if(isFrozen)
             text = LocalizationData.format("st_srp_hud_freeze_frozen", freezeClock(thawsIn));
          else
@@ -1952,6 +1964,23 @@ package
          this._freezeContext = status != ArtefactHuntState.FADE && (isFrozen || progress > 0 || status != 0)
             ? {text:text,value:status == 0 ? Math.floor(progress * 100 / thaw) : 0,visible:true} : null;
          this.refresh_context();
+      }
+
+      // The round's result (status 4 to 6, its seconds to the next round) and the match's (1 to 3):
+      // Freeze Tag's notice, where the game's own are (the battery's, a stock match's end), held while
+      // the status lasts, its seconds following; then its fade.
+      private function showFreezeResult(status:uint, remaining:uint) : void
+      {
+         var text:String = null;
+         if(status >= 1 && status <= 3)
+            text = LocalizationData.getName(status == 1 ? "st_srp_hud_freeze_win" : status == 2 ? "st_srp_hud_freeze_lose" : "st_srp_hud_freeze_draw");
+         else if(status >= 4 && status <= 6)
+            text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
+         if(text != null && text != this._freezeNotice.text)
+            this.showShortMessage(this._freezeNotice,text,NOTICE_SIZE,Number.POSITIVE_INFINITY);
+         else if(text == null && this._freezeResult != null && this._freezeNotice.text == this._freezeResult)
+            this._freezeNotice.fadeOut(getTimer());
+         this._freezeResult = text;
       }
 
       // m:ss of a time in ms, rounded up.
@@ -2001,11 +2030,7 @@ package
       // A last one fighting's reveal, sent each frame (exe patch 160, freeze_tag::on_hud;
       // RevealNotice): each side's whose (0 none, 1 the viewer, 2 his last teammate, 3 the enemy's
       // last one) and the ms left (0: revealed). A side that starts counting, or is revealed, gives
-      // one short popup: the game's short message's art, small, 30% down the screen (under the mode
-      // notice), REVEAL_POPUP_MS fully shown between its fades; no countdown. A copy of the message
-      // of its own: no other message (an Onyx's hint) takes its place.
-      public static const REVEAL_POPUP_SIZE:uint = 22;
-      public static const REVEAL_POPUP_SHIFT:uint = 30;
+      // one popup, Freeze Tag's notice, REVEAL_POPUP_MS fully shown between its fades; no countdown.
       public static const REVEAL_POPUP_MS:uint = 4000;
 
       public function freeze_tag_reveal(own:uint, ownLeft:uint, enemy:uint, enemyLeft:uint) : void
@@ -2014,41 +2039,75 @@ package
          // A popup told while one is shown (a thaw, then down to one again) refreshes it.
          if(this._revealNotice.text != null)
          {
-            this.showShortMessage(this._revealPopup,this._revealNotice.text,REVEAL_POPUP_SIZE,REVEAL_POPUP_SHIFT,REVEAL_POPUP_MS);
+            this.showShortMessage(this._freezeNotice,this._revealNotice.text,NOTICE_SIZE,REVEAL_POPUP_MS);
          }
       }
 
-      // A new match or another mode: no side counted; a popup still shown goes.
+      // A new match or another mode: no side counted; a notice still shown goes.
       private function resetRevealNotice() : void
       {
          this._revealNotice.reset();
-         this._revealPopup.hide();
+         this._freezeNotice.hide();
+         this._freezeResult = null;
       }
 
-      // The reveal's popup, for the harness (scripts/freeze-tag-hud).
-      public function get revealPopup() : ShortMessage
+      // Freeze Tag's notice, for the harness (scripts/freeze-tag-hud).
+      public function get freezeNotice() : ShortMessage
       {
-         return this._revealPopup;
+         return this._freezeNotice;
       }
 
-      // A short message shown or refreshed from now: on top of the root's parts, its first line
-      // `shift` % down the screen; then its fades and its end each frame (followShortMessages).
-      private function showShortMessage(message:ShortMessage, text:String, size:uint, shift:uint, holdMs:Number) : void
+      // The game's own notices (show_parametrized_message 0x2375C0's every caller in the exe: the
+      // battery's in Protective device, a team match's end, the welcomes, the Onyx hint, and the
+      // exe patches' through it: Free for All's, Artifact Hunt's): its text 21h (33) large, its first
+      // line 14h (20) % down the screen. Freeze Tag's notices take the same (the owner, 2026-11-27:
+      // "last enemy revealed are a bit too low, the message should be high", "just like with
+      // batteries"; #2673's 22 at 30 % was under the mode notice).
+      public static const NOTICE_SIZE:uint = 33;
+      public static const NOTICE_SHIFT:uint = 20;
+      // Between the game's message and Freeze Tag's notice under it, both shown.
+      private static const NOTICE_GAP:Number = 6;
+
+      // A short message shown or refreshed from now, on top of the root's parts; then its fades and
+      // its end each frame (followShortMessages).
+      private function showShortMessage(message:ShortMessage, text:String, size:uint, holdMs:Number) : void
       {
-         var now:int = getTimer();
-         message.show(text,size,holdMs,now);
-         var clip:MovieClip = message.clip;
-         var textField:TextField = clip.mc_text.contextText;
-         addChild(clip);
-         if(clip.layoutData)
-         {
-            clip.layoutData.offsetV = this.stageHeight / 100 * shift - textField.textHeight / textField.numLines;
-         }
-         if(this.layout)
-         {
-            this.layout.reflow();
-         }
+         message.show(text,size,holdMs,getTimer());
+         addChild(message.clip);
+         this.placeShortMessages();
          this.followShortMessages();
+      }
+
+      // Each one's first line its shift down the screen, unless that is over the mode notice (shown
+      // under the timer at a match's start: Blackout's battery messages, a reveal then): under it;
+      // Freeze Tag's notice under the game's message while both are shown (an Onyx hint over a
+      // reveal: two clips at one place). Set at each one's showing and when the mode notice reaches
+      // lower (followModeNotice), so a message shown does not move up when another ends.
+      private function placeShortMessages() : void
+      {
+         var shared:TextField = this.contextInfo3.mc_text.contextText;
+         var own:TextField = this._freezeNotice.clip.mc_text.contextText;
+         var sharedData:LayoutData = this.contextInfo3.layoutData;
+         var ownData:LayoutData = this._freezeNotice.clip.layoutData;
+         if(sharedData == null || ownData == null) return;
+         sharedData.offsetV = this.stageHeight / 100 * this._messageShift - shared.textHeight / shared.numLines;
+         ownData.offsetV = this.stageHeight / 100 * NOTICE_SHIFT - own.textHeight / own.numLines;
+         if(this.layout) this.layout.reflow();
+         this._messagesFloor = this.modeNoticeFloor();
+         var sharedBounds:Rectangle = shared.getBounds(this);
+         var down:Number = Math.max(0,this._messagesFloor - sharedBounds.top);
+         sharedData.offsetV += down;
+         var ownFloor:Number = this._messagesFloor;
+         if(this._message.text != null && this._freezeNotice.text != null)
+            ownFloor = Math.max(ownFloor,sharedBounds.bottom + down + NOTICE_GAP);
+         ownData.offsetV += Math.max(0,ownFloor - own.getBounds(this).top);
+         if(this.layout) this.layout.reflow();
+      }
+
+      // The top short messages may take: under the mode notice while it is shown.
+      private function modeNoticeFloor() : Number
+      {
+         return this._modeNotice.visible ? this._modeNotice.label.getBounds(this).bottom + NOTICE_GAP : Number.NEGATIVE_INFINITY;
       }
 
       // Each frame while a short message is shown: its alpha, its end.
@@ -2056,7 +2115,7 @@ package
       {
          var now:int = getTimer();
          var shown:Boolean = this._message.draw(now);
-         shown = this._revealPopup.draw(now) || shown;
+         shown = this._freezeNotice.draw(now) || shown;
          if(shown)
             addEventListener(Event.ENTER_FRAME,this.followShortMessages);
          else
@@ -2117,7 +2176,8 @@ package
       {
          // %s in a message is its time on screen, in seconds (Onyx's activation hint: its active's time, exe patch 54).
          text = text.split("%s").join(String(Math.ceil(time / 1000)));
-         this.showShortMessage(this._message,text,fonSize,shift,time != 0 ? time : Number.POSITIVE_INFINITY);
+         this._messageShift = shift;
+         this.showShortMessage(this._message,text,fonSize,time != 0 ? time : Number.POSITIVE_INFINITY);
       }
 
       public function hideParameterized() : void

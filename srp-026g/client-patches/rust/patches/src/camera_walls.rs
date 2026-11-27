@@ -23,20 +23,28 @@
 //! as before. A new orbit (the warmup's first frame, another player) starts
 //! at the pull it needs.
 //!
-//! The eye is never nearer the pivot than `NEAREST`, out of the body: 0.69d's
-//! third-person camera (third_person_camera_controller::tick 0x2002AE3B0)
-//! places its eye only where the room is more than that and otherwise keeps
-//! the camera where it was. So where the way has less room (a player tucked
-//! in a corner), the view shown last is held, tested again; and where that
-//! has none either (an orbit that starts in the corner), the orbit is turned
-//! sideways about the level's up, its pitch kept, by the least step to
-//! either side that has the room.
+//! The spawn's view is out of the character's body: a new orbit (the
+//! warmup's first frame) whose way has less room than `NEAREST` (0.69d's
+//! third-person camera's, from the same pivot with the same margin) is
+//! turned about the level's up by the least `SIDE_STEP`s to one side or the
+//! other whose way has it (with none, the way with the most room). The
+//! turn goes into the orbit's own yaw (the handler's +34Ch, which the drag
+//! is added to), so from the next frame the game's orbit is there and the
+//! first drag goes on from it: nothing to hand over. After that the view's
+//! turn is always the game's (the drag's yaw and pitch, the wheel's
+//! distance) and the eye has no nearest: by a wall close behind it may come
+//! into the body. Revision 73 kept every view 0.75 m out by holding the view
+//! of the frame before where the way had less room, and the drag no longer
+//! turned the camera there ("the camera now gets stuck"); the owner,
+//! 2026-11-27: the original's movement while the player has the controls,
+//! the walls not passed through, "it is just spawn camera position should
+//! not be inside character", "camera can move a bit to the side".
 //!
 //! The camera alone: nothing a match computes.
 
 #![forbid(unsafe_code)]
 
-use ragdoll::math::{PI, Quat, Vec3, clamp, exp_neg, max, min};
+use ragdoll::math::{PI, Quat, Vec3, clamp, exp_neg, min};
 
 use crate::vostok::camera::Orbit;
 use crate::vostok::world::PlayerId;
@@ -49,13 +57,6 @@ const GROUP: u32 = 0x10;
 const MASK: u32 = 0x08;
 /// How far in front of a hit the eye stays (m), beyond the near plane.
 const MARGIN: f32 = 0.2;
-/// The nearest the eye comes to the pivot (m), out of the body: 0.69d's
-/// third-person camera's (0x2002AE3FF, 0x2002AE813), from the same pivot
-/// (the place raised 1.4 m) with the same margin.
-const NEAREST: f32 = 0.75;
-/// The sideways turn's step (15 degrees) and how many to the far side.
-const SIDE_STEP: f32 = PI / 12.0;
-const SIDE_STEPS: u16 = 12;
 /// The share of the rest of the way the pull goes in a second, toward a
 /// wall the turn is coming to (in) and back out: 1 - e^(-rate t) of it
 /// after t s (in: 95 % in 0.3 s; out: in 1 s).
@@ -74,6 +75,12 @@ const NO_TURN: f32 = 0.01;
 const LONGEST_FRAME: f32 = 0.1;
 /// A pull below this (m) with none wanted is none: the game's view as it is.
 const NO_PULL: f32 = 0.001;
+/// The nearest a spawn's eye comes to the pivot (m), out of the body:
+/// 0.69d's third-person camera's (0x2002AE3FF, 0x2002AE813).
+const NEAREST: f32 = 0.75;
+/// The spawn's sideways turn's step (5 degrees) and how many to the far side.
+const SIDE_STEP: f32 = PI / 36.0;
+const SIDE_STEPS: u16 = 36;
 
 /// The pull of the camera's orbit, between frames.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -82,43 +89,8 @@ enum Pull {
     Off,
     /// `player`'s orbit, its eye along the unit `way` from the pivot and
     /// `pull` m in from its distance, shown at `at` (the counter's
-    /// milliseconds, wrapping) as `shown`.
-    On { player: PlayerId, way: Vec3, pull: f32, at: u32, shown: Pose },
-}
-
-/// A view of the orbit, apart from its pivot: its turn (the rows right, up
-/// and forward) and where the eye is from the pivot.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Pose {
-    turn: [Vec3; 3],
-    out: Vec3,
-}
-
-impl Pose {
-    /// The pose with its eye `room` m out on its way, when that is nearer.
-    fn within(self, room: f32) -> Pose {
-        let length = self.out.length();
-        if room >= length {
-            return self;
-        }
-        Pose { out: self.out * (max(room, 0.0) / length), ..self }
-    }
-
-    /// The pose turned `angle` rad about the level's up (the orbit's yaw):
-    /// its pitch, its eye's height and distance kept.
-    fn turned(self, angle: f32) -> Pose {
-        let q = Quat::from_axis_angle(Vec3::Y, angle);
-        Pose { turn: self.turn.map(|row| q.rotate(row)), out: q.rotate(self.out) }
-    }
-}
-
-/// The turns tried for an orbit with no room: `SIDE_STEP` to one side and
-/// the other, nearest first, to the far side.
-fn side_turns() -> impl Iterator<Item = f32> {
-    (1..=SIDE_STEPS).flat_map(|k| {
-        let angle = f32::from(k) * SIDE_STEP;
-        [angle, -angle].into_iter().take(if k == SIDE_STEPS { 1 } else { 2 })
-    })
+    /// milliseconds, wrapping).
+    On { player: PlayerId, way: Vec3, pull: f32, at: u32 },
 }
 
 static PULL: GameCell<Pull> = GameCell::new(Pull::Off);
@@ -132,38 +104,38 @@ pub fn on_viewed(ctx: &mut Context<'_>) -> Flow<NoExit> {
         return Flow::Continue;
     };
     let pivot = orbit.pivot();
-    let game = Pose { turn: orbit.turn(), out: orbit.eye() - pivot };
-    let distance = game.out.length();
-    let Some(direction) = game.out.direction() else {
+    let out = orbit.eye() - pivot;
+    let distance = out.length();
+    let Some(direction) = out.direction() else {
         PULL.set(thread, Pull::Off);
         return Flow::Continue;
     };
     let player = orbit.player().id();
     let world = orbit.player().physics_world();
-    // how far out on the unit `way` the eye can be, at most `length`
-    let room_on = |way: Vec3, length: f32| {
-        let hit = world.as_ref().and_then(|world| {
-            world.ray_test([pivot.x, pivot.y, pivot.z], [way.x, way.y, way.z], length + MARGIN, GROUP, MASK)
-        });
-        room(length, hit.map(|hit| (Vec3::new(hit.point[0], hit.point[1], hit.point[2]) - pivot).dot(way)))
+    // how far out on `way` the level is first met, within the orbit and its margin
+    let met = |way: Vec3| {
+        let hit = world.as_ref()?.ray_test([pivot.x, pivot.y, pivot.z], [way.x, way.y, way.z], distance + MARGIN, GROUP, MASK)?;
+        Some((Vec3::new(hit.point[0], hit.point[1], hit.point[2]) - pivot).dot(way))
     };
     let (state, now) = (PULL.get(thread), now(thread));
-    let free = room_on(direction, distance);
-    let ahead = way_ahead(state, player, direction, now).map_or(0.0, |way| distance - room_on(way, distance));
-    let pull = step(state, player, distance - free, ahead, now);
-    let nearest = min(NEAREST, distance);
-    let shown = if free >= nearest {
-        game.within(max(distance - pull, nearest))
-    } else {
-        let held = match state {
-            Pull::On { player: p, shown, .. } if p == player => Some(shown),
-            _ => None,
-        };
-        clear_pose(held, game, free, nearest, |pose| pose.out.direction().map_or(0.0, |way| room_on(way, pose.out.length())))
-    };
-    PULL.set(thread, Pull::On { player, way: direction, pull, at: now, shown });
-    if shown != game {
-        orbit.look(shown.turn, pivot + shown.out);
+    let (mut direction, mut needed) = (direction, needed_pull(distance, met(direction)));
+    if !matches!(state, Pull::On { player: p, .. } if p == player) {
+        // a spawn: out of the body, turned a little if it must be
+        let room = |way: Vec3| distance - needed_pull(distance, met(way));
+        let angle = spawn_turn(min(NEAREST, distance), distance - needed, |angle| room(about_up(angle, direction)));
+        if angle != 0.0 {
+            orbit.turn_about_up(angle);
+            direction = about_up(angle, direction);
+            needed = needed_pull(distance, met(direction));
+        }
+    }
+    let ahead = way_ahead(state, player, direction, now).map_or(0.0, |way| needed_pull(distance, met(way)));
+    let next = step(state, player, direction, needed, ahead, now);
+    PULL.set(thread, next);
+    if let Pull::On { pull, .. } = next
+        && pull > 0.0
+    {
+        orbit.set_eye(pivot + direction * clamp(distance - pull, 0.0, distance));
     }
     Flow::Continue
 }
@@ -172,32 +144,49 @@ fn now(thread: &Thread) -> u32 {
     clock::milliseconds(thread)
 }
 
-/// How far out on a way the eye can be, `length` the furthest: `MARGIN`
-/// short of the level's first hit `hit` m out (none, or a hit that is no
-/// number: all of it).
-fn room(length: f32, hit: Option<f32>) -> f32 {
-    match hit {
-        Some(hit) if hit.is_finite() => clamp(hit - MARGIN, 0.0, length),
-        _ => length,
+/// The turn about the level's up (rad) of a spawn's orbit: none when its
+/// way has `nearest` m of room (`free`), else the least
+/// `SIDE_STEP`s to one side or the other, nearest first, to the far side,
+/// whose way has it; with none, the one with the most room.
+fn spawn_turn(nearest: f32, free: f32, mut room: impl FnMut(f32) -> f32) -> f32 {
+    let mut best = (free, 0.0);
+    if best.0 >= nearest {
+        return 0.0;
     }
-}
-
-/// The pose shown when the game's (`free` m of room) has less than
-/// `nearest`: the first of `held` (the one shown last frame, as 0.69d holds
-/// its camera) and the game's turned sideways step by step whose `room` is
-/// that much, as far out as it has; with none, the one with the most room.
-fn clear_pose(held: Option<Pose>, game: Pose, free: f32, nearest: f32, mut room: impl FnMut(Pose) -> f32) -> Pose {
-    let mut best = (free, game);
-    for pose in held.into_iter().chain(side_turns().map(|angle| game.turned(angle))) {
-        let r = room(pose);
+    for angle in side_turns() {
+        let r = room(angle);
         if r >= nearest {
-            return pose.within(r);
+            return angle;
         }
         if r > best.0 {
-            best = (r, pose);
+            best = (r, angle);
         }
     }
-    best.1.within(best.0)
+    best.1
+}
+
+/// The turns tried for a spawn with no room: `SIDE_STEP` to one side and
+/// the other, nearest first, to the far side.
+fn side_turns() -> impl Iterator<Item = f32> {
+    (1..=SIDE_STEPS).flat_map(|k| {
+        let angle = f32::from(k) * SIDE_STEP;
+        [angle, -angle].into_iter().take(if k == SIDE_STEPS { 1 } else { 2 })
+    })
+}
+
+/// `v` turned `angle` rad about the level's up.
+fn about_up(angle: f32, v: Vec3) -> Vec3 {
+    Quat::from_axis_angle(Vec3::Y, angle).rotate(v)
+}
+
+/// How far in from the orbit's `distance` the eye must be to stay `MARGIN`
+/// short of the level's first hit `hit` m out on a way (none: 0; at most
+/// the whole distance). A hit that is no number is none.
+fn needed_pull(distance: f32, hit: Option<f32>) -> f32 {
+    match hit {
+        Some(hit) if hit.is_finite() => clamp(distance - (hit - MARGIN), 0.0, distance),
+        _ => 0.0,
+    }
 }
 
 /// Where the unit `way` of `player`'s orbit will be in `LEAD` s at its turn
@@ -217,12 +206,12 @@ fn way_ahead(state: Pull, player: PlayerId, way: Vec3, now: u32) -> Option<Vec3>
     (way + turn * (clamp(far, 0.0, LONGEST_LEAD) / far)).direction()
 }
 
-/// The pull of this frame: moved toward the larger of `needed` (by the
+/// The pull shown this frame: moved toward the larger of `needed` (by the
 /// wall on the way) and `ahead` (by the wall the turn is coming to) by the
 /// time since the last frame, and never less than `needed`; a new orbit's
 /// is `needed`.
-fn step(state: Pull, player: PlayerId, needed: f32, ahead: f32, now: u32) -> f32 {
-    match state {
+fn step(state: Pull, player: PlayerId, way: Vec3, needed: f32, ahead: f32, now: u32) -> Pull {
+    let pull = match state {
         Pull::On { player: p, pull, at, .. } if p == player => {
             let wanted = needed.max(ahead);
             let dt = clamp(now.wrapping_sub(at) as f32 / 1000.0, 0.0, LONGEST_FRAME);
@@ -231,68 +220,94 @@ fn step(state: Pull, player: PlayerId, needed: f32, ahead: f32, now: u32) -> f32
             if wanted == 0.0 && pull < NO_PULL { 0.0 } else { pull.max(needed) }
         }
         _ => needed,
-    }
+    };
+    Pull::On { player, way, pull, at: now }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_spawn_with_room_is_not_turned_one_without_the_least_to_a_side() {
+        assert_eq!(spawn_turn(NEAREST, 1.0, |_| panic!("no ray")), 0.0);
+        // room only from 20 degrees to the right on: 20 degrees (5, -5, ..., 20)
+        let rays = core::cell::Cell::new(0);
+        let angle = spawn_turn(NEAREST, 0.4, |a| {
+            rays.set(rays.get() + 1);
+            if a > 0.34 { 1.0 } else { 0.4 }
+        });
+        assert!((angle.to_degrees() - 20.0).abs() < 1e-3 && rays.get() == 7, "{angle} {}", rays.get());
+        // to the left
+        assert!((spawn_turn(NEAREST, 0.4, |a| if a < -0.6 { 1.0 } else { 0.4 }).to_degrees() + 35.0).abs() < 1e-3);
+        // none with it: the most room (here the far side), or none turned
+        assert!((spawn_turn(NEAREST, 0.4, |a| if a > 3.1 { 0.6 } else { 0.4 }) - PI).abs() < 1e-5);
+        assert_eq!(spawn_turn(NEAREST, 0.4, |_| 0.4), 0.0);
+        let turns: Vec<i32> = side_turns().map(|a| a.to_degrees().round() as i32).collect();
+        assert_eq!((&turns[..4], turns.len(), turns[70]), (&[5, -5, 10, -10][..], 71, 180));
+    }
+
+    #[test]
+    fn about_up_keeps_the_rise() {
+        let v = about_up(PI / 2.0, Vec3::new(0.0, 0.3, 1.0));
+        assert!((v - Vec3::new(1.0, 0.3, 0.0)).length() < 1e-5, "{v:?}");
+    }
+
     const WAY: Vec3 = Vec3::new(0.0, 0.0, 1.0);
-    /// Looking along -z, level: the eye 3 m behind (+z) and 0.6 m right.
-    const GAME: Pose = Pose { turn: [Vec3::X, Vec3::Y, Vec3::new(0.0, 0.0, -1.0)], out: Vec3::new(0.6, 0.0, 3.0) };
 
     fn player(n: u32) -> PlayerId {
         PlayerId::for_test(n)
     }
 
     fn on(n: u32, pull: f32, at: u32) -> Pull {
-        Pull::On { player: player(n), way: WAY, pull, at, shown: GAME }
+        Pull::On { player: player(n), way: WAY, pull, at }
     }
 
-    fn near(a: Vec3, b: Vec3) -> bool {
-        (a - b).length() < 1e-5
+    fn pull(state: Pull) -> f32 {
+        match state {
+            Pull::On { pull, .. } => pull,
+            Pull::Off => panic!("off"),
+        }
     }
 
     #[test]
-    fn the_room_keeps_the_eye_short_of_the_hit() {
-        assert_eq!(room(3.0, None), 3.0);
-        assert_eq!(room(3.0, Some(3.2)), 3.0);
-        assert!((room(3.0, Some(1.5)) - 1.3).abs() < 1e-6);
-        assert!((room(3.0, Some(3.05)) - 2.85).abs() < 1e-6);
-        assert_eq!(room(3.0, Some(0.1)), 0.0);
-        assert_eq!(room(3.0, Some(f32::NAN)), 3.0);
+    fn the_pull_keeps_the_eye_short_of_the_hit() {
+        assert_eq!(needed_pull(3.0, None), 0.0);
+        assert_eq!(needed_pull(3.0, Some(3.2)), 0.0);
+        assert!((needed_pull(3.0, Some(1.5)) - 1.7).abs() < 1e-6);
+        assert!((needed_pull(3.0, Some(3.05)) - 0.15).abs() < 1e-6);
+        assert_eq!(needed_pull(3.0, Some(0.1)), 3.0);
+        assert_eq!(needed_pull(3.0, Some(f32::NAN)), 0.0);
     }
 
     #[test]
     fn a_new_orbit_starts_at_the_pull_it_needs() {
-        assert_eq!(step(Pull::Off, player(1), 1.7, 0.0, 500), 1.7);
-        assert_eq!(step(on(2, 0.0, 400), player(1), 1.7, 0.0, 500), 1.7);
+        assert_eq!(step(Pull::Off, player(1), WAY, 1.7, 0.0, 500), on(1, 1.7, 500));
+        assert_eq!(pull(step(on(2, 0.0, 400), player(1), WAY, 1.7, 0.0, 500)), 1.7);
     }
 
     #[test]
     fn the_wall_on_the_way_pulls_at_once_and_lets_out_smoothly() {
-        assert_eq!(step(on(1, 0.0, 1000), player(1), 2.0, 0.0, 1016), 2.0);
-        let out = step(on(1, 2.0, 0), player(1), 0.0, 0.0, 100);
-        assert!((out - 2.0 * exp_neg(0.3)).abs() < 1e-4, "{out:?}");
-        let mut s = (out, 100);
+        assert_eq!(pull(step(on(1, 0.0, 1000), player(1), WAY, 2.0, 0.0, 1016)), 2.0);
+        let out = step(on(1, 2.0, 0), player(1), WAY, 0.0, 0.0, 100);
+        assert!((pull(out) - 2.0 * exp_neg(0.3)).abs() < 1e-4, "{out:?}");
+        let mut s = out;
         for t in 0..400 {
-            let at = 116 + 16 * t;
-            s = (step(on(1, s.0, s.1), player(1), 0.0, 0.0, at), at);
+            s = step(s, player(1), WAY, 0.0, 0.0, 116 + 16 * t);
         }
-        assert_eq!(s.0, 0.0);
+        assert_eq!(pull(s), 0.0);
     }
 
     #[test]
     fn the_wall_ahead_pulls_smoothly_and_never_under_the_one_on_the_way() {
         // only ahead: in by 1 - e^(-1) of the way in 100 ms
-        let s = step(on(1, 0.0, 1000), player(1), 0.0, 2.0, 1100);
-        assert!((s - 2.0 * (1.0 - exp_neg(1.0))).abs() < 1e-4, "{s:?}");
+        let s = step(on(1, 0.0, 1000), player(1), WAY, 0.0, 2.0, 1100);
+        assert!((pull(s) - 2.0 * (1.0 - exp_neg(1.0))).abs() < 1e-4, "{s:?}");
         // the wall arrives on the way before the pull is there: the rest at once
-        assert_eq!(step(on(1, s, 1100), player(1), 2.0, 2.0, 1116), 2.0);
+        assert_eq!(pull(step(s, player(1), WAY, 2.0, 2.0, 1116)), 2.0);
         // a stall moves it a frame's worth
-        let stalled = step(on(1, 0.0, 1000), player(1), 0.0, 2.0, 61_000);
-        assert!((stalled - s).abs() < 1e-6);
+        let stalled = pull(step(on(1, 0.0, 1000), player(1), WAY, 0.0, 2.0, 61_000));
+        assert!((stalled - pull(s)).abs() < 1e-6);
     }
 
     #[test]
@@ -310,55 +325,5 @@ mod tests {
         assert_eq!(way_ahead(on(2, 0.0, 1000), player(1), turned, 1010), None);
         assert_eq!(way_ahead(on(1, 0.0, 1000), player(1), turned, 1000), None);
         assert_eq!(way_ahead(on(1, 0.0, 1000), player(1), turned, 5000), None);
-    }
-
-    #[test]
-    fn the_side_turns_go_both_ways_nearest_first_to_the_far_side() {
-        let turns: Vec<f32> = side_turns().collect();
-        let degrees: Vec<i32> = turns.iter().map(|a| a.to_degrees().round() as i32).collect();
-        assert_eq!(&degrees[..4], &[15, -15, 30, -30]);
-        assert_eq!(degrees.len(), 23);
-        assert_eq!(degrees[22], 180);
-    }
-
-    #[test]
-    fn a_side_turn_keeps_the_pitch_and_the_eye_height() {
-        // looking down a little: the eye above the pivot
-        let pitched = Pose {
-            turn: [Vec3::X, Vec3::new(0.0, 0.96, -0.28), Vec3::new(0.0, -0.28, -0.96)],
-            out: Vec3::new(0.6, 0.84, 2.88),
-        };
-        for angle in side_turns() {
-            let pose = pitched.turned(angle);
-            let [right, up, forward] = pose.turn;
-            assert!(right.y.abs() < 1e-6 && (up.y - 0.96).abs() < 1e-5 && (forward.y + 0.28).abs() < 1e-5);
-            assert!(up.dot(forward).abs() < 1e-5 && right.dot(forward).abs() < 1e-5 && right.dot(up).abs() < 1e-5);
-            assert!((pose.out.y - 0.84).abs() < 1e-5 && (pose.out.length() - pitched.out.length()).abs() < 1e-4);
-            // the eye on the view's back as before: as far right, as far back
-            assert!((pose.out.dot(right) - 0.6).abs() < 1e-4 && (pose.out.dot(forward) - pitched.out.dot(pitched.turn[2])).abs() < 1e-4);
-        }
-        // a quarter turn about the level's up: +z goes to +x
-        assert!(near(GAME.turned(PI / 2.0).out, Vec3::new(3.0, 0.0, -0.6)), "{:?}", GAME.turned(PI / 2.0));
-    }
-
-    #[test]
-    fn with_no_room_on_the_way_the_view_held_or_the_nearest_side_turn_with_room() {
-        let held = Pose { turn: GAME.turn, out: Vec3::new(-0.3, 0.0, 1.5) };
-        // the view held, where it has the room
-        let mut rays = 0;
-        assert_eq!(clear_pose(Some(held), GAME, 0.3, NEAREST, |p| { rays += 1; p.out.length() }), held);
-        assert_eq!(rays, 1);
-        // the held one has none (or none is held): the first turn with the room, as far out as it has:
-        // room only toward -x, which -45 degrees reaches first (15, -15, 30, -30 do not, 45 turns to +x)
-        let room = |p: Pose| if p.out.x < -1.0 { 1.2 } else { 0.4 };
-        let shown = clear_pose(Some(held), GAME, 0.3, NEAREST, room);
-        let side = GAME.turned(-3.0 * SIDE_STEP);
-        assert_eq!(shown.turn, side.turn);
-        assert!((shown.out.length() - 1.2).abs() < 1e-5 && near(shown.out.direction().unwrap(), side.out.direction().unwrap()));
-        assert_eq!(clear_pose(None, GAME, 0.3, NEAREST, room), shown);
-        // nowhere has it: the one with the most room, at it (here the far side)
-        let shown = clear_pose(None, GAME, 0.3, NEAREST, |p| if p.turn[2].z > 0.999 { 0.6 } else { 0.1 });
-        assert!(shown.turn[2].z > 0.999 && (shown.out.length() - 0.6).abs() < 1e-5, "{shown:?}");
-        assert_eq!(clear_pose(None, GAME, 0.3, NEAREST, |_| 0.1), GAME.within(0.3));
     }
 }
