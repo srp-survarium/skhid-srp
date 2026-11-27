@@ -155,6 +155,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
+| `rust/patches/src/scaleform_temp_target.rs`, `src/scaleform_temp_target.toml`, `src/vostok/scaleform_filter.rs`, `check_scaleform_temp_target_026g.py` | Patch 216: a Scaleform filter whose temporary render target Direct3D did not make is drawn without its filter (HAL::PushFilters) or, cached one pass from its target, not drawn that frame and its cache let go (drawCachedFilter), never pushed as a null target (revision 73's crash at 0x2B3777): two lohooks at CreateTempRenderTarget's returns; its check runs PushFilters, PopFilters, PushRenderTarget, PopRenderTarget and drawCachedFilter on a made-up HAL, the original and two broken builds beside (needs Unicorn; `tools/check scaleform-temp-target`) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
@@ -7084,3 +7085,35 @@ site's registers and memory the original's for worlds of 19 123 to 0xF000 bytes;
 tick uploads that tick's world byte for byte (42, 128 and 40 chunks); one byte, a tick not held, a pool
 too full, two bytes not 1 and a connection state other than 2 reach the snapshot upload's request hook
 with the registers and memory the original's, and nothing is sent.
+
+## A filter whose temporary target was not made (patch 216, unreleased)
+
+A player's game on revision 73 crashed in an Artifact Hunt match (2026-11-26, the crash
+`SRP-crash-20261126-205002-270`, AMD, Windows 10, 2560x1440) reading 10h at 0x2B3777, in
+Scaleform's `HAL::PopRenderTarget`: the render-target stack's entry under a filter's own target
+held no target. A filter draws its content into a temporary target (`HAL::PushFilters`:
+CreateTempRenderTarget, then PushRenderTarget), then the filter of it into the target below
+(PopFilters, drawUncachedFilter, whose PopRenderTarget takes it off). When Direct3D makes no
+texture or view for it, CreateTempRenderTarget returns 0, which the stock code pushes anyway; and
+drawUncachedFilter returns at once for a primitive without a target, never popping it. The null
+entry stays, and the next filter's pop reads through it. Stock code, any movie's filters; what
+Direct3D refused (a size past its limit, no memory) the report does not say.
+
+Patch 216 hooks the two returns of that call:
+
+- PushFilters: nothing is pushed; the masks' state is set again and HS_DrawingFilter cleared, as
+  the filter's end would, and the filter's content is drawn without the filter that frame;
+- drawCachedFilter's pass of a primitive cached one pass from its target: that pass is not drawn
+  (the element is missing that frame) and the primitive's cache is let go, so the next frame draws
+  it from the start.
+
+Each failure writes a line, the 1st, 10th, 100th, ... of a run, with the size asked for:
+
+```text
+srp: scaleform_temp_target: a filter's temporary target (45 x 45) was not made: drawn without its filter; failure 1
+srp: scaleform_temp_target: a cached filter's last target (45 x 45) was not made: not drawn this frame, its cache let go; failure 1
+```
+
+The interface's rendering only: nothing a match computes. Checked with
+`check_scaleform_temp_target_026g.py` (Unicorn; `tools/check scaleform-temp-target`); not run in a
+game. The addresses: `../docs/notes/client_patch.md` 3.113.

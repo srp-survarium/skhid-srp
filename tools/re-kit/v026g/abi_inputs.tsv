@@ -6856,3 +6856,7 @@ va	name	location	role	basis
 0x0030fdf0	survarium::pistol_weapon_core_reload_state::weapon_and_hands_expression	EAX at 0x30FE21	the hands pick, weapon+5E5h == 0 (sete al): the clip set state+164h + 4*pick (lea ecx at 0x30FE2D), after get_weapon_lexeme wrote +134h (0x30FE0D)	observed
 0x0030f5a0	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme	ECX at 0x30F5C4	the pick, weapon+5E5h != 1 (setne cl): 1 the two shells' clips, 0 the one shell's; written to +134h as 0x30FE90 does, at 0x30F5FA	observed
 0x0030f4f0	survarium::double_barreled_weapon_core_reload_state::get_hands_lexeme [descriptive]	EDI	the reload state (weapon +120h, its retained stack +538h: entry +22Ah the stack flag, count +260h); ESI at 0x30F571 the pick, 1 (the two shells' hands) when +5E5h != 1 and the stack is a stack whose count is not 1, else 0; the clip set state+164h + 4*pick (0x30F57B); called by slot 8 0x30F470 after get_weapon_lexeme	observed
+0x005298c0	Scaleform::Render::FilterPrimitive::SetCacheResults	ECX	the filter primitive (this; mov edi,ecx 0x5298CF)	observed
+0x005298c0	Scaleform::Render::FilterPrimitive::SetCacheResults	entry ESP+4	the cache state written to +18h (0 uncached: drawUncachedFilter's push ebx x3 at 0x2B4312)	observed
+0x005298c0	Scaleform::Render::FilterPrimitive::SetCacheResults	entry ESP+8	the results, an array of render targets (0 for none)	observed
+0x005298c0	Scaleform::Render::FilterPrimitive::SetCacheResults	entry ESP+12	the count of results taken (at most 2)	observed

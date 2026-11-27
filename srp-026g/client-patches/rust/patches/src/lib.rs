@@ -80,6 +80,8 @@ pub mod parallax_uv;
 pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
+// patch 216: a filter whose temporary target was not made, never a null target pushed
+pub mod scaleform_temp_target;
 // patch 176: SKHID_CAPTURE's run, poses to pictures
 pub mod capture;
 pub mod map_names;

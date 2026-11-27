@@ -626,6 +626,19 @@ scaleform::di_command_queue	references	0x4	u32	its reference count (RefCountImpl
 scaleform::di_command_queue	context	0x34	ptr<scaleform::drawable_image_context>	its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
 scaleform::render_notify	vtable	0x0	u32	a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
 scaleform::di_command_queue	link	0x0	obj<scaleform::di_queue_link>	itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)
+scaleform::d3d1x_hal	state	0x8	u32	HALState: HS_DrawingFilter 80h set by PushFilters' uncached branch (0x2B3C5A), cleared by PopFilters when its filter stack is empty after drawing (0x527C74); HS_CachedFilter 100h
+scaleform::d3d1x_hal	mask_stack_top	0x1E4	u32	MaskStackTop, the masks' depth: PushFilters disables masking when it is not 0 and the primitive has no mask (0x2B3C16), drawUncachedFilter sets it again after its PopRenderTarget when it is not 0 (0x2B4326)
+scaleform::d3d1x_hal	filters	0x1F8	u32	the FilterStack's size (its data +1F4h, an entry {primitive, render target} of 8 bytes: PushFilters' push 0x2B4E00, PopFilters' read 0x527B0C)
+scaleform::d3d1x_hal	context	0xF9D4	ptr<d3d11::immediate_context>	the ID3D11DeviceContext: OMSetDepthStencilState +90h for the masks (0x2B3C58, 0x2B4360), OMSetRenderTargets +84h (PopRenderTarget 0x2B37C8)
+scaleform::d3d1x_hal	stencil_available	0xFB79	u8	not 0 when the target has a stencil: the masks' state is then stencil_mask_state (0x2B3C26, 0x2B4330)
+scaleform::d3d1x_hal	depth_available	0xFB7A	u8	not 0 when the target has a depth buffer (and no stencil): the masks' state is then depth_mask_state (0x2B3C38, 0x2B4341)
+scaleform::d3d1x_hal	stencil_mask_state	0xFC24	ptr<d3d11::depth_stencil_state>	the depth-stencil state drawUncachedFilter sets with MaskStackTop as the reference when the stencil is available (0x2B4339)
+scaleform::d3d1x_hal	depth_mask_state	0xFC28	ptr<d3d11::depth_stencil_state>	the depth-stencil state drawUncachedFilter sets with MaskStackTop as the reference when only the depth buffer is (0x2B434A)
+scaleform::filter_primitive	cache_state	0x18	u32	its cached filter result: 0 none (PushFilters' uncached branch, 0x2B3C64), 1 one pass from its target, 2 its target (drawCachedFilter 0x2B4532 / 0x2B453B); SetCacheResults 0x5298C0 writes it and the results (+1Ch, +20h)
+scaleform::push_filters_frame	width	0x30	u32	the width of the temporary target PushFilters asks for (the filter area's, truncated: fistp at 0x2B3CAA, kept at 0x2B3CB2), by its ESP after CreateTempRenderTarget
+scaleform::push_filters_frame	height	0x34	u32	its height (fistp at 0x2B3CD8, kept at 0x2B3CE0)
+scaleform::cached_filter_frame	width	0x2C	u32	the width of the last pass's target drawCachedFilter asks for (its cached result's, 0x2B484A..0x2B485A), by its ESP after CreateTempRenderTarget
+scaleform::cached_filter_frame	height	0x30	u32	its height (0x2B4844..0x2B4850)
 survarium::player	damage_model	0x2E0	ptr<survarium::medical_damage>	damage model; owner bound at 0x2D7064
 survarium::player	refresh_selection	0x33E	u8	native movement/item selection invalidation
 survarium::player	effects	0x358	obj<survarium::game_effect_player>	embedded game_effect_player

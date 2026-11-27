@@ -4928,3 +4928,76 @@ line once in the run; each returns by `ret 10h` with EBX, ESI, EDI, EBP as at th
 native dispatch, which the original makes each time; start_decal_edit goes to the native dispatch
 with the same `this` and event in both. With the repair of the client's copy taken out, seven
 cases fail. The patch's logic and the vostok wrapper have cargo tests. **Not run in a game.**
+
+### 3.113 A filter whose temporary target was not made (written 2026-11-27, README patch 216) — PROVEN in the code and under Unicorn; not run in a game
+
+**The report** (revision 73, 2026-11-26, an Artifact Hunt match, AMD, Windows 10, 2560x1440): an
+access violation reading 10h at 0x2B3777 on the game's first thread (WinMainCRTStartup ->
+engine_world::tick -> one_way_render_channel::render_process_commands -> renderer::render ->
+render_flash_ui 0x13CED0 -> flash_renderer::present 0x2AF0F0 -> Renderer2D::Display 0x50D6A0 ->
+the render queue -> PopFilters 0x527AC0 (HAL vtable +A8h) -> drawUncachedFilter 0x2B3E40
+(+ACh, returning to 0x527C6B) -> PopRenderTarget 0x2B35F0 (+5Ch, returning to 0x2B4326); every
+return address checked against its call). The players' dump holds the HAL (EDI 0x0CDB59E0): its
+render-target stack (+1E8h data, +1ECh size, 2F0h an entry, the target at +0) after the pop is
+[the main 2560x1440 target, **0**, the filter's 64x64 temporary just popped], its filter stack
+(+1F4h, +1F8h size) empty, HALState (+8) 2BFh. EAX=2 EDX=0 ESI=3 EBP=0 as PopRenderTarget leaves
+them reading the new top's `pRenderTargetData` (+10h).
+
+**The stock defect** (PROVEN, the bodies read and run with Unicorn):
+
+- `HAL::PushFilters` (0x2B3A50), an uncached primitive (cache state +18h 0, 0x2B3C64): with
+  MaskStackTop (+1E4h) not 0 and no mask of its own it disables the masks (0x2B3C16..0x2B3C58:
+  OMSetDepthStencilState, context vtable +90h, with +FC24h when the stencil is available +FB79h,
+  else +FC28h when the depth buffer is +FB7Ah, the reference MaskStackTop), sets HS_DrawingFilter
+  80h (0x2B3C5A), asks CreateTempRenderTarget (HAL +50h = 0x2B2BD0, call at 0x2B3CF0, the size at
+  ESP+30h/+34h) and pushes its result with PushRenderTarget (+58h, 0x2B3D38) unchecked; with a mask
+  of its own it then reads [result+10h] (0x2B3D7A); last, the filter stack gets {primitive, result}
+  (0x2B3DFD).
+- `HAL::PushRenderTarget` (0x2B3240) given 0 pushes the entry (its saved viewport and matrices) and
+  returns (0x2B33C4..0x2B340D), the matrices already changed.
+- `HAL::CreateTempRenderTarget` (0x2B2BD0) returns 0 when the buffer manager's
+  (`RBGenericImpl::RenderBufferManager::CreateTempRenderTarget` 0x528900: sizes rounded up to 32,
+  no memory limit here, +14h 0) texture creation fails, or when CreateRenderTargetView fails
+  (0x2B2C49): Direct3D's refusal, out of memory or past its size limit.
+- PopFilters (0x527AC0) pops the filter stack's entry, then drawUncachedFilter returns at once for a
+  primitive without a target (0x2B3E7D -> 0x2B44C8): its PopRenderTarget (0x2B4324) never runs, and
+  the null entry stays. PopFilters clears HS_DrawingFilter when its filter stack is empty (0x527C74).
+- The next filter pushes a real target over it; its PopRenderTarget reads the new top's target, 0
+  (0x2B3765..0x2B3777): the report's fault. A null entry on top (a filter nested in the failed one)
+  is read by PopRenderTarget's first lines instead (0x2B3655, reading 8).
+- `HAL::drawCachedFilter` (0x2B44E0), a primitive cached one pass from its target (state 1,
+  0x2B4532): CreateTempRenderTarget for the last pass (0x2B4861, size ESP+2Ch/+30h), pushed
+  unchecked (0x2B48F9) and popped (0x2B4A2A): a 0 faults at 0x2B3655.
+
+**The patch** (the Rust patch `scaleform_temp_target`, two lohooks, `sites_026g.tsv`):
+
+- `scaleform.filter_target` (0x2B3CFC, `mov esi,eax / mov eax,[ebx] / mov edx,[eax+58h]`): with EAX
+  0, the masks' state set again as drawUncachedFilter sets it after its pop (0x2B4326..0x2B4360),
+  HS_DrawingFilter cleared when the filter stack is empty, and the exit `unfiltered` to 0x2B3DFD:
+  the filter stack gets {primitive, 0}, nothing is pushed, and PopFilters' drawUncachedFilter
+  returns at its start as before. The content is drawn into the target below, unfiltered.
+- `scaleform.cached_filter_target` (0x2B4863, `mov ecx,[esp+38h] / mov esi,eax`): with EAX 0,
+  `FilterPrimitive::SetCacheResults` (0x5298C0) with 0, none, 0 (drawUncachedFilter's uncached
+  result, 0x2B4312), and the exit `skipped` to 0x2B4A77: the end's loop sets its temporaries not in
+  use and lets them go (the second still 0). The primitive is not drawn that frame; the next draws it
+  through PushFilters.
+- Each failure is logged with the size asked for, the 1st, 10th, 100th, ... of the run.
+
+The trigger in the report is not known: the size asked for is the next report's. Rendering only: no
+row in `../../crates/session/src/v026g/simulation_changes.tsv`.
+
+**Checked:** `check_scaleform_temp_target_026g.py` (`tools/check scaleform-temp-target`) runs the
+HAL's own PushFilters, PopFilters with drawUncachedFilter, PushRenderTarget, PopRenderTarget and
+drawCachedFilter in both exes on a made-up HAL (its vtable's GetEvent, shouldRenderFilters,
+CreateTempRenderTarget, the context's methods and the arrays' helpers answered): a failed target
+with no mask, under a mask, with the primitive's own mask and nested in another filter leaves both
+stacks as they were, the masks set again (stencil state, reference 2) and one log line; the next
+filter's pop, the outer filter's pop and a made target as the original's; a failed cached pass lets
+the cache go and leaves the stack. The original leaks the null entry and faults at 0x2B3777 (EAX=2
+EDX=0 ESI=3 EBP=0), 0x2B3D7A and 0x2B3655. Two builds with a site's bytes the original's fail their
+cases.
+
+**Also** (the report's breadcrumbs): `weapon_pickup::died` recorded a death's breadcrumb at every
+pass that simulates it (the frame's prediction and each rollback's re-simulation), 10 to 18 times a
+death (864 of the report's 901 events); it is recorded once a life now, under the log line's guard
+(`DEATHS_SAID`). `check_weapon_pickup_026g.py` checks one breadcrumb for a death replayed.
