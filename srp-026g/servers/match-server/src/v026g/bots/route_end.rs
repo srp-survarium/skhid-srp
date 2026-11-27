@@ -103,6 +103,8 @@ impl RouteEnd {
 impl Bot {
     /// Drops its route, if it has one, because of `why`.
     pub(super) fn end_route(&mut self, why: RouteEnd, now: u32) {
+        // [pull unknown] A cut route's plan is no longer due once the route ends.
+        self.leg_cut = None;
         // [lane draw] The walk's lane ends with the walk (`lane_draw::ends_walk`), with a route or before one was found.
         self.features.lane.route_ended(why);
         if self.route.take().is_some() {
@@ -114,6 +116,8 @@ impl Bot {
     /// Puts `route` in place of its route (the old one, if any, ends as
     /// [`RouteEnd::Replanned`]).
     pub(super) fn set_route(&mut self, route: Option<(Route, Vec3)>, now: u32) {
+        // [pull unknown] The plan a cut route was waiting for came (or none did): no longer due.
+        self.leg_cut = None;
         #[cfg(test)]
         if route.is_some() && super::intent_counts::stale() {
             super::intent_counts::count(super::intent_counts::ROUTES);

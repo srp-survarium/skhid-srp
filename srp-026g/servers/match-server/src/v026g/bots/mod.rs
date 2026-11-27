@@ -534,6 +534,10 @@ pub struct Bot {
     /// [N1] Since when its reckoned body has been in the air on its own (the kept controller's verdict) while a search was due:
     /// none is started then ([`drive::IN_FLIGHT_HOLD_MS`]).
     in_flight_since: Option<u32>,
+    /// [pull unknown] When its route was cut back before a leg that failed its walk test ahead of the body
+    /// ([`path::LegCheck::FailsAhead`]): a plan from the body is due at once, the cut route walked meanwhile; none once a
+    /// route is set or ends.
+    leg_cut: Option<u32>,
     /// [press forecast] Its own reckoned body before this tick's decision and its speed level ([`body::BodyTrack::level`]): what
     /// the motor's forecast presses fly from (`motor::PressFlyer`).
     reckoned: Option<(body::Estimate, f32)>,
@@ -787,6 +791,7 @@ impl Bot {
             creep: None,
             reckoned_kept: None,
             in_flight_since: None,
+            leg_cut: None,
             reckoned: None,
             reckoned_creep: body::Creep::Unknown,
             reckon_error: body::MeasuredError::default(),

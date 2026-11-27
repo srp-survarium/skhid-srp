@@ -1632,9 +1632,11 @@ pub struct UnverifiedLeg {
 pub enum LegCheck {
     /// No leg it tested fails (some may wait for budget).
     Clear,
-    /// A leg the client's walk tick does not walk: the route ends and is planned again from the body. `on_leg`: the body is
-    /// on it already (its verdict came late).
-    Fails { on_leg: bool, from: Vec3, to: Vec3 },
+    /// A leg ahead of the body the client's walk tick does not walk, from waypoint `start` (its foot, `from`) to `to`: the
+    /// route is cut back to `start` ([`Route::cut_before`]) and the body walks on while a plan from it is made.
+    FailsAhead { from: Vec3, to: Vec3, start: usize },
+    /// The leg under the body fails (its verdict came late): the route ends and is planned again from where the body is.
+    FailsUnderBody { from: Vec3, to: Vec3 },
 }
 
 /// [pull unknown] How far ahead [`Route::verify_ahead`] tests the unverified legs: the one the body is on and the next.
@@ -2738,10 +2740,23 @@ impl Route {
         &self.unverified
     }
 
+    /// [pull unknown] This route cut back to its waypoint `start` (it ends there): a leg after it failed its walk test
+    /// ([`LegCheck::FailsAhead`]). The points, their distances and floors past it go, and the unverified legs past it; the body
+    /// is on a leg before it (a failure ahead is past the leg it is on).
+    pub fn cut_before(&mut self, start: usize) {
+        let keep = (start + 1).clamp(1, self.points.len());
+        let end_m = self.along[keep - 1];
+        self.points.truncate(keep);
+        self.along.truncate(keep);
+        self.floors.retain(|&(along, _)| along <= end_m + 1e-4);
+        self.unverified.retain(|leg| leg.to < keep);
+        self.segment = self.segment.min(keep.saturating_sub(1));
+    }
+
     /// [pull unknown] Tests the unverified legs the body is on or is to walk next ([`VERIFY_LEGS_AHEAD`]) by `verdict`
     /// (`WalkGrid::pull_walk_verdict`, from the poll's walk budget): one the client walks is dropped from the list, one the
-    /// budget does not reach waits for a later poll, one that fails is the answer ([`LegCheck::Fails`]: the route ends and
-    /// the body plans again from where it is). A leg the body got past untested is dropped and counted.
+    /// budget does not reach waits for a later poll, one that fails is the answer ([`LegCheck::FailsAhead`]: the route is cut
+    /// back to its foot; [`LegCheck::FailsUnderBody`]: the route ends). A leg the body got past untested is dropped and counted.
     pub fn verify_ahead(&mut self, verdict: &mut dyn FnMut(NodeId, NodeId) -> PullWalk) -> LegCheck {
         let segment = self.segment;
         let mut k = 0;
@@ -2767,7 +2782,7 @@ impl Route {
                     unverified::failed(on_leg);
                     let from = self.points[leg.to - 1].at;
                     let to = self.points[leg.to].at;
-                    return LegCheck::Fails { on_leg, from, to };
+                    return if on_leg { LegCheck::FailsUnderBody { from, to } } else { LegCheck::FailsAhead { from, to, start: leg.to - 1 } };
                 }
             }
         }
@@ -3324,7 +3339,7 @@ mod tests {
         assert_eq!(waiting.unverified, kept.unverified);
     }
 
-    /// [pull unknown] A leg kept unverified whose test then fails ends the route ([`LegCheck::Fails`]); the plan from there,
+    /// [pull unknown] A leg kept unverified whose test then fails is the check's answer ([`LegCheck::FailsAhead`]); the plan from there,
     /// with the failing verdict known, pulls that leg back as before (level_06 day 4's (62.03, 33.59, 120.24) leg, #2624).
     #[test]
     fn an_unverified_leg_that_fails_is_pulled_back_once_known() {
@@ -3334,8 +3349,13 @@ mod tests {
         let first = route.unverified[0];
         let bad = (first.a, first.b);
         match route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks }) {
-            LegCheck::Fails { on_leg, from, to } => {
-                assert_eq!(on_leg, first.to == 1, "the body is on the first leg only");
+            LegCheck::FailsUnderBody { from, to } => {
+                assert_eq!(first.to, 1, "the body is on the first leg only");
+                assert_eq!((from, to), (route.points[0].at, route.points[1].at));
+            }
+            LegCheck::FailsAhead { from, to, start } => {
+                assert!(first.to > 1);
+                assert_eq!(start, first.to - 1);
                 assert_eq!((from, to), (route.points[first.to - 1].at, route.points[first.to].at));
             }
             LegCheck::Clear => panic!("the failing leg is the answer"),
@@ -3362,7 +3382,7 @@ mod tests {
         assert_eq!(route.segment(), 0);
         let bad = (first.a, first.b);
         let check = route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks });
-        assert_eq!(check, LegCheck::Fails { on_leg: true, from, to });
+        assert_eq!(check, LegCheck::FailsUnderBody { from, to });
         // From the body's floor, the failing pair's straight leg known: the new route starts under the body, and no leg of it is
         // the failed one (both its floors are behind or under the body now).
         let body = grid.locate(feet, 0.3).unwrap();
@@ -3370,6 +3390,34 @@ mod tests {
         assert_eq!(again.points[0].node, body);
         assert!(again.points.windows(2).all(|w| (w[0].node, w[1].node) != bad));
         assert!(again.points[0].at.distance_xz(feet) <= 0.25, "it starts where the body is");
+    }
+
+    /// [pull unknown] A leg failing ahead of the body cuts the route back to that leg's foot: the body keeps the verified legs
+    /// before it (the route ends at the foot), the unverified legs past it go, and the leg it is on is unchanged.
+    #[test]
+    fn a_leg_failing_ahead_cuts_the_route_back_to_its_foot() {
+        let (grid, at) = unverified_world();
+        let route = pull_straight(&grid, grid.path(at(1.0), at(19.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        // A route of three legs at least, its second leg unverified: walked ahead of the body (on the first).
+        let mut route = route;
+        let Some(second) = route.unverified.iter().copied().find(|leg| leg.to == 2) else {
+            // Every leg of this world is unverified: the second one is.
+            panic!("no unverified second leg: {:?}", route.unverified);
+        };
+        let n = route.points.len();
+        assert!(n >= 3, "{:?}", route.points);
+        let bad = (second.a, second.b);
+        let check = route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks });
+        let LegCheck::FailsAhead { from, to, start } = check else { panic!("ahead: {check:?}") };
+        assert_eq!(start, 1);
+        assert_eq!((from, to), (route.points[1].at, route.points[2].at));
+        let length = route.length();
+        route.cut_before(start);
+        assert_eq!(route.points.len(), 2, "it ends at the failing leg's foot");
+        assert_eq!(route.points[1].at, from);
+        assert!(route.length() < length);
+        assert!(route.unverified.iter().all(|leg| leg.to < 2), "{:?}", route.unverified);
+        assert_eq!(route.segment(), 0, "the body is still on its first leg");
     }
 
     /// A path that goes round a low ceiling (a patch of floors a standing body does not fit under) is pulled straight past it, not
