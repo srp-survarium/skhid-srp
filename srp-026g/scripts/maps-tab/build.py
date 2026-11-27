@@ -82,6 +82,10 @@ RESEARCH = 480
 HUNT = 481
 SITE = "/maps"
 RENDERS = SRP / "servers" / "web-server" / "damage" / "maps"
+# Maps released before their top-down render is made: the tab shows their minimap
+# only, said in the build's output (the owner, 2026-11-27: rev75 ships Vostok (v0.69)
+# without one). Take a map out once its render is in.
+RENDER_PENDING = {"v069d_level_03"}
 RENDER_TABLE = SRP / "scripts" / "damage-calc" / "assets" / "maps" / "maps.json"
 
 
@@ -549,6 +553,10 @@ def main():
             else:
                 missing.append(folder)
             data_maps.append(entry)
+        pending = [folder for folder in missing if folder in RENDER_PENDING]
+        if pending:
+            print("note: no top-down render of " + ", ".join(pending) + " yet: its minimap only (RENDER_PENDING)")
+        missing = [folder for folder in missing if folder not in RENDER_PENDING]
         if missing and not args.allow_missing_renders:
             die("no top-down render of " + ", ".join(missing)
                 + " (srp-026g/scripts/damage-calc/assets/maps/README.md; then the site's copy in servers/web-server/damage/maps/)")
