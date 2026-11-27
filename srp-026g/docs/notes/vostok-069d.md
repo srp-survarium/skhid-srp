@@ -1,7 +1,7 @@
 # Vostok Radar Station (v0.69)
 
 0.69d's Vostok Radar Station (its `level_03`, day) as a map of its own beside 0.26g's Vostok, in
-content pack `vostok-069d@2`. The owner's asks: "let's do them" (2026-11-16, with School, Rudnya v0.21
+content pack `vostok-069d@3`. The owner's asks: "let's do them" (2026-11-16, with School, Rudnya v0.21
 and Cologne); on 2026-11-22: port it properly, as Rudnya (v0.69) was, "rebuild and check". Made by
 the same 0.69d rules as Rudnya (v0.69) @4 (`rudnya-069d.md`), with no per-map tuning.
 
@@ -40,6 +40,22 @@ the same 0.69d rules as Rudnya (v0.69) @4 (`rudnya-069d.md`), with no per-map tu
 - Both lists run right after `rudnya-ammo-1`, before the Keeper (its counts stay: the smoke adds
   ten objects, the ammo list takes ten).
 
+## @3 (2026-11-27): the rules Rudnya (v0.69) reached
+
+Rebuilt from `port/vostok-v069` with `feat/rudnya-069d` merged in, nothing tuned for Vostok; the
+manifest takes Rudnya's template keys (smoothness-map templates, a blend template per technique and
+tiled-mask switch, `vertex_blend_alpha_test_technique2_tiled_mask`). What changed against @2:
+- the sun colour written to 1/2.2 (0.26g raises it to 2.2 on load);
+- the exposure key for 0.26g's curve as it computes it (1 - 2^(-X)): 0.1232, was 0.0854, in
+  `three-maps-021-lighting@17`'s 33003 profile;
+- the terrain overlays drawn as blends cut by their masked weight (technique 2 with a tiled mask and
+  no second texture): 4 materials (`terrain_tiled/l_03_alfa_buter/ground_vc`, `trash_dirt_vc`,
+  `tiled/trash/debrisstone_alpha_vc`, `trash_brick_vc`), drawn whole to their mesh borders before;
+- 19 alpha-tested two-sided materials on a template that draws their smoothness map, and one blend on
+  its own technique's template (`metal_solanka_metal_rust_02_vc`).
+- Vostok 0.69d has no local probes (layer 1), no gradient boxes and no cylinder lights: exe patch 203's
+  tiers, the gradient and the cylinder change nothing here. Object counts are @2's.
+
 ## What 0.69d changed against 0.26g's Vostok
 
 A new checkpoint (kpp1), the outer and inner fences re-cut, terrain water, debris round the
@@ -59,8 +75,8 @@ The rules, as Rudnya @4's:
 - light: the donor's 7 probe volumes with their own cubemaps and SH, the largest also as the
   map-wide sphere; its ambient lights as 0.26g ambient lights (113 adding, 20 darkening; the ones it
   fades out farther than every spawn left out); its sun (0.85 at 38 degrees, through its atmosphere);
-- exposure: 0.69d's range EV 10 to 12 as exposure profile 33003 of `three-maps-021-lighting@12`
-  (floor 0.026042, ceiling 0.104167, key 0.0854), metered as 0.69d meters, and the scene's own colour
+- exposure: 0.69d's range EV 10 to 12 as exposure profile 33003 of `three-maps-021-lighting@17`
+  (floor 0.026042, ceiling 0.104167, key 0.1232), metered as 0.69d meters, and the scene's own colour
   grading texture from its grading and curve;
 - materials by the two builds' shading (gloss, Fresnel 0.04, metal maps made texel by texel). New for
   Vostok: a material with no metalness map and a constant metalness above 0.1 is a metal surface too,
