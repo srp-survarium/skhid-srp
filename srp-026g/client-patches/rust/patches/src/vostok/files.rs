@@ -86,6 +86,11 @@ impl File {
         // FILE_BEGIN. It answers the new position's low half, the high
         // half into `high`.
         let at = unsafe { raw::engine_set_file_pointer(seek, self.0, low, (&raw mut high).cast(), 0) };
+        // SetFilePointer can return all ones for either a valid position or an error.
+        // SAFETY: GetLastError reads this thread's status immediately after the seek.
+        if at == u32::MAX && unsafe { (raw::engine_get_last_error)() } != 0 {
+            return None;
+        }
         if at != low || u64::from(high) != offset >> 32 {
             return None;
         }

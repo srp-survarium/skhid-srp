@@ -150,7 +150,7 @@ impl<'t> Message<'t> {
     }
 
     /// Consume the file check's request (an 0xE4 of its own prefix, patch
-    /// 215) before the native options handler, a malformed one too.
+    /// 218) before the native options handler, a malformed one too.
     pub fn file_check_request(&self) -> bool {
         let Payload::Readable { bytes, end } = &self.payload else { return false };
         if self.id != srp_validate::messages::id::STATIC_INFO || !bytes.starts_with(&srp_validate::checks::REQUEST_MAGIC) { return false; }

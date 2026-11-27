@@ -20,8 +20,8 @@ accepted the database.
 
 | Local artifact | SHA-256 |
 |---|---|
-| `private/resource-check/survarium_skhid.exe` | `b303930b3ccb0506e97d1ccb4288ad3de166f50e7d2e3de20aa5cbabcbec1b02` |
-| `private/resource-check/srp` | `76f28e8c9d8a6235baef55937788363ba40bc0e67310a47fa6151d49b92c7a55` |
+| `private/resource-check/survarium_skhid.exe` | `e93f2b38ea9f5acc0147e01e8b0d4757355e450e4a7d0c9842a38434277205c8` |
+| `private/resource-check/srp` | `8de09f85802fc45b045c18fd01993930a49112ef67eeb4adb69b5f660edc1464` |
 | `private/resource-check/server-game-data.db` | `5cb96b38501e4496890643a476955017715e13634d8cfe17a6d95abd82f60067` |
 
 The i686 client reader matched all 7,698 reference entries (1,368 MB) in
@@ -31,6 +31,15 @@ control characters. A separate request for `v011e_level_03/day_2` matched
 all 382 answers, including the archive tables. The client regression
 changes equal-length outfit bytes and empties the grass layer. The server
 regression checks the player’s log line names both affected paths.
+
+The reviewed pair above includes main through `7bcf5d2dd`. The Wine fixture
+used all 2,549,452 bytes of the built executable’s Rust arena, verified
+against its PE section. The load, dispatch, tick and close hooks used real
+Win32 reads of the stock archive and all 55 patches. The test intercepted
+the match transport and verified all 383 answers (382 reference entries and
+one missing file), across 12 parts and 1,272 ticks. A duplicate request
+produced one answer. Closing and loading again produced a fresh offer.
+The fixture and its output are in `private/resource-check/native/`.
 
 The match server, wire parser, archive crate, Rust patches and local
 moderation reader passed their focused tests. The broader `cargo:srp`
