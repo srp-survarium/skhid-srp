@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Повтор ещё готовится. Серве
 st_srp_replay_title	Смотреть повтор
 st_srp_replay_waiting	Ожидание: %1$s с.
 st_srp_reroll_description	Можно изменить любой модификатор предмета, сколько угодно раз. Затем выберите один из трёх случайных модификаторов.
+st_srp_reticle_brightness	Яркость
+st_srp_reticle_colour	Цвет
+st_srp_reticle_colour_blue	Синий
+st_srp_reticle_colour_green	Зелёный
+st_srp_reticle_colour_red	Красный
+st_srp_reticle_pattern	Тип метки
+st_srp_reticle_pattern_cobra_cross	Крест Кобры
+st_srp_reticle_pattern_cobra_tick	Уголок
+st_srp_reticle_pattern_cobra_tick_dot	Уголок с точкой
+st_srp_reticle_pattern_dot	Точка
+st_srp_reticle_pattern_dppro_triangle	Треугольник
+st_srp_reticle_pattern_eotech_ring	Кольцо
+st_srp_reticle_pattern_eotech_xr308	Кольцо XR308
+st_srp_reticle_pattern_ncstar_bullseye	Мишень
+st_srp_reticle_pattern_ncstar_cross	Крест
+st_srp_reticle_pattern_ncstar_starburst	Звезда
+st_srp_reticle_size	Размер
+st_srp_reticle_title	Изменение метки:
 st_srp_rooms_all	Все
 st_srp_rooms_all_rooms	Все комнаты
 st_srp_rooms_any	Любой

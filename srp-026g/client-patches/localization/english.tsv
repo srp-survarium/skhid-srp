@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Still being prepared. It keeps being made on the s
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.
 st_srp_reroll_description	You can change any modifier of an item, any number of times. You then choose one of three random modifiers.
+st_srp_reticle_brightness	Brightness
+st_srp_reticle_colour	Color
+st_srp_reticle_colour_blue	Blue
+st_srp_reticle_colour_green	Green
+st_srp_reticle_colour_red	Red
+st_srp_reticle_pattern	Type
+st_srp_reticle_pattern_cobra_cross	Cobra cross
+st_srp_reticle_pattern_cobra_tick	Chevron
+st_srp_reticle_pattern_cobra_tick_dot	Chevron and dot
+st_srp_reticle_pattern_dot	Dot
+st_srp_reticle_pattern_dppro_triangle	Triangle
+st_srp_reticle_pattern_eotech_ring	Ring
+st_srp_reticle_pattern_eotech_xr308	XR308 ring
+st_srp_reticle_pattern_ncstar_bullseye	Bullseye
+st_srp_reticle_pattern_ncstar_cross	Cross
+st_srp_reticle_pattern_ncstar_starburst	Starburst
+st_srp_reticle_size	Size
+st_srp_reticle_title	Change reticle:
 st_srp_rooms_all	All
 st_srp_rooms_all_rooms	All rooms
 st_srp_rooms_any	Any

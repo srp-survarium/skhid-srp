@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Повтор ще готується. Сервер
 st_srp_replay_title	Дивитися повтор
 st_srp_replay_waiting	Очікування: %1$s с.
 st_srp_reroll_description	Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.
+st_srp_reticle_brightness	Яскравість
+st_srp_reticle_colour	Колір
+st_srp_reticle_colour_blue	Синій
+st_srp_reticle_colour_green	Зелений
+st_srp_reticle_colour_red	Червоний
+st_srp_reticle_pattern	Тип
+st_srp_reticle_pattern_cobra_cross	Хрест Кобри
+st_srp_reticle_pattern_cobra_tick	Кутик
+st_srp_reticle_pattern_cobra_tick_dot	Кутик з точкою
+st_srp_reticle_pattern_dot	Точка
+st_srp_reticle_pattern_dppro_triangle	Трикутник
+st_srp_reticle_pattern_eotech_ring	Кільце
+st_srp_reticle_pattern_eotech_xr308	Кільце XR308
+st_srp_reticle_pattern_ncstar_bullseye	Мішень
+st_srp_reticle_pattern_ncstar_cross	Хрест
+st_srp_reticle_pattern_ncstar_starburst	Зірка
+st_srp_reticle_size	Розмір
+st_srp_reticle_title	Зміни мітки:
 st_srp_rooms_all	Усі
 st_srp_rooms_all_rooms	Усі кімнати
 st_srp_rooms_any	Будь-який

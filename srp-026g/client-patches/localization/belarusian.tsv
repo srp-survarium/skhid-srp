@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Паўтор яшчэ рыхтуецца. Серв
 st_srp_replay_title	Глядзець паўтор
 st_srp_replay_waiting	Чаканне: %1$s с.
 st_srp_reroll_description	Можна змяніць любы мадыфікатар прадмета, колькі заўгодна разоў. Потым выберыце адзін з трох выпадковых мадыфікатараў.
+st_srp_reticle_brightness	Яркасць
+st_srp_reticle_colour	Колер
+st_srp_reticle_colour_blue	Сіні
+st_srp_reticle_colour_green	Зялёны
+st_srp_reticle_colour_red	Чырвоны
+st_srp_reticle_pattern	Тып маркі
+st_srp_reticle_pattern_cobra_cross	Крыж Кобры
+st_srp_reticle_pattern_cobra_tick	Вугалок
+st_srp_reticle_pattern_cobra_tick_dot	Вугалок з кропкай
+st_srp_reticle_pattern_dot	Кропка
+st_srp_reticle_pattern_dppro_triangle	Трохвугольнік
+st_srp_reticle_pattern_eotech_ring	Кальцо
+st_srp_reticle_pattern_eotech_xr308	Кальцо XR308
+st_srp_reticle_pattern_ncstar_bullseye	Мішэнь
+st_srp_reticle_pattern_ncstar_cross	Крыж
+st_srp_reticle_pattern_ncstar_starburst	Зорка
+st_srp_reticle_size	Памер
+st_srp_reticle_title	Змена маркі:
 st_srp_rooms_all	Усе
 st_srp_rooms_all_rooms	Усе пакоі
 st_srp_rooms_any	Любы
