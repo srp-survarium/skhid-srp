@@ -167,7 +167,10 @@ left allow; where the points run out, the least wanted go without. The level is 
 why), and a build the tree refuses keeps Player vs Bots off (`pvb::Config::from_env`). The code names no rank count, row or
 threshold. Since the tree of 2026-11-09 (102, 201, 204 take three ranks, 302 two, 312 three) the openers are 201 in the
 lowest tier (for 209, the carry: the owner kept it, 2026-11-12), 103 in the pouch (for 109) and 301 in the medical block
-(for 312 and 311). On the tests' tree (five ranks a stock skill) the intents resolve to the old sets exactly
+(for 312 and 311). Since the medical tree of 2026-11-19 (row 1 holds only 302 and 342, 301 moved to row 2, 311 four
+ranks) the medical block opens row 2 with 342 Brothers in Arms (one point) and resolves to 302:2, 342:1, 312:3, 311:4; 301
+stays an opener for revision 56's tree, where it still resolves to 302:2, 301:1, 312:3, 311:5
+(`the_medical_block_opens_row_2_on_both_trees`). On the tests' tree (five ranks a stock skill) the intents resolve to the old sets exactly
 (`every_tier_is_a_set_a_player_could_have`); on the players' tree `tools/check bot-skills-live` checks them
 (`on_the_live_data_every_build_is_a_set_the_tree_allows`).
 

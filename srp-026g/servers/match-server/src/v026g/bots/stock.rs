@@ -89,7 +89,7 @@ pub const METABOLISM_PER_RANK_MS: u32 = 1000;
 /// - `amount`: every amount times `max(0, 1 + drug_amount)` (modifier 57, Medical Training 312's
 ///   `drug_amount_modifier`; the getter's form `B x max(0, 1 + k S)`, 0x2D5AE0; k = 1 for it is LIKELY, the constructor
 ///   0x33CAC0's call of modifier 57 is the read that proves it: `docs/notes/bandages.md`);
-/// - `regeneration_sooner_ms`: natural regeneration starts this much sooner, Metabolism (311, bits 6..8) x 500 ms
+/// - `regeneration_sooner_ms`: natural regeneration starts this much sooner, Metabolism (311, bits 6..8) x 1000 ms ([`METABOLISM_PER_RANK_MS`])
 ///   (`Skills::regeneration_delay_ms`).
 ///
 /// A value modifier 43 cannot hold (not an exact integer of 24 bits, a rank over 5) is read as no skill, as the client
@@ -1151,7 +1151,7 @@ mod tests {
     }
 
     /// [F65, A372] The bots' medical block: each skill of its intent has its field (301 at bit 0, 302 at 3, 311 at 6, 312 at
-    /// 9), and each rank the bots' builds resolve ([`survarium::v026g::bot_skills::BotBuilds`]) is within the field's cap. On
+    /// 9, 342 at 21), and each rank the bots' builds resolve ([`survarium::v026g::bot_skills::BotBuilds`]) is within the field's cap. On
     /// the tests' data the tree has no medical tab and the builds hold none; the players' data: the ignored test below.
     fn medical_ranks_within_caps() {
         use survarium::v026g::bot_skills::{BOT_SKILL_TIERS, BotBuilds, MEDICAL};
@@ -1160,6 +1160,7 @@ mod tests {
             302 => 3,
             311 => 6,
             312 => 9,
+            342 => 21,
             _ => panic!("a medical skill of the block with no field here: {id}"),
         };
         let medical: Vec<u16> = MEDICAL.want.iter().chain(MEDICAL.open).copied().collect();
@@ -1178,7 +1179,7 @@ mod tests {
     }
 
     /// [A341] On the players' data (`SRP_GAME_DATA`): a bot's own profile of every tier carries the medical ranks, so its pantry's
-    /// factors are the skills' (delay x0.9, amounts x1.24, regeneration 2.5 s sooner).
+    /// factors are the skills' (delay x0.9, amounts x1.24, regeneration 4 s sooner: 311 at 4 on the tree of 2026-11-19).
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the players' game data with the medical tab"]
     fn a_bots_profile_on_the_players_data_gives_its_pantry_the_medical_factors() {
@@ -1191,7 +1192,7 @@ mod tests {
                 let f = Pantry::of_profile(&profile).factors();
                 eprintln!("{tier:?} {role:?}: {f:?}");
                 assert!((f.delay - 0.9).abs() < 1e-6 && (f.amount - 1.24).abs() < 1e-6, "{tier:?} {role:?} {f:?}");
-                assert_eq!(f.regeneration_sooner_ms, 2_500);
+                assert_eq!(f.regeneration_sooner_ms, 4_000);
             }
         }
     }

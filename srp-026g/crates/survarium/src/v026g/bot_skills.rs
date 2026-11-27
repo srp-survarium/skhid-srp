@@ -116,19 +116,23 @@ pub const AMMO_POUCH: SkillIntent = SkillIntent { want: &[102, 104, 108, 109], o
 /// `Skills::parse` refuse the WHOLE set and the client gives the body no medical skill at all (`vostok/medical.rs`
 /// `unwrap_or_default`, PROVEN by the code: the 5-rank block of A341 had none in the client since the tree's rev-50 caps).
 /// [`resolve`] gives each skill at most the live tree's ranks; the patch's caps are the tree's (the text test of the
-/// patch's caps keeps them so). On revision 56 it resolves to 301:1, 302:2, 312:3, 311:5:
+/// patch's caps keeps them so). On the tree of 2026-11-19 (revision 57 on, live at 74: row 1 holds only 302 and 342, row 2
+/// needs 3 points) it resolves to 302:2, 342:1, 312:3, 311:4, 10 points spent and 1 unspent; on revision 56's tree to
+/// 302:2, 301:1, 312:3, 311:5 (the bench data's, whose 311 at 5 is over the client's cap of 4 now):
 /// - 302 Fast Bandaging: a healing medicine's activation delay shorter (`Skills::use_time` at `medical.use_time` 0x33D486,
 ///   XMM0 the activation delay, `sites_026g.tsv`);
 /// - 312 Medical Training (its row needs 3 points above): `drug_amount_modifier` (modifier 57), the drug's amounts up;
 /// - 311 Metabolism (row 2 too): natural regeneration starts sooner (`Skills::regeneration_delay_ms`);
-/// - 301 Painkiller opens the second row where 302 alone does not reach its threshold, with the point that takes: a hit's
-///   pain coefficient lower, a painkiller longer (`Skills::pain_coefficient`, `pain_duration_ms`); the bots' heal model
-///   does not read it.
+/// - 342 Brothers in Arms (row 1 since 2026-11-19, one rank) opens the second row, with the one point that takes: the damage
+///   of teammates' hits halved (packed bit 21); the bots' models do not read it;
+/// - 301 Painkiller opens it on revision 56's tree only, where it is in row 1 and 342 in row 3 (row 2 on the tree of
+///   2026-11-19, where it never opens row 2): a hit's pain coefficient lower, a painkiller longer
+///   (`Skills::pain_coefficient`, `pain_duration_ms`); the bots' heal model does not read it.
 ///
-/// The bots' heal model reads the first two from the kit's modifiers (`match-server` `bots/plays/heal.rs`
+/// The bots' heal model reads the first three from the kit's modifiers (`match-server` `bots/plays/heal.rs`
 /// `DrugFactors`). Left out: 321 Adrenalin (a speed the bots' motion model does not know), 322 Additional Medicine and 341
 /// Medic (the bots' pockets ignore skills; no bot carries a Larkspur).
-pub const MEDICAL: SkillIntent = SkillIntent { want: &[302, 312, 311], open: &[301], points: 11 };
+pub const MEDICAL: SkillIntent = SkillIntent { want: &[302, 312, 311], open: &[342, 301], points: 11 };
 
 /// Whether the bots take [`MEDICAL`]: `SRP_BOT_MEDICAL_SKILLS` on unless `0`/`off`/`false`, and the players' skills tree of
 /// the game data in use has its skills (0.26g's own archive, the tests' data, has no medical tab: it came with a content
@@ -1037,6 +1041,68 @@ mod tests {
         assert_eq!(build.short, [Shortfall { skill: 209, got: 0, ranks: 5, why: Short::Points }]);
     }
 
+    /// A skill of a tab as an edit list builds it: `(id, ranks, branch_points, column, row, antiskills)`.
+    type TabRow = (u16, u8, u32, u8, u8, &'static [u16]);
+
+    /// The medical tab of `rows`.
+    fn medical_tab(rows: &[TabRow]) -> SkillsTree {
+        let mut skills: Vec<super::super::skills::Skill> = rows
+            .iter()
+            .map(|&(id, levels_amount, branch_points, column, row, antiskills)| super::super::skills::Skill {
+                id,
+                levels_amount,
+                branch_points,
+                antiskills: antiskills.to_vec(),
+                column,
+                row,
+                levels: vec![Vec::new(); usize::from(levels_amount)],
+                unknown_modifiers: Vec::new(),
+                name: String::new(),
+                description: String::new(),
+            })
+            .collect();
+        skills.sort_by_key(|skill| skill.id);
+        SkillsTree { skills }
+    }
+
+    /// [A341, A372] [`MEDICAL`] on the medical tab of `scripts/content-edit/medical-skills-1.json`: the tree of 2026-11-19
+    /// (revision 57 on, live at 74; the same rows as `skills.rs`'s `medical_tree`) opens row 2 with 342 Brothers in Arms
+    /// and gives 302:2, 342:1, 312:3, 311:4, nothing locked or short; revision 56's tree (the bench data's: 301 in row 1,
+    /// 342 in row 3) opens it with 301 as before, 302:2, 301:1, 312:3, 311:5.
+    #[test]
+    fn the_medical_block_opens_row_2_on_both_trees() {
+        #[rustfmt::skip]
+        let now = medical_tab(&[
+            (342, 1, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]),
+            (301, 3, 3, 1, 2, &[]), (311, 4, 3, 2, 2, &[]), (312, 3, 3, 3, 2, &[]), (314, 3, 3, 4, 2, &[]),
+            (303, 2, 7, 1, 3, &[]), (321, 3, 7, 2, 3, &[]), (324, 3, 7, 4, 3, &[]),
+            (323, 4, 12, 1, 4, &[]), (332, 5, 12, 2, 4, &[]), (333, 3, 12, 4, 4, &[]),
+            (331, 1, 17, 2, 5, &[322]), (322, 1, 17, 3, 5, &[331]),
+        ]);
+        let build = resolve(&now, &[MEDICAL]).expect("the tree allows the block");
+        assert_eq!(build.skills, [(302, 2), (342, 1), (312, 3), (311, 4)]);
+        assert_eq!((build.level, build.unspent), (10, 1));
+        assert!(build.short.is_empty(), "{:?}", build.short);
+        // Without 342 among the openers row 2 stays locked there (301 is in row 2 itself): what main's tree did to the
+        // block of before.
+        let before = SkillIntent { open: &[301], ..MEDICAL };
+        let locked = resolve(&now, &[before]).expect("the tree allows what is left");
+        assert_eq!(locked.skills, [(302, 2)]);
+        assert!(locked.short.iter().any(|s| s.skill == 312 && matches!(s.why, Short::Locked { needs: 3, unlocked: 0 })));
+        #[rustfmt::skip]
+        let rev56 = medical_tab(&[
+            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]),
+            (311, 5, 3, 1, 2, &[]), (313, 2, 3, 3, 2, &[]), (312, 3, 3, 4, 2, &[]),
+            (342, 2, 10, 1, 3, &[]), (303, 2, 10, 2, 3, &[]), (321, 3, 10, 4, 3, &[]),
+            (332, 5, 15, 2, 4, &[]), (323, 4, 15, 3, 4, &[]), (333, 4, 15, 4, 4, &[]),
+            (331, 1, 20, 2, 5, &[322]), (322, 1, 20, 3, 5, &[331]),
+        ]);
+        let build = resolve(&rev56, &[MEDICAL]).expect("the tree allows the block");
+        assert_eq!(build.skills, [(302, 2), (301, 1), (312, 3), (311, 5)]);
+        assert_eq!((build.level, build.unspent), (11, 0));
+        assert!(build.short.is_empty(), "{:?}", build.short);
+    }
+
     /// No bot kit is overburdened: every kit of every tier and role
     /// weighs less than the capacity its skills give (40 kg), and its
     /// skills are those of its tier's gear level.
@@ -1228,8 +1294,10 @@ mod tests {
                 let medical: Vec<(u16, u8)> =
                     with.skills.iter().copied().filter(|&(id, _)| MEDICAL.want.contains(&id) || MEDICAL.open.contains(&id)).collect();
                 assert_eq!(with.modifiers[packed] - without.modifiers[packed], tree.modifiers(&medical)[packed]);
-                // Revision 56's tree: 301:1, 302:2, 311:5, 312:3 in the client's packed ranks (bits 0, 3, 6, 9), the drug x 1.24.
-                assert_eq!(with.modifiers[packed] - without.modifiers[packed], (1 + 2 * 8 + 5 * 64 + 3 * 512) as f32);
+                // The tree of 2026-11-19 (revision 57 on): 302:2, 311:4, 312:3, 342:1 in the client's packed ranks (bits 3, 6,
+                // 9, 21), the drug x 1.24.
+                assert_eq!(with.modifiers[packed] - without.modifiers[packed], (2 * 8 + 4 * 64 + 3 * 512 + (1 << 21)) as f32);
+                assert_eq!(medical, [(302, 2), (342, 1), (312, 3), (311, 4)], "{tier:?} {pouch}");
                 assert!((with.modifiers[index("drug_amount")] - 0.24).abs() < 1e-6);
                 eprintln!(
                     "A372 build gear<={} pouch={pouch}: level {} unspent {} skills {:?} short {:?}",
