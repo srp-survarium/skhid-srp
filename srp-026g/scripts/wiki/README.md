@@ -21,7 +21,15 @@ the configs read by `survarium::v026g::artefacts`): each artefact's passive and
 active with its numbers, active time, cooldown, weight and skill, the rules of
 carrying several (exe patches 54 and 109, `docs/notes/artefacts.md`) and the
 artefact tree's skills. Its icons are the lobby's, made with the wiki's
-(`build_icons.py`).
+(`build_icons.py`). Its "Power per activation" (`#wear`) says the wear rule in
+two sentences (`docs/notes/artefacts.md`, "Wear from activation": each successful
+activation leaves a copy 80% of its power) and gives the power after 0 to 10
+activations; under it each kind's name opens its table, closed at first, with the
+site's opener (`.stats-opener`, the stats' Maps board's "Modes (n) ▾"), and the
+finer points as notes under the table. A table holds what wears: the config's numbers at the power
+of `srp_validate::world::ArtefactWear` (the rule's own code), as the patch scales
+them (`at_power`, `spring_value`, `heal_amount`). Active time, cooldown, weight
+and the injuries cured do not wear and are left out of those tables.
 
 The weapons section is a searchable weapon catalogue with class filters,
 sorting and expandable weapon stats. Both pages are one copy for every language
