@@ -1062,6 +1062,11 @@ pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [step aim] Walk ticks whose look-ahead was cut to an up-step's top (`motor::step_aim`).
+pub(super) fn step_aim() -> Box<dyn RouteTopic> {
+    Delta::of(|| super::super::motor::step_aim::counts().to_vec(), |d, line| line.ends.push(format!("step_aim_ticks {}", d[0])))
+}
+
 /// Walk ticks whose look-ahead was cut to a drop's landing, and those of runs past 2 s (`motor::drop_aim`).
 pub(super) fn drop_aim() -> Box<dyn RouteTopic> {
     Delta::of(
