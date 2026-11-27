@@ -375,11 +375,11 @@ pub struct MapMode {
     pub resources_count: u32,
     /// A free-for-all: the kills that win (`kills_to_win`, 30).
     pub kills_to_win: u32,
-    /// A free-for-all played with a twist only, never plain (srp's `mode.srp_twists_only`,
+    /// A free-for-all played with a twist only in open rooms (srp's `mode.srp_twists_only`,
     /// refused on another mode's config; the owner, 2026-11-22, of Military Warehouses: "should
-    /// not be playable on general ffa, only ffa: racket and other variants"): a room's card on it
-    /// draws a twist ([`super::twist::draw`]), a private room's pool, whose free-for-all is plain,
-    /// leaves it out.
+    /// not be playable on general ffa, only ffa: racket and other variants"): an open room's card
+    /// on it draws a twist ([`super::twist::draw`]); a private room plays it plain, as its every
+    /// free-for-all (the owner, 2026-11-27: "fine for pub lobbies, not for private ones").
     pub twists_only: bool,
     /// Artifact Hunt: its rule's parameters, as the game's rule reads them
     /// from the same config ([`artefact_hunt_params`]). Some exactly when
