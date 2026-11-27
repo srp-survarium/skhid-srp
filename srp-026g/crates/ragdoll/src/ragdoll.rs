@@ -1389,12 +1389,22 @@ impl Ragdoll {
 /// The frame's whole substeps of `dt` s (capped at 1/30) and their time,
 /// the rest kept in `pending` for the next frame; None when there is none.
 fn substeps(pending: &mut f32, dt: f32) -> Option<(usize, f32)> {
-    let dt = clamp(dt, 0.0, MAX_DT);
+    substeps_up_to(pending, dt, MAX_SUBSTEPS)
+}
+
+/// A lone body's frame at most (`LoneBody::step`): 0.1 s, so a loose piece
+/// keeps real time down to 10 frames a second (one body's 36 substeps are
+/// cheap; at a ragdoll's 1/30 s, glass fell slowly at the game's 20 to 30;
+/// the owner, 2026-11-27: "they drop slowly").
+const LONE_SUBSTEPS: usize = 36;
+
+fn substeps_up_to(pending: &mut f32, dt: f32, most: usize) -> Option<(usize, f32)> {
+    let dt = clamp(dt, 0.0, most as f32 * SUBSTEP);
     if dt <= 0.0 {
         return None;
     }
-    *pending = min(*pending + dt, MAX_SUBSTEPS as f32 * SUBSTEP);
-    let substeps = ((*pending / SUBSTEP + 1e-3) as usize).min(MAX_SUBSTEPS);
+    *pending = min(*pending + dt, most as f32 * SUBSTEP);
+    let substeps = ((*pending / SUBSTEP + 1e-3) as usize).min(most);
     if substeps == 0 {
         return None;
     }
@@ -1471,16 +1481,87 @@ const BODY_GRIP: Grip =
 /// Held only touching: from 3 m/s near the ground would stop it in the air.
 const GLASS_GRIP: Grip = Grip { kinetic: 1.2, rolling: 40.0, rest: 12.0, near_rest: 3.0, held: Held::Touching };
 
+/// A large pane's shard on the ground (a capsule's, a jar's): it lands at 2 to
+/// 4 m/s, skids and turns some 30 cm on the tiles and stops (the owner,
+/// 2026-11-27: "they drop slowly and just lie on ground": glass's grip held
+/// it from 3 m/s at any touch, the glass it came from too, which it slid down
+/// as down a wall). Held near the ground alone, under 1 m/s.
+const PANE_GRIP: Grip = Grip { kinetic: 0.6, rolling: 10.0, rest: 12.0, near_rest: 1.0, held: Held::NearGround };
+
 /// A glass shard's body (a bottle's: 4 to 7 cm across, up to 10 cm long): a
 /// thin capsule 9.4 cm long, of 50 g.
 const SHARD: Capsule = Capsule { half: 0.035, radius: 0.012 };
+/// A pane's shard (Vector's capsule glass, each half's 2.7 m² in 16: some
+/// 40 cm across): a flat capsule 50 cm long along its long side, of 1.5 kg.
+const PANE: Capsule = Capsule { half: 0.23, radius: 0.02 };
+
+/// What glass a shard is of, and so its body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShardSize {
+    /// A bottle's or a jug's.
+    Bottle,
+    /// A large pane's.
+    Pane,
+}
+
+impl ShardSize {
+    fn body(self) -> (Capsule, f32) {
+        match self {
+            ShardSize::Bottle => (SHARD, 0.05),
+            ShardSize::Pane => (PANE, 1.5),
+        }
+    }
+}
 
 /// A shard at `pose` thrown at `velocity`, tumbling at `spin` (each limited).
-fn thrown_shard(pose: Pose, velocity: Vec3, spin: Vec3) -> LoneBody {
-    let mut body = Body::new(pose, SHARD, 0.05);
+fn thrown_shard(pose: Pose, size: ShardSize, velocity: Vec3, spin: Vec3) -> LoneBody {
+    let (shape, mass) = size.body();
+    let mut body = Body::new(pose, shape, mass);
     body.velocity = limit_length(velocity, START_SPEED);
     body.spin = limit_length(spin, START_SPIN);
-    LoneBody::gripping(body, GLASS_GRIP, 0.0)
+    let grip = match size { ShardSize::Bottle => GLASS_GRIP, ShardSize::Pane => PANE_GRIP };
+    LoneBody::gripping(body, grip, 0.0)
+}
+
+/// Three fixed values in 0..1 of a place (its coordinates' bits mixed): a
+/// shard's own throw, the same on every client (its seat is the map's).
+fn scatter(at: Vec3) -> [f32; 3] {
+    let mut h = at.x.to_bits() ^ at.y.to_bits().rotate_left(11) ^ at.z.to_bits().rotate_left(22);
+    core::array::from_fn(|_| {
+        h ^= h >> 16;
+        h = h.wrapping_mul(0x7FEB_352D);
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x846C_A68B);
+        h ^= h >> 16;
+        (h >> 8) as f32 / (1u32 << 24) as f32
+    })
+}
+
+/// A small solid thing of the map that a shot throws whole (a tin can, a
+/// teapot, a wash-stand's tank): its capsule, along its body's X.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WareShape(Capsule);
+
+impl WareShape {
+    /// A capsule of `half` (0 to 0.5 m: a sphere at 0) and `radius` (over 0,
+    /// to 0.3 m).
+    pub fn new(half: f32, radius: f32) -> Option<WareShape> {
+        ((0.0..=0.5).contains(&half) && radius > 0.0 && radius <= 0.3).then_some(WareShape(Capsule { half, radius }))
+    }
+
+    /// From its centre to an end of its capsule, m: how near a shot must
+    /// pass to knock it on.
+    pub fn reach(self) -> f32 {
+        self.0.half + self.0.radius
+    }
+}
+
+/// A thing's body, of 0.5 kg, thrown at `velocity`, tumbling at `spin`.
+fn thrown_ware(pose: Pose, shape: WareShape, velocity: Vec3, spin: Vec3) -> LoneBody {
+    let mut body = Body::new(pose, shape.0, 0.5);
+    body.velocity = limit_length(velocity, START_SPEED);
+    body.spin = limit_length(spin, START_SPIN);
+    LoneBody::new(body, 0.0)
 }
 
 impl LoneBody {
@@ -1523,7 +1604,30 @@ impl LoneBody {
         let lift = if away == Vec3::ZERO && out == Vec3::ZERO { 0.0 } else { 1.0 };
         let velocity = up * lift + out * 0.8 + away * 1.0;
         let spin = up.cross(out) * 8.0 + up.cross(away) * 6.0;
-        thrown_shard(pose, velocity, spin)
+        thrown_shard(pose, ShardSize::Bottle, velocity, spin)
+    }
+
+    /// A large pane's shard that broke (Vector's capsule glass, a jar's), its
+    /// centre at `pose`, its body along the shard's long side: it bursts
+    /// away from its glass, 5 cm out of it at once (clear of the glass's
+    /// collision, which stays) at 1.6 to 2.8 m/s `out` (the glass's outward
+    /// normal there, level), 0.2 to 1 m/s up and 0.6 m/s along the shot,
+    /// toppling outward at 3 to 8 rad/s and twisting about out at up to 4
+    /// (each shard its own, `scatter` of its place). A pane's broken shards
+    /// burst out of their frame, not along the bullet (thrown along the shot,
+    /// a capsule's shards flew into it and slid down its glass). Zero `shot`
+    /// and `out` (a break no shot of this client's made) drop it.
+    pub fn pane_shattered(pose: Pose, up: Vec3, shot: Vec3, out: Vec3) -> LoneBody {
+        let away = shot.reject(up).direction_or(Vec3::ZERO);
+        let out = out.reject(up).direction_or(Vec3::ZERO);
+        if away == Vec3::ZERO && out == Vec3::ZERO {
+            return thrown_shard(pose, ShardSize::Pane, Vec3::ZERO, Vec3::ZERO);
+        }
+        let [a, b, c] = scatter(pose.position);
+        let pose = Pose::new(pose.rotation, pose.position + out * 0.05);
+        let velocity = up * (0.2 + 0.8 * a) + out * (1.6 + 1.2 * b) + away * 0.6;
+        let spin = up.cross(out) * (3.0 + 5.0 * c) + out * ((a - 0.5) * 8.0);
+        thrown_shard(pose, ShardSize::Pane, velocity, spin)
     }
 
     /// A shard lying (or flying) loose at `pose`, struck again along `shot`:
@@ -1531,9 +1635,30 @@ impl LoneBody {
     /// (the owner, 2026-11-26: "they should fly a bit more": some 0.8 m),
     /// tumbling at 12 rad/s about up x away. A zero or upright `shot` throws
     /// it straight up.
-    pub fn shard_kicked(pose: Pose, up: Vec3, shot: Vec3) -> LoneBody {
+    pub fn shard_kicked(pose: Pose, size: ShardSize, up: Vec3, shot: Vec3) -> LoneBody {
         let away = shot.reject(up).direction_or(Vec3::ZERO);
-        thrown_shard(pose, up * 1.7 + away * 2.1, up.cross(away) * 12.0)
+        thrown_shard(pose, size, up * 1.7 + away * 2.1, up.cross(away) * 12.0)
+    }
+
+    /// A thing of the map (a tin can) shot off where it stands, its body's
+    /// centre at `pose`: it jumps 2.2 m/s up and 2.6 m/s along the shot's
+    /// level direction (some 1.5 m from a table), tumbling at 10 rad/s about
+    /// up x away. A zero `shot` (a break no shot of this client's made)
+    /// drops it where it stood.
+    pub fn ware_shot(pose: Pose, shape: WareShape, up: Vec3, shot: Vec3) -> LoneBody {
+        if shot == Vec3::ZERO {
+            return thrown_ware(pose, shape, Vec3::ZERO, Vec3::ZERO);
+        }
+        let away = shot.reject(up).direction_or(Vec3::ZERO);
+        thrown_ware(pose, shape, up * 2.2 + away * 2.6, up.cross(away) * 10.0)
+    }
+
+    /// A thing lying (or flying) loose at `pose`, struck again along `shot`:
+    /// it hops 1.9 m/s up and 2.3 m/s on, tumbling at 8 rad/s. A zero or
+    /// upright `shot` throws it straight up.
+    pub fn ware_kicked(pose: Pose, shape: WareShape, up: Vec3, shot: Vec3) -> LoneBody {
+        let away = shot.reject(up).direction_or(Vec3::ZERO);
+        thrown_ware(pose, shape, up * 1.9 + away * 2.3, up.cross(away) * 8.0)
     }
 
     /// The body's pose (its centre's).
@@ -1543,7 +1668,7 @@ impl LoneBody {
 
     /// One frame of `dt` s (`up` the level's): the level's query, then the substeps.
     pub fn step(&mut self, dt: f32, up: Vec3, level: &mut impl Level) -> Motion {
-        let Some((substeps, dt)) = substeps(&mut self.pending, dt) else {
+        let Some((substeps, dt)) = substeps_up_to(&mut self.pending, dt, LONE_SUBSTEPS) else {
             return Motion::Moving;
         };
         let gravity = up * -GRAVITY;
