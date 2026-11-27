@@ -766,6 +766,16 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     it plain (the owner, 2026-11-27: "this is because we removed FFA from them, which is fine for
     pub lobbies, not for private ones"; from 2026-11-22 to then the create window did not list it
     and a private room's pool left it out). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
+- **Station: Racket only** (the owner, 2026-11-27: "make it racket only"). The same key with a twist's
+  name: `mode.srp_twists_only = "racket"` in its Free for All config (`ffa/v010b_soc_ug_station_day_8.options`,
+  maps_dict 31; `content-edit/ffa-station-racket-1.json`). The server reads the key as
+  `twist::OpenPlay` (`maps::MapMode::open_play`): absent or `false` `Any` (plain or any twist, by the
+  shares), `true` `Twisted` (any twist: Military Warehouses), a name `Only` that twist (`"racket"`,
+  `"saloon"`; not `"roulette"`, which a room that allows no band could not deal).
+  - An open room's card on it is always FFA: Racket (its gun the room's, `racket::Gun::of_room`): the
+    draw keeps Racket's share alone. A private room plays it plain, as every free-for-all there.
+  - The vote shows it as any card: the pool the movie is sent lists every entry (#2756), and its
+    picture is Station's (`MapRenders.tsv` ONE 19, `Level_soc_ug_station`).
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
   Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
   present in private room creations"): a private room's free-for-all card is always plain Free for

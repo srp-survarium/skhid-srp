@@ -387,13 +387,24 @@ const FREE_FOR_ALL_PROJECTS: &str = include_str!("../../../../scripts/content-ed
 /// [`FREE_FOR_ALL_EDITS`] (its crates' removal is not the test data's).
 const FREE_FOR_ALL_REPOINT: &str = include_str!("../../../../scripts/content-edit/no-ammo-crates-1.json");
 
-/// The live data's map played with a twist only (`MapMode::twists_only`): Military Warehouses'
-/// Free for All, maps_dict 43, by this edit list. The test data lacks it, so
-/// [`with_twists_only_map`] lays the list's one value on [`TEST_TWISTS_ONLY`]'s config instead.
-const TWISTS_ONLY_EDITS: &str = include_str!("../../../../scripts/content-edit/ffa-twists-only-1.json");
+/// The live data's maps played with a twist only (`MapMode::open_play`), each by its edit list:
+/// Military Warehouses' Free for All (maps_dict 43, any twist) and Station's (maps_dict 31, Racket
+/// alone). The test data lacks them, so [`with_twists_only_map`] lays each list's one value on a
+/// test map's config instead: [`TEST_TWISTS_ONLY`]'s, [`TEST_RACKET_ONLY`]'s.
+const TWISTS_ONLY_EDITS: [(&str, &str); 2] = [
+    (
+        include_str!("../../../../scripts/content-edit/ffa-twists-only-1.json"),
+        "gameplay/game_modes/ffa/level_08_prerain_8.options",
+    ),
+    (
+        include_str!("../../../../scripts/content-edit/ffa-station-racket-1.json"),
+        "gameplay/game_modes/ffa/level_08_evn_8.options",
+    ),
+];
 /// The test data's map played with a twist only: level 8's Free for All before rain.
 pub const TEST_TWISTS_ONLY: super::dictionary::MapId = super::dictionary::MapId::new(162);
-const TEST_TWISTS_ONLY_CONFIG: &str = "gameplay/game_modes/ffa/level_08_prerain_8.options";
+/// The test data's map played with Racket alone: level 8's Free for All in the evening.
+pub const TEST_RACKET_ONLY: super::dictionary::MapId = super::dictionary::MapId::new(161);
 
 /// `files` and `projects` with [`FREE_FOR_ALL_PROJECTS`]' copies, then
 /// [`FREE_FOR_ALL_EDITS`], then [`FREE_FOR_ALL_REPOINT`]'s `replace_string`,
@@ -640,28 +651,32 @@ fn with_free_for_all_maps(
     }
 }
 
-/// [`TWISTS_ONLY_EDITS`]' one `add_value` (`mode.srp_twists_only = true`) on
-/// [`TEST_TWISTS_ONLY_CONFIG`], made by [`with_free_for_all_maps`].
+/// Each of [`TWISTS_ONLY_EDITS`]' one `add_value` (`mode.srp_twists_only`, `true` or a twist's
+/// name) on its test config, made by [`with_free_for_all_maps`].
 fn with_twists_only_map(files: &mut BTreeMap<String, Vec<u8>>) {
-    let edits: serde_json::Value =
-        serde_json::from_str(TWISTS_ONLY_EDITS).expect("the edit list reads");
-    let [add] = edits["add_value"].as_array().expect("its add_value").as_slice() else {
-        panic!("ffa-twists-only-1.json adds one value")
-    };
-    let text = |key: &str| add[key].as_str().expect("a text").to_owned();
-    let path = TEST_TWISTS_ONLY_CONFIG;
-    let mut config = ConfigValue::parse(&files[path]).expect("the config parses");
-    let ConfigValue::Named(sections) = &mut config else {
-        panic!("{path} is a named table")
-    };
-    let Some((_, ConfigValue::Named(table))) =
-        sections.iter_mut().find(|(name, _)| *name == text("table"))
-    else {
-        panic!("{path} has its table")
-    };
-    let value = add["value"].as_bool().expect("a bool");
-    table.push((text("key"), ConfigValue::Boolean(value)));
-    files.insert(path.to_owned(), config.to_bytes().expect("a config"));
+    for (list, path) in TWISTS_ONLY_EDITS {
+        let edits: serde_json::Value = serde_json::from_str(list).expect("the edit list reads");
+        let [add] = edits["add_value"].as_array().expect("its add_value").as_slice() else {
+            panic!("a twists-only list adds one value")
+        };
+        let text = |key: &str| add[key].as_str().expect("a text").to_owned();
+        let mut config = ConfigValue::parse(&files[path]).expect("the config parses");
+        let ConfigValue::Named(sections) = &mut config else {
+            panic!("{path} is a named table")
+        };
+        let Some((_, ConfigValue::Named(table))) =
+            sections.iter_mut().find(|(name, _)| *name == text("table"))
+        else {
+            panic!("{path} has its table")
+        };
+        let value = match &add["value"] {
+            serde_json::Value::Bool(value) => ConfigValue::Boolean(*value),
+            serde_json::Value::String(name) => ConfigValue::String(name.clone()),
+            other => panic!("{path}: srp_twists_only {other}"),
+        };
+        table.push((text("key"), value));
+        files.insert(path.to_owned(), config.to_bytes().expect("a config"));
+    }
 }
 
 /// The faces the test data has: [`TEST_FACES`] entries of `body_parts.heads`,

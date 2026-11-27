@@ -660,7 +660,7 @@ impl Rooms {
     /// the account's draft of them, or the `default` pool with none. The
     /// owner's equipment level `gear` must be within an open room's max
     /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
-    /// says (its pool may hold a map played with a twist only, `MapMode::twists_only`, played
+    /// says (its pool may hold a map played with a twist only, `MapMode::open_play`, played
     /// plain there: [`Self::deal`]); one with bots `pvb/default_size` (8: always 8 v 8), and it keeps
     /// only the maps of its pool in `bot_maps` (those the server's bots play).
     #[allow(clippy::too_many_arguments)]
