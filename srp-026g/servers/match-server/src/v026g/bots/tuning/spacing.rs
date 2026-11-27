@@ -70,6 +70,11 @@ pub struct SpacingTuning {
     /// more teammates walk now, else drawn per life by the humans' lanes' share at its cost within `band` and against teammates' deaths on it (`bots/lane_draw.rs`). Off: every walk
     /// takes the least-cost way.
     pub lane_draw: Option<LaneDrawTuning>,
+    /// [lane line] (Fable task D's fix 9: the live humans walk one lane a few metres apart, the bots on one line; route overlap
+    /// within 4 m 0.471 against 0.609): each life walks its long routes (over 60 m) on a line of its own beside the planned one, its
+    /// offset drawn per life from the humans' offsets inside one lane (`bots/lane_line.rs`, `Route::lined`). Off: every route on
+    /// the line its corners make.
+    pub lane_line: bool,
 }
 
 /// The lane draw's settings ([`SpacingTuning::lane_draw`]). Each is a measure of the root cause's lane test or of the live humans'
@@ -160,6 +165,7 @@ impl Default for SpacingTuning {
             lane: None,
             queue: Some(QueueTuning::default()),
             lane_draw: Some(LaneDrawTuning::default()),
+            lane_line: true,
         }
     }
 }

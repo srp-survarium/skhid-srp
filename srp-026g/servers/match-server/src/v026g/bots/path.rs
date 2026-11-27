@@ -1616,6 +1616,24 @@ pub fn take_pull_walk_unknown() -> u64 {
     PULL_WALK_UNKNOWN.swap(0, std::sync::atomic::Ordering::Relaxed)
 }
 
+/// [lane line] The share of a route's length at each end over which its line comes in from its own ([`Route::lined`]): the
+/// humans' offsets it draws were measured on the middle of their legs, 20-80 % of each leg's points
+/// (`private/pvb-343-check/lane-line-20261127/scripts/lane-line-humans-v3.py`), and the bots' tracks moved so (full in the middle,
+/// tapered to 0 over that 20 % at each end) gave its overlap table.
+pub const LINE_TAPER: f32 = 0.2;
+
+/// [lane line] What [`Route::lined`] did: the corners it could move, those it moved, the corners put in at the taper's ends, and
+/// the tries refused for no clear floor there, no clear line to the next point, or no walk by the client's test.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LineCount {
+    pub corners: u32,
+    pub moved: u32,
+    pub put_in: u32,
+    pub refused_floor: u32,
+    pub refused_line: u32,
+    pub refused_walk: u32,
+}
+
 /// [pull unknown] A pulled leg kept straight though its walk test was not run ([`PullWalk::Unknown`]: the poll's walk budget
 /// spent): its floors and the waypoint it ends at. The route walks it only once the test says it walks ([`Route::verify_ahead`],
 /// before the body is on it or on it); a failing one ends the route and the body plans again from where it is. Pulling such a
@@ -2276,6 +2294,212 @@ impl Route {
         route.below_walk_m = below_walk_m;
         route.past_drop = past_drop;
         route
+    }
+
+    /// [lane line] This route walked on a line `offset_m` to the side of its own (+ to the left of the way it goes): each corner
+    /// moved across the way by `offset_m`, tapered to 0 over the route's first and last [`LINE_TAPER`] of its length, and a corner
+    /// put in at both ends of the taper, where the line is full. The way stays the route's: a point moves only onto a floor its
+    /// own floor reaches by a clear line, and only where both its legs are clear lines (no floor without standing room, at a lip
+    /// or a fall, or nearer a wall than the client's body holds, [`WalkGrid::pull_tight`], as a pulled leg keeps off); a leg the
+    /// client could be stopped on is taken only when the client's walk test says it walks (`verdict`: [`PullWalk::Walks`];
+    /// untested is refused), as [`pull_straight`] asks of a pulled leg. Jumps, drops, crouched and lane walks, door gates,
+    /// risers, crouched climbs and the unverified legs ([`UnverifiedLeg`]) keep their corners; the unverified legs end on the
+    /// same waypoints, after the corners put in before them. A point that cannot move keeps its place.
+    pub fn lined(self, offset_m: f32, grid: &WalkGrid, verdict: &mut dyn FnMut(NodeId, NodeId) -> PullWalk) -> (Self, LineCount) {
+        let n = self.points.len();
+        let mut count = LineCount::default();
+        if n < 2 || offset_m.abs() < 1e-3 {
+            return (self, count);
+        }
+        let total = self.along[n - 1];
+        if total < 1e-3 {
+            return (self, count);
+        }
+        let weight = |s: f32| (s / total / LINE_TAPER).min((total - s) / total / LINE_TAPER).clamp(0.0, 1.0);
+        // The segments an unverified leg covers (from its first floor's waypoint to its end).
+        let mut covered = vec![false; n];
+        for leg in &self.unverified {
+            let start = (0..leg.to).rev().find(|&k| self.points[k].node == leg.a).unwrap_or(leg.to.saturating_sub(1));
+            for c in covered.iter_mut().take(leg.to + 1).skip(start + 1) {
+                *c = true;
+            }
+        }
+        let near = |a: Vec3, b: Vec3| (a - b).length() < 1e-3;
+        let held = |at: Vec3| {
+            self.gates.iter().any(|&g| near(g, at))
+                || self.sprint_drops.iter().any(|&(l, _)| near(l, at))
+                || self.walk_offs.iter().any(|w| near(w.take_off, at) || near(w.landing, at))
+                || self.risers.iter().any(|r| near(r.top, at) || near(r.take_off, at))
+                || self.crouch_climbs.iter().any(|&(t, top)| near(t, at) || near(top, at))
+                || self.ledge_tops.iter().any(|&(l, _)| near(l, at))
+        };
+        // Leg `k` (into point `k`) is a plain walk: no jump, no drop, not crouched, no lane walk, no unverified leg.
+        let walk_leg = |k: usize| {
+            let (a, b) = (self.points[k - 1], self.points[k]);
+            b.jump.is_none()
+                && !b.low
+                && b.at.y - a.at.y > -DROP_LINK_MIN_M
+                && !covered[k]
+                && !self.lane_walks.iter().any(|&(foot, top, _)| a.node == foot || a.node == top || b.node == foot || b.node == top)
+        };
+        let edge = |node: NodeId| grid.is_lip(node) || grid.near_fall(node) || grid.near_lip(node) || grid.pull_tight(node) || !grid.can_stand(node);
+        // The floors of a line from `a` to `b` that keeps to clear floor, in its order, and whether the client could be stopped on
+        // it (a step over PULL_WALK_LEVEL_M or a floor nearer a wall than the client's body holds); None where it does not.
+        let clear_line = |a: NodeId, b: NodeId| -> Option<(Vec<NodeId>, bool)> {
+            let seen = std::cell::RefCell::new(vec![a]);
+            let walks = grid.walks_straight(a, b, MAX_STRAIGHT_M, |node| {
+                let mut seen = seen.borrow_mut();
+                let before = seen.last().copied().unwrap_or(a);
+                seen.push(node);
+                (node == b || !edge(node)) && !grid.walk_crouched(before, node)
+            });
+            let mut seen = seen.into_inner();
+            if seen.last() != Some(&b) {
+                seen.push(b);
+            }
+            let risky = seen.windows(2).any(|w| (grid.position(w[1]).y - grid.position(w[0]).y).abs() > PULL_WALK_LEVEL_M)
+                || seen.iter().any(|&node| grid.wall_clearance(node).is_none_or(|c| c < crate::v026g::bots::tuning::PULL_HOLD_M));
+            walks.then_some((seen, risky))
+        };
+        // A walked leg of the line: clear, and tested by the client's walk where it could stop the body.
+        let mut leg_walks = |a: NodeId, b: NodeId, count: &mut LineCount| -> Option<Vec<NodeId>> {
+            let Some((floors, risky)) = clear_line(a, b) else {
+                count.refused_line += 1;
+                return None;
+            };
+            if risky
+                && grid.pull_walk()
+                && (grid.position(a).distance_xz(grid.position(b)) > PULL_WALK_LEG_M || verdict(a, b) != PullWalk::Walks)
+            {
+                count.refused_walk += 1;
+                return None;
+            }
+            Some(floors)
+        };
+        // Where a point of the route moves to: `at` across by `by`, on a floor its own floor `from` reaches by a clear line, joined
+        // to the line's last point and the route's next one by walked legs. With the floors of the leg into it.
+        let mut moved = |from: NodeId, at: Vec3, by: Vec3, last: NodeId, next: NodeId, count: &mut LineCount| -> Option<(Waypoint, Vec<NodeId>)> {
+            let to = Vec3::new(at.x + by.x, at.y, at.z + by.z);
+            let Some(node) = grid.locate(to, grid.cell_size()) else {
+                count.refused_floor += 1;
+                return None;
+            };
+            if node == from || clear_line(from, node).is_none() {
+                count.refused_floor += 1;
+                return None;
+            }
+            let into = leg_walks(last, node, count)?;
+            leg_walks(node, next, count)?;
+            Some((Waypoint { at: grid.position(node), node, jump: None, low: false }, into))
+        };
+        let flat = |v: Vec3| {
+            let l = (v.x * v.x + v.z * v.z).sqrt();
+            if l < 1e-6 { None } else { Some((v.x / l, v.z / l)) }
+        };
+        // Across the way `dir` by `m` metres (+ to the left).
+        let across = |dir: Vec3, m: f32| flat(dir).map_or(Vec3::new(0.0, 0.0, 0.0), |(x, z)| Vec3::new(-z * m, 0.0, x * m));
+        // The new points, each with the original point it is (None for one put in or moved) and the floors of the leg into it
+        // when that leg is new.
+        let mut out: Vec<(Waypoint, Option<usize>, Option<Vec<NodeId>>)> = vec![(self.points[0], Some(0), None)];
+        let mut index = vec![0usize; n];
+        for k in 1..n {
+            let (a, b) = (self.points[k - 1].at, self.points[k].at);
+            let way = b - a;
+            if walk_leg(k) {
+                // The taper's ends on this leg: a corner put in, the line full there.
+                let (s0, s1) = (self.along[k - 1], self.along[k]);
+                for s in [LINE_TAPER * total, (1.0 - LINE_TAPER) * total] {
+                    if s <= s0 + 1e-3 || s >= s1 - 1e-3 {
+                        continue;
+                    }
+                    let on = a + way * ((s - s0) / (s1 - s0));
+                    let Some(from) = grid.locate(on, grid.cell_size()) else {
+                        count.refused_floor += 1;
+                        continue;
+                    };
+                    let last = out.last().map_or(self.points[0].node, |o| o.0.node);
+                    if let Some((point, into)) = moved(from, on, across(way, offset_m), last, self.points[k].node, &mut count) {
+                        out.push((point, None, Some(into)));
+                        count.put_in += 1;
+                    }
+                }
+            }
+            if k + 1 < n && walk_leg(k) && walk_leg(k + 1) && !held(b) {
+                count.corners += 1;
+                let out_way = self.points[k + 1].at - b;
+                let bisector = match (flat(way), flat(out_way)) {
+                    (Some(i), Some(o)) if (i.0 + o.0).abs() + (i.1 + o.1).abs() > 1e-3 => Vec3::new(i.0 + o.0, 0.0, i.1 + o.1),
+                    _ => way,
+                };
+                let by = across(bisector, offset_m * weight(self.along[k]));
+                let last = out.last().map_or(self.points[0].node, |o| o.0.node);
+                if by.x * by.x + by.z * by.z > 1e-6
+                    && let Some((point, into)) = moved(self.points[k].node, b, by, last, self.points[k + 1].node, &mut count)
+                {
+                    out.push((point, None, Some(into)));
+                    count.moved += 1;
+                    index[k] = out.len() - 1;
+                    continue;
+                }
+            }
+            // Its place kept; the leg into it is new when the point before it moved or was put in.
+            let into = if out.last().is_some_and(|o| o.1 != Some(k - 1)) {
+                let last = out.last().map_or(self.points[0].node, |o| o.0.node);
+                clear_line(last, self.points[k].node).map(|(floors, _)| floors)
+            } else {
+                None
+            };
+            out.push((self.points[k], Some(k), into));
+            index[k] = out.len() - 1;
+        }
+        if count.moved == 0 && count.put_in == 0 {
+            return (self, count);
+        }
+        // The floors' heights along the new route: an old leg's as they were, a new leg's from the floors its line crosses.
+        let mut floors: Vec<(f32, f32)> = vec![(0.0, out[0].0.at.y)];
+        let mut start = 0.0f32;
+        for j in 1..out.len() {
+            let (a, b) = (out[j - 1].0.at, out[j].0.at);
+            let length = a.distance_xz(b);
+            match (&out[j].2, out[j - 1].1, out[j].1) {
+                (None, Some(i), Some(k)) if k == i + 1 => {
+                    let (s0, s1) = (self.along[i], self.along[k]);
+                    floors.extend(self.floors.iter().filter(|&&(d, _)| d > s0 + 1e-4 && d <= s1 + 1e-4).map(|&(d, y)| (start + (d - s0), y)));
+                }
+                (Some(nodes), _, _) => {
+                    let (dx, dz) = flat(b - a).unwrap_or((0.0, 0.0));
+                    for (m, &node) in nodes.iter().enumerate().skip(1) {
+                        let p = grid.position(node);
+                        let along = ((p.x - a.x) * dx + (p.z - a.z) * dz).clamp(0.0, length);
+                        let last = floors.last().map_or(f32::NAN, |f| f.1);
+                        if m + 1 == nodes.len() || (p.y - last).abs() >= FLOOR_SAMPLE_M {
+                            floors.push((start + along, p.y));
+                        }
+                    }
+                }
+                _ => floors.push((start + length, b.y)),
+            }
+            start += length;
+        }
+        let points: Vec<Waypoint> = out.iter().map(|o| o.0).collect();
+        let Self {
+            sprint_drops, ledge_leads, ledge_tops, gates, risers, crouch_climbs, planned, below_walk_m, past_drop, walk_offs, lane_walks, unverified, leg_paths, ..
+        } = self;
+        let mut route = Self::with_floors(points, floors);
+        route.unverified = unverified.into_iter().map(|leg| UnverifiedLeg { to: index[leg.to], ..leg }).collect();
+        route.leg_paths = leg_paths;
+        route.walk_offs = walk_offs;
+        route.lane_walks = lane_walks;
+        route.sprint_drops = sprint_drops;
+        route.ledge_leads = ledge_leads;
+        route.ledge_tops = ledge_tops;
+        route.gates = gates;
+        route.risers = risers;
+        route.crouch_climbs = crouch_climbs;
+        route.planned = planned;
+        route.below_walk_m = below_walk_m;
+        route.past_drop = past_drop;
+        (route, count)
     }
 
     /// This route with a jump from its end onto `to` (on floor `node`): a
@@ -3386,6 +3610,76 @@ mod tests {
         );
     }
     use crate::v026g::bots::body::tests::walled;
+
+    /// [lane line] A long walk over open floor goes on a line beside its own: full across in the middle (a corner put in at both
+    /// ends of the taper), its ends where they were, every leg a straight walk over the floors; + is to the left of the way.
+    #[test]
+    fn a_long_walk_goes_on_its_line_over_open_floor() {
+        use crate::v026g::bots::body::tests::floor;
+        let triangles = floor(0.0, 0.0, 80.0, 20.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 80.0, 20.0], 0.25, mapdata::Body::default());
+        let at = |x: f32| grid.locate(Vec3::new(x, 0.0, 10.0), 0.3).unwrap();
+        let route = pull_straight(&grid, grid.path(at(2.0), at(78.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Walks, &|| {});
+        let (lined, count) = route.clone().lined(3.0, &grid, &mut |_, _| PullWalk::Walks);
+        assert!(count.put_in == 2, "{count:?}: {:?}", lined.points);
+        let (first, last) = (lined.points[0], lined.points[lined.points.len() - 1]);
+        assert_eq!((first.node, last.node), (route.points[0].node, route.points[route.points.len() - 1].node), "its ends stay");
+        let total = lined.length();
+        for (point, &s) in lined.points.iter().zip(&lined.along) {
+            if s > LINE_TAPER * total + 0.5 && s < (1.0 - LINE_TAPER) * total - 0.5 {
+                assert!((point.at.z - 13.0).abs() < 0.3, "full across in the middle, to the left of +x: {:?}", lined.points);
+            }
+        }
+        assert!(lined.points.windows(2).all(|w| straight(&grid, w[0].node, w[1].node)), "{:?}", lined.points);
+        assert!(lined.length() > route.length() && lined.length() < route.length() + 2.0, "{} against {}", lined.length(), route.length());
+        assert!(lined.floors.iter().all(|&(_, y)| y.abs() < 1e-3) && lined.floors.windows(2).all(|w| w[0].0 <= w[1].0 + 1e-4));
+        // The other side.
+        let (right, _) = route.lined(-3.0, &grid, &mut |_, _| PullWalk::Walks);
+        assert!(right.points.iter().any(|p| (p.at.z - 7.0).abs() < 0.3), "{:?}", right.points);
+    }
+
+    /// [lane line] Where the floors do not reach the line (a corridor narrower than it), the walk keeps its own: nothing moves.
+    #[test]
+    fn no_line_where_the_floor_does_not_reach_it() {
+        use crate::v026g::bots::body::tests::floor;
+        let triangles = floor(0.0, 9.0, 80.0, 11.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 9.0, 80.0, 11.0], 0.25, mapdata::Body::default());
+        let at = |x: f32| grid.locate(Vec3::new(x, 0.0, 10.0), 0.5).unwrap();
+        let route = pull_straight(&grid, grid.path(at(2.0), at(78.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Walks, &|| {});
+        let (lined, count) = route.clone().lined(3.0, &grid, &mut |_, _| PullWalk::Walks);
+        assert_eq!(lined.points, route.points, "{count:?}");
+        assert_eq!((count.moved, count.put_in), (0, 0));
+        assert!(count.refused_floor > 0, "{count:?}");
+    }
+
+    /// [lane line] A leg the client's walk test has not passed (unverified, [`UnverifiedLeg`]) keeps its corners, and a moved leg
+    /// the client could be stopped on is taken only when the test says it walks: untested or failing, the walk keeps its own.
+    #[test]
+    fn the_line_keeps_untested_legs_and_asks_the_client_walk() {
+        let (grid, at) = unverified_world();
+        let kept = pull_straight(&grid, grid.path(at(1.0), at(19.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        assert!(!kept.unverified.is_empty());
+        let (lined, count) = kept.clone().lined(1.5, &grid, &mut |_, _| PullWalk::Walks);
+        // Only the legs no unverified leg covers may change; the unverified legs end where they ended.
+        assert_legs_end_where_they_did(&kept, &lined);
+        assert!(count.moved + count.put_in <= count.corners + 2, "{count:?}");
+        // Every leg tested and walked: the line is taken where the floors reach it; untested, never.
+        let walked = pull_straight(&grid, grid.path(at(1.0), at(19.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Walks, &|| {});
+        let (untested, count) = walked.clone().lined(1.5, &grid, &mut |_, _| PullWalk::Unknown);
+        assert_eq!(untested.points, walked.points, "{count:?}");
+        assert!(count.refused_walk > 0, "{count:?}");
+        let (taken, count) = walked.clone().lined(1.5, &grid, &mut |_, _| PullWalk::Walks);
+        assert!(count.put_in > 0 && taken.points.len() > walked.points.len(), "{count:?}: {:?}", taken.points);
+    }
+
+    /// Each unverified leg of `before` ends in `after` on the same floor, and `after` has as many.
+    fn assert_legs_end_where_they_did(before: &Route, after: &Route) {
+        assert_eq!(before.unverified.len(), after.unverified.len());
+        for (b, a) in before.unverified.iter().zip(&after.unverified) {
+            assert_eq!((b.a, b.b, b.floors), (a.a, a.b, a.floors));
+            assert_eq!(after.points[a.to].node, before.points[b.to].node, "{a:?} against {b:?}");
+        }
+    }
 
     /// [pull unknown] A flat 20 m by 6 m floor with the pulled legs walked (`WalkGrid::with_pull_walk`) and no clearance table, so
     /// every leg is a risky one; a path across it, and the floor at `x`.

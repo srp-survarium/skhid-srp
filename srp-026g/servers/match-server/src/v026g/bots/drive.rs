@@ -272,10 +272,11 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
 }
 
 /// A planned route with the middle of each doorway it crosses as a corner when `ThinkTuning::door_centres` is on
-/// ([`Route::door_centred`]), then its corners kept where the capsule fits when `ThinkTuning::wall_clear_corners` is
-/// ([`Route::wall_cleared`]).
-fn door_route(route: Route, tuning: &Tuning, grid: &mapdata::grid::WalkGrid) -> Route {
+/// ([`Route::door_centred`]), on the life's line `line_m` when `SpacingTuning::lane_line` is ([`super::lane_line::walked`]),
+/// then its corners kept where the capsule fits when `ThinkTuning::wall_clear_corners` is ([`Route::wall_cleared`]).
+fn door_route(route: Route, tuning: &Tuning, grid: &mapdata::grid::WalkGrid, line_m: f32) -> Route {
     let route = if tuning.think.door_centres { route.door_centred(grid) } else { route };
+    let route = if tuning.spacing.lane_line { super::lane_line::walked(route, line_m, grid, &mut |a, b| grid.pull_walk_verdict(a, b)) } else { route };
     if tuning.think.wall_clear_corners { route.wall_cleared(grid) } else { route }
 }
 
@@ -1497,7 +1498,7 @@ fn drive_tick_inner(
                 }
                 let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
                 let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), goal)), time);
+                bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid, bot.line_m), goal)), time);
                 if fallback {
                     traps::mark_fallback(bot, time);
                 }
@@ -2143,7 +2144,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((door_route(plain, tuning, &tactics.world.grid), at)), time);
+                        bot.set_route(Some((door_route(plain, tuning, &tactics.world.grid, bot.line_m), at)), time);
                         bot.features.crossing.goal = None;
                     }
                     no_route = path::NoRoute::Searching;
@@ -2173,7 +2174,7 @@ fn drive_tick_inner(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.set_route(Some((door_route(partial, tuning, &tactics.world.grid), at)), time);
+                        bot.set_route(Some((door_route(partial, tuning, &tactics.world.grid, bot.line_m), at)), time);
                         if within.is_some() {
                             traps::mark_fallback(bot, time);
                         }
@@ -2255,7 +2256,7 @@ fn drive_tick_inner(
                         };
                     }
                     let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
-                    bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), at)), time);
+                    bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid, bot.line_m), at)), time);
                     if fallback && bot.route.is_some() {
                         traps::mark_fallback(bot, time);
                     }

@@ -74,6 +74,7 @@ pub mod kin;
 pub mod know;
 pub mod lane_ahead;
 pub mod lane_draw;
+pub mod lane_line;
 pub mod pincer;
 pub mod legs;
 pub mod link_time;
@@ -305,6 +306,9 @@ pub struct Bot {
     /// match's, never reset; [`Bots::smoke_report`]).
     own_base_smokes: smoke::OwnBaseRefusals,
     rng: Rng,
+    /// [lane line] The life's line inside its lanes, m ([`lane_line`]), and the numbers it is drawn from at each life.
+    line_m: f32,
+    line_rng: Rng,
     encoder: Encoder,
     motor: Motor,
     reflex: Reflex,
@@ -629,6 +633,8 @@ impl Bot {
     fn new(match_id: u32, place: Place, team: u8, role: Option<&str>, tuning: &Tuning) -> Self {
         let mut rng = Rng::for_bot(match_id, place);
         let motor = Motor::new(tuning.feel.clone(), &mut rng);
+        let mut line_rng = lane_line::rng_for(match_id, place);
+        let line_m = lane_line::draw(&mut line_rng);
         // The personality of its role (play 14: the lobby gave it that
         // role's gear, `survarium::v026g::loadouts::BotRole`), else one
         // drawn by the shares.
@@ -666,6 +672,8 @@ impl Bot {
             clouds: smoke::KnownClouds::default(),
             own_base_smokes: smoke::OwnBaseRefusals::default(),
             rng,
+            line_m,
+            line_rng,
             encoder: Encoder::default(),
             motor,
             reflex: Reflex::armed(arms),
@@ -1103,6 +1111,8 @@ impl Bot {
     /// client's code).
     fn new_life(&mut self, skill: f32, tactics: Option<&Tactics>, feet: Vec3) {
         self.held_choke = None;
+        // [lane line] A new life walks a line of its own.
+        self.line_m = lane_line::draw(&mut self.line_rng);
         self.running = None;
         self.assignment = None;
         self.route = None;
@@ -2832,6 +2842,12 @@ impl Bots {
             nav_log::PREFIX
         ));
         // [pull unknown] The failing ones laid again in place from their floors, and those that could not be (cut or ended).
+        // [lane line] The long routes walked on a life's line, and what kept their corners (`lane_line::counts`).
+        let ([routes, lined, corners, moved, put_in, no_floor, no_line, no_walk], mean_m) = lane_line::counts::take();
+        lines.push(format!(
+            "{}lane lines since the last match end (every match on this server): long routes {routes}, on a line {lined}; corners movable {corners}, moved {moved}, put in at the taper {put_in}; refused for no clear floor {no_floor}, no clear line {no_line}, no walk by the client's test {no_walk}; mean |line| {mean_m:.2} m",
+            nav_log::PREFIX
+        ));
         let [relaid_ahead, relaid_under, relay_none] = path::unverified::take_relays();
         lines.push(format!(
             "{}failing unverified legs laid again in place since the last match end (every match on this server): ahead {relaid_ahead}, under the body {relaid_under}, none (cut or ended) {relay_none}",
