@@ -753,12 +753,13 @@ def main():
     b_regs, b_sp, b_head = ours.start()
     # patch 81's `srp_lobby`, a later member of the site's chain, registers after these; patch
     # 133's command `where` (order 6), then patch 66's voice variables (order 7), the game volume's and patch 156's
-    # `collision` last, at the head
+    # `collision`, then patch 218's five (order 10) last, at the head
     nodes = [node for node in registered(ours, b_head, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["collision", "s_ingame_volume", "srp_microphone", "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_chat_volume",
+           and names == ["srp_weapon_fov_world", "srp_sight_distance", "srp_weapon_fov_scope", "srp_weapon_fov_aimed",
+                         "srp_weapon_fov", "collision", "s_ingame_volume", "srp_microphone", "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_chat_volume",
                          "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume",
                          "srp_hide_hit_markers", "srp_dxvk_overlay", "srp_dxvk_frame_limit", "srp_dxvk_dedicated_gpu",
                          "srp_dxvk_tear_free", "srp_dxvk_low_latency", "srp_dxvk", "srp_hide_crosshair", "srp_map_names",
