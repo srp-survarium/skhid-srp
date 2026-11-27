@@ -10,13 +10,14 @@
 //!   gun's eye plane, 20 to 65, 32.5), `srp_weapon_fov_scope` (fully aimed
 //!   through a magnified scope, 16.25 to 32.5, 32.5), `srp_weapon_fov_world`
 //!   (on: everything held at the world's projection, as before revision 74;
-//!   off by default) and `srp_sight_distance` (0 to 100 % of the way from
-//!   0.69d0's eye to revision 73's, aimed over iron sights and sights in the
-//!   gun's eye plane; 0 by default);
+//!   off by default) and `srp_sight_distance` (centimetres the eye stands
+//!   farther from the sight than 0.69d0's, negative nearer, -20 to 50, aimed
+//!   over iron sights and sights in the gun's eye plane; 0 by default);
 //! - the Settings' call (`options.callback`, after patches 79, 83, 112 and 66):
 //!   each slider's name answers `root.srp_slider_option(name, label, saved,
 //!   least, most, steps a unit)` in its steps (whole degrees at the hip,
-//!   tenths over sights, hundredths in scopes, whole percent), the checkbox's `root.srp_check_option(name,
+//!   tenths over sights, hundredths in scopes, whole centimetres, a minus
+//!   sign before a negative one), the checkbox's `root.srp_check_option(name,
 //!   label, saved)`, each saving its argument first when it is one (user.cfg
 //!   at once); `srp_weapon_view_texts` answers the window's title and the
 //!   sight distance's note (`root.srp_weapon_view_texts`);
@@ -66,7 +67,12 @@ static SCOPES: ConsoleFloat = ConsoleFloat::new(AIMED_069, 16.25, AIMED_069);
 static WORLD: ConsoleBool = ConsoleBool::new();
 /// The values the log said last.
 static SAID: Lock<Option<ViewOptions>> = Lock::new(None);
-static DISTANCE: ConsoleFloat = ConsoleFloat::new(0.0, 0.0, 100.0);
+/// The sight distance's range in centimetres: 20 nearer (the clamps stop a
+/// sight sooner where it is near already), 50 farther (a pistol's revision 73
+/// eye was 40 cm nearer than 0.69d0's; the arms' reach beyond is unseen).
+const NEARER: f32 = -20.0;
+const FARTHER: f32 = 50.0;
+static DISTANCE: ConsoleFloat = ConsoleFloat::new(0.0, NEARER, FARTHER);
 
 pub const HIP_NAME: &CStr = c"srp_weapon_fov";
 pub const SIGHTS_NAME: &CStr = c"srp_weapon_fov_aimed";
@@ -75,7 +81,7 @@ pub const WORLD_NAME: &CStr = c"srp_weapon_fov_world";
 pub const DISTANCE_NAME: &CStr = c"srp_sight_distance";
 const WORLD_LABEL: &CStr = c"st_srp_weapon_fov_world_option";
 const HEADING: &CStr = c"st_srp_weapon_view_heading";
-const DISTANCE_NOTE: &CStr = c"st_srp_sight_distance_hint";
+const DISTANCE_NOTE: &CStr = c"st_srp_sight_distance_note";
 
 static SLIDERS: [Slider; 4] = [
     Slider { name: HIP_NAME, label: c"st_srp_weapon_fov_option", value: &HIP, least: 40.0, most: 100.0, per_unit: 1 },
@@ -83,7 +89,7 @@ static SLIDERS: [Slider; 4] = [
     Slider {
         name: SCOPES_NAME, label: c"st_srp_weapon_fov_scope_option", value: &SCOPES, least: 16.25, most: AIMED_069, per_unit: 100,
     },
-    Slider { name: DISTANCE_NAME, label: c"st_srp_sight_distance_option", value: &DISTANCE, least: 0.0, most: 100.0, per_unit: 1 },
+    Slider { name: DISTANCE_NAME, label: c"st_srp_sight_distance_option", value: &DISTANCE, least: NEARER, most: FARTHER, per_unit: 1 },
 ];
 
 /// A held thing's angle over 0.69d0's: 1 is 0.69d0's own, exactly.
@@ -132,18 +138,19 @@ pub enum Projection {
     Own { hip: Scale, sights: Scale, scopes: Scale },
 }
 
-/// The share of the way from 0.69d0's eye to revision 73's, 0 to 1.
+/// How many metres farther from the sight the eye stands than 0.69d0's
+/// (negative: nearer), before the clamps.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SightDistance(f32);
 
 impl SightDistance {
     pub const NONE: SightDistance = SightDistance(0.0);
 
-    fn of(percent: f32) -> SightDistance {
-        if (0.0..=100.0).contains(&percent) { SightDistance(percent / 100.0) } else { SightDistance::NONE }
+    fn of(centimetres: f32) -> SightDistance {
+        if (NEARER..=FARTHER).contains(&centimetres) { SightDistance(centimetres / 100.0) } else { SightDistance::NONE }
     }
 
-    pub fn share(self) -> f32 {
+    pub fn farther(self) -> f32 {
         self.0
     }
 }
@@ -163,7 +170,7 @@ impl ViewOptions {
         distance: SightDistance::NONE,
     };
 
-    /// The five values as the player has them: degrees, on or off, percent.
+    /// The five values as the player has them: degrees, on or off, centimetres.
     pub fn of(hip: f32, sights: f32, scopes: f32, world: bool, distance: f32) -> ViewOptions {
         let projection = if world {
             Projection::World
@@ -203,12 +210,14 @@ impl ViewOptions {
         line(&[Piece::Text("weapon view: srp_weapon_fov "), Piece::Dec(scale(HIP_NAME)),
                Piece::Text(", srp_weapon_fov_aimed "), Piece::Dec(scale(SIGHTS_NAME)),
                Piece::Text(", srp_weapon_fov_scope "), Piece::Dec(scale(SCOPES_NAME)),
-               Piece::Text(", srp_sight_distance "), Piece::Dec(scale(DISTANCE_NAME)),
-               Piece::Text(" (thousandths); srp_weapon_fov_world "), Piece::Text(if WORLD.get(thread) { "on" } else { "off" }),
+               Piece::Text(" (thousandths); srp_sight_distance "), Piece::Text(sign(DISTANCE.get(thread))),
+               Piece::Dec(thousandths(DISTANCE.get(thread).abs())),
+               Piece::Text(" (thousandths of a cm); srp_weapon_fov_world "), Piece::Text(if WORLD.get(thread) { "on" } else { "off" }),
                Piece::Text(": everything held at "), Piece::Text(projection),
                Piece::Text(", the scales of 0.69d0's angles (thousandths) hip "), Piece::Dec(hip),
                Piece::Text(", sights "), Piece::Dec(sights), Piece::Text(", scopes "), Piece::Dec(scopes),
-               Piece::Text(", the eye's share "), Piece::Dec(thousandths(self.distance.share()))]);
+               Piece::Text(", the eye "), Piece::Dec(thousandths(self.distance.farther().abs() * 10.0)),
+               Piece::Text(if self.distance.farther() < 0.0 { " tenths of a mm nearer" } else { " tenths of a mm farther" })]);
     }
 }
 
@@ -230,17 +239,57 @@ fn choice(text: &CStr) -> Option<bool> {
     }
 }
 
+/// "-" before a negative value in the log, "" else.
+fn sign(value: f32) -> &'static str {
+    if value < 0.0 { "-" } else { "" }
+}
+
+/// A slider's value in its steps, as the movie and the exe tell it each other:
+/// one to four decimal digits, a minus sign before a negative one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Steps(i32);
+
+impl Steps {
+    fn parse(text: &CStr) -> Option<Steps> {
+        let (negative, digits) = match text.to_bytes() {
+            [b'-', rest @ ..] => (true, rest),
+            all => (false, all),
+        };
+        if digits.is_empty() || digits.len() > 4 || !digits.iter().all(u8::is_ascii_digit) {
+            return None;
+        }
+        let n = digits.iter().fold(0, |n, d| n * 10 + i32::from(d - b'0'));
+        Some(Steps(if negative { -n } else { n }))
+    }
+
+    /// Its text into `out`, with the zero.
+    fn text(self, out: &mut [u8; 8]) -> &CStr {
+        let mut digits = [0; 8];
+        let magnitude = SliderSteps::new(self.0.unsigned_abs().min(9999) as u16);
+        let bytes = magnitude.text(&mut digits).to_bytes();
+        let start = usize::from(self.0 < 0);
+        if start == 1 {
+            out[0] = b'-';
+        }
+        out[start..start + bytes.len()].copy_from_slice(bytes);
+        out[start + bytes.len()] = 0;
+        CStr::from_bytes_until_nul(&out[..=start + bytes.len()]).unwrap_or(c"")
+    }
+}
+
 impl Slider {
     /// The movie's steps as the value: within the range.
     fn parse(&self, text: &CStr) -> Option<f32> {
-        let steps = SliderSteps::parse(text)?;
-        let value = f32::from(steps.get()) / f32::from(self.per_unit);
+        let value = Steps::parse(text)?.0 as f32 / f32::from(self.per_unit);
         (self.least..=self.most).contains(&value).then_some(value)
     }
 
     /// A value in steps.
-    fn steps(&self, value: f32) -> SliderSteps {
-        SliderSteps::nearest(value, f64::from(self.per_unit), SliderSteps::new(0), SliderSteps::new(9999))
+    fn steps(&self, value: f32) -> Steps {
+        let x = f64::from(value) * f64::from(self.per_unit);
+        // to the nearest (no `round` in no_std): half away from 0
+        let n = if x < 0.0 { (x - 0.5) as i32 } else { (x + 0.5) as i32 };
+        Steps(n.clamp(-9999, 9999))
     }
 }
 
@@ -274,7 +323,7 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<WeaponViewOptionsOnOptions
         let (mut saved, mut least, mut most, mut unit) = ([0; 8], [0; 8], [0; 8], [0; 8]);
         let values = [slider.name, label, slider.steps(slider.value.get(thread)).text(&mut saved),
                       slider.steps(slider.least).text(&mut least), slider.steps(slider.most).text(&mut most),
-                      SliderSteps::new(slider.per_unit).text(&mut unit)];
+                      Steps(i32::from(slider.per_unit)).text(&mut unit)];
         call.answer(c"root.srp_slider_option", &values);
     } else {
         return Flow::Continue;
@@ -307,18 +356,18 @@ mod tests {
         assert_eq!(ViewOptions::of(65.0, 32.5, 32.5, false, 0.0), ViewOptions::DEFAULT);
         let Projection::Own { hip, sights, scopes } = ViewOptions::DEFAULT.projection else { panic!() };
         assert!([hip, sights, scopes].iter().all(|scale| scale.get().to_bits() == 1.0_f32.to_bits()));
-        assert_eq!(ViewOptions::DEFAULT.distance.share().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(ViewOptions::DEFAULT.distance.farther().to_bits(), 0.0_f32.to_bits());
     }
 
     #[test]
     fn the_values_are_scales_of_0_69d0_s_angles() {
-        let options = ViewOptions::of(80.0, 52.0, 16.25, false, 50.0);
+        let options = ViewOptions::of(80.0, 52.0, 16.25, false, -12.0);
         let Projection::Own { hip, sights, scopes } = options.projection else { panic!() };
         assert!((hip.get() - 80.0 / 65.0).abs() < 1e-6 && (sights.get() - 1.6).abs() < 1e-6 && (scopes.get() - 0.5).abs() < 1e-6);
-        assert!((options.distance.share() - 0.5).abs() < 1e-6);
-        assert_eq!(ViewOptions::of(80.0, 52.0, 16.25, true, 100.0).projection, Projection::World);
+        assert!((options.distance.farther() + 0.12).abs() < 1e-6);
+        assert_eq!(ViewOptions::of(80.0, 52.0, 16.25, true, 50.0).projection, Projection::World);
         // outside the ranges, or not numbers: 0.69d0's own
-        let odd = ViewOptions::of(f32::NAN, 70.0, 40.0, false, 150.0);
+        let odd = ViewOptions::of(f32::NAN, 70.0, 40.0, false, -21.0);
         assert_eq!(odd, ViewOptions::DEFAULT);
         assert_eq!(Scale(1.0).toward(Scale(0.5), 0.5), Scale(0.75));
         assert_eq!(Scale(1.0).toward(Scale(0.5), 0.0), Scale(1.0));
@@ -333,15 +382,25 @@ mod tests {
         assert_eq!(sights.parse(c"199"), None);
         assert_eq!(sights.parse(c"651"), None);
         assert_eq!(sights.parse(c"32.5"), None);
-        assert_eq!(sights.steps(32.5).get(), 325);
-        assert_eq!(SLIDERS[2].steps(16.25).get(), 1625);
-        assert_eq!(SLIDERS[3].parse(c"0"), Some(0.0));
-        assert_eq!(SLIDERS[3].parse(c"100"), Some(100.0));
+        assert_eq!(sights.steps(32.5), Steps(325));
+        assert_eq!(SLIDERS[2].steps(16.25), Steps(1625));
+        let distance = &SLIDERS[3];
+        assert_eq!(distance.parse(c"0"), Some(0.0));
+        assert_eq!(distance.parse(c"-20"), Some(-20.0));
+        assert_eq!(distance.parse(c"50"), Some(50.0));
+        assert_eq!(distance.parse(c"-21"), None);
+        assert_eq!(distance.parse(c"51"), None);
+        assert_eq!(distance.parse(c"--5"), None);
+        assert_eq!(distance.parse(c"-"), None);
         assert_eq!(SLIDERS[0].parse(c"100"), Some(100.0));
+        let mut out = [0; 8];
+        assert_eq!(Steps(-20).text(&mut out), c"-20");
+        assert_eq!(Steps(0).text(&mut out), c"0");
+        assert_eq!(Steps(3250).text(&mut out), c"3250");
         // every default and end a whole number of steps of four digits at most
         for (slider, default) in SLIDERS.iter().zip([HIP_069, AIMED_069, AIMED_069, 0.0]) {
             for value in [slider.least, slider.most, default] {
-                let steps = f32::from(slider.steps(value).get());
+                let steps = slider.steps(value).0 as f32;
                 assert_eq!(steps / f32::from(slider.per_unit), value);
             }
         }

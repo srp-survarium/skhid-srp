@@ -107,28 +107,24 @@ pub enum Relief {
     Own,
     /// The gun's eye plane (a collimator, the rail iron sight: 0.69d's
     /// `plane_slot`). The eye stands `along` its line from the sight's own
-    /// locator (negative: behind it, toward the shooter); revision 73's
-    /// resolver had it `along_026g`, at the plane of the gun's own `aim`
-    /// (the composed body's header), or at the locator itself where the
-    /// line never meets that plane.
-    InGunPlane { along: f32, along_026g: f32 },
+    /// locator (negative: behind it, toward the shooter).
+    InGunPlane { along: f32 },
 }
 
 impl Relief {
-    /// How far the eye goes along its line beyond the one this resolver
-    /// gives, at `share` of the way to revision 73's (0 none, 1 all, clamped):
-    /// never nearer the sight than [`LEAST_RELIEF`], nor nearer than this
-    /// resolver's eye where that is nearer already. The line is the eye's own,
-    /// so the reticle stays at the screen's centre.
-    pub fn shift(self, share: f32) -> f32 {
-        let Relief::InGunPlane { along, along_026g } = self else { return 0.0 };
-        if share.is_nan() || share <= 0.0 {
+    /// How far the eye goes along its line (an `aim_offset` more: positive
+    /// toward the sight) for the player's sight distance `farther` metres
+    /// (negative: closer): never nearer the sight than [`LEAST_RELIEF`], nor
+    /// nearer than this resolver's eye where that is nearer already. The line
+    /// is the eye's own, so the reticle stays at the screen's centre; 0 moves
+    /// nothing (and a magnified scope's own eye never moves).
+    pub fn shift(self, farther: f32) -> f32 {
+        let Relief::InGunPlane { along } = self else { return 0.0 };
+        if !farther.is_finite() || farther == 0.0 {
             return 0.0;
         }
-        let share = share.min(1.0);
-        let wanted = along + (along_026g - along) * share;
         let nearest = along.max(-LEAST_RELIEF);
-        let shift = wanted.min(nearest) - along;
+        let shift = (along - farther).min(nearest) - along;
         if shift.is_finite() { shift } else { 0.0 }
     }
 }

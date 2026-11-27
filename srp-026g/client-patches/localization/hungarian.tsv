@@ -4393,7 +4393,7 @@ st_srp_shop_not_owned	Meglévők elrejtése
 st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
 st_srp_side_left	Bal
 st_srp_side_right	Jobb
-st_srp_sight_distance_hint	0 % = jelenlegi, 100 % = klasszikus
+st_srp_sight_distance_note	+ távolabb, - közelebb
 st_srp_sight_distance_option	Irányzék távolsága
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség

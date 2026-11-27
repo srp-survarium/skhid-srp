@@ -44,7 +44,8 @@ pub(crate) struct Profile {
 
 /// A gun's row of `srp_weapon_views`: its profile, and its iron sights'
 /// `aim_offset` of revision 73 where the content moved them to 0.69d0's eye
-/// (none for a gun with an optic of its own).
+/// (none for a gun with an optic of its own): the sight distance brings
+/// the iron sights no nearer than the nearer of the two.
 #[derive(Clone, Copy)]
 pub(crate) struct GunView {
     profile: Profile,
@@ -102,10 +103,12 @@ impl Focal {
 /// How the sight distance moves a sight's eye.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum EyeMove {
-    /// The gun's own iron sights: `step` metres along the line take its eye
-    /// from the content's `aim_offset` to revision 73's.
-    Iron { step: f32 },
-    /// A sight in the gun's eye plane: the table's two eyes.
+    /// The gun's own iron sights: their eye may come `nearer` metres nearer
+    /// the sight at most (to the nearer of the two eyes released builds drew,
+    /// revision 73's `aim_offset` and the content's), and go back as far as
+    /// asked.
+    Iron { nearer: f32 },
+    /// A sight in the gun's eye plane: the table's eye and its clamp.
     InPlane(Relief),
     /// Nothing known of another eye: it stays.
     Fixed,
@@ -136,15 +139,16 @@ impl Aim {
         }
     }
 
-    /// How far the eye goes along its line (an `aim_offset` more).
+    /// How far the eye goes along its line (an `aim_offset` more: positive
+    /// nearer the sight) for the player's distance (positive farther).
     fn shift(self, distance: SightDistance) -> f32 {
-        let share = distance.share();
-        if share.is_nan() || share <= 0.0 {
+        let farther = distance.farther();
+        if !farther.is_finite() || farther == 0.0 {
             return 0.0;
         }
         match self {
-            Aim::Sights(EyeMove::Iron { step }) => step * share.min(1.0),
-            Aim::Sights(EyeMove::InPlane(relief)) => relief.shift(share),
+            Aim::Sights(EyeMove::Iron { nearer }) => (-farther).min(nearer),
+            Aim::Sights(EyeMove::InPlane(relief)) => relief.shift(farther),
             Aim::Sights(EyeMove::Fixed) | Aim::Scope => 0.0,
         }
     }
@@ -194,8 +198,9 @@ fn aims(gun: &HeldGun, eyes: Option<(Option<Relief>, Option<Relief>)>, share: f3
     let main = match gun.optic {
         Optic::Own => return None,
         Optic::None => {
-            let step = gun.view.and_then(|view| view.aim_offset_026g).map(|then| then - gun.aim_offset);
-            Aim::Sights(step.filter(|step| step.is_finite()).map_or(EyeMove::Fixed, |step| EyeMove::Iron { step }))
+            // revision 73's eye, where it was nearer than the content's: as near as the iron sights may come
+            let nearer = gun.view.and_then(|view| view.aim_offset_026g).map_or(0.0, |then| then - gun.aim_offset);
+            Aim::Sights(EyeMove::Iron { nearer: if nearer.is_finite() { nearer.max(0.0) } else { 0.0 } })
         }
         Optic::Fitted => main_eye.map_or(Aim::Sights(EyeMove::Fixed), Aim::of),
     };
@@ -453,12 +458,12 @@ mod tests {
     fn a_gun_with_its_own_optic_keeps_the_world_projection() {
         let aimed = 1.0 / 16.25_f32.to_radians().tan();
         assert!(lens(&gun(Optic::None, 1.0), None, ViewOptions::DEFAULT).is_some_and(|focal| (focal.value() - aimed).abs() < 1e-5));
-        let collimator = Some((Some(Relief::InGunPlane { along: -0.2, along_026g: -0.1 }), None));
+        let collimator = Some((Some(Relief::InGunPlane { along: -0.2 }), None));
         assert!(lens(&gun(Optic::Fitted, 1.0), collimator, ViewOptions::DEFAULT).is_some_and(|focal| (focal.value() - aimed).abs() < 1e-5));
         assert!(lens(&gun(Optic::Own, 1.0), None, ViewOptions::DEFAULT).is_none());
         let unknown = HeldGun { view: None, ..gun(Optic::None, 1.0) };
         assert!(lens(&unknown, None, ViewOptions::DEFAULT).is_some_and(|focal| (focal.value() - 1.0 / 32.5_f32.to_radians().tan()).abs() < 1e-5));
-        assert_eq!(held(&gun(Optic::Own, 1.0), aims(&gun(Optic::Own, 1.0), None, 0.0), ViewOptions::of(65.0, 32.5, 32.5, false, 100.0)).shift, 0.0);
+        assert_eq!(held(&gun(Optic::Own, 1.0), aims(&gun(Optic::Own, 1.0), None, 0.0), ViewOptions::of(65.0, 32.5, 32.5, false, 30.0)).shift, 0.0);
     }
 
     #[test]
@@ -477,7 +482,7 @@ mod tests {
         let world = ViewOptions::of(65.0, 32.5, 32.5, true, 0.0);
         assert!(lens(&iron, None, world).is_none() && bare_lens(world).is_none());
         // a switch half way from a scope to a collimator: the angle half way
-        let both = Some((Some(Relief::Own), Some(Relief::InGunPlane { along: -0.2, along_026g: -0.1 })));
+        let both = Some((Some(Relief::Own), Some(Relief::InGunPlane { along: -0.2 })));
         let half = held(&gun(Optic::Fitted, 1.0), aims(&gun(Optic::Fitted, 1.0), both, 0.5), options).lens.unwrap();
         let want = 1.0 / (f64::from((20.0_f32 / 32.5 + 52.0 / 32.5) / 2.0 * 0.5 * 32.5).to_radians()).tan();
         assert!((f64::from(half.value()) - want).abs() < 1e-4);
@@ -486,23 +491,34 @@ mod tests {
     /// The checkbox and 100 %: revision 73's eye, for iron sights by the
     /// content's two aim_offsets, in the gun's eye plane by the table's.
     #[test]
-    fn at_100_percent_the_eye_is_revision_73_s() {
-        let rev73 = ViewOptions::of(65.0, 32.5, 32.5, true, 100.0);
+    fn the_sight_distance_moves_the_eye_by_its_centimetres_within_the_clamps() {
+        let options = |cm: f32| ViewOptions::of(65.0, 32.5, 32.5, false, cm);
+        // the PM's iron sights: the content's -0.4789, revision 73's -0.05 nearer by 42.89 cm
         let pm = gun(Optic::None, 1.0);
-        let held_pm = held(&pm, aims(&pm, None, 0.0), rev73);
-        assert!(held_pm.lens.is_none());
-        assert!((pm.aim_offset + held_pm.shift - -0.05).abs() < 1e-6, "the PM's iron sights at -0.05, revision 73's");
-        let m4 = Relief::InGunPlane { along: -0.20781, along_026g: -0.0799 };
-        let fitted = gun(Optic::Fitted, 1.0);
-        let shift = held(&fitted, aims(&fitted, Some((Some(m4), None)), 0.0), rev73).shift;
-        assert!((-0.20781 + shift - -0.0799).abs() < 1e-6);
-        let half = held(&fitted, aims(&fitted, Some((Some(m4), None)), 0.0), ViewOptions::of(65.0, 32.5, 32.5, false, 50.0));
-        assert!((half.shift - (0.20781 - 0.0799) / 2.0).abs() < 1e-6);
-        // a magnified scope and a gun without a row: no move
-        let scope = held(&fitted, aims(&fitted, Some((Some(Relief::Own), None)), 0.0), rev73);
-        assert_eq!(scope.shift, 0.0);
+        let shift = |gun: &HeldGun, eyes, cm| held(gun, aims(gun, eyes, 0.0), options(cm)).shift;
+        assert_eq!(shift(&pm, None, 0.0).to_bits(), 0.0_f32.to_bits(), "0: revision 74's eye");
+        assert!((shift(&pm, None, 30.0) + 0.30).abs() < 1e-6, "30 cm farther: aim_offset 30 cm less");
+        assert!((shift(&pm, None, -20.0) - 0.20).abs() < 1e-6, "20 cm nearer: within revision 73's eye");
+        // the MP5's (revision 73's eye 6.7 cm behind the content's): never nearer than the content's
+        let mp5 = HeldGun { view: GunView::parse(Profile::parse([1.0, 0.5]).unwrap(), Some(-0.10)), aim_offset: -0.033, ..pm };
+        assert_eq!(shift(&mp5, None, -10.0), 0.0);
+        assert!((shift(&mp5, None, 10.0) + 0.10).abs() < 1e-6);
+        // a gun without a row: farther only
         let unknown = HeldGun { view: None, ..pm };
-        assert_eq!(held(&unknown, aims(&unknown, None, 0.0), rev73).shift, 0.0);
+        assert_eq!(shift(&unknown, None, -5.0), 0.0);
+        assert!((shift(&unknown, None, 5.0) + 0.05).abs() < 1e-6);
+        // the M4A1's EOTech, 20.78 cm behind: 10 cm nearer, but never within 6 cm of its reticle
+        let m4 = Some((Some(Relief::InGunPlane { along: -0.20781 }), None));
+        let fitted = gun(Optic::Fitted, 1.0);
+        assert!((shift(&fitted, m4, -10.0) - 0.10).abs() < 1e-6);
+        assert!((-0.20781 + shift(&fitted, m4, -20.0) + weapon_modules::LEAST_RELIEF).abs() < 1e-6);
+        assert!((shift(&fitted, m4, 50.0) + 0.50).abs() < 1e-6);
+        // a magnified scope and an optic of its own: never
+        assert_eq!(shift(&fitted, Some((Some(Relief::Own), None)), 30.0), 0.0);
+        assert_eq!(shift(&gun(Optic::Own, 1.0), None, 30.0), 0.0);
+        // the checkbox leaves the distance as it is
+        let world = ViewOptions::of(65.0, 32.5, 32.5, true, 30.0);
+        assert!((held(&pm, aims(&pm, None, 0.0), world).shift + 0.30).abs() < 1e-6);
     }
 
     #[test]

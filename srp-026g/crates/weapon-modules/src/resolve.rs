@@ -397,19 +397,15 @@ impl<'t> Build<'t> {
     /// `M.c += s·M.k`; the axes stay. Where 0.69d would leave the eye (a
     /// line along the plane, a plane more than 2 m behind it), a refusal.
     ///
-    /// With it, where revision 73's resolver had that eye ([`Relief`]): the
-    /// plane of the gun's own `aim` (the header), the eye left at the
-    /// locator where its line never meets that plane, by the same rule.
+    /// With it, how far behind the sight it stands ([`Relief`]).
     fn in_gun_plane(&self, eye: Placement) -> Result<(Placement, Relief), Refusal> {
         let plane = self.gun.eye_plane().ok_or(Refusal::Broken)?;
         let (line, plane) = (posed(&self.gun, &eye).ok_or(Refusal::Broken)?, posed(&self.gun, &plane).ok_or(Refusal::Broken)?);
         let along = to_plane(&line, &plane).ok_or(Refusal::OffPlane)?;
-        let own = posed(&self.gun, &self.gun.own_aim()).ok_or(Refusal::Broken)?;
-        let along_026g = to_plane(&line, &own).unwrap_or(0.0);
         let bone = self.bone(&eye)?;
         let slide = Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]);
         let offset = eye.offset.then(&bone).then(&slide).then(&bone.inverse().ok_or(Refusal::Broken)?);
-        Ok((Placement { bone: eye.bone, offset }, Relief::InGunPlane { along, along_026g }))
+        Ok((Placement { bone: eye.bone, offset }, Relief::InGunPlane { along }))
     }
 
     fn loadout(&self) -> Result<Bare<'t>, Refusal> {

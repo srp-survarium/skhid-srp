@@ -4393,7 +4393,7 @@ st_srp_shop_not_owned	Piilota omistetut
 st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole
 st_srp_side_left	Vasen
 st_srp_side_right	Oikea
-st_srp_sight_distance_hint	0 % = nykyinen, 100 % = klassinen
+st_srp_sight_distance_note	+ kauemmas, - lähemmäs
 st_srp_sight_distance_option	Tähtäimen etäisyys
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus

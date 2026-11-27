@@ -293,7 +293,7 @@ package
         // title in the Settings' title look, the close button) at the screen's centre, every control inside its
         // frame, none over the next, the stock slider and checkbox in the tab's look (the World FOV slider's label
         // format, the HUD checkboxes' size); every dictionary's labels and the distance's note inside it; the
-        // distance's value in percent; a move pending until Apply (the exe's calls: the value in its steps), Cancel
+        // distance (-20 to 50) and its value in cm with a sign; a move pending until Apply (the exe's calls: the value in its steps), Cancel
         // putting the saved value back and closing it; the checkbox greying the three angles; the close button and
         // Esc closing it; the same at the movie scaled 1.5 (the UI scale above 1080p, MainMenu.onStageResize).
         private function checkWeaponView(root:*, settings:*, content:MovieClip, texts:Array):void
@@ -305,7 +305,7 @@ package
             var names:Array = ["srp_weapon_fov", "srp_weapon_fov_aimed", "srp_weapon_fov_scope", "srp_sight_distance"];
             var labels:Array = [38, 39, 40, 42];
             var answers:Array = [["65", "40", "100", "1"], ["325", "200", "650", "10"], ["3250", "1625", "3250", "100"],
-                ["0", "0", "100", "1"]];
+                ["0", "-20", "50", "1"]];
             var answer:Function = function(t:Array):void {
                 root.srp_weapon_view_texts(t[37], t[43]);
                 root.srp_check_option("srp_weapon_fov_world", t[41], "0");
@@ -335,7 +335,9 @@ package
                 require(sliders[i].visible && close(sliders[i].selectedIndex, values[i]),
                     names[i] + ": shown at " + values[i] + " (" + sliders[i].selectedIndex + ")");
             }
-            require(sliders[3].textFieldValue.text == "0 %", "the sight distance's value in percent: " + sliders[3].textFieldValue.text);
+            require(sliders[3].textFieldValue.text == "0 cm" && close(sliders[3].slider.minimum, -20)
+                && close(sliders[3].slider.maximum, 50), "the sight distance -20 to 50, its value in cm: "
+                + sliders[3].textFieldValue.text);
             require(close(sliders[2].slider.minimum, 16.25) && close(sliders[2].slider.maximum, 32.5)
                 && close(sliders[1].slider.snapInterval, 0.5), "the scope slider 16.25 to 32.5, the sights' snap 0.5");
             // the tab's look: the World FOV slider's label format, the HUD checkboxes' size, the Settings' title
@@ -407,18 +409,22 @@ package
                 "Cancel: 32.5 back, closed");
             click(button);
             sliders[1].slider.value = 52;
-            sliders[3].slider.value = 100;
-            require(sliders[3].textFieldValue.text == "100 %", "the sight distance's value in percent: " + sliders[3].textFieldValue.text);
+            sliders[3].slider.value = -5;
+            require(sliders[3].textFieldValue.text == "-5 cm", "the sight distance's value in cm: " + sliders[3].textFieldValue.text);
+            sliders[3].slider.value = 25;
+            require(sliders[3].textFieldValue.text == "+25 cm", "the sight distance's value in cm, a sign: "
+                + sliders[3].textFieldValue.text);
             require(settings.closePanel() && !window.visible && settings.btn_accept.enabled,
                 "Esc closes the window, its changes still pending");
             click(settings.btn_accept);
-            require(calls.indexOf("srp_weapon_fov_aimed=520") >= 0 && calls.indexOf("srp_sight_distance=100") >= 0
+            require(calls.indexOf("srp_weapon_fov_aimed=520") >= 0 && calls.indexOf("srp_sight_distance=25") >= 0
                 && !settings.btn_accept.enabled && !window.visible,
-                "Apply: the exe given 520 tenths and 100 percent (" + calls + ")");
+                "Apply: the exe given 520 tenths and 25 cm (" + calls + ")");
             exe.standIn = null;
             root.srp_slider_option(names[1], texts[0][39], "520", "200", "650", "10");
-            root.srp_slider_option(names[3], texts[0][42], "100", "0", "100", "1");
-            require(close(sliders[1].selectedIndex, 52) && !settings.btn_accept.enabled, "the exe's answers keep 52, nothing pending");
+            root.srp_slider_option(names[3], texts[0][42], "25", "-20", "50", "1");
+            require(close(sliders[1].selectedIndex, 52) && close(sliders[3].selectedIndex, 25) && !settings.btn_accept.enabled,
+                "the exe's answers keep 52 and 25, nothing pending");
             click(button);
             box.selected = true;
             require(sliders[0].alpha < 1 && sliders[1].alpha < 1 && sliders[2].alpha < 1 && sliders[3].alpha == 1
@@ -426,7 +432,9 @@ package
             click(settings.btn_cancel);
             require(!box.selected && sliders[0].alpha == 1 && !settings.btn_accept.enabled, "Cancel: unticked, the angles back");
             root.srp_slider_option(names[1], texts[0][39], "325", "200", "650", "10");
-            root.srp_slider_option(names[3], texts[0][42], "0", "0", "100", "1");
+            root.srp_slider_option(names[3], texts[0][42], "-3", "-20", "50", "1");
+            require(close(sliders[3].selectedIndex, -3) && sliders[3].textFieldValue.text == "-3 cm", "a saved -3 cm shown");
+            root.srp_slider_option(names[3], texts[0][42], "0", "-20", "50", "1");
             root.srp_slider_option(names[2], texts[0][40], "3300", "1625", "3250", "100");
             require(close(sliders[2].selectedIndex, 32.5), "an answer out of its range is ignored");
             click(button);

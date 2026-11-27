@@ -5132,9 +5132,10 @@ their defaults and ranges, the scopes' surround and what to look at are in `weap
 - **Why that is the aim offset `shift` larger.** calculate_aim_alignment gives
   `inverse(T(0,0,a) x rotY(pi) x L x B) x Item`. With `a + s` that is the same matrix times
   `Item^-1 x T(0,0,-s) x Item`, a translation of `-s` times Item's third row (row vectors).
-- The shift: iron sights `(aim_offset_026g - [+6D8h]) x share`, +6D8h the translation z of the aim
-  offset matrix (the cook makes it at 0x24A8E7 with 0x573C0, the identity at 0x24A8F2 without the
-  key). A sight in the gun's eye plane: `Relief::shift`.
+- The shift: minus the player's centimetres (farther), for iron sights no more than
+  `aim_offset_026g - [+6D8h]` nearer, +6D8h the translation z of the aim offset matrix (the cook makes
+  it at 0x24A8E7 with 0x573C0, the identity at 0x24A8F2 without the key). A sight in the gun's eye
+  plane: `Relief::shift` (never within 6 cm of its reticle).
 - Nothing is written to the weapon. The camera, the `Item` bone and everything a world holds are
   as they were.
 

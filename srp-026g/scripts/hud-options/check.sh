@@ -53,7 +53,7 @@ keys = ('st_srp_hit_markers_all', 'st_srp_hide_scores_option', 'st_srp_options_h
         'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint', 'st_srp_hit_markers_kill',
         'st_srp_hit_markers_hidden', 'st_srp_weapon_view_heading', 'st_srp_weapon_fov_option',
         'st_srp_weapon_fov_aimed_option', 'st_srp_weapon_fov_scope_option', 'st_srp_weapon_fov_world_option',
-        'st_srp_sight_distance_option', 'st_srp_sight_distance_hint')
+        'st_srp_sight_distance_option', 'st_srp_sight_distance_note')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

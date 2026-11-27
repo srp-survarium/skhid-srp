@@ -16,7 +16,7 @@ translate_text the key's English text, game::save_user_config counted):
 - the Settings' call (0x1FF5D0): each slider with its steps within its range
   saves it (user.cfg written once), a value out of the range, not digits or
   none nothing; each answers root.srp_slider_option(name, label, saved,
-  least, most, steps a unit) in its steps (1, 1/10, 1/100, whole percent);
+  least, most, steps a unit) in its steps (1, 1/10, 1/100, whole cm with a sign);
   the checkbox with "1"/"0" root.srp_check_option(name,
   label, saved); `srp_weapon_view_texts` root.srp_weapon_view_texts(title, note);
   the original answers none of them.
@@ -33,7 +33,7 @@ LABELS = {"st_srp_weapon_fov_option": "Weapon FOV at the hip",
           "st_srp_weapon_fov_aimed_option": "Weapon FOV over sights",
           "st_srp_weapon_fov_scope_option": "Weapon FOV in scopes",
           "st_srp_sight_distance_option": "Sight distance",
-          "st_srp_sight_distance_hint": "0 % = current, 100 % = classic",
+          "st_srp_sight_distance_note": "+ farther, - closer",
           "st_srp_weapon_fov_world_option": "Weapon at the world FOV",
           "st_srp_weapon_view_heading": "Weapon view"}
 language.ENGLISH.update({key: text.encode() for key, text in LABELS.items()})
@@ -42,7 +42,7 @@ language.ENGLISH.update({key: text.encode() for key, text in LABELS.items()})
 SLIDERS = {"srp_weapon_fov": ("st_srp_weapon_fov_option", 65.0, 40.0, 100.0, 1),
            "srp_weapon_fov_aimed": ("st_srp_weapon_fov_aimed_option", 32.5, 20.0, 65.0, 10),
            "srp_weapon_fov_scope": ("st_srp_weapon_fov_scope_option", 32.5, 16.25, 32.5, 100),
-           "srp_sight_distance": ("st_srp_sight_distance_option", 0.0, 0.0, 100.0, 1)}
+           "srp_sight_distance": ("st_srp_sight_distance_option", 0.0, -20.0, 50.0, 1)}
 WORLD = "srp_weapon_fov_world"
 
 
@@ -85,7 +85,7 @@ def main():
     for name, (label, default, least, most, unit) in SLIDERS.items():
         good = steps((least + most) / 2, unit)
         cases = [(good, float(good) / unit, 1), (steps(least, unit), least, 1), (steps(most, unit), most, 1),
-                 (str(int(round(least * unit)) - 1) if least > 0 else "abc", None, 0),
+                 (str(int(round(least * unit)) - 1), None, 0), ("abc", None, 0), ("--5", None, 0),
                  (str(int(round(most * unit)) + 1), None, 0),
                  ("1.5", None, 0), (None, None, 0), (steps(default, unit), default, 1)]
         for argument, want, saves in cases:
@@ -106,7 +106,7 @@ def main():
                f"{WORLD} with {argument!r}: {int(want)}, user.cfg written {saves} time(s), answered")
     invokes, count = new.callback("srp_weapon_view_texts")
     expect(invokes == [(language.MOVIE, "root.srp_weapon_view_texts",
-                        (LABELS["st_srp_weapon_view_heading"], LABELS["st_srp_sight_distance_hint"]))]
+                        (LABELS["st_srp_weapon_view_heading"], LABELS["st_srp_sight_distance_note"]))]
            and count == 0, "srp_weapon_view_texts: the title and the sight distance's note, nothing saved")
     for name in list(SLIDERS) + [WORLD, "srp_weapon_view_texts"]:
         invokes, count = old.callback(name, "1")

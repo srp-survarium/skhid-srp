@@ -4393,7 +4393,7 @@ st_srp_shop_not_owned	Besitz ausblenden
 st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
 st_srp_side_left	Links
 st_srp_side_right	Rechts
-st_srp_sight_distance_hint	0 % = aktuell, 100 % = klassisch
+st_srp_sight_distance_note	+ weiter weg, - näher
 st_srp_sight_distance_option	Visierabstand
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo

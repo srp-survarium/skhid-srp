@@ -51,11 +51,12 @@ by the crate's test): nothing here works a loadout out again.
   lines are (0xECB70, 0xECA30), the camera's lens
   scales by them (a rifle's hip and aimed angles, a fitted magnified
   scope's), the checkbox gives no lens at all (the world's projection);
-  the sight distance at 0, 50 and 100 % moves the hands' alignment
+  the sight distance in centimetres moves the hands' alignment
   (process_hands_ik 0x295AA5 through calculate_aim_alignment to 0x295AB8)
-  to what the original gives with the aim_offset 0 %, half and all of the
-  way to the row's aim_offset_026g (100 %: bit for bit the default at 0;
-  revision 73's at 100), and not for a weapon the camera did not sample.
+  to what the original gives with the aim_offset that much less (farther;
+  bit for bit the default at 0), nearer at most to the row's
+  aim_offset_026g (the nearer of the released eyes), and not for a weapon
+  the camera did not sample.
 """
 import math
 import struct
@@ -859,17 +860,19 @@ def weapon_view_settings(original, built, report):
            "the log says the values when they change (the setters' lines), and what the held gun is drawn at, "
            "at the hip and fully aimed" + ("" if "weapon view: srp" in said else f": {said!r}"))
 
-    # the sight distance: the A-545's iron sights, 0.137 (0.69d0's eye) toward 0.15 (revision 73's)
-    for percent, want_offset in ((0.0, 0.137), (50.0, 0.1435), (100.0, 0.15)):
-        put("srp_sight_distance", percent)
+    # the sight distance: the A-545's iron sights at 0.137 (0.69d0's eye); revision 73's 0.15, 1.3 cm nearer,
+    # is as near as they may come
+    for cm, want_offset, what in ((0.0, 0.137, " bit for bit"), (10.0, 0.037, ": 10 cm farther"),
+                                  (50.0, -0.363, ": 50 cm farther"), (-1.0, 0.147, ": 1 cm nearer"),
+                                  (-20.0, 0.15, ": 20 cm nearer asked, revision 73's eye, the nearest released")):
+        put("srp_sight_distance", cm)
         drawn(a545)
         stopped, ours = align(r, a545, 0.137)
         stock = Run(original)
         stock_stopped, theirs = align(stock, stock.block(0x1900), want_offset)
-        exact = ours == theirs if percent == 0.0 else close(ours, theirs, 2e-6)
+        exact = ours == theirs if cm == 0.0 else close(ours, theirs, 2e-6)
         report(stopped == stock_stopped == ALIGNED and exact,
-               f"srp_sight_distance {percent:g}: the alignment the original makes with aim_offset {want_offset:g}"
-               + (" bit for bit" if percent == 0.0 else "") + (" (revision 73's)" if percent == 100.0 else ""))
+               f"srp_sight_distance {cm:g}: the alignment the original makes with aim_offset {want_offset:g}{what}")
     other = gun(0.137)
     stopped, ours = align(r, other, 0.137)
     stock = Run(original)

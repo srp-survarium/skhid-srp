@@ -29,8 +29,9 @@ package
     //   32.5) and through magnified scopes (16.25 to 32.5, 32.5);
     // - the checkbox "Weapon at the world FOV": the held gun drawn at the world's projection, as before
     //   revision 74; the three sliders are greyed while it is ticked;
-    // - "Sight distance", 0 to 100 %: aimed over iron sights and collimators, the eye's share of the
-    //   way from 0.69d0's place (revision 74's) to revision 73's; its note says so for players.
+    // - "Sight distance", -20 to +50 cm: aimed over iron sights and collimators, how much farther the
+    //   eye stands from the sight than 0.69d0's place (revision 74's), negative nearer; its value in cm
+    //   with its sign, its note ("+ farther, - closer") says which way.
     // Esc, its close button or a press beside it closes it; another tab, Apply or Cancel too. Its values
     // are the Gameplay tab's pending changes (Apply saves them, the exe applying each at once, in a
     // match too; Cancel puts the saved ones back). The exe keeps each value in user.cfg and answers
@@ -59,6 +60,8 @@ package
             srp_sight_distance: 1};
         private static const DEFAULTS:Object = {srp_weapon_fov: 65, srp_weapon_fov_aimed: 32.5, srp_weapon_fov_scope: 32.5,
             srp_sight_distance: 0};
+        // The distance's value text: its centimetres with a sign.
+        private static const UNIT:String = " cm";
         // The button: the Graphics tab's Optimal and Default buttons' width, wider only for its text.
         private static const BUTTON_WIDTH:Number = 127;
         // The Settings window's frame (SrpSettingsGround, 650 x 565), as SrpKeysWindow lays it: its border
@@ -133,7 +136,7 @@ package
                 panel.addChild(slider);
                 sliders[key] = slider;
             }
-            sliders[DISTANCE].addEventListener(IndexEvent.INDEX_CHANGE, percent);
+            sliders[DISTANCE].addEventListener(IndexEvent.INDEX_CHANGE, centimetres);
             box = new CheckBoxSkinned();
             box.name = "_" + WORLD;
             box.autoSize = "none";
@@ -404,7 +407,7 @@ package
                 slider.y = at - slider.textField.y;
                 at = slider.y + slider.slider.y + slider.slider.height + ROW_GAP;
             }
-            percent();
+            centimetres();
             note.defaultTextFormat = SrpLanguage.noteFormat(content);
             note.setTextFormat(note.defaultTextFormat);
             note.embedFonts = true;
@@ -494,17 +497,19 @@ package
             slider.slider.enabled = on;
             if (slider == sliders[DISTANCE])
             {
-                percent();
+                centimetres();
             }
         }
 
-        // The distance's value in percent, as the slider shows its number.
-        private function percent(event:Event = null):void
+        // The distance's value in centimetres with its sign ("+10 cm", "0 cm", "-5 cm"), where the slider
+        // shows its number.
+        private function centimetres(event:Event = null):void
         {
             var slider:SrvOptionSlider = sliders[DISTANCE];
             if (slider.textFieldValue != null)
             {
-                slider.textFieldValue.text = Math.round(slider.selectedIndex) + " %";
+                var value:int = Math.round(slider.selectedIndex);
+                slider.textFieldValue.text = (value > 0 ? "+" : "") + value + UNIT;
             }
         }
 

@@ -4393,7 +4393,7 @@ st_srp_shop_not_owned	Skrýt vlastněné
 st_srp_shop_not_owned_hint	Zobrazit jen předměty, které nevlastníš
 st_srp_side_left	Vlevo
 st_srp_side_right	Vpravo
-st_srp_sight_distance_hint	0 % = současná, 100 % = klasická
+st_srp_sight_distance_note	+ dál, - blíž
 st_srp_sight_distance_option	Vzdálenost mířidel
 st_srp_skills	Dovednosti
 st_srp_speed_label	Rychlost

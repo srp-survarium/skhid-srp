@@ -7179,18 +7179,20 @@ five values kept in user.cfg (also console variables):
 - `srp_weapon_fov_aimed`: fully aimed over iron sights and collimators (20 to 65, 32.5);
 - `srp_weapon_fov_scope`: through magnified scopes (16.25 to 32.5, 32.5);
 - `srp_weapon_fov_world`: everything held at the world's projection, as before revision 74 (off);
-- `srp_sight_distance` ("Sight distance", its note "0 % = current, 100 % = classic"): 0 to 100 % of
-  the way from 0.69d0's eye to revision 73's, aimed over iron sights and collimators (0).
+- `srp_sight_distance` ("Sight distance", "+ farther, - closer"): centimetres along the eye's line
+  from 0.69d0's eye, -20 to +50, aimed over iron sights and collimators (0); never nearer than 6 cm
+  to a collimator's reticle, nor iron sights nearer than the nearer eye a release drew.
 
 Each gun keeps 0.69d0's own ratio to the angles; the 14 guns with an optic of their own are as before.
-The defaults are revision 74 bit for bit; the checkbox with 100 % is revision 73 on every gun. A saved
+The defaults are revision 74 bit for bit; the checkbox is revision 73's projection. A saved
 value takes effect at the next frame, in a match too.
 
 Patch 161's lens is scaled by the angles or left off. Patch 218 registers the values, answers the
-Settings and moves the hands' aim alignment by the eye's move along its own line: the
+Settings and moves the hands' aim alignment by the sight distance along the eye's own line: the
 `calculate_aim_alignment` result with a larger `aim_offset` (`hands_ik.aim_alignment`,
 `hands_ik.aim_aligned`). The rows of `srp_weapon_views` (weapon-view-069.json) carry each moved gun's
-revision 73 iron-sight `aim_offset` (`aim_offset_026g`). Its texts are eight keys in every dictionary.
+revision 73 iron-sight `aim_offset` (`aim_offset_026g`), the iron sights' nearest. Its texts are eight
+keys in every dictionary.
 
 The look only: the camera, the shot, the recoil, the spread and what a world holds are the game's;
 no `simulation_changes.tsv` row. Checked with Unicorn (`check_attachments_026g.py`,

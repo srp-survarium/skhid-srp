@@ -22,7 +22,7 @@ console variable kept in `user.cfg`, so it can also be set from the console.
 | `srp_weapon_fov_aimed` | Weapon FOV over sights | 20 to 65, step 0.5 | 32.5 | A rifle's angle fully aimed over iron sights, a collimator or the rail iron sight. Each gun is scaled by its own aimed factor over 0.5 (a pistol 1.2 times it, the SKS 0.7). |
 | `srp_weapon_fov_scope` | Weapon FOV in scopes | 16.25 to 32.5, step 0.25 | 32.5 | The same rule, through a magnified scope. |
 | `srp_weapon_fov_world` | Weapon at the world FOV | on / off | off | On: everything held is drawn at the world's projection, as before revision 74. The three sliders above are greyed while it is ticked. |
-| `srp_sight_distance` | Sight distance (its value in %, its note "0 % = current, 100 % = classic") | 0 to 100 % | 0 | Aimed over iron sights and sights in the gun's eye plane: the eye's share of the way from 0.69d0's place (revision 74) to revision 73's. |
+| `srp_sight_distance` | Sight distance (its value "+10 cm", its note "+ farther, - closer") | -20 to +50 cm, step 1 | 0 | Aimed over iron sights and sights in the gun's eye plane: how much farther from the sight the eye stands than 0.69d0's place (revision 74), negative nearer, within the clamps below. Never a magnified scope's or an optic of its own. |
 
 - A move or a toggle is a pending change of the tab: Apply saves it (user.cfg at once), Cancel puts
   the saved value back. A saved value takes effect at the next frame, also in a match.
@@ -35,24 +35,13 @@ console variable kept in `user.cfg`, so it can also be set from the console.
 ### Revision 73 and revision 74
 
 - **The defaults are revision 74 bit for bit.** Each angle is 0.69d0's times a scale of exactly 1.0
-  (`x * 1.0` is `x` in floats), and the eye's move is not made at all at 0 %.
-- **The checkbox and 100 % are revision 73 for every gun:**
-  - the projection is the world's, the lens off (revision 73 had no lens);
-  - iron sights: the eye moves by the gun's revision 73 `aim_offset` (iron-sights-1.json's `from`,
-    0 where the edit added the key) minus the one the cook made (+6A0h);
-  - collimators and the rail iron sight: the eye moves to the plane of the gun's own `aim` (the
-    composed body's header), which revision 73's resolver used; where the line misses that plane,
-    the eye stays at the sight's own locator, as revision 73 left it;
-  - magnified scopes: their eye is their own in both revisions; the checkbox alone gives revision 73's
-    picture (the world's x4 projection, the lens past the screen).
-- **Checked on the shipped table** (weapon-modules@9, `the_shipped_table_at_the_026g_eye`):
-  - the M4A1 with the EOTech 552: the reticle 20.78 cm ahead of the eye at 0 %, 7.99 cm at 100 %
-    (revision 73's);
-  - the A-545 with the same sight: 39.46 cm at 0 %, 53.16 cm at 100 %;
-  - the PM's and the SKS's collimators move 43 to 49 cm and 16.7 cm;
-  - a fitted PSO-1 keeps its own eye.
-  - The clamp below never acts on any of the 835 sights in the gun's plane, so 100 % is revision
-    73's on every one of them.
+  (`x * 1.0` is `x` in floats), and the eye's move is not made at all at 0 cm.
+- **The checkbox is revision 73's projection** for everything held (the lens off; revision 73 had
+  none); magnified scopes, whose eye is their own in both revisions, are then revision 73's whole.
+- **Sight distance** first was a blend toward revision 73's eye (0 to 100 %); the owner, 2026-11-27:
+  "I would just have it as a simple distance slider". So it is centimetres along the eye's line, the
+  same for every gun. Revision 73's eye was per gun (its iron sights' `aim_offset`, a collimator's eye at
+  the plane of the gun's header): no one value gives it back, which the owner chose.
 - **Scope FOV 16.25** gives revision 73's scope picture at full aim (the world's angle at x4 is 16.25
   whatever `uro_fov` is), without the checkbox.
 
@@ -97,9 +86,10 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
   - `vostok::trig::focal_length` now takes half-angles to 90 degrees (100 at the hip is 50). Up to
     45 its floats are the same as before.
 - **The eye** (patch 218).
-  - Each sight's move comes from the table: `weapon_modules::Relief`, `along` and `along_026g` of
-    `Build::in_gun_plane`. For iron sights it comes from the row's `aim_offset_026g` and the cook's
-    +6A0h.
+  - The move is the player's centimetres along the eye's line (an `aim_offset` that much less:
+    farther), clamped per sight: `weapon_modules::Relief::shift` over the table's `along` (how far
+    behind its reticle `Build::in_gun_plane` puts the eye) for a sight in the gun's plane; for iron
+    sights the row's `aim_offset_026g` and the cook's +6A0h.
   - The camera keeps the move for the gun it sampled (a `Lock`).
   - `hands_ik.aim_alignment`, after patch 172, takes the camera's line: the `Item` bone's third row,
     from the call's pushed argument (`hands_ik_frame.item`).
@@ -108,17 +98,23 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
   - That is calculate_aim_alignment's own result with an `aim_offset` `shift` larger, because
     `inverse(T(0,0,a+s) R L B) Item = inverse(T(0,0,a) R L B) Item^-1 T(0,0,-s) Item`. The eye moves
     along its own line, so the reticle stays at the screen's centre.
-- **The clamp.** A sight in the gun's plane is never nearer than 6 cm to its reticle
-  (`weapon_modules::LEAST_RELIEF`; revision 73's nearest, the M4A1's EOTech, was 7.99 cm), nor nearer
-  than its 0.69d0 eye where that is nearer already. Iron sights move only between their two
-  released eyes.
+- **The clamps** (nearer only; farther is as asked, to the slider's 50 cm).
+  - A sight in the gun's plane is never nearer than 6 cm to its reticle (`weapon_modules::LEAST_RELIEF`;
+    the nearest a release drew, revision 73's M4A1 EOTech, was 7.99 cm), nor nearer than its 0.69d0
+    eye where that is nearer already. On the shipped table every such sight is 6 cm or more behind its
+    reticle (`the_shipped_table_and_the_sight_distance`): the M4A1's EOTech 20.78 cm, the A-545's 39.46.
+  - Iron sights come no nearer than the nearer of the two eyes released builds drew: revision 73's
+    `aim_offset` (the row's `aim_offset_026g`, iron-sights-1.json's `from`, 0 where it added the key)
+    and the content's. Their rear sight's place is in no table, so the eyes players saw are the
+    known-safe ones: the PM's may come 42.9 cm nearer, the MP5's not at all. A gun without a row may
+    only go farther.
 - **The menu** (`flash/main_menu`, `SrpWeaponView.as`, `Settings.as`). The exe answers each name in
   the Settings' call (`weapon_view_options.rs`). A slider's answer is `name, label, saved, least,
   most, steps a unit`: 1, 10, 100 and 1, so every default and end is whole and of four digits at
-  most.
+  most; a negative one (the distance's) has a minus sign.
 - **The texts**: eight keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
   `st_srp_weapon_fov_option`, `_aimed_option`, `_scope_option`, `_world_option`,
-  `st_srp_sight_distance_option`, `st_srp_sight_distance_hint`, `st_srp_world_fov_option`).
+  `st_srp_sight_distance_option`, `st_srp_sight_distance_note`, `st_srp_world_fov_option`).
 
 ## The log
 
@@ -172,22 +168,25 @@ revision 73's 16.25, covers more of the screen. A mask like 0.69d0's would be a 
 
 - `cargo test -p patches` (`tools/check patches-crate`):
   - the defaults' lens the same bits as revision 74's code for five profiles at five aims;
-  - no move at 0 %;
+  - no move at 0 cm;
   - each angle scaled by what is held;
   - the checkbox gives no lens;
-  - revision 73's eye at 100 %;
+  - the distance moves the eye by its centimetres, within each clamp (iron sights with and without a
+    nearer released eye, a gun without a row, a collimator at the least relief), never a magnified
+    scope or an optic of its own;
   - the sliders' steps;
   - `focal_length` to 89 degrees.
 - `cargo test -p weapon-modules` (`cargo:weapon-modules`, `weapon-modules-table`): `Relief::shift`
-  and the shipped table at the 0.26g eye.
+  and the shipped table's sights (every one at least the least relief behind its reticle).
 - `check_attachments_026g.py` (`tools/check attachments`, Unicorn):
   - the five variables registered at `configs.start`;
   - the lens at 90 and 52 degrees, and with no gun;
   - the checkbox gives the world's projection;
   - a fitted PSO-1 at a scope angle of 20.
-  - process_hands_ik through calculate_aim_alignment at 0, 50 and 100 % equals what the original
-    exe makes with the aim offset 0, half and all of the way to `aim_offset_026g`: bit for bit at
-    0, within 2e-6 otherwise.
+  - the values set by their own setters, as user.cfg's lines are;
+  - process_hands_ik through calculate_aim_alignment at 0, +10, +50, -1 and -20 cm (the A-545's iron
+    sights) equals what the original exe makes with the aim offset that much less, -20 clamped at
+    revision 73's eye 1.3 cm nearer: bit for bit at 0, within 2e-6 otherwise.
   - A weapon the camera did not sample is not moved.
 - `check_weapon_view_options_026g.py` (`tools/check hud-options`, Unicorn): the registration, each
   slider's steps within and out of its range, the checkbox, the heading; the original answers none.
@@ -195,8 +194,8 @@ revision 73's 16.25, covers more of the screen. A mask like 0.69d0's would be a 
   - the tab's standard button under World FOV, the window in the Settings' skin (the Key bindings
     window's frame, title and close button) at 1280x720 and with the movie scaled
     1.5;
-  - the sliders' labels in World FOV's look, the checkbox the HUD group's size, the distance's value
-    in percent;
+  - the sliders' labels in World FOV's look, the checkbox the HUD group's size, the distance -20 to
+    50 and its value in cm with a sign;
   - every dictionary's labels and the distance's note inside the window;
   - Esc and the close button close it, its changes still pending;
   - Apply sends the steps, and Cancel and the exe's answers keep or restore the saved values;
@@ -205,9 +204,9 @@ revision 73's 16.25, covers more of the screen. A mask like 0.69d0's would be a 
 
 **Not run:** a game. To look at in one (1280x720, `uro_fov 65`):
 
-- the EOTech on the A-545 and the M4A1 at 0 % and 100 % with the checkbox (revision 74's and 73's
-  rings: 19.7/8.6 px, 37.1/56.9 px);
-- a PSO-1 at a scope angle of 16.25 (revision 73's full-screen lens);
-- the PM at 100 % (revision 73's place, 40 cm nearer);
+- the EOTech on the A-545 and the M4A1 at 0 cm, +20 cm and -15 cm (the M4A1's stops at 6 cm from its
+  reticle);
+- a PSO-1 at a scope angle of 16.25 (revision 73's full-screen lens), and the distance not moving it;
+- the PM at -20 cm (20 cm nearer) and +30 cm;
 - the hip at 90 with a pistol;
 - the arms at each.
