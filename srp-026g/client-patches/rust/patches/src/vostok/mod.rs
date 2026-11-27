@@ -175,6 +175,7 @@ pub use match_rules::MatchClock;
 
 pub mod consumable;
 pub mod drawable_image;
+pub mod scaleform_filter;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;

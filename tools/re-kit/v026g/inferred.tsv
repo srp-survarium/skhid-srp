@@ -3720,3 +3720,9 @@ va	status	ref_021d	name
 0x0023c750	inferred-medium		survarium::game_world_ui::place_object_icon [descriptive]
 0x002d3700	inferred-medium		survarium::game_world_core::drop_world_events_after
 0x002d4350	inferred-medium		survarium::timed_list::allocate_node
+0x002b2bd0	inferred-medium		Scaleform::Render::D3D1x::HAL::CreateTempRenderTarget
+0x002b3e40	inferred-medium		Scaleform::Render::D3D1x::HAL::drawUncachedFilter
+0x00527ac0	inferred-medium		Scaleform::Render::HAL::PopFilters
+0x00528900	inferred-medium		Scaleform::Render::RBGenericImpl::RenderBufferManager::CreateTempRenderTarget
+0x00529110	inferred-medium		Scaleform::Render::FilterPrimitive::GetCacheResults
+0x005298c0	inferred-medium		Scaleform::Render::FilterPrimitive::SetCacheResults
