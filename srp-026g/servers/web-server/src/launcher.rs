@@ -433,6 +433,7 @@ pub(crate) fn lobby_mode_name(lang: Lang, mode: LobbyMode) -> String {
         LobbyMode::Cowboy(Variation::Colt) => lang.t("FFA: Saloon"),
         LobbyMode::Cowboy(Variation::WinchesterAndColt) => lang.t("FFA: Saloon (Winchester)"),
         LobbyMode::Roulette(_) => lang.t("FFA: Roulette"),
+        LobbyMode::Pistols => lang.t("FFA: Pistols"),
     }
 }
 

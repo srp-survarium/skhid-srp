@@ -21,8 +21,10 @@ approved the name, level 0 in the low band and every recommendation below (2026-
   rifle and an SMG).
 - **Nothing of the players' is used or charged**: no item, no ammo, no medkit. Their skills still
   apply (more pockets, more ammo bags, Deep Pockets' one weapon).
-- **Share:** 30 % of the free-for-all cards (the owner, 2026-11-22): plain 30, Racket 30, Roulette
-  30, Saloon (Winchester) 5, Saloon 5.
+- **Share:** 25 % of the free-for-all cards since 2026-11-27 (the owner, of FFA: Pistols, "take 5%
+  from roulette and 5% from FFA normal": plain 25, Racket 30, Roulette 25, Pistols 10, the Saloons
+  5 and 5; `ffa-pistols.md`); 30 % from 2026-11-22 (plain 30, Racket 30, Roulette 30, Saloon
+  (Winchester) 5, Saloon 5).
 - **Name on the card:** "FFA: Roulette", the same for every band (the owner, 2026-11-22, the day it
   went live with the band in the name: "roulette shouldn't show its level", "it should just be
   roulette").

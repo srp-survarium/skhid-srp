@@ -1348,7 +1348,8 @@ impl Rooms {
     /// only draws a twist), Racket with the gun of the room's max level
     /// ("racket on lvl10 room should not give AK-12 and instead AK74N"),
     /// Roulette with a band it allows and a hand of it
-    /// (`docs/notes/ffa-roulette.md`), a private room's none (the owner,
+    /// (`docs/notes/ffa-roulette.md`), Pistols with such a band and a pair of
+    /// it (`docs/notes/ffa-pistols.md`), a private room's none (the owner,
     /// 2026-11-15: "we can also remove from private lobbies FFA: Saloon and
     /// FFA: Racket"), a map played with a twist only too (the owner, 2026-11-27:
     /// "we removed FFA from them, which is fine for pub lobbies, not for private

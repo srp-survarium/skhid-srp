@@ -4210,6 +4210,7 @@ st_srp_mode_cowboy	FFA: Салун
 st_srp_mode_cowboy_winchester	FFA: Салун (Винчестер)
 st_srp_mode_free_for_all	Все против всех
 st_srp_mode_freeze_tag	Заморозка
+st_srp_mode_pistols	FFA: Пистолеты
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_racket	FFA: Движ
 st_srp_mode_research	Исследование

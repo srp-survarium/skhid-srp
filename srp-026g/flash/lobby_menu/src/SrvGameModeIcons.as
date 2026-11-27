@@ -9,9 +9,10 @@ package
    // skull), then srp's: 4 Artifact Hunt (`ui.icon` 3, GameModeIconArtefactHunt), 5 Freeze Tag
    // (`ui.icon` 4, GameModeIconFreezeTag), 6 Free for All (`ui.icon` 5), and a free-for-all's
    // twists, which have no config of their own (docs/notes/ffa.md, "Twists"): 7 Racket, 8 Saloon,
-   // 9 Saloon (Winchester), 10 Roulette, shown for Free for All's icon by the twist the room's
-   // match plays (forTwist); each where the protective device's 61 x 55 lies, in its place
-   // (frame 1's art hidden under it). The owner picked the five pictures (2026-11-22).
+   // 9 Saloon (Winchester), 10 Roulette, 11 Pistols (two TT-33s crossed, in Racket's steel), shown
+   // for Free for All's icon by the twist the room's match plays (forTwist); each where the
+   // protective device's 61 x 55 lies, in its place (frame 1's art hidden under it). The owner
+   // picked the first five pictures (2026-11-22).
    public dynamic class SrvGameModeIcons extends MovieClip
    {
       public static const ARTEFACT_HUNT:int = 4;
@@ -27,6 +28,8 @@ package
       public static const SALOON_WINCHESTER:int = 9;
 
       public static const ROULETTE:int = 10;
+
+      public static const PISTOLS:int = 11;
 
       // srp's frames' bitmaps, made at their first showing; the one shown, if any.
       private const own:Object = {};
@@ -56,6 +59,8 @@ package
                return new GameModeIconSaloonWinchester();
             case ROULETTE:
                return new GameModeIconRoulette();
+            case PISTOLS:
+               return new GameModeIconPistols();
             default:
                return null;
          }
@@ -82,6 +87,8 @@ package
             case 15:
             case 16:
                return ROULETTE - 1;
+            case 18:
+               return PISTOLS - 1;
             default:
                return icon;
          }

@@ -513,9 +513,14 @@ Level bands: {0}.	Faixas de nível: {0}.
 A room draws bands up to its level.	Uma sala sorteia faixas até o seu nível.
 Each kit a gun of another class, with random bonuses and attachments.	Cada kit com uma arma de outra classe, com bônus e acessórios aleatórios.
 {0} % of deals: pistols only.	{0} % das distribuições: só pistolas.
-Plain FFA: {0} % of FFA cards.	FFA normal: {0} % das cartas de FFA.
+Everyone plays his own kits.	Cada um joga com os seus próprios kits.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Todos jogam com os mesmos {0} kits aleatórios, cada um com uma pistola; o terceiro kit fica vazio.
+Pistols of levels {0}: {1}.	Pistolas dos níveis {0}: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	Uma sala sorteia faixas até o seu nível; uma sala acima do nível 10 joga 0–5 ou 6–10.
+Two different pistols of the band, with random armour, bonuses and attachments.	Duas pistolas diferentes da faixa, com armadura, bônus e acessórios aleatórios.
 {0} % of FFA cards.	{0} % das cartas de FFA.
 FFA: Roulette	FFA: Roleta
+FFA: Pistols	FFA: Pistolas
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Buscar armas
