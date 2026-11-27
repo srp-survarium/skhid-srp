@@ -2669,7 +2669,7 @@ mod tests {
         assert_eq!(account.kits[2].slots[13].unwrap().item_id, medkit);
         assert_eq!(account.kits[2].slots[14], None);
         assert_eq!(account.kits[2].slots[2].unwrap().item_id, torso);
-        let preset = account.presets[1].unwrap();
+        let preset = account.presets[1].clone().unwrap();
         assert_eq!(preset.kits[2][13], saved(medkit, dict("medkit")));
         assert_eq!(preset.kits[2][14], None);
         // The kits carry other modifiers.
