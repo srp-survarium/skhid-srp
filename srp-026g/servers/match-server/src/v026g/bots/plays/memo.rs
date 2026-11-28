@@ -19,7 +19,7 @@ use mapdata::stands::{EYE_CROUCHED, EYE_STANDING, GUESSED_EYE_CROUCHED, GUESSED_
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
-use super::collect::{Crossing, crossing_to, routed_crossing_via};
+use super::collect::{Crossing, CrossingAsk, crossing_to, routed_crossing_ask};
 use crate::v026g::bots::hazards::HurtTest;
 use crate::v026g::bots::tuning::RouteCrossing;
 
@@ -110,6 +110,30 @@ impl<K: Eq + Hash, V: Clone> QueryMemo<K, V> {
         answer
     }
 
+    /// [entry slices] The kept answer for `key` under `stamp`, if there is one; another stamp drops them all, as [`Self::get`].
+    pub fn peek(&self, stamp: impl Iterator<Item = u64> + Clone, key: &K) -> Option<V> {
+        let mut kept = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
+        if !kept.made_for.iter().copied().eq(stamp.clone()) {
+            kept.answers.clear();
+            kept.made_for = stamp.collect();
+            return None;
+        }
+        kept.answers.get(key).cloned()
+    }
+
+    /// [entry slices] `answer` kept for `key` under `stamp`, as [`Self::get`] keeps its ask's.
+    pub fn insert(&self, stamp: impl Iterator<Item = u64> + Clone, key: K, answer: V) {
+        let mut kept = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
+        if !kept.made_for.iter().copied().eq(stamp.clone()) {
+            kept.answers.clear();
+            kept.made_for = stamp.collect();
+        }
+        if kept.answers.len() >= MEMO_MOST {
+            kept.answers.clear();
+        }
+        kept.answers.insert(key, answer);
+    }
+
     /// Answers kept.
     pub fn kept(&self) -> usize {
         self.kept
@@ -147,6 +171,14 @@ const POST_KEEP_MS: u32 = 2_000;
 #[derive(Default)]
 pub struct Memo {
     crossings: QueryMemo<CrossingKey, Option<Crossing>>,
+    /// [entry slices] [`crossing_to`]'s answers by the crossing's question: asked again while a routed crossing's search is
+    /// pending, they are not worked out again.
+    straights: QueryMemo<CrossingKey, Option<Crossing>>,
+    /// [entry slices] A routed crossing's entry way by its search's question less the armour ([`SharedEntryKey`]): the way of
+    /// the first armour searched in play, every other armour's bound ([`Memo::entry_ask`]).
+    shared_entries: QueryMemo<SharedEntryKey, Option<std::sync::Arc<Vec<mapdata::NodeId>>>>,
+    /// [entry slices] The entry searches under way, the poll's pop budget and the counts ([`Memo::new_poll`]).
+    slices: std::sync::Mutex<EntrySlices>,
     /// The escorts' posts off the line, by the carrier's floor ([`Memo::escort_post`]).
     posts: QueryMemo<PostKey, Option<Vec3>>,
     /// The containers' stands: they depend on the map alone, so they are
@@ -173,6 +205,61 @@ pub struct Memo {
 /// the stand's floor, the side, the armour's key (`ZoneArmour::key`; 0: none) and the hurt rule. Everything its price reads but
 /// the zones, which the stamp holds.
 type EntryKey = (mapdata::NodeId, mapdata::NodeId, i32, u64, HurtTest);
+
+/// [entry slices] An entry search's question less the armour: the side's spawn floor, the stand's floor, the side, the hurt rule.
+type SharedEntryKey = (mapdata::NodeId, mapdata::NodeId, i32, HurtTest);
+
+/// [entry slices] Floors an entry search may pop a poll, all the poll's searches together (`zone_search::PopBudget`): a count,
+/// not a clock, so runs repeat. A pop is about 0.35 us on this PC (batt-m1-s7's entry searches: 111,000 pops in 37-44 ms), so
+/// the budget is about 4-5 ms a poll, with a search's sources (about 2 ms) laid at its first ask.
+pub const ENTRY_POPS_A_POLL: u64 = 12_000;
+
+/// [entry slices] What an entry search's ask gets ([`Memo::entry_ask`]): a way (or none), or not yet.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EntryAsk {
+    Way(Option<std::sync::Arc<Vec<mapdata::NodeId>>>),
+    Pending,
+}
+
+/// [entry slices] The entry searches under way and the poll's budget.
+#[derive(Default)]
+struct EntrySlices {
+    /// What is left of this poll's pops; `None` before the first poll (the map's load, a test): a search then runs to its end.
+    budget: Option<u64>,
+    /// Polls made ([`Memo::new_poll`]).
+    poll: u64,
+    /// The zones' stamp the searches under way were begun for: another drops them.
+    made_for: Vec<u64>,
+    pending: Vec<PendingEntry>,
+    counts: SliceCounts,
+}
+
+/// [entry slices] An entry search under way: its question, the armour it prices the way with (the first asker's), the poll it
+/// was asked at and the runs it has had.
+struct PendingEntry {
+    /// The hazards' version it was begun under (`Hazards::version`): another drops it, as the kept steps.
+    version: u64,
+    shared: SharedEntryKey,
+    key: EntryKey,
+    armour: Option<ZoneArmour>,
+    search: crate::v026g::bots::zone_search::EntrySearch,
+    asked: u64,
+    runs: u32,
+}
+
+/// [entry slices] The match's counts, for its end line: asks answered by another armour's way (searches the bound cut), searches
+/// that ran over more than one poll, their runs, the searches dropped as the zones changed under them, and the polls their askers
+/// waited (all, and the longest).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SliceCounts {
+    pub bound: u32,
+    /// Searches under way dropped because the hazards' version moved (begun again at the next ask).
+    pub restarts: u32,
+    pub sliced: u32,
+    pub runs: u32,
+    pub waited_polls: u64,
+    pub longest_wait: u64,
+}
 
 /// [entry steps] A search's kept sources and steps and what it read the zones as: the hazards' version
 /// (`Hazards::version`: the zones' activities and the live fields) and the zones' stamp ([`zones_stamp`]).
@@ -222,11 +309,22 @@ pub struct EntryPrewarm {
     pub ms: f32,
 }
 
+/// [entry slices] Whether the way a search under `searched`'s key found answers another armour's ask (`asked`).
+fn slices_key_differs(asked: EntryKey, searched: &EntryKey) -> bool {
+    asked.3 != searched.3
+}
+
 impl Memo {
     /// [crossing prewarm] [`crate::v026g::bots::zone_search::cheapest_entry`] from the floor `from` (the side's spawn) to the stand's
     /// floor `goal` for a body of side `side`, priced as a routed crossing's leg is (`Hazards::leg_cost_per_s` under `armour` and
     /// `hurt`), within [`super::collect::ENTRY_WITHIN_M`]: kept while the zones stay what they are. The same answer as the search's.
-    pub fn entry(
+    ///
+    /// [entry slices] In play: the armour's own kept way (the load's, or its own search's); else the way another armour's search
+    /// found for the same spawn, stand, side and rule, priced by the caller for this armour (an upper bound of its own way's price:
+    /// the search's own way is the least, `zone_search::entry_price`); else the search, begun with this armour's price or joined
+    /// where another armour's is under way, run with what is left of the poll's pops ([`ENTRY_POPS_A_POLL`]): not yet, if they
+    /// run out first. Before the first poll (the load, a test) the search runs to its end at once, as before.
+    pub fn entry_ask(
         &self,
         tactics: &Tactics,
         from: mapdata::NodeId,
@@ -234,13 +332,122 @@ impl Memo {
         side: i32,
         armour: Option<&ZoneArmour>,
         hurt: HurtTest,
-    ) -> Option<std::sync::Arc<Vec<mapdata::NodeId>>> {
+    ) -> EntryAsk {
         use std::sync::atomic::Ordering;
         self.entry_asks.fetch_add(1, Ordering::Relaxed);
-        self.entry_made(tactics, (from, goal, side, armour.map_or(0, ZoneArmour::key), hurt), armour, || {
-            self.entry_searches.fetch_add(1, Ordering::Relaxed);
-        })
-        .0
+        let stamp = zones_stamp(&tactics.hazards);
+        let key = (from, goal, side, armour.map_or(0, ZoneArmour::key), hurt);
+        if let Some(way) = self.entries.peek(stamp.clone(), &key) {
+            return EntryAsk::Way(way);
+        }
+        let shared = (from, goal, side, hurt);
+        let mut slices = self.slices.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(way) = self.shared_entries.peek(stamp.clone(), &shared) {
+            slices.counts.bound += 1;
+            return EntryAsk::Way(way);
+        }
+        if !slices.made_for.iter().copied().eq(stamp.clone()) {
+            slices.pending.clear();
+            slices.made_for = stamp.clone().collect();
+        }
+        let version = tactics.hazards.version();
+        let before = slices.pending.len();
+        slices.pending.retain(|p| p.version == version);
+        slices.counts.restarts += (before - slices.pending.len()) as u32;
+        let at = match slices.pending.iter().position(|p| p.shared == shared) {
+            Some(at) => at,
+            None => {
+                self.entry_searches.fetch_add(1, Ordering::Relaxed);
+                let search = self.with_entry_steps(tactics, from, goal, side, |steps| {
+                    crate::v026g::bots::zone_search::EntrySearch::begin(tactics, steps)
+                });
+                let asked = slices.poll;
+                slices.pending.push(PendingEntry { version, shared, key, armour: armour.cloned(), search, asked, runs: 0 });
+                slices.pending.len() - 1
+            }
+        };
+        match self.run_pending(tactics, &mut slices, at) {
+            Some(way) => {
+                if slices_key_differs(key, &way.1) {
+                    slices.counts.bound += 1;
+                }
+                EntryAsk::Way(way.0)
+            }
+            None => EntryAsk::Pending,
+        }
+    }
+
+    /// [entry slices] Runs the search under way at `at` with the poll's pops: its way (kept for its armour and as every armour's
+    /// bound) and the searcher's key, once it ends.
+    fn run_pending(
+        &self,
+        tactics: &Tactics,
+        slices: &mut EntrySlices,
+        at: usize,
+    ) -> Option<(Option<std::sync::Arc<Vec<mapdata::NodeId>>>, EntryKey)> {
+        use crate::v026g::bots::zone_search::{EntryStep, PopBudget};
+        let mut budget = slices.budget.map_or(PopBudget::Unbounded, PopBudget::Left);
+        let grid = &tactics.world.grid;
+        let poll = slices.poll;
+        let step = {
+            let pending = &mut slices.pending[at];
+            pending.runs += 1;
+            let PendingEntry { key, armour, search, .. } = pending;
+            let (from, goal, side, hurt) = (key.0, key.1, key.2, key.4);
+            let armour = armour.as_ref();
+            self.with_entry_steps(tactics, from, goal, side, |steps| {
+                search.run(tactics, steps, |node| tactics.hazards.leg_cost_per_s(grid, node, armour, hurt).most(), &mut budget)
+            })
+        };
+        if let PopBudget::Left(left) = budget {
+            slices.budget = Some(left);
+        }
+        let EntryStep::Done(way) = step else {
+            return None;
+        };
+        let done = slices.pending.remove(at);
+        let way = way.map(std::sync::Arc::new);
+        let stamp = zones_stamp(&tactics.hazards);
+        self.entries.insert(stamp.clone(), done.key, way.clone());
+        self.shared_entries.insert(stamp, done.shared, way.clone());
+        let waited = poll.saturating_sub(done.asked);
+        let counts = &mut slices.counts;
+        if done.runs > 1 {
+            counts.sliced += 1;
+        }
+        counts.runs += done.runs;
+        counts.waited_polls += waited;
+        counts.longest_wait = counts.longest_wait.max(waited);
+        Some((way, done.key))
+    }
+
+    /// [entry slices] A new poll: its pops ([`ENTRY_POPS_A_POLL`]), and the entry searches under way run with them, the oldest
+    /// first, so each is answered by itself while nobody asks (the commander asks at its passes only).
+    pub fn new_poll(&self, tactics: Option<&Tactics>, pops: u64) {
+        let mut slices = self.slices.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        slices.poll += 1;
+        slices.budget = Some(pops);
+        let Some(tactics) = tactics else {
+            return;
+        };
+        if !slices.made_for.iter().copied().eq(zones_stamp(&tactics.hazards)) {
+            slices.pending.clear();
+            return;
+        }
+        let version = tactics.hazards.version();
+        let before = slices.pending.len();
+        slices.pending.retain(|p| p.version == version);
+        slices.counts.restarts += (before - slices.pending.len()) as u32;
+        while !slices.pending.is_empty() && slices.budget.is_some_and(|left| left > 0) {
+            if self.run_pending(tactics, &mut slices, 0).is_none() {
+                break;
+            }
+        }
+    }
+
+    /// [entry slices] The match's slice counts.
+    pub fn slice_counts(&self) -> SliceCounts {
+        self.slices.lock().unwrap_or_else(std::sync::PoisonError::into_inner).counts
     }
 
     /// [`Self::entry`] for `key` (its armour `armour`): the answer, and whether the search ran (`searched` called).
@@ -383,6 +590,20 @@ impl Memo {
         armour: Option<&ZoneArmour>,
         routed: RoutedRule,
     ) -> Option<Crossing> {
+        self.crossing_ask(tactics, to, side, stop_m, armour, routed).answer()
+    }
+
+    /// [entry slices] [`Self::crossing`], or not yet: its routed crossing's entry search is under way ([`Self::entry_ask`]).
+    /// No answer is kept while it is.
+    pub fn crossing_ask(
+        &self,
+        tactics: &Tactics,
+        to: Vec3,
+        side: Option<i32>,
+        stop_m: f32,
+        armour: Option<&ZoneArmour>,
+        routed: RoutedRule,
+    ) -> CrossingAsk {
         // The armour is part of the question: crossings are worked out once a match for each kit's.
         let key = (
             to.x.to_bits(),
@@ -393,9 +614,19 @@ impl Memo {
             armour.map_or(0, ZoneArmour::key),
             routed,
         );
-        self.crossings.get(zones_stamp(&tactics.hazards), key, || {
-            let found = crossing_to(tactics, to, side, stop_m, armour, routed.hurt)
-                .or_else(|| routed_crossing_via(tactics, Some(self), to, side, stop_m, armour, routed));
+        let stamp = zones_stamp(&tactics.hazards);
+        if let Some(found) = self.crossings.peek(stamp.clone(), &key) {
+            return CrossingAsk::Known(found);
+        }
+        let straight = self.straights.get(stamp.clone(), key, || crossing_to(tactics, to, side, stop_m, armour, routed.hurt));
+        let found = match straight {
+            Some(found) => Some(found),
+            None => match routed_crossing_ask(tactics, Some(self), to, side, stop_m, armour, routed) {
+                CrossingAsk::Known(found) => found,
+                CrossingAsk::Pending => return CrossingAsk::Pending,
+            },
+        };
+        {
             #[cfg(test)]
             {
                 use crate::v026g::bots::hazards::damage_zone_fixes::{Ev, count};
@@ -420,8 +651,9 @@ impl Memo {
                     }
                 }
             }
-            found
-        })
+        }
+        self.crossings.insert(stamp, key, found);
+        CrossingAsk::Known(found)
     }
 
     /// An escort's post off the line (`escort::ring_post`), kept by the carrier's floor and the post asked for, for

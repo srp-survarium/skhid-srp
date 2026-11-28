@@ -248,56 +248,161 @@ fn searched_entry(
     searched_entry_on(tactics, &mut EntrySteps::new(spawn, goal, side, within_m), damage_per_s)
 }
 
-/// [`cheapest_entry_on`]'s search itself, whatever the goal.
+/// [`cheapest_entry_on`]'s search itself, whatever the goal: an [`EntrySearch`] run to its end at once.
 fn searched_entry_on(tactics: &Tactics, steps: &mut EntrySteps, damage_per_s: impl Fn(NodeId) -> f32) -> Option<Vec<NodeId>> {
-    let grid = &tactics.world.grid;
-    let goal = steps.goal;
+    let mut search = EntrySearch::sources(tactics, steps);
+    match search.run(tactics, steps, damage_per_s, &mut PopBudget::Unbounded) {
+        EntryStep::Done(way) => way,
+        EntryStep::Pending => unreachable!("an unbounded search ends"),
+    }
+}
+
+/// [entry slices] How many floors an [`EntrySearch`] may pop now: all of them, or what is left of a poll's budget (counted down
+/// as it pops, so the searches of one poll share it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PopBudget {
+    Unbounded,
+    Left(u64),
+}
+
+impl PopBudget {
+    /// One pop taken, if one is left.
+    fn take(&mut self) -> bool {
+        match self {
+            Self::Unbounded => true,
+            Self::Left(0) => false,
+            Self::Left(n) => {
+                *n -= 1;
+                true
+            }
+        }
+    }
+}
+
+/// [entry slices] Where an [`EntrySearch`] stands after a run: its answer ([`cheapest_entry`]'s), or not yet (its budget ran
+/// out first).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EntryStep {
+    Done(Option<Vec<NodeId>>),
+    Pending,
+}
+
+/// [entry slices] [`cheapest_entry_on`]'s search kept between runs: [`Self::begin`] lays its sources, and each [`Self::run`]
+/// pops floors until the goal, the heap's end or the budget's end, stepping by the search's [`EntrySteps`]. The pops are the
+/// whole search's, in its order, whatever the slices, so a search run in slices gives the same way as one run at once, floor
+/// for floor, while the zones stay what they were (the steps' keeper's bound, as for the steps).
+pub struct EntrySearch {
+    state: SearchState,
+}
+
+enum SearchState {
+    /// The goal is not a floor the search walks onto: no way ([`cheapest_entry_on`]'s first test).
+    NoWay,
+    Running(Box<Running>),
+}
+
+struct Running {
     // [CPU] By floor, not in maps (a box holds 180-240 thousand floors on Chemical Plant's batteries, and the maps'
     // hashing was a tenth of a search), and the price of a floor stepped onto worked out once, not at every link into it.
-    let floors = grid.len();
-    let mut price: ByFloor<f32> = ByFloor::new(floors);
-    let mut prev: ByFloor<NodeId> = ByFloor::new(floors);
-    let mut stepped_onto: ByFloor<f32> = ByFloor::new(floors);
-    let mut floor_price = |b: NodeId| match stepped_onto.get(b) {
-        Some(d) => d,
-        None => {
-            let d = damage_per_s(b);
-            stepped_onto.set(b, d);
-            d
+    price: ByFloor<f32>,
+    prev: ByFloor<NodeId>,
+    stepped_onto: ByFloor<f32>,
+    heap: BinaryHeap<(Reverse<u32>, NodeId)>,
+}
+
+impl EntrySearch {
+    /// [`cheapest_entry_on`]'s search over `steps`: no way at once where the goal is not a floor it walks onto, else its
+    /// sources laid.
+    pub fn begin(tactics: &Tactics, steps: &mut EntrySteps) -> Self {
+        if !entry_walkable(tactics, steps.goal, steps.side) {
+            return Self { state: SearchState::NoWay };
         }
-    };
-    let mut heap = BinaryHeap::new();
-    for &node in steps.sources(tactics) {
-        price.set(node, 0.0);
-        heap.push((Reverse(0.0f32.to_bits()), node));
+        Self::sources(tactics, steps)
     }
-    while let Some((Reverse(bits), a)) = heap.pop() {
-        let here = f32::from_bits(bits);
-        if price.get(a).is_some_and(|p| here > p) {
-            continue;
+
+    /// The search with its sources laid at price 0, whatever the goal.
+    fn sources(tactics: &Tactics, steps: &mut EntrySteps) -> Self {
+        let floors = tactics.world.grid.len();
+        let mut running = Running {
+            price: ByFloor::new(floors),
+            prev: ByFloor::new(floors),
+            stepped_onto: ByFloor::new(floors),
+            heap: BinaryHeap::new(),
+        };
+        for &node in steps.sources(tactics) {
+            running.price.set(node, 0.0);
+            running.heap.push((Reverse(0.0f32.to_bits()), node));
         }
-        if a == goal {
-            let mut path = vec![goal];
-            let mut node = goal;
-            while let Some(before) = prev.get(node) {
-                path.push(before);
-                node = before;
+        Self { state: SearchState::Running(Box::new(running)) }
+    }
+
+    /// Pops floors while `budget` lasts, by `steps` (the search's: the same spawn, goal, side and box), each floor stepped onto
+    /// priced at `damage_per_s` (the same at every run of one search): the way, none, or not yet.
+    pub fn run(&mut self, tactics: &Tactics, steps: &mut EntrySteps, damage_per_s: impl Fn(NodeId) -> f32, budget: &mut PopBudget) -> EntryStep {
+        let SearchState::Running(running) = &mut self.state else {
+            return EntryStep::Done(None);
+        };
+        let Running { price, prev, stepped_onto, heap } = &mut **running;
+        let goal = steps.goal;
+        let mut floor_price = |b: NodeId| match stepped_onto.get(b) {
+            Some(d) => d,
+            None => {
+                let d = damage_per_s(b);
+                stepped_onto.set(b, d);
+                d
             }
-            path.reverse();
-            return Some(path);
-        }
-        for k in steps.steps_from(tactics, a) {
-            let Step { to: b, walk, metres } = steps.steps[k];
-            let damage = floor_price(b) * metres / CROSS_MPS;
-            let through = here + walk + damage * DAMAGE_M;
-            if price.get(b).is_none_or(|p| through < p) {
-                price.set(b, through);
-                prev.set(b, a);
-                heap.push((Reverse(through.to_bits()), b));
+        };
+        loop {
+            if heap.is_empty() {
+                return EntryStep::Done(None);
+            }
+            if !budget.take() {
+                return EntryStep::Pending;
+            }
+            let Some((Reverse(bits), a)) = heap.pop() else {
+                return EntryStep::Done(None);
+            };
+            let here = f32::from_bits(bits);
+            if price.get(a).is_some_and(|p| here > p) {
+                continue;
+            }
+            if a == goal {
+                let mut path = vec![goal];
+                let mut node = goal;
+                while let Some(before) = prev.get(node) {
+                    path.push(before);
+                    node = before;
+                }
+                path.reverse();
+                return EntryStep::Done(Some(path));
+            }
+            for k in steps.steps_from(tactics, a) {
+                let Step { to: b, walk, metres } = steps.steps[k];
+                let damage = floor_price(b) * metres / CROSS_MPS;
+                let through = here + walk + damage * DAMAGE_M;
+                if price.get(b).is_none_or(|p| through < p) {
+                    price.set(b, through);
+                    prev.set(b, a);
+                    heap.push((Reverse(through.to_bits()), b));
+                }
             }
         }
     }
-    None
+}
+
+/// [entry slices] The price [`cheapest_entry`]'s search gives `path` (its entry at 0, each step priced as the search prices it,
+/// in the same order): the search's own way is the least of every way's price, so another way priced with the same
+/// `damage_per_s` is never below it.
+pub fn entry_price(tactics: &Tactics, path: &[NodeId], damage_per_s: impl Fn(NodeId) -> f32) -> f32 {
+    let grid = &tactics.world.grid;
+    path.windows(2).fold(0.0f32, |here, w| {
+        let (a, b) = (w[0], w[1]);
+        let (from, to) = (grid.position(a), grid.position(b));
+        let walk = grid.links(a).find(|&(n, _)| n == b).map_or(f32::INFINITY, |(_, kind)| grid.link_cost(a, b, kind));
+        let metres = (to - from).length();
+        let damage = damage_per_s(b) * metres / CROSS_MPS;
+        here + walk.max(metres) + damage * DAMAGE_M
+    })
 }
 
 /// The search [`searched_entry`] was before its prices were kept by floor: the reference its test holds it to.

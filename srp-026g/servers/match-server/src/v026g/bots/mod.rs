@@ -2787,6 +2787,19 @@ impl Bots {
             "{}crossing entries this match: asked in play {entry_asks}, searched then {entry_searches} (the rest made at map load)",
             nav_log::PREFIX
         ));
+        // [entry slices] The asks another armour's way answered (searches the bound cut), the searches run over more than one poll
+        // and their runs, those dropped as the zones changed under them, and the polls their askers waited for an answer.
+        let slices = self.memo.slice_counts();
+        lines.push(format!(
+            "{}crossing entry slices this match: searches cut by the bound {}, searches over more than one poll {} in {} runs, dropped as the zones changed {}, polls the askers waited {} (the longest {})",
+            nav_log::PREFIX,
+            slices.bound,
+            slices.sliced,
+            slices.runs,
+            slices.restarts,
+            slices.waited_polls,
+            slices.longest_wait
+        ));
         // [entry steps] The entry searches (at load and in play) walked on another armour's kept steps, and the steps made anew.
         let (steps_reused, steps_made) = plays::memo::entry_steps_counts::take();
         lines.push(format!(
@@ -3395,8 +3408,11 @@ impl Bots {
     /// [A334] The per-poll budgets a poll starts with: the pulled legs' client walks share [`path::PULL_WALK_TICKS_A_POLL`]
     /// walk ticks (the worst poll's walk work is bounded). Called by [`Self::poll`] and by the bench's timed copy of it, so
     /// the bench measures the server's budget.
+    /// [entry slices] And the routed crossings' entry searches share [`plays::memo::ENTRY_POPS_A_POLL`] floor pops; the searches
+    /// under way run first with them, so an answer comes in while no commander pass asks.
     pub(super) fn poll_budgets(&self) {
         mapdata::grid::controlled::set_pull_walk_budget(path::PULL_WALK_TICKS_A_POLL);
+        self.memo.new_poll(self.tactics.as_ref(), plays::memo::ENTRY_POPS_A_POLL);
     }
 
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
