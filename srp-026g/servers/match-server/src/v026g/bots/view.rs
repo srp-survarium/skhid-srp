@@ -37,7 +37,7 @@ use super::body::{self, BodyTrack, Fix};
 use super::kin::Kinematics;
 use super::objective::ObjectiveMap;
 use super::live_grenades::{
-    LiveGrenade, Phase, Player, Pocketed, SAME_THROW_MS, THROW_KEYS, ThrowCounts, Throws, Whose,
+    LiveGrenade, Phase, Player, Pocketed, SAME_THROW_MS, THROW_KEYS, ThrowCounts, Throws, Whose, played_keys,
 };
 use super::smoke::{Cloud, Clouds, MatchMs, SmokeCounts, SmokeGrenade, SmokeThrow};
 use survarium::v026g::match_msgs::grenades::{GrenadeBody, Motion};
@@ -1091,6 +1091,15 @@ impl Tracker {
             return;
         }
         state.last_input = Some(time);
+        // A command in the quick bits (bit 29) is no quick-use key: the game plays the input without them.
+        let played = played_keys(keys);
+        if played != keys && keys & key::QUICK_ALL != 0 {
+            self.throws.chord_commands += 1;
+            if self.listing_notes {
+                self.notes.push(format!("bit-29 command read as no quick key: place {place} actions {keys:#x} at {time}"));
+            }
+        }
+        let keys = played;
         let pressed = keys & !state.keys;
         let released = state.keys & !keys;
         state.keys = keys;

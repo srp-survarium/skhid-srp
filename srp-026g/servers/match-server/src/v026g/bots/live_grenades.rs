@@ -48,6 +48,22 @@ pub const THROW_KEYS: u32 = key::GRENADE
     | key::QUICK[4]
     | key::QUICK[5];
 
+/// The keys a game plays of a relayed input's actions. Bit 29 ([`weapon_pickup::CHORD`]) marks a command carried in
+/// the six quick-use bits: client patch 78's carry (one bit, `artefact_carry::carry::QuickSlot::command`), patch 85's
+/// pickup and patch 196's corpse shot (a pattern of two or more bits, `weapon_pickup::encode`,
+/// `weapon_pickup::encode_corpse_shot`) and patch 180's throw-back (all six, `technical_skills::throw_back::encode`).
+/// Patch 78's filter (`carry.filter`, base_player::set_input 0x2D876F, before process_quick_slots; every player of
+/// every game, `artefact_carry::on_filter`) passes the actions without the marker and, when it is set, without the
+/// quick bits (`artefact_carry::carry::Carry::step`), so such an input presses and holds no quick-use key. Every other
+/// bit (fire, Use, the throw key) is played as sent.
+pub const fn played_keys(actions: u32) -> u32 {
+    if actions & weapon_pickup::CHORD != 0 {
+        actions & !(weapon_pickup::CHORD | weapon_pickup::QUICK)
+    } else {
+        actions
+    }
+}
+
 /// A grenade thrown: who, for which team, when the key went down, and how far it is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LiveGrenade {
@@ -617,6 +633,9 @@ pub struct ThrowCounts {
     /// The thrower was dead by the launch: kept in his hand ([`Phase::InDeadHand`]; dropped only when his body was never
     /// placed).
     pub died_throwing: u32,
+    /// A human's input with bit 29 and quick bits (a carry, pickup, corpse-shot or throw-back command): its quick bits
+    /// read as no quick-use key ([`played_keys`]).
+    pub chord_commands: u32,
 }
 
 impl super::Bots {
@@ -697,7 +716,7 @@ impl super::Bots {
             .collect::<Vec<_>>()
             .join(" ");
         format!(
-            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with its pockets read and no grenade left, {} listed from a bot's key with its pockets unread, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} quick-use presses where the two numbering rules differ, {} kits named that the profile lacks, bots' own pockets from the worlds: {} read ({} changed), {} held by a newer press; {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and whose the grenade is (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}; frags by role (lives read/carrying/units carried/thrown): {carried}",
+            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with its pockets read and no grenade left, {} listed from a bot's key with its pockets unread, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} quick-use presses where the two numbering rules differ, {} kits named that the profile lacks, bots' own pockets from the worlds: {} read ({} changed), {} held by a newer press; {} launched, {} unplaced, {} thrower dead, {} inputs whose quick bits were a bit-29 command; avoidance by the bot's team and whose the grenade is (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}; frags by role (lives read/carrying/units carried/thrown): {carried}",
             counts.frag,
             counts.human_frag,
             counts.human_quick,
@@ -715,6 +734,7 @@ impl super::Bots {
             counts.launched,
             counts.unplaced,
             counts.died_throwing,
+            counts.chord_commands,
         )
     }
 
@@ -1498,5 +1518,74 @@ mod tests {
         press(&mut tracker, 1, 8_050, 0);
         assert_eq!(tracker.live_grenades().len(), 2);
         assert_eq!(tracker.throw_counts().human_frag, 2);
+    }
+
+    /// Bit 29 marks a command carried in the quick bits, and the game plays such an input without them (client patch
+    /// 78's filter, [`played_keys`]): the bit patterns each patch's own encoder sends, read against a human whose six
+    /// quick pockets all hold grenades, list no grenade and no smoke; a plain quick-use press after them still does.
+    #[test]
+    fn a_bit_29_command_in_the_quick_bits_is_no_throw() {
+        use weapon_pickup::Place as Of;
+        let chord = weapon_pickup::CHORD;
+        // Patch 78's carry: the marker and one quick bit (`artefact_carry::carry::QuickSlot::command`).
+        let carry = [chord | key::QUICK[0], chord | key::QUICK[1]];
+        // Patch 85's pickup (Use and the quick bits out), patch 196's corpse shot (the fire kept), patch 180's
+        // throw-back (all six bits, Use out): as encoded for the press of Use (with fire for the corpse shot).
+        let pickup = [weapon_pickup::encode(key::USE, Of::new(0).unwrap()), weapon_pickup::encode(key::USE, Of::new(19).unwrap())];
+        let corpse = [
+            weapon_pickup::encode_corpse_shot(key::FIRE, Of::new(0).unwrap()),
+            weapon_pickup::encode_corpse_shot(key::FIRE, Of::new(19).unwrap()),
+        ];
+        let throw_back = technical_skills::throw_back::encode(key::USE | key::FORWARD);
+        // The exact patterns: place n's pickup the nth six-bit pattern of two or more bits (place 0's 0b11), its corpse
+        // shot the (20 + n)th; the throw-back all six.
+        assert_eq!(pickup[0], 0x2000_C000);
+        assert_eq!(corpse[0] & !key::FIRE, chord | (u32::from(weapon_pickup_pattern(20)) << 14));
+        assert_eq!(pickup[1], chord | (u32::from(weapon_pickup_pattern(19)) << 14));
+        assert_eq!(corpse[1] & !key::FIRE, chord | (u32::from(weapon_pickup_pattern(39)) << 14));
+        assert_eq!(throw_back, 0x200F_C000 | key::FORWARD);
+        assert!(technical_skills::throw_back::command(throw_back));
+        assert_eq!(weapon_pickup::command(pickup[1]).map(Of::get), Some(19));
+        assert_eq!(weapon_pickup::corpse_shot(corpse[1]).map(Of::get), Some(19));
+        // What the game plays of them: no marker, no quick bit, every other bit as sent.
+        assert_eq!(key::QUICK_ALL, weapon_pickup::QUICK);
+        assert_eq!(played_keys(carry[1]), 0);
+        assert_eq!(played_keys(pickup[0]), 0, "Use is consumed by the pickup's encoder");
+        assert_eq!(played_keys(corpse[0]), key::FIRE);
+        assert_eq!(played_keys(throw_back), key::FORWARD);
+        assert_eq!(played_keys(key::QUICK[2] | key::GRENADE), key::QUICK[2] | key::GRENADE, "no marker: as sent");
+        assert_eq!(played_keys(chord | key::GRENADE), key::GRENADE, "the throw key is not a quick bit");
+
+        let six = Pockets::new([
+            Some((Pocketed::Frag, 2)),
+            Some((Pocketed::Smoke, 2)),
+            Some((Pocketed::Frag, 2)),
+            Some((Pocketed::Frag, 2)),
+            Some((Pocketed::Frag, 2)),
+            Some((Pocketed::Frag, 2)),
+        ]);
+        let mut tracker = stand_pockets(None, Some(KitPockets::new(vec![six]).expect("one kit")));
+        let commands = carry.iter().chain(&pickup).chain(&corpse).chain([&throw_back]).copied().collect::<Vec<_>>();
+        for (n, &actions) in (0u32..).zip(&commands) {
+            let time = 1_000 + 2_000 * n;
+            press(&mut tracker, 1, time, actions);
+            press(&mut tracker, 1, time + 50, 0);
+        }
+        assert!(tracker.live_grenades().is_empty(), "{:?}", tracker.live_grenades());
+        assert_eq!(tracker.smoke_counts().thrown, [0, 0]);
+        let counts = tracker.throw_counts();
+        assert_eq!((counts.chord_commands, counts.human_empty, counts.frag, counts.smoke), (7, 0, 0, 0));
+        // A quick-use key held into a carry command goes up for the game there: its throw is let go then.
+        press(&mut tracker, 1, 20_000, key::QUICK[0]);
+        press(&mut tracker, 1, 20_050, chord | key::QUICK[0]);
+        assert_eq!(tracker.live_grenades().len(), 1);
+        assert_eq!(tracker.live_grenades()[0].phase, Phase::Pressed { keys: key::QUICK[0], release: Some(20_050) });
+        assert_eq!(tracker.throw_counts().chord_commands, 8);
+        assert_eq!(tracker.throw_counts().human_frag, 1);
+    }
+
+    /// The nth six-bit pattern with two or more bits set (`weapon_pickup`'s order).
+    fn weapon_pickup_pattern(n: usize) -> u8 {
+        (0u8..64).filter(|p| p.count_ones() >= 2).nth(n).expect("40 patterns")
     }
 }
