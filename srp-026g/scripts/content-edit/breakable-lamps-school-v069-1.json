@@ -403,15 +403,15 @@
             "glass_to_z": 48.38349886983633,
             "visuals": {
               "intact0": {
-                "index": 916,
+                "index": 1054,
                 "state": 0
               },
               "broken0": {
-                "index": 917,
+                "index": 1055,
                 "state": 1
               },
               "cone0": {
-                "index": 914,
+                "index": 1052,
                 "state": 0
               }
             },
@@ -439,15 +439,15 @@
             "glass_to_z": 157.01550646871328,
             "visuals": {
               "intact0": {
-                "index": 920,
+                "index": 1058,
                 "state": 0
               },
               "broken0": {
-                "index": 921,
+                "index": 1059,
                 "state": 1
               },
               "cone0": {
-                "index": 918,
+                "index": 1056,
                 "state": 0
               }
             },
@@ -514,15 +514,15 @@
             "glass_to_z": 48.38349886983633,
             "visuals": {
               "intact0": {
-                "index": 916,
+                "index": 1054,
                 "state": 0
               },
               "broken0": {
-                "index": 917,
+                "index": 1055,
                 "state": 1
               },
               "cone0": {
-                "index": 914,
+                "index": 1052,
                 "state": 0
               }
             },
@@ -550,15 +550,15 @@
             "glass_to_z": 157.01550646871328,
             "visuals": {
               "intact0": {
-                "index": 920,
+                "index": 1058,
                 "state": 0
               },
               "broken0": {
-                "index": 921,
+                "index": 1059,
                 "state": 1
               },
               "cone0": {
-                "index": 918,
+                "index": 1056,
                 "state": 0
               }
             },
