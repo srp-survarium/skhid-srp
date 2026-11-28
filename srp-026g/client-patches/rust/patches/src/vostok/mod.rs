@@ -102,6 +102,7 @@ pub mod streaming;
 pub mod texture_pool;
 pub mod occlusion;
 pub mod motion_vectors;
+pub mod sun_cascades;
 pub mod ray_test;
 mod rt;
 pub mod sound;

@@ -499,6 +499,65 @@ surface is one shadow-map texel there. Softness exists only as `shadow_map_size_
 texel) and as `shadow_transparency`. The normal offset is 24 / `shadow_map_size` metres
 (9 cm for a 256 map, 2.3 cm for 1024): it detaches contact shadows a little. PROVEN.
 
+### 4.5 The sun's cascades and their cache (`stage_shadow_direct::execute` 0x172E30)
+
+Four cascades (`m_num_shadow_cascades`, options +C4h), each a light-space orthographic map placed
+around the eye (`calculate_matrices` 0x174240, from renderer context +54A4h, the eye `set_v`
+writes: its view at stage+806F8h + 40h x i, its projection at +807F8h, the camera's view at
++808F8h, view x projection at context +52A8h). Three cull rules choose a cascade's casters
+(`prepare_visibile_objects` 0x1750C0, into the list at +400F4h + 800Ch x i): the scene's models
+with mask 2 (sun shadows) in the cascade's frustum; with `r_csm_cull_min_screen_factor` (0xA71A37,
+on) a surface whose screen factor (+58h, `scene::calculate_screen_factors` 0x150270 for every model
+each frame) is under the cascade's threshold (options +68h.. x a quality factor); with
+`r_csm_cull_in_previous_cascade` (0xA71A36, on) one the nearer cascade holds whole (0x173FC0, its
+box and the box moved along the sun); `r_csm_cull_shadow_outside_frustum` (0x1F1D9A5) a third
+(0x1740D0). Each entry keeps whether it crosses the cascade's edge (`test_inexact` 3; 1 inside, 2
+outside). PROVEN (instructions read).
+
+**The cache (`r_use_csm_scrolling`, 0xA71ACF, on).** A cascade keeps the depth of its static
+casters from frame to frame. Two maps a cascade: the cache (+80C0Ch + 4 x i) and the frame's map
+(+80BFCh). Each frame:
+
+```
+O      = the world origin through this frame's view x projection, in texture space (+80C1Ch)
+map    = copy_shadow_map(cache) moved by O(last kept) - O                  (+80C4Ch the last kept)
+casters this frame (C, +400F4h) against the frame before's (D, +60124h):
+  dynamic (B, +200C4h): a skinned or moving model (+115h), material kinds 8/10h/20h/40h,
+                        a material with +5 in cascade 0 (0x172BF0)
+  static, drawn into map (A, +94h): new to the cascade, or across its edge the frame before
+  static, not drawn: in D and inside it the frame before: the scroll is to have kept it
+A is drawn (stage_shadow_direct_static) when the count of C differs from D's, when the cascade
+  was flushed, or when O moved 0.001 or more in any axis (0x173F10); else not
+cache  = map (CopyResource from D3D 10.1 with r_csm_depth_stencil_copy, else copy_shadow_map)
+B drawn into map (stage_shadow_direct_dynamic); D = C; O(last kept) = O
+```
+
+`flush_cascade_cache` (0x172CE0, EDI the stage, ESI the cascade) clears both maps, the four lists
+and both offsets and marks the cascade flushed (+80C7Ch + i), so every caster of the next pass is
+new and drawn. The stage flushes every cascade each frame while its byte +2Ch is set (`cache_reset`):
+from its constructor and whenever the renderer says the scene changed or the sun did (renderer
++18h, +19h: `prepare_scene_to_render` 0x13C9A0, `scene_view::need_recalc_atmosphere` 0x15E350),
+for 100 frames (its count +2Dh). The list of changed boxes it also flushes by (scene +120148h) is
+never filled in 0.26g: a model that moves or appears does not flush the cascade it is in.
+PROVEN (instructions read).
+
+**What a camera cut does (OBSERVED, School (v0.69), 2026-11-28).** The ground at terrain_06
+(-54.2, 18.25, 110.86) is shaded in 0.69d and in a capture that starts there or walks there (1 m
+steps from the gym, 42 m away: RGB 75,72,68 over the ground); it is sunlit (113,100,79, the
+building's band of shade kept) after the camera jumped there from the gym, and stays so, through
+more jumps back and forth, until the camera has been far enough away (80 m) and comes back. From
+terrain_06 and back again: jumps of 30 and 35 m along +x keep the shade, 40, 42, 45 and 50 m lose
+it, 60 and 70 m keep it; +z 42 m loses it, -x and -z 20 to 60 m and +x 10 and 25 m keep it; a
+180-degree turn keeps it. `r_use_csm_scrolling off` keeps it after the gym's jump;
+`r_csm_cull_in_previous_cascade off` and `r_csm_cull_min_screen_factor off` do not. So a caster that
+a cascade holds before and after a jump of that size, inside it both times, is neither drawn again
+nor carried over by the scroll; which step loses it (the copy's offset, its depth range) is not
+read. A player meets it after any cut of the eye of that size: a respawn, the death camera, a
+spectator's switch to another player. Patch 222 (`sun_shadow_cut`, site
+`shadow_direct.cascades_placed` 0x172FBF) sets the stage's own reset for one frame (+2Ch 1, +2Dh
+101: flushed that frame, cached again from the next) when the eye moved over 2 m since the frame
+before.
+
 ## 5. Ambient and indirect light (`stage_ambient_lighting::execute` 0x1826F0)
 
 Order in a frame (0x182766..0x1828BA), all after the G-buffer and SSAO, before slot 7 (lights):
@@ -1360,8 +1419,8 @@ PROVEN for the 0.26g column (sections 1, 4, 5, 6); the 0.10b column is the sourc
 - Foliage and vegetation materials; terrain permutations other than the basic one; most of the 886
   G-buffer variants (detail-normal layers, UV scrolling, other discard rules).
 - The order of ambient lights (no sort found on the render path).
-- The sun's shadow map (`stage_shadow_direct`, cascades) and `stage_shadow_mask` beyond their
-  output target.
+- `stage_shadow_mask` beyond its output target; the step of the sun cascades' scroll that loses a
+  caster after a jump (section 4.5).
 
 ### Original 0.21 local-light compatibility (candidate, 2026-11-17)
 

@@ -2864,3 +2864,6 @@ va	name	source	ret_cleanup	result
 0x000396c0	vostok::collision::loose_oct_tree::unmove_all	manual	0	none; every item's moved flag (+2Ch) cleared through 0x396B0 (0x3A890 walks the tree); renderer::render calls it on the scene's tree (scene +9B7664h, vtable +34h) at the end of each frame (0x13DE6B)
 0x005298c0	Scaleform::Render::FilterPrimitive::SetCacheResults	manual	12	void; writes the state (+18h), takes up to two of the results (AddRef) into +1Ch/+20h and lets the old ones go (Release), 0 for the rest
 0x002ac6c0	survarium::particle_game_effect_presenter::effect_data::operator=	manual	0	EAX: the entry written (ESI)
+0x00172bf0	vostok::render::stage_shadow_direct::is_cached_caster	manual	4	AL 1: a static caster the cascade cache keeps; 0 a dynamic one (model +115h, material kind 8/10h/20h/40h, material +5 in cascade 0)
+0x00173f10	vostok::render::stage_shadow_direct::cascade_needs_static_draw	manual	0	AL 1: the cascade was flushed (+80C7Ch) or its scroll offset moved 0.001 or more in an axis
+0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	manual	0	EAX 1 unless r_csm_intermittent_update skips the cascade this frame
