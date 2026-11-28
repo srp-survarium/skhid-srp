@@ -1598,6 +1598,24 @@ const RUSHER_ARMOUR_13_15: &[(u8, &str)] = &[
     (6, "edge_boots_6"),
 ];
 
+/// The armour of the 13-15 rusher's shotgun kits with the helmet
+/// ([`RusherKit::Slug`], [`RusherKit::Helmet`]): [`RUSHER_ARMOUR_13_15`]
+/// with the boots `edge_boots_2` (level 9, 1.2 kg, movement speed +4 %) in
+/// place of `edge_boots_6` (level 15, 1.9 kg). With the owner's kit these
+/// two were the only kits under the speed band (0.923 and 0.929 of revision
+/// 75's 35 kg); with these boots 0.971 and 0.977. The feet's armour goes
+/// from 0.85 to 0.6, their anomalous armour from 0.9 to 0.2
+/// (`scripts/content-edit/armor.tsv`); the kit's level from 15 to 14
+/// (`edge_torso_5` and the rest).
+const RUSHER_SHOTGUN_ARMOUR_13_15: &[(u8, &str)] = &[
+    (0, "edge_helmet_5"),
+    (2, "edge_torso_5"),
+    (3, "bm_back_1"),
+    (4, "ren_legs_5"),
+    (5, "edge_gloves_5"),
+    (6, "edge_boots_2"),
+];
+
 /// Bots against players of equipment level 6 to 10: items of level 10 at
 /// most, each kit of level 9 or 10 (`matchmaking::kit_level`: its highest
 /// item), none premium. The pockets as in [`TIER_4_5`]: `bm_back_1` and a
@@ -1814,7 +1832,7 @@ pub const TIER_13_15: TierGear = TierGear {
             RoleGear {
                 weapon: "spas_12",
                 ammo: "ammo_12mm_slug",
-                armour: RUSHER_ARMOUR_13_15,
+                armour: RUSHER_SHOTGUN_ARMOUR_13_15,
             },
         ),
         (
@@ -1822,7 +1840,7 @@ pub const TIER_13_15: TierGear = TierGear {
             RoleGear {
                 weapon: "spas_12",
                 ammo: "ammo_12mm_buck",
-                armour: RUSHER_ARMOUR_13_15,
+                armour: RUSHER_SHOTGUN_ARMOUR_13_15,
             },
         ),
         (
@@ -4228,7 +4246,7 @@ mod tests {
             "ammo_12mm_slug",
             60,
             Some("edge_helmet_5"),
-            27.95,
+            27.25,
         ),
         (
             BotTier::High,
@@ -4237,7 +4255,7 @@ mod tests {
             "ammo_12mm_buck",
             60,
             Some("edge_helmet_5"),
-            27.55,
+            26.85,
         ),
         (
             BotTier::High,
