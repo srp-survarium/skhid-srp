@@ -551,9 +551,8 @@ loaded needs a few seconds more before its first match) and no `prestart`.
 
 #### Memory: how many maps and matches
 
-The numbers below are measured in test runs, except where they say "estimate" (no test run had 12 human players, and
-the largest map was measured from its level and list in one-shot runs, not as a loaded map); your own server logs the
-real ones (see "Reading the real numbers").
+The numbers below are measured in test runs and played matches, except where they say "estimate" (no test run had 12
+human players); your own server logs the real ones (see "Reading the real numbers").
 
 **What takes memory**
 
@@ -561,11 +560,11 @@ real ones (see "Reading the real numbers").
 |---|---|---|
 | srp (login, lobby, match relay) | about 40 MB, plus about 5 MB per running match | one |
 | World host base process (the game code's start-up, shared by every map) | about 0.12 GB, about 0.1 GB of it shared with every map; about 0.17 GB once it also holds the resources common to the maps' lists (see below) | one (replaced every 6 hours; for a while the old one stays with the maps it started) |
-| A loaded map | PvP about 0.06-0.1 GB (0.11-0.15 GB while the maps have no common lists yet); the largest map, `level_11` (its three modes), about 0.32-0.34 GB (estimate); PvE mission about 0.2 GB (0.26 GB without common lists) | at most `max_zygotes` (one more only while 1.4 GB is free) |
-| A running match | PvP with 2 players about 40-45 MB; with 11 AI players filling 12 slots about 0.13-0.14 GB; PvE (17 AI players) about 0.1-0.12 GB | at most `max_matches` per map (up to twice that only while 1.2 GB is free) |
+| A loaded map | PvP about 0.06-0.1 GB (0.11-0.15 GB while the maps have no common lists yet); the largest map, `level_11` (its three modes), about 0.28-0.31 GB (it loads in about 5 s); PvE mission about 0.2 GB (0.26 GB without common lists) | at most `max_zygotes` (one more only while 1.4 GB is free) |
+| A running match | PvP with 11 AI players filling 12 slots (the default `bots_per_team = 6`) about 0.13-0.14 GB; with 15 AI players in 16 slots (`bots_per_team = 8`) 0.1-0.12 GB measured with level-1 equipment (a match grows with the equipment it carries); with 2 players and no AI players about 40-45 MB; PvE (17 AI players) about 0.1-0.12 GB | at most `max_matches` per map (up to twice that only while 1.2 GB is free) |
 
 Maps differ a lot: the level itself is 31-98 MB on the usual PvP maps, 185-192 MB on a PvE mission and 281-283 MB on
-`level_11`; the rest of a map is its list of the equipment and animations its matches load (about 38-54 MB on a PvP
+`level_11` (as a loaded map 308 MB, 277 MB with the common part in the base process); the rest of a map is its list of the equipment and animations its matches load (about 38-54 MB on a PvP
 map, 65 MB on a mission), which its matches then share. Most of that list is the same on every map: once two or more
 maps have recorded lists, the world host loads the common part once in its base process (about 47 MB there) and each
 map holds about 51 MB less (measured: a PvP map 112 -> 61 MB, a PvE mission 252 -> 200 MB). A map whose matches have
@@ -602,22 +601,26 @@ table shows a limit.
 
 | Online | Matches at once (PvP + PvE) | Maps loaded | PvE missions per mission map | Memory, usual | Memory, worst case | Server memory | `max_zygotes` | CPU |
 |---|---|---|---|---|---|---|---|---|
-| 10 | 4 (3 + 1) | 4 | 1 | 1.0 GB | 2.1 GB | 4 GB | 5 | 1 core |
-| 20 | 7 (5 + 2) | 7 | 1 | 1.7 GB | 3.4 GB | 4-6 GB | 8 | 1 core |
-| 50 | 17 (13 + 4) | 17 | 1 | 3.5 GB | 7.8 GB | 10-12 GB | 19 | 1-2 cores |
-| 100 | 34 (26 + 8) | 32 | 2 | 6.4 GB | 14.5 GB | 16 GB | 34 | 2 cores |
-| 200 | 67 (50 + 17) | 56 | 3 | 11.2 GB | 25.9 GB | 32 GB | 58 | 4 cores |
+| 10 | 4 (3 + 1) | 4 | 1 | 1.2 GB | 2.1 GB | 4 GB | 5 | 0.6 core |
+| 20 | 7 (5 + 2) | 7 | 1 | 2.0 GB | 3.4 GB | 4-6 GB | 8 | 1.1 cores |
+| 50 | 17 (13 + 4) | 17 | 1 | 4.3 GB | 7.8 GB | 10-12 GB | 19 | 2.5 cores |
+| 100 | 34 (26 + 8) | 32 | 2 | 8.0 GB | 14.5 GB | 16 GB | 34 | 5.1 cores |
+| 200 | 67 (50 + 17) | 56 | 3 | 14.2 GB | 25.9 GB | 32 GB | 58 | 10 cores |
 
-* Memory, usual = 0.25 GB + PvP maps x 0.085 GB + mission maps x 0.2 GB + PvP matches x 0.07 GB + PvE matches x
+* Memory, usual = 0.25 GB + PvP maps x 0.085 GB + mission maps x 0.2 GB + PvP matches x 0.13 GB + PvE matches x
   0.12 GB: the measured sizes once the maps have recorded their lists (the common part then sits in the base
-  process); a PvP match counts as a mix of small matches (two players: 41-43 MB) and matches filled with AI players
-  (up to 0.14 GB). A new server's first matches, before the lists exist, take more. Worst case = 0.35 GB + PvP maps x
+  process); a PvP match counts as one filled with AI players (with the default settings a match short of players gets
+  them after `bot_wait_secs`: 11 AI players in 12 slots measured 0.13-0.14 GB; two players without AI players take
+  41-43 MB). A new server's first matches, before the lists exist, take more. Worst case = 0.35 GB + PvP maps x
   0.25 GB + mission maps x 0.35 GB + PvP matches x 0.165 GB + PvE matches x 0.16 GB: room for maps and matches larger
   than any measured so far.
 * Server memory = the worst case plus about 0.5 GB for the system, rounded up to a usual size.
 * `max_zygotes` = the maps loaded plus one or two kept loaded for the next matches (no limit in practice).
 * `max_matches = 4` covers every row (missions per mission map stay under it); raise it only for many PvE players.
-* CPU: about 0.05 of a server core per match (a test PC's measured times, taken three times slower).
+* CPU: about 0.15 of a server core per match filled with AI players, for a server core three times slower than a test
+  PC (estimate for 11 AI players: a 16-slot match with 15 AI players measured about 5.7 % of the test PC's core for
+  the match and its relay, 0.17 taken three times slower; the AI players' own thinking is under 1 %, the cost is the
+  world of 12-16 players); a two-player match without AI players about 0.05.
 * The biggest part is one map per PvP match. Fewer maps in the queue's rotation, or more players per match, lower it:
   with 6 players per match the matches and maps halve.
 
@@ -635,24 +638,24 @@ table above (3 players per match, a quarter PvE), at the busiest moment, with `m
 
 | Online | `max_zygotes` | Maps for missions + PvP | PvP matches running | Matches per PvP map | PvE missions | PvP matches waiting in the queue | Memory, usual | Memory, worst case | Server memory |
 |---|---|---|---|---|---|---|---|---|---|
-| 10 | no limit (5) | 1 + 3 | 3 | 1 | 1 | 0 | 1.0 GB | 2.1 GB | 3 GB |
-| 10 | 3 | 1 + 2 | 3 | 2 | 1 | 0 | 0.95 GB | 1.9 GB | 3 GB |
-| 10 | 2 | 1 + 1 | 3 | 3 | 1 | 0 | 0.9 GB | 1.6 GB | 3 GB |
-| 20 | no limit (8) | 2 + 5 | 5 | 1 | 2 | 0 | 1.7 GB | 3.4 GB | 4 GB |
-| 20 | 5 | 2 + 3 | 5 | 2 | 2 | 0 | 1.5 GB | 2.9 GB | 4 GB |
-| 20 | 3 | 2 + 1 | 4 | 4 | 2 | 1 | 1.3 GB | 2.3 GB | 3 GB |
-| 50 | no limit (19) | 4 + 13 | 13 | 1 | 4 | 0 | 3.5 GB | 7.8 GB | 10 GB |
-| 50 | 10 | 4 + 6 | 13 | 3 | 4 | 0 | 3.0 GB | 6.0 GB | 8 GB |
-| 50 | 6 | 4 + 2 | 8 | 4 | 4 | 5 | 2.3 GB | 4.2 GB | 6 GB |
-| 100 | no limit (34) | 6 + 26 | 26 | 1 | 8 | 0 | 6.4 GB | 14.5 GB | 16 GB |
-| 100 | 20 | 6 + 14 | 26 | 2 | 8 | 0 | 5.4 GB | 11.5 GB | 12 GB |
-| 100 | 12 | 6 + 6 | 24 | 4 | 8 | 2 | 4.6 GB | 9.2 GB | 10-12 GB |
-| 200 | no limit (58) | 6 + 50 | 50 | 1 | 17 | 0 | 11.2 GB | 25.9 GB | 32 GB |
-| 200 | 32 | 6 + 26 | 50 | 2 | 17 | 0 | 9.2 GB | 19.9 GB | 24 GB |
-| 200 | 16 | 6 + 10 | 40 | 4 | 17 | 10 | 7.1 GB | 14.3 GB | 16 GB |
+| 10 | no limit (5) | 1 + 3 | 3 | 1 | 1 | 0 | 1.2 GB | 2.1 GB | 3 GB |
+| 10 | 3 | 1 + 2 | 3 | 2 | 1 | 0 | 1.1 GB | 1.9 GB | 3 GB |
+| 10 | 2 | 1 + 1 | 3 | 3 | 1 | 0 | 1.0 GB | 1.6 GB | 3 GB |
+| 20 | no limit (8) | 2 + 5 | 5 | 1 | 2 | 0 | 2.0 GB | 3.4 GB | 4 GB |
+| 20 | 5 | 2 + 3 | 5 | 2 | 2 | 0 | 1.8 GB | 2.9 GB | 4 GB |
+| 20 | 3 | 2 + 1 | 4 | 4 | 2 | 1 | 1.5 GB | 2.3 GB | 3 GB |
+| 50 | no limit (19) | 4 + 13 | 13 | 1 | 4 | 0 | 4.3 GB | 7.8 GB | 10 GB |
+| 50 | 10 | 4 + 6 | 13 | 3 | 4 | 0 | 3.7 GB | 6.0 GB | 8 GB |
+| 50 | 6 | 4 + 2 | 8 | 4 | 4 | 5 | 2.7 GB | 4.2 GB | 6 GB |
+| 100 | no limit (34) | 6 + 26 | 26 | 1 | 8 | 0 | 8.0 GB | 14.5 GB | 16 GB |
+| 100 | 20 | 6 + 14 | 26 | 2 | 8 | 0 | 7.0 GB | 11.5 GB | 12 GB |
+| 100 | 12 | 6 + 6 | 24 | 4 | 8 | 2 | 6.0 GB | 9.2 GB | 10-12 GB |
+| 200 | no limit (58) | 6 + 50 | 50 | 1 | 17 | 0 | 14.2 GB | 25.9 GB | 32 GB |
+| 200 | 32 | 6 + 26 | 50 | 2 | 17 | 0 | 12.2 GB | 19.9 GB | 24 GB |
+| 200 | 16 | 6 + 10 | 40 | 4 | 17 | 10 | 9.5 GB | 14.3 GB | 16 GB |
 
-Memory with a limit, usual: 0.25 GB + mission maps x 0.2 GB + PvP maps x 0.085 GB + PvP matches running x 0.07 GB +
-PvE missions x 0.12 GB; worst case: 0.35 GB + mission maps x 0.35 GB + PvP maps x 0.25 GB + PvP matches running x
+Memory with a limit, usual: 0.25 GB + mission maps x 0.2 GB + PvP maps x 0.085 GB + PvP matches running x 0.13 GB +
+PvE missions x 0.12 GB (a PvP match counts as one filled with AI players); worst case: 0.35 GB + mission maps x 0.35 GB + PvP maps x 0.25 GB + PvP matches running x
 0.165 GB + PvE missions x 0.16 GB; with the PvP matches running = the PvP matches, at most PvP maps x 4.
 Server memory = the worst case plus 0.5 GB, rounded up. The waiting column counts at `max_matches = 4` per map; with
 1.2 GB free a map takes up to 8, so fewer wait. It is the worst moment: a match that ends frees its slot for the next
@@ -681,18 +684,18 @@ group, and an idle map can be unloaded for another one.
 
 | Memory for the server | Worst case: every map of the largest kind | Usual PvP maps (measured sizes) |
 |---|---|---|
-| 2 GB | `max_zygotes = 1` | `max_zygotes = 3` |
-| 4 GB | `max_zygotes = 3` | `max_zygotes = 8` |
-| 8 GB | `max_zygotes = 7` | `max_zygotes = 19` |
-| 16 GB | `max_zygotes = 15` | `max_zygotes = 40` |
+| 2 GB | `max_zygotes = 1` | `max_zygotes = 1` |
+| 4 GB | `max_zygotes = 3` | `max_zygotes = 5` |
+| 8 GB | `max_zygotes = 7` | `max_zygotes = 12` |
+| 16 GB | `max_zygotes = 15` | `max_zygotes = 25` |
 
 `srp setup` prints both numbers for the memory it finds (`this memory fits N map(s) in the worst case ... or about M
 usual PvP maps`). Worst case: 0.35 GB + `max_zygotes` x (0.35 GB + `max_matches` x 0.165 GB), safe whatever the
-players choose. Usual PvP maps: 0.35 GB + `max_zygotes` x (0.085 GB + `max_matches` x 0.075 GB), PvP maps of the
-measured size once their lists' common part is in the base process, with matches between a two-player one (41-43
-MB) and one filled with AI players (up to 0.14 GB). A value between the two is a reasonable start; the
+players choose. Usual PvP maps: 0.35 GB + `max_zygotes` x (0.085 GB + `max_matches` x 0.13 GB), PvP maps of the
+measured size once their lists' common part is in the base process, with matches filled with AI players (11 AI
+players in 12 slots: 0.13-0.14 GB). A value between the two is a reasonable start; the
 over-the-limit rules only use memory that is free at that moment. The large maps are few: the six PvE missions
-(0.2-0.26 GB each) and `level_11`'s three modes (0.32-0.34 GB each).
+(0.2-0.26 GB each) and `level_11`'s three modes (0.28-0.31 GB each).
 
 More maps loaded means fewer matches that wait for a map to load (a few seconds each); more matches per map only helps
 when many players queue for the same map. With few players, lower `max_matches` frees nothing: a match that does not run

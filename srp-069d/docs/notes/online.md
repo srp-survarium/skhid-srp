@@ -654,8 +654,9 @@ of one **base process**, so the start-up that does not depend on the level is do
   and about 168 MB with the base pre-warm set below; what a zygote still holds alone shows as Private_Dirty in its
   `MEM [zygote ready]` line, the part shared with the base as Shared_Dirty). Measured map sizes (Private_Dirty at
   `zygote ready` without the base pre-warm set: the level and the pre-warm list): a usual PvP map 0.11-0.15 GB (its
-  level alone 31-98 MB), a PvE mission 0.25-0.26 GB (185-192 MB), the largest, `level_11`'s three modes, 0.32-0.34 GB
-  (281-283 MB; from one-shot runs of its level and list, not measured as a zygote). With the set a zygote holds about
+  level alone 31-98 MB), a PvE mission 0.25-0.26 GB (185-192 MB), the largest, `level_11`'s three modes, 0.31 GB
+  (level 281-283 MB; measured as a zygote in a played match: 308 MB, 277 MB with the base pre-warm set, loaded 4.6-5.2 s
+  after the fork). With the set a zygote holds about
   51 MB less (PvP 112 -> 61 MB, PvE 252 -> 200 MB). A match child: a recorded two-player PvP match 37 MB at its
   creation and 41-43 MB at its end, a PvE mission 92 -> 100 MB; a 12-slot PvP match with 11 of the host's AI players
   on a map started from the common seed 126-131 MB at creation and at most 137-140.5 MB, a PvE mission with the host's

@@ -23,23 +23,24 @@ pub const EXE_SIZE: u64 = 13_386_392;
 pub const EXE_SHA256: &str = "1e1ae04dc981fc4f5734c56559fb0f2e0e74c787bcc53ebbfdc233f440d65448";
 /// Memory one loaded map ("zygote") takes on its own, the largest kind, counted without the base pre-warm set's
 /// saving: the largest map (one level of three modes, the level alone 0.28 GB) with a pre-warm list measures
-/// 0.32-0.34 GB in one-shot runs (not yet as a zygote, so kept at 0.35), a PvE mission zygote 0.25-0.26 GB (0.2 with
-/// the set), a usual PvP map 0.11-0.15 GB (61 MB measured with the set). Zygotes are forks of the world host's base
+/// 0.32-0.34 GB in one-shot runs and 308 MB as a zygote in a played match (kept at 0.35), a PvE mission zygote
+/// 0.25-0.26 GB (0.2 with the set), a usual PvP map 0.11-0.15 GB (61 MB measured with the set). Zygotes are forks of the world host's base
 /// process and share its start-up pages (docs/guide-server.md, "Memory: how many maps and matches").
 const ZYGOTE_MB: u64 = 350;
 /// One running match, the larger kind. Measured maxima: a 12-slot PvP match with 11 AI players on a map started from
 /// the common seed 137-140.5 MB, a PvE mission with the host's AI driving 17 AI players 122 MB, an 18-minute PvE
-/// mission 106 MB. Kept above them: a 16- or 20-player map with 8 AI players per team (15 AI players) is not measured.
+/// mission 106 MB, a 16-slot PvP match with 15 AI players (level-1 equipment) 96-117 MB. Kept above them: higher
+/// equipment levels make a match larger.
 const MATCH_MB: u64 = 165;
 /// srp + the world host's front and base processes (measured: srp about 40 MB, the base 124 MB at the cut and about
 /// 168 MB with a 1413-entry base pre-warm set; the set grows with more lists and a higher max_zygotes, and a replaced
 /// base's pages stay with its maps for a while). Kept: the set's size at the default max_zygotes is not measured.
 const BASE_MB: u64 = 350;
-/// A usual PvP map once its list's common part sits in the base process (measured 61 MB; 112-116 MB without it,
-/// levels alone 31-98 MB) and a usual PvP match (a mix: two players measured 41-43 MB at the end, 11 AI players in 12
-/// slots up to 0.14 GB): the typical-PvP fit.
+/// A usual PvP map once its list's common part sits in the base process (measured 61-68 MB; 101-116 MB without it,
+/// levels alone 31-98 MB) and a usual PvP match: filled with AI players (the default settings fill a match short of
+/// players after bot_wait_secs; 11 AI players in 12 slots measured 0.13-0.14 GB): the typical-PvP fit.
 const TYPICAL_PVP_MAP_MB: u64 = 85;
-const TYPICAL_PVP_MATCH_MB: u64 = 75;
+const TYPICAL_PVP_MATCH_MB: u64 = 130;
 
 /// The most the server can use with `max_zygotes` maps of `max_matches` matches each (the guide's formula, larger
 /// kinds), in MB; None for `max_zygotes` 0 (no cap).
@@ -708,16 +709,16 @@ mod tests {
 
     #[test]
     fn setup_prints_the_worst_case_fit_and_the_usual_pvp_fit() {
-        // the guide's "Suggested settings by memory", usual PvP maps: 0.35 GB + n x (0.085 GB + max_matches x 0.075 GB)
-        assert_eq!(typical_pvp_maps_that_fit(2048 - 512, 4), 3);
-        assert_eq!(typical_pvp_maps_that_fit(4096 - 512, 4), 8);
-        assert_eq!(typical_pvp_maps_that_fit(8192 - 512, 4), 19);
-        assert_eq!(typical_pvp_maps_that_fit(16384 - 512, 4), 40);
+        // the guide's "Suggested settings by memory", usual PvP maps: 0.35 GB + n x (0.085 GB + max_matches x 0.13 GB)
+        assert_eq!(typical_pvp_maps_that_fit(2048 - 512, 4), 1);
+        assert_eq!(typical_pvp_maps_that_fit(4096 - 512, 4), 5);
+        assert_eq!(typical_pvp_maps_that_fit(8192 - 512, 4), 12);
+        assert_eq!(typical_pvp_maps_that_fit(16384 - 512, 4), 25);
         assert_eq!(typical_pvp_maps_that_fit(100, 4), 1, "never below one");
-        assert_eq!(typical_pvp_maps_that_fit(4096 - 512, 2), 13, "3234 / 235");
+        assert_eq!(typical_pvp_maps_that_fit(4096 - 512, 2), 9, "3234 / 345");
         assert_eq!(
             memory_fit_text(8192 - 512, 4),
-            "this memory fits 7 map(s) in the worst case (each map its largest kind, every match slot used) or about 19 usual PvP maps, with max_matches = 4"
+            "this memory fits 7 map(s) in the worst case (each map its largest kind, every match slot used) or about 12 usual PvP maps, with max_matches = 4"
         );
     }
 

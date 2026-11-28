@@ -634,7 +634,7 @@ fn plan_new(cap: u32, zy: &[ZyView], free_mb: impl FnOnce() -> Option<u64>) -> P
 const ROOM_WAIT: Duration = Duration::from_secs(20);
 
 /// MemAvailable (MB) that lets a map load one over max_zygotes while every loaded map runs matches: one map
-/// ([`ZYGOTE_MB`]: the largest measures 0.32-0.34 GB, a PvE mission 0.25-0.26 GB) plus 1 GB for the busy maps'
+/// ([`ZYGOTE_MB`]: the largest measures 0.31 GB, a PvE mission 0.25-0.26 GB) plus 1 GB for the busy maps'
 /// matches to grow (a match measured up to 0.14 GB).
 const OVER_CAP_FREE_MB: u64 = ZYGOTE_MB + 1000;
 
@@ -666,7 +666,7 @@ fn match_room(running: u32, recent: u32, max: u32, free_mb: impl FnOnce() -> Opt
 
 /// One loaded map's size (MB) for the room status and the over-the-limit rule: a map that the status counts as loading
 /// takes this much of the memory the next one-over-the-limit load would read. An upper end with a margin: the largest
-/// map measures 0.32-0.34 GB, a PvE mission 0.25-0.26 GB.
+/// map measures 0.31 GB loaded (0.32-0.34 GB in one-shot runs), a PvE mission 0.25-0.26 GB.
 const ZYGOTE_MB: u64 = 420;
 
 /// Creates the front has read and not yet handed over or refused, per project (a `route` that waits for room, loads its
