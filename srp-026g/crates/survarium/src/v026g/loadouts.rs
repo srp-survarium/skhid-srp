@@ -1094,7 +1094,7 @@ fn process_upgrades() -> bool {
 
 /// The upgrades on the pieces the bots wear: `(tier, role, profile slot,
 /// modification ids)`, the owner's SAFE SET of 2026-10-26: weight (type 18,
-/// `1060 + strength`), carry capacity (type 24, `1120 + s`: +1 to +5 kg),
+/// `1060 + strength`), carry capacity (type 24, `1120 + s`: the kilograms the data gives, fewer since revision 75),
 /// movement speed (type 23, `1110 + s`: +1 to +5 %) and stamina spent
 /// (type 28, `1160 + s`: -2 to -10 %), never an aim time, a range or a
 /// bolt's chamber time (a mod's strength `s` is 0 to 4). The bots of the

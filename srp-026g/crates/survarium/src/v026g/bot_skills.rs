@@ -10,14 +10,15 @@
 //! **What carrying does** (the client, PROVEN in the exe unless marked;
 //! `default.player`'s `stamina_params`):
 //! - The capacity is `max_carried_weight` (30 kg) plus modifier 5
-//!   `max_carried_weight`, which adds (table 0x927E08): skill 209 gives 2 kg
-//!   a level, 10 kg at its five; some modifications add or take kilograms
+//!   `max_carried_weight`, which adds (table 0x927E08): skill 209 gives what
+//!   the tree says, 2 kg a level in revisions 56 to 74 (10 kg at its five),
+//!   1 kg since revision 75 (5 kg); some modifications add or take kilograms
 //!   (1120.. +1..+4, the defect 4080 -3), counted through the item's nodes.
 //! - From `min_carried_weight` (20 kg) to the capacity the weight costs
 //!   `t = clamp((w - 20) / (capacity - 20), 0, 1)` (0x329B20): movement
 //!   speed `-0.2 × t` (`max_carried_weight_movement_speed_modifier`, scaled
-//!   by `1 + overweight_penalty`: skill 202 takes 5 % of it a level, a
-//!   quarter at five; skill 214 removes it) and stamina spent `× (1 + 1.5 ×
+//!   by `1 + overweight_penalty`: skill 202 takes 5 % of it a level in
+//!   revisions 56 to 74, 3 % since 75; skill 214 removes it) and stamina spent `× (1 + 1.5 ×
 //!   t)` (`max_carried_weight_spending_speed_modifier`).
 //! - At or over the capacity the player is overburdened: no sprint
 //!   (`player_stamina::is_overburdened` 0x329C60, read where a sprint is
