@@ -2880,6 +2880,12 @@ impl Bots {
             "{}crossing entry searches since the last match end (every match on this server): on kept steps {steps_reused}, steps made {steps_made}",
             nav_log::PREFIX
         ));
+        // [bot CPU] The sweeps' casts not run under a kept contact at fraction 0 their contact could not replace.
+        let (tri_skips, prim_skips) = mapdata::controller::take_zero_tie_skips();
+        lines.push(format!(
+            "{}sweep casts skipped under a kept contact at fraction 0 since the last match end (every sweep on this server, grid builds too): triangles {tri_skips}, primitives {prim_skips}",
+            nav_log::PREFIX
+        ));
         // [A388 (e) gap 16] The reckoning's steps the client's legs crouched (both broken, the key up).
         lines.push(format!(
             "{}kept controller steps crouched by both legs broken with the crouch key up since the last match end (every match on this server): {}",

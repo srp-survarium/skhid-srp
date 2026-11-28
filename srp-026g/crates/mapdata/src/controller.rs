@@ -233,10 +233,32 @@ impl Contact {
     ///
     /// By the places, not by the order the port hands the contacts over in.
     pub fn replaces(&self, kept: &Contact) -> bool {
-        self.t < kept.t || (self.t == kept.t && self.wins_tie(kept))
+        self.t < kept.t || (self.t == kept.t && self.place().wins_tie(&kept.place()))
     }
 
-    fn wins_tie(&self, kept: &Contact) -> bool {
+    /// [L36] What of the contact the tie rule of [`Self::replaces`] reads.
+    pub fn place(&self) -> Place {
+        Place { object: self.object, part: self.part, rank: self.rank, child: self.child }
+    }
+}
+
+/// [L36] Where a contact was met, as the tie rule of [`Contact::replaces`] reads it: known before the cast that would make the
+/// contact, so a cast whose contact could not win a tie need not run ([`Bound`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Place {
+    /// [`Contact::object`].
+    pub object: Option<SolidId>,
+    /// [`Contact::part`].
+    pub part: Option<u32>,
+    /// [`Contact::rank`].
+    pub rank: Option<u32>,
+    /// [`Contact::child`].
+    pub child: Option<u32>,
+}
+
+impl Place {
+    /// Whether a contact here keeps the place of one at `kept` at an equal fraction ([`Contact::replaces`]).
+    pub fn wins_tie(&self, kept: &Place) -> bool {
         match (self.object, kept.object) {
             (Some(a), Some(b)) if a == b => {}
             _ => return false,
@@ -247,6 +269,53 @@ impl Contact {
             matches!((self.child, kept.child), (Some(r), Some(s)) if r < s)
         }
     }
+}
+
+/// [bot CPU] What a sweep's callback answers each contact with ([`Collision::sweep_each_to_within`]): no later contact past the
+/// fraction `t` matters to it, and at exactly `t`, where it names the contact it keeps there, only one that would take that
+/// one's place ([`Contact::replaces`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Bound {
+    t: f32,
+    kept: Option<Place>,
+}
+
+impl Bound {
+    /// Every contact matters.
+    pub const ALL: Bound = Bound { t: 1.0, kept: None };
+
+    /// The callback keeps `kept` as its closest so far: a later contact matters only where it would replace it.
+    pub fn kept(kept: &Contact) -> Bound {
+        Bound { t: kept.t, kept: Some(kept.place()) }
+    }
+
+    /// The fraction past which no contact matters.
+    pub fn t(&self) -> f32 {
+        self.t
+    }
+
+    /// Whether a contact at `place`, not cast yet, may matter. A cast's fraction is 0 or more ([`exe_cast::time_of_impact`]
+    /// refuses a negative lambda), so under a bound at 0 a contact can only tie the kept one, and it matters only where it
+    /// wins that tie. Over 0 the cast must run (its fraction may come under the bound).
+    pub(crate) fn may_matter(&self, place: &Place) -> bool {
+        self.t > 0.0 || self.kept.is_none_or(|kept| place.wins_tie(&kept))
+    }
+}
+
+/// [bot CPU] Casts not run because the callback kept a contact at fraction 0 that their contact could not replace
+/// ([`Bound::may_matter`]): triangles, then primitives. Totals of this process, for the logs: no decision reads them.
+static ZERO_TIE_SKIPS: [std::sync::atomic::AtomicU64; 2] = [const { std::sync::atomic::AtomicU64::new(0) }; 2];
+
+/// [bot CPU] The casts skipped under a kept contact at fraction 0 ([`Bound::may_matter`]) since the last take: (triangles,
+/// primitives), every sweep of this process.
+pub fn take_zero_tie_skips() -> (u64, u64) {
+    let n = |i: usize| ZERO_TIE_SKIPS[i].swap(0, std::sync::atomic::Ordering::Relaxed);
+    (n(0), n(1))
+}
+
+/// [bot CPU] Counts one cast skipped ([`take_zero_tie_skips`]).
+fn count_zero_tie_skip(primitive: bool) {
+    ZERO_TIE_SKIPS[usize::from(primitive)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// [L36] How many contacts of the sweeps so far ([`Collision::sweep_each`], every sweep of the walk tick and the build's flights)
@@ -595,22 +664,24 @@ impl Collision {
         self.sweep_closest(shape, Way::To(to), accept)
     }
 
-    /// [bot CPU] [`Self::sweep_each_to`] whose casts give up past a bound: `each` answers each contact with the fraction past
-    /// which no later contact matters to it ([`Solids::sweep_within`]); every contact at or under it is handed on, in order.
-    pub fn sweep_each_to_within(&self, shape: Shape, to: Vec3, each: impl FnMut(Contact) -> f32) {
+    /// [bot CPU] [`Self::sweep_each_to`] whose casts give up past a bound: `each` answers each contact with the [`Bound`] past
+    /// which no later contact matters to it ([`Solids::sweep_within`]); every contact that may matter under it is handed on,
+    /// in order.
+    pub fn sweep_each_to_within(&self, shape: Shape, to: Vec3, each: impl FnMut(Contact) -> Bound) {
         self.sweep_way_within(shape, Way::To(to), each);
     }
 
     /// [bot CPU] The closest accepted contact. A cast past the closest accepted so far gives up there ([`Solids::sweep_within`]):
     /// a contact past it would not replace it ([`Contact::replaces`] needs a fraction at or under the kept one's), so the
-    /// answer is the full sweep's; `accept` is not asked of the contacts past it.
+    /// answer is the full sweep's; `accept` is not asked of the contacts past it. Under a kept contact at 0, a cast whose
+    /// contact could not replace it does not run ([`Bound::may_matter`]), nor is `accept` asked of it.
     fn sweep_closest(&self, shape: Shape, way: Way, mut accept: impl FnMut(&Contact) -> bool) -> Option<Contact> {
         let mut best: Option<Contact> = None;
         self.sweep_way_within(shape, way, |c| {
             if accept(&c) && best.is_none_or(|b| c.replaces(&b)) {
                 best = Some(c);
             }
-            best.map_or(1.0, |b| b.t)
+            best.as_ref().map_or(Bound::ALL, Bound::kept)
         });
         best
     }
@@ -630,13 +701,13 @@ impl Collision {
     fn sweep_way(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact)) {
         self.sweep_way_within(shape, way, |c| {
             each(c);
-            1.0
+            Bound::ALL
         });
     }
 
-    /// [`Self::sweep_way`] with the bound of [`Solids::sweep_within`] (`each` answers the fraction past which no later
+    /// [`Self::sweep_way`] with the bound of [`Solids::sweep_within`] (`each` answers the [`Bound`] past which no later
     /// contact matters to it). Faces are cast whole.
-    fn sweep_way_within(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact) -> f32) {
+    fn sweep_way_within(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact) -> Bound) {
         let by = way.by(shape);
         if let Way::To(to) = way
             && cast_origin(shape) + by != to
@@ -1134,5 +1205,139 @@ mod tests {
         assert_eq!(segment_triangle(Vec3::new(0.2, -1.0, 0.2), Vec3::new(0.2, 1.0, 0.2), &v).0, 0.0);
         assert!((segment_triangle(Vec3::new(0.2, 0.5, 0.2), Vec3::new(0.2, 2.0, 0.2), &v).0 - 0.5).abs() < 1e-6);
         assert!((segment_triangle(Vec3::new(0.5, -1.0, -0.3), Vec3::new(0.5, 1.0, -0.3), &v).0 - 0.3).abs() < 1e-6);
+    }
+}
+
+/// [bot CPU] Sweeps recorded on a real map by the controller before [`Bound::may_matter`] and the mesh's last-offered-first
+/// order (cast-record-patch-v1.py: each sweep of the walk tick's closest kind and its down sweep that took 0.5 ms or more, with the
+/// FULL sweep's contacts, the callback's verdict on each, and the answer), cast again here: the same contacts to the bit, and
+/// the same answer. `SRP_CAST_RECORDS` the file, `SRP_CAST_MAP` its map's `.mapdata`.
+#[cfg(test)]
+mod recorded_casts {
+    use super::*;
+
+    fn bits(s: &str) -> f32 {
+        f32::from_bits(u32::from_str_radix(s, 16).expect("hex bits"))
+    }
+
+    fn opt(s: &str) -> Option<u32> {
+        (s != "-").then(|| s.parse().expect("a number or -"))
+    }
+
+    fn vec3(t: &[&str]) -> Vec3 {
+        Vec3::new(bits(t[0]), bits(t[1]), bits(t[2]))
+    }
+
+    /// A contact's recorded fields: fraction, point, normal (bits), object, part, rank, child.
+    type Key = (u32, [u32; 3], [u32; 3], Option<u32>, Option<u32>, Option<u32>, Option<u32>);
+
+    fn key_of(c: &Contact) -> Key {
+        (c.t.to_bits(), c.point.to_array().map(f32::to_bits), c.normal.to_array().map(f32::to_bits), c.object.map(|s| s.0), c.part, c.rank, c.child)
+    }
+
+    fn parse_key(t: &[&str]) -> Key {
+        let v = |i: usize| [0, 1, 2].map(|k| u32::from_str_radix(t[i + k], 16).expect("hex bits"));
+        (u32::from_str_radix(t[0], 16).expect("hex bits"), v(1), v(4), opt(t[7]), opt(t[8]), opt(t[9]), opt(t[10]))
+    }
+
+    fn parse_shape(t: &[&str]) -> Shape {
+        match t[0] {
+            "cap" => Shape::Capsule(Capsule { low: vec3(&t[1..]), high: vec3(&t[4..]), radius: bits(t[7]) }),
+            "cyl" => Shape::Cylinder { centre: vec3(&t[1..]), half: bits(t[4]), radius: bits(t[5]), margin: bits(t[6]) },
+            "sph" => Shape::Sphere { centre: vec3(&t[1..]), radius: bits(t[4]) },
+            "capat" => Shape::CapsuleAt { centre: vec3(&t[1..]), radius: bits(t[4]), half_height: bits(t[5]) },
+            other => panic!("shape {other}"),
+        }
+    }
+
+    #[test]
+    #[ignore = "needs SRP_CAST_RECORDS and SRP_CAST_MAP"]
+    fn recorded_sweeps_keep_their_contacts_and_answers() {
+        let (Some(records), Some(map)) = (std::env::var_os("SRP_CAST_RECORDS"), std::env::var_os("SRP_CAST_MAP")) else {
+            return;
+        };
+        let map = crate::MapData::read(std::path::Path::new(&map)).expect("the map");
+        let world = Collision::build_exe(&map).expect("a map of the game's shapes");
+        let text = std::fs::read_to_string(records).expect("the records");
+        let _ = take_zero_tie_skips();
+        let (mut sweeps, mut contacts, mut at_zero, mut old_us, mut new_us) = (0usize, 0usize, 0usize, 0u128, 0u128);
+        let mut full_us = 0u128;
+        for line in text.lines() {
+            let parts: Vec<&str> = line.split(" | ").collect();
+            assert_eq!(parts.len(), 5, "a record of 5 parts: {}", &line[..line.len().min(120)]);
+            let head: Vec<&str> = parts[0].split(' ').collect();
+            let shape = parse_shape(&parts[1].split(' ').collect::<Vec<_>>());
+            let way: Vec<&str> = parts[2].split(' ').collect();
+            let way = match way[0] {
+                "by" => Way::By(vec3(&way[1..])),
+                "to" => Way::To(vec3(&way[1..])),
+                other => panic!("way {other}"),
+            };
+            let mut full: Vec<&str> = parts[3].split(" ; ").collect();
+            let n: usize = full.remove(0).parse().expect("the count");
+            assert_eq!(full.len(), n);
+            let verdicts: Vec<(Key, bool)> = full
+                .iter()
+                .map(|c| {
+                    let t: Vec<&str> = c.split(' ').collect();
+                    (parse_key(&t), t[11] == "1")
+                })
+                .collect();
+            let answer = (parts[4] != "none").then(|| parse_key(&parts[4].split(' ').collect::<Vec<_>>()));
+            // The full sweep's contacts, as a set: the casts' results are the old ones.
+            let mut now: Vec<Key> = Vec::new();
+            let full_started = std::time::Instant::now();
+            world.sweep_way(shape, way, |c| now.push(key_of(&c)));
+            full_us += full_started.elapsed().as_micros();
+            let mut was: Vec<Key> = verdicts.iter().map(|(k, _)| *k).collect();
+            now.sort_unstable();
+            was.sort_unstable();
+            assert_eq!(now, was, "the full sweep's contacts: {}", &line[..line.len().min(160)]);
+            let by_key: std::collections::HashMap<Key, bool> = verdicts.iter().copied().collect();
+            assert_eq!(by_key.len(), n, "two recorded contacts of one key");
+            let verdict = |c: &Contact| {
+                let k = key_of(c);
+                *by_key.get(&k).unwrap_or_else(|| panic!("a contact the full sweep did not make: {k:?}"))
+            };
+            let started = std::time::Instant::now();
+            let got = match head[0] {
+                "closest" => world.sweep_closest(shape, way, verdict),
+                "down" => {
+                    // The down sweep's way of keeping (tick.rs `down_sweep`).
+                    let mut hits: Vec<Contact> = Vec::new();
+                    let mut best: Option<Contact> = None;
+                    world.sweep_way_within(shape, way, |c| {
+                        if verdict(&c) && best.is_none_or(|b| c.replaces(&b)) {
+                            best = Some(c);
+                        }
+                        hits.push(c);
+                        best.as_ref().map_or(Bound::ALL, Bound::kept)
+                    });
+                    hits.sort_by(|a, b| a.t.total_cmp(&b.t));
+                    let mut kept: Option<Contact> = None;
+                    for c in hits {
+                        match kept {
+                            Some(k) if c.t > k.t => break,
+                            _ if !verdict(&c) => {}
+                            Some(k) if !c.replaces(&k) => {}
+                            _ => kept = Some(c),
+                        }
+                    }
+                    kept
+                }
+                other => panic!("kind {other}"),
+            };
+            new_us += started.elapsed().as_micros();
+            old_us += head[1].parse::<u128>().expect("the old us");
+            assert_eq!(got.as_ref().map(key_of), answer, "the answer: {}", &line[..line.len().min(160)]);
+            sweeps += 1;
+            contacts += n;
+            at_zero += usize::from(answer.is_some_and(|a| a.0 == 0));
+        }
+        let (tri, prim) = take_zero_tie_skips();
+        eprintln!(
+            "recorded sweeps {sweeps}: answers and full contacts equal; {contacts} contacts, {at_zero} answers at 0; casts skipped: triangles {tri}, primitives {prim}; recorded {old_us} us (the old sweep in its match), now {new_us} us, the full unbounded sweep here {full_us} us"
+        );
+        assert!(sweeps > 0, "no records");
     }
 }
