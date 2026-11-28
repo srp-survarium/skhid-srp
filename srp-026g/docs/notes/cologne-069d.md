@@ -1,7 +1,7 @@
 # Cologne (v0.69)
 
 0.69d's Cologne (its `level_08`, day) as a map of its own beside 0.26g's Cologne, in content pack
-`cologne-069d@3`. The owner's asks: "let's do them" (2026-11-16, with School, Rudnya v0.21 and
+`cologne-069d@4` (with `water-069d@1`, the river's program for exe patch 221). The owner's asks: "let's do them" (2026-11-16, with School, Rudnya v0.21 and
 Cologne); on 2026-11-28: "start work porting the next map". Made by the same 0.69d rules as Rudnya
 (v0.69), Vostok (v0.69) and School (v0.69) (`rudnya-069d.md`, `vostok-069d.md`), with no per-map
 tuning.
@@ -192,3 +192,21 @@ eye adaptation held fast on both sides: Cologne (40 poses) 1.046 -> 1.014, b/g 0
 School (76 poses, school-069d@9 and lighting @21) 1.040 -> 0.987, b/g 1.043 -> 0.992. Luma is
 unchanged. The packs to compose: `cologne-069d-4-tone`, and for School its next version built with
 #118's white balance (`school-069d-10-wb` is @9 with only that texture, for tests).
+
+## @4 (2026-11-28)
+
+`cologne-069d@4` is built from `port/cologne-v069` with #115 (grass), #116 (water) and #118 (the shade,
+bloom, god rays and white balance) merged (67452f9). It uses the same manifest and inputs as @3. `water-069d@1`
+is built from the same tree by `scripts/build_water_069d_shader.py` and is byte-identical to the
+water test pack. Against the throwaway packs, each fix's files are that pack's own, byte for byte:
+
+- grass (`cologne-069d-4-grass`): the three flora materials. The two `*_trans` textures are gone, as in that pack;
+- water (`cologne-069d-4-water`): `water/water_l08_boloto.material`, `tiled/water/water_nmap` and
+  `back_niz1`'s settings;
+- tone (`cologne-069d-4-tone`): `color_grading/day.dds`;
+- the four projects' `client_project`: each is @3 with the grass pack's changes (the grass layers'
+  scales) and the tone pack's (`bloom_intensity` 0.02, `god_rays_intensity` 0), and nothing else.
+  A three-way merge of the two packs' leaf dumps over @3's equals @4's, in all four projects.
+
+The build's tone note matches three-maps-021-lighting@22's 33008 row: key 0.3346, floor 0.001628,
+ceiling 0.104167.
