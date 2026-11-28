@@ -69,13 +69,48 @@ pub struct CloudShape {
     /// The cloud's top over the floor under the rest point, metres: the centres to 2.5-3.5 m and a puff's half
     /// size over them (LIKELY 5 m).
     pub height_m: f32,
+    /// Client patch 180's Toxic Smoke (441) of its thrower: what the cloud does to whoever's eyes are in it, none
+    /// without the skill ([`CloudShape::thrown_by`]).
+    pub toxic: Option<Toxic>,
     /// How far under that floor it reaches, metres: the lowest centres at +0.5 m less a puff's half size (1.8-3.3
     /// m) reach 1.3-2.8 m under it; the least, 1.3 m (LIKELY: the cylinder's centring is a GUESS, `fx-smoke-data.md`
     /// section 2). A body on a slope below the cloud is still in it, as the client draws it.
     pub below_m: f32,
 }
 
+/// A toxic cloud's damage (client patch 180, Toxic Smoke 441, `technical_skills::smoke`): `per_s` to the face of
+/// every living player whose eyes are in it, the thrower and its team too (`vostok/technical_smoke.rs`: no team
+/// test), from [`technical_skills::smoke::TOXIC_FROM_MS`] after the blast to the cloud's end, into the infection pool
+/// (a gas zone's hit). PROVEN (patch code).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Toxic {
+    pub per_s: f32,
+}
+
 impl CloudShape {
+    /// The cloud of a smoke whose thrower's kit has the technical `skills` (client patch 180, the thrower's real ranks:
+    /// every game plays them from the profiles, and what a player sees is their effect, the cloud held longer and a
+    /// toxic one tinted green). Dense Smoke (402) pauses the played particle instance from
+    /// [`technical_skills::smoke::HOLD_FROM_MS`] (2 s) after the blast for its rank x 2.9 s
+    /// (`Skills::smoke_extra_ms`), when the puffs, still and full from 1.9 s, hold as they are: the whole later timeline
+    /// (fading from `full_ms`, gone at `gone_ms`) comes that much later. PROVEN (patch code,
+    /// `docs/notes/technical-skills.md`). Toxic Smoke gives it [`Toxic`].
+    pub fn thrown_by(self, skills: technical_skills::Skills) -> Self {
+        let extra = skills.smoke_extra_ms();
+        let rate = skills.toxic_rate();
+        Self {
+            full_ms: self.full_ms + extra,
+            gone_ms: self.gone_ms + extra,
+            toxic: (rate > 0.0).then_some(Toxic { per_s: rate }),
+            ..self
+        }
+    }
+
+    /// The time Dense Smoke adds to its stock timeline, ms (0 for the stock cloud).
+    pub fn held_ms(&self) -> u32 {
+        self.gone_ms.saturating_sub(SmokeGrenade::RDG_M.cloud.gone_ms)
+    }
+
     /// [own base] Whether a cloud of this shape at its full size, resting at `rest` (the floor under its centre), holds
     /// `point`: within [`Self::radius_m`] of it across the ground, from [`Self::below_m`] under that floor to
     /// [`Self::height_m`] over it.
@@ -138,6 +173,7 @@ impl SmokeGrenade {
             radius_m: 8.0,
             height_m: 5.0,
             below_m: 1.3,
+            toxic: None,
         },
     };
 
@@ -175,6 +211,11 @@ pub enum Placed {
     /// ([`super::live_grenades::Phase::InDeadHand`]); the smoke's own blast (its vtable +28h, the effect's start
     /// 0x248720) was not read.
     DeadHand,
+    /// Client patch 180's Dead Man's Switch (432): a dead thrower's profile input `technical_skills::dead_mans_switch::
+    /// INPUT` let one of his smokes go at his body, 0.15 m over its feet with no speed, on the 50 ms grid; it goes off at
+    /// its fuse's end (`Tick::fuse_end`), unless his respawn comes first and takes it out unexploded (`before_respawn`).
+    /// The body is where the tracker last reckoned him alive. PROVEN (the crate and the patch's notes).
+    Switch,
 }
 
 /// A world's grenade is a cloud's when its blast is the cloud's within this, ms (the world's blast time is the press
@@ -352,6 +393,19 @@ impl Clouds {
 
     pub fn all(&self) -> &[Cloud] {
         &self.0
+    }
+
+    /// The toxic cloud a body standing at `feet` has its eyes in at `at`, if any: a cloud of a thrower with Toxic Smoke,
+    /// from [`technical_skills::smoke::TOXIC_FROM_MS`] after it pours until it ends, its eyes
+    /// ([`technical_skills::smoke::EYE_HEIGHT`] over the feet) within its shape ([`CloudShape::holds_full`]: the
+    /// crate's 8 m, 1.3 m under and 5 m over). Whoever's cloud: it poisons its thrower's team too (patch 180).
+    pub fn toxic_at(&self, feet: Vec3, at: MatchMs) -> Option<Toxic> {
+        let eye = feet + Vec3::new(0.0, technical_skills::smoke::EYE_HEIGHT, 0.0);
+        self.0.iter().find_map(|c| {
+            let toxic = c.shape.toxic?;
+            let from = c.pours.plus(technical_skills::smoke::TOXIC_FROM_MS);
+            (at >= from && at < c.ends() && c.shape.holds_full(c.centre, eye)).then_some(toxic)
+        })
     }
 
     pub fn is_empty(&self) -> bool {
@@ -608,6 +662,11 @@ pub struct SmokeCounts {
     /// Dropped: the arc found no ground, or the thrower died before the launch with his body never placed (a dead
     /// thrower's smoke is otherwise a cloud in his hand, [`Placed::DeadHand`]).
     pub dropped: [u32; 2],
+    /// Client patch 180: clouds held longer by their thrower's Dense Smoke, clouds of a thrower with Toxic Smoke, and
+    /// clouds a dead thrower's Dead Man's Switch dropped at his body.
+    pub held: [u32; 2],
+    pub toxic: [u32; 2],
+    pub switch: [u32; 2],
     /// Clouds whose grenade a world showed, and how far the first sighting moved them from the arc's rest, decimetres
     /// summed (the arc's error, measured live).
     pub bodies_seen: [u32; 2],
@@ -908,6 +967,9 @@ pub enum HoldEnd {
     Close,
     /// The cap ran out.
     Cap,
+    /// Client patch 180: the bot's eyes are in a toxic cloud ([`Clouds::toxic_at`]): it takes the cloud's damage while it
+    /// stands, so it walks on. The bench's tally counts it as a hit (it is one, a gas zone's, and a world would show it).
+    Toxic,
 }
 
 /// [A208 `smoke.wait_for_cloud`] A hold short of a crossing until a cloud hides its line: what `Reflex::start_smoke`
@@ -1511,7 +1573,7 @@ pub mod tally {
             match end {
                 super::HoldEnd::Hidden => Self::Hidden,
                 super::HoldEnd::Fight => Self::Fight,
-                super::HoldEnd::Hit => Self::Hit,
+                super::HoldEnd::Hit | super::HoldEnd::Toxic => Self::Hit,
                 super::HoldEnd::Close => Self::Close,
                 super::HoldEnd::Cap => Self::Cap,
             }
