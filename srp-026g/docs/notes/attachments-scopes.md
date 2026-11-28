@@ -391,6 +391,14 @@ patched executable: aimed, half aimed, another view, a gun's own optic, a fitted
 no gun, the bad rows, and a command made by the game's own constructor over garbage, deferred and
 run through its own slots.
 
+The lens is the scene's as the last world tick left it. game::tick runs the world's tick only on a
+frame whose game clock (integer milliseconds) moved, and draws the scene on every frame. So a frame
+under a millisecond after the last draws the gun where that tick put it, and takes that tick's lens.
+The lens is cleared at the world tick's start (`weapon_view.world_tick` 0x1F77EC), before the
+players' draws, whose camera samples it. Through revision 75 it was cleared at the start of every
+frame (`game.tick`). Such a frame then drew the gun at the world's projection, which made the weapon
+jump at high frame rates (`client_patch.md` 3.116).
+
 The player can scale these angles, draw everything held at the world's projection again, and move
 an iron sight's or collimator's eye along its line (patch 219, `weapon-view-settings.md`); the
 defaults are what this section says.

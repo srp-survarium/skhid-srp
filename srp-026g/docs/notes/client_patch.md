@@ -5148,3 +5148,45 @@ their defaults and ranges, the scopes' surround and what to look at are in `weap
 before the new site.
 
 **Not run:** a game.
+
+### 3.116 The weapon's lens on a frame the world does not tick (written 2026-11-28, README patch 161) — PROVEN in the code and under Unicorn; not run in a game
+
+The owner, 2026-11-28: since revision 74, at a high frame rate the held gun is drawn for single frames
+at another angle and place ("a jumpy weapon"); at a lower frame rate it is not. Revision 74 gave
+everything held a projection of its own (patch 161's lens, `attachments-scopes.md`, "The projection"),
+and the lens was cleared at the start of every frame (`game.tick`, 0x1EC8EC) and set again by the
+camera in the world's tick.
+
+**What game::tick (0x1EC890) does on a frame.** Its clock is integer milliseconds
+(QueryPerformanceCounter x 1000 / frequency, 0x1EEA90). EDI is the step since the last frame
+(`[esp+10h] - [ebx+5854h]`, 0x1ECA40; 2000 at most). The world's tick (`game_world::tick` 0x1F77E0,
+vtable+8, called at 0x1ECBE1) runs only when EDI is not 0 or the game is paused (+52F0h, the pause's
+start, 0x1ED5EE): `0x1ECB69..0x1ECB79` jumps past it to 0x1ECBFF. The scene is drawn on every frame
+(`draw_scene` 0x1F7F0 at 0x1ECD57). The players' draws (player::mt_draw 0x2474A0, from the world's
+tick 0x1F7DCE or its tasks) put the gun into the scene's foreground. Their update_camera (0x1F3480,
+called at 0x247847) is where patch 161 samples the lens. A frame that comes under a millisecond after
+the last therefore draws the scene as the last tick left it, the gun in the same place, and no camera
+runs.
+
+**The fault.** On that frame the lens had already been cleared at `game.tick`, so the scene's draw
+command carried none (`weapon_view.submit`), and the foreground pass drew the gun at the world's
+projection. That is revision 73's angle: `uro_fov`, and the sight's zoom when aimed. Below 1000 frames
+a second such frames come only in bursts. Above it they are every other frame or more.
+
+**The fix.** The lens is the scene's as the last world tick left it. It is cleared at that tick's
+start (new site `weapon_view.world_tick`, 0x1F77EC, after game_world::tick's prologue:
+`mov eax,[ebp+10h]; mov edx,[ebp+8]`, six bytes), before its players are drawn. Every draw until the
+next tick takes it. A world tick without a first-person camera still leaves none, as before. The
+lens is still matched to its scene view: another view's command never takes it, and a new world's
+first tick clears it before any of its players are drawn.
+
+**Checked:** `check_attachments_026g.py` (`tools/check attachments`) runs frames as game::tick runs
+them. Each frame runs the `game.tick` site with every patch's handlers there, then game::tick's own
+code from 0x1ECA2D to 0x1ECBFF at a given clock (QueryPerformanceCounter and its frequency
+answered), then the world tick's site and the camera when the game ticked, then the scene's command.
+The game ticks the world at 1004, 1005 and 1009 ms, and not at a frame that follows within the same
+millisecond. Those frames draw the last tick's lens (32.5 degrees aimed), and a tick without a
+first-person camera leaves the world's. With the hook back at `game.tick` (revision 74), the three
+frames under a millisecond fail: they get the world's projection.
+
+**Not run:** a game.

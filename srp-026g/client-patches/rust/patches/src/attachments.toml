@@ -66,10 +66,11 @@ handler = "on_shells"
 site = "attachments.release"
 handler = "on_release"
 
+# a world tick begins with no lens; a frame that skips it (under a millisecond
+# of the game clock) redraws the last tick's scene with the last tick's lens
 [[hook]]
-site = "game.tick"
+site = "weapon_view.world_tick"
 handler = "on_view_frame"
-order = 7
 
 [[hook]]
 site = "weapon_view.camera"

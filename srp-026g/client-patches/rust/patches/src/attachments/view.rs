@@ -230,8 +230,13 @@ fn bare_lens(options: ViewOptions) -> Option<Focal> {
     }
 }
 
-/// This frame's lens and the view it is for: written by the camera on the
-/// game's thread, taken by the scene's draw command on it.
+/// The lens of the scene as the last world tick left it, and the view it
+/// is for: written by the camera in that tick's players' draw, taken by every
+/// scene draw command until the next tick. A frame under a millisecond of the
+/// game clock after the last skips the world's tick (game::tick 0x1ECB77) but
+/// still draws the scene, the gun where that tick put it: it takes that
+/// tick's lens too, never none (the world's projection for one frame: the
+/// gun jumping at a high frame rate, revision 74).
 static CAMERA: Lock<Option<(ViewId, Focal)>> = Lock::new(None);
 /// The lens of the draw command the render thread runs.
 static DRAW: Lock<Option<Focal>> = Lock::new(None);
@@ -247,7 +252,8 @@ static HELD_SAID: Lock<[Option<HeldSaid>; 2]> = Lock::new([None, None]);
 /// The foreground has drawn a lens this run (said once).
 static DRAWN: Lock<bool> = Lock::new(false);
 
-/// `game.tick`: a frame without a first-person camera has no lens.
+/// `weapon_view.world_tick`: a world tick without a first-person camera
+/// has no lens.
 pub fn on_view_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     CAMERA.with(ctx.thread(), |camera| *camera = None);
     Flow::Continue
