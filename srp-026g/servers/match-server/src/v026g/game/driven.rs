@@ -778,6 +778,12 @@ impl Game {
         }
     }
 
+    /// TEST ONLY: the server's bot at `place`'s turn cap now, radians a second ([`crate::v026g::bots::Bots::turn_cap_of`]).
+    #[cfg(test)]
+    pub(crate) fn driven_turn_cap(&self, place: usize) -> Option<f32> {
+        self.walkers.as_ref()?.bots.turn_cap_of(place)
+    }
+
     /// What the server's bot at `place` counts of its drugs, for the tests.
     #[cfg(test)]
     pub(crate) fn driven_pantry(&self, place: usize) -> Option<&crate::v026g::bots::stock::Pantry> {

@@ -434,6 +434,16 @@ impl MatchRegistry {
         }
     }
 
+    /// TEST ONLY: the match ids follow from `last_id` instead of a [`random`] one, so a test whose bots' draws are seeded by
+    /// the match id plays the same each run.
+    #[cfg(test)]
+    pub(crate) fn with_last_id(self, last_id: u32) -> Self {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.last_id = last_id;
+        }
+        self
+    }
+
     /// The pockets of the server's own bots: the lobby builds their profiles with the default
     /// ([`BotPocketKit::default`]) and a match made here has them built again with these. The bots' tuning is not the
     /// lobby's, so the match server is where `kit` (`pocket_store`, `smoke`) is applied.

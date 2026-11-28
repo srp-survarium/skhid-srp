@@ -2117,6 +2117,15 @@ impl Bots {
         self.tracker.world_tube_reload(place, at, under_way);
     }
 
+    /// TEST ONLY: the bot at `place`'s turn cap now, radians a second: its motor's `max_turn_speed` raised by its skill
+    /// toward `max_turn_speed_top` (A416d, as `Motor::turn_fed` caps it).
+    #[cfg(test)]
+    pub(crate) fn turn_cap_of(&self, place: Place) -> Option<f32> {
+        let motor = &self.bots.get(place)?.as_ref()?.motor;
+        let feel = &motor.feel;
+        Some(feel.max_turn_speed + motor.skill.clamp(0.0, 1.0) * (feel.max_turn_speed_top - feel.max_turn_speed).max(0.0))
+    }
+
     /// What the bot at `place` counts of its drugs, for the tests.
     #[cfg(test)]
     pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {

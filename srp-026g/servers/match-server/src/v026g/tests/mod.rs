@@ -164,6 +164,13 @@ impl Bench {
         Self::with_dialect(players, map_id, settings, &[], driven, false)
     }
 
+    /// As [`Bench::with_driven`], its match id made from `last_id` ([`MatchRegistry::with_last_id`]): the bots' draws,
+    /// seeded by the match id, are the same each run.
+    pub fn with_driven_from_id(players: usize, map_id: MapId, settings: Settings, driven: &[usize], last_id: u32) -> Self {
+        let registry = MatchRegistry::new("127.0.0.1", 1236).with_last_id(last_id);
+        Self::with_registry(registry, setup(players, map_id), settings, &[], driven, false)
+    }
+
     pub fn growing(players: usize, map_id: MapId, settings: Settings) -> Self {
         Self::with_dialect(players, map_id, settings, &[], &[], true)
     }
@@ -209,6 +216,17 @@ impl Bench {
     }
 
     fn with_setup(
+        setup: MatchSetup,
+        settings: Settings,
+        bots: &[usize],
+        driven: &[usize],
+        growing: bool,
+    ) -> Self {
+        Self::with_registry(MatchRegistry::new("127.0.0.1", 1236), setup, settings, bots, driven, growing)
+    }
+
+    fn with_registry(
+        registry: MatchRegistry,
         mut setup: MatchSetup,
         settings: Settings,
         bots: &[usize],
@@ -218,7 +236,7 @@ impl Bench {
         log_to_stderr();
         let (players, map_id) = (setup.players.len(), setup.played.map().id);
         let start = Instant::now();
-        let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1236));
+        let registry = Arc::new(registry);
         for place in bots {
             setup.players[*place].bot = true;
         }
