@@ -142,10 +142,16 @@ impl ShotsKnown {
 pub mod held {
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
 
+    static TARGETED: AtomicU64 = AtomicU64::new(0);
     static HELD: AtomicU64 = AtomicU64::new(0);
     static ON_SHOOTER: AtomicU64 = AtomicU64::new(0);
     /// The bench's "before" arm: the shot rule off (`SRP_BENCH_SHOT_RULE=off`).
     pub static SHOT_RULE_OFF: AtomicBool = AtomicBool::new(false);
+
+    /// A reflex tick whose target was protected, its trigger pressed or not.
+    pub fn targeted() {
+        TARGETED.fetch_add(1, Relaxed);
+    }
 
     pub fn count(on_shooter: bool) {
         HELD.fetch_add(1, Relaxed);
@@ -156,7 +162,8 @@ pub mod held {
 
     pub fn line() -> String {
         format!(
-            "held ticks {} on a shooter {} shot rule {}",
+            "ticks on a protected target {} held ticks {} on a shooter {} shot rule {}",
+            TARGETED.load(Relaxed),
             HELD.load(Relaxed),
             ON_SHOOTER.load(Relaxed),
             if SHOT_RULE_OFF.load(Relaxed) { "off" } else { "on" }

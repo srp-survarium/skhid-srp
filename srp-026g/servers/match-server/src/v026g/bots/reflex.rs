@@ -8639,6 +8639,10 @@ impl Reflex {
 
     /// [Gap 8] No shot at a target a hit cannot hurt: the trigger let go (its counted rounds given back).
     fn protection_gate(&mut self, over: &mut Override, now: u32) {
+        #[cfg(test)]
+        if self.target.is_some_and(|target| self.unhurtable(target, now)) {
+            super::protection::held::targeted();
+        }
         if over.fire && self.target.is_some_and(|target| self.unhurtable(target, now)) {
             over.fire = false;
             self.hold_fire(now);
