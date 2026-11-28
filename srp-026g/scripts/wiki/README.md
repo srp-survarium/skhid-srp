@@ -31,6 +31,13 @@ of `srp_validate::world::ArtefactWear` (the rule's own code), as the patch scale
 them (`at_power`, `spring_value`, `heal_amount`). Active time, cooldown, weight
 and the injuries cured do not wear and are left out of those tables.
 
+The camouflages and decals (`/wiki/camouflages`, `/wiki/decals`) have no build step but their
+icons: the web server makes them from its game data (`servers/web-server/src/cosmetics.rs`), every
+item of `items_dict` category 25 or 26 with how a player gets it as srp gives it (the price list the
+lobby is sent, the drop tables, the number decals' grant), grouped by that, and what takes it
+(`camo_available`, `decal_available`, `modifications::cosmetic_slots`). The icons are the cells of the
+lobby's camouflage and decal atlases each config names (`ui_desc.icon`), cut by `build_icons.py`.
+
 The weapons section is a searchable weapon catalogue with class filters,
 sorting and expandable weapon stats. Both pages are one copy for every language
 (`weapons.html`, `simulators.html`, each with its `.texts.json`): their words
