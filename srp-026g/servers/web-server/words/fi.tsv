@@ -1022,8 +1022,8 @@ History since {0}, plus {1} earlier matches made again from their recordings, fr
 # The wiki's camouflages and decals (src/cosmetics.rs).
 Camouflages	Maastokuviot
 Decals	Merkit
-Every camouflage: how to get it and what it goes on.	Jokainen maastokuvio: miten sen saa ja mihin se käy.
-Every decal: how to get it and what it goes on.	Jokainen merkki: miten sen saa ja mihin se käy.
+Every camouflage: how to get it.	Jokainen maastokuvio: miten sen saa.
+Every decal: how to get it.	Jokainen merkki: miten sen saa.
 Given to account {0}	Annetaan tilille {0}
 Premium	Premium
 Flags	Liput
@@ -1038,8 +1038,3 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Jokainen kauppias myy hopealla.
 Found in drops, never one you already have.	Saadaan pudotuksista, ei koskaan jo omistettua.
 Each is given to one account.	Kukin annetaan yhdelle tilille.
-Where it goes	Mihin se käy
-Items that take it	Sen ottavat esineet
-At once	Kerralla
-Bought once, it is yours: put it on any number of your items at the same time.	Kerran ostettu on sinun: laita se kuinka moneen esineeseesi tahansa yhtä aikaa.
-Sold back, it pays a quarter of its price and comes off every item.	Takaisin myytynä se tuottaa neljänneksen hinnastaan ja lähtee kaikista esineistä.
