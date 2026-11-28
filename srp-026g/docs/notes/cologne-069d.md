@@ -75,8 +75,9 @@ The rules, as Vostok's:
   203's tiers, 3 left unmarked (layer 2, or a falloff power other than 1); its ambient lights as
   0.26g ambient lights (165 adding, 58 brightening, 1 darkening; one it fades out farther than every
   spawn left out); its sun (0.9 at 80 degrees, tint 1.0 0.824 0.675, through its atmosphere);
-- exposure: 0.69d's range EV 5 to 11 as exposure profile 33008 of `three-maps-021-lighting@20`
-  (resource-porter #109: floor 0.001628, ceiling 0.104167, key 0.1232), its sky 0.8589 of 0.26g's
+- exposure: 0.69d's range EV 5 to 11 as exposure profile 33008 of `three-maps-021-lighting@22`
+  (resource-porter #109, key #119: floor 0.001628, ceiling 0.104167, key 0.3346; 0.1232 until @22,
+  with cologne-069d@4's grading texture made for it), its sky 0.8589 of 0.26g's
   and 0.69d's vignette (`vignette_intensity` 0.12, k 1.2), and the scene's own colour grading
   texture from its grading and curve;
 - materials by the two builds' shading (gloss, Fresnel 0.04, metal maps made texel by texel);
@@ -106,3 +107,43 @@ sky and height fog (the sky and distance fog are native Cologne's).
   horizon are native Cologne's (no 0.69d dark band at the horizon, a hazier, brighter sky with
   more bloom in the views up through the bridge: those frames are up to 1.5x 0.69d's); the shade
   under foliage is a little warmer.
+
+## The shade, the veil and the sun's glow (2026-11-28)
+
+The owner's screenshots of map 543: the shade far darker than 0.69d's, the sky blown out to white
+with a milky veil over the bridge and trees, blotches over dark walls looking out. Three causes, each
+fixed as a rule of resource-porter's 0.69d builder (#118, `fix/cologne-069d-tone-key`) for every
+0.69d map:
+
+- **The exposure key.** 0.69d level_08's curve clips its white (it rises to 0.896 only), so the
+  builder took the search limit 16 as its white: key 0.1232, as School had (#113). With #113's white
+  the key is 0.2132, which still left Cologne's steep toe in the grading texture's first interval
+  (0.26g encodes its curve before the lookup without sRGB's linear segment: 0 below 0.0008; the light
+  0.69d shows at 11 levels was drawn at 5). Above the white's key the builder now takes the key whose
+  texture draws 0.69d's grey nearest: 0.3346, 2.7 levels off at worst (6.9 with 0.2132). School keeps
+  1.107, Rudnya 0.3367.
+- **The bloom.** The port kept native Cologne's `bloom_intensity` 1.3: 0.26g lerps the frame toward a
+  six-level blur picked per pixel by the lens dirt texture (`engine/lensdirt_rain`) by it, so every
+  view was drawn as more than its own blur: the white veil over the girders against the sky, the
+  dirt's blue blotches over the tunnel's walls, and a lift of the shade that hid the key's toe. 0.69d
+  adds its 0.02 of a bloom of the light above its threshold; the port now takes the donor's 0.02.
+- **The god rays.** Native Cologne's `god_rays_intensity` 1.65 laid a warm glow round the sun (80
+  degrees up: every view up through the bridge); 0.69d's light shafts have no 0.26g program, and the
+  template's are not them: none.
+
+Checked with headless captures against the kept 0.69d frames, the eye adaptation held fast in the test
+build only (the headless game runs at a few frames a second, and the native adaptation then took over
+30 s, so the pose order changed the frames). Mean grey, 0.69d / before / after: under the bridge
+(`in_indoor_favela_day_m3_1_0_wall`) 58.1 / 71.0 / 56.3; by the house (`in_ambient_light_0_1_0_out`)
+59.0 / 72.0 / 58.8; up through the bridge (`in_indoor_favela_day_m3_1_0_up`) 64.4 / 100.4 / 64.9 and
+(`in_ambient_light_m3_1_0_up`, at the sun) 92.5 / 135.5 / 94.1; out of the tunnel
+(`in_indoor_favela_day_0_1_0_out`) 63.7 / 100.9 / 56.3. The veil, the blotches and the glow are gone.
+
+Still differs:
+
+- the shade 5 to 20 m away outdoors is about half 0.69d's light (the darkest tiles 10-17 where 0.69d's
+  are 21-31; interiors and close shade match). The environment's probe multipliers are not it (set to
+  1, nothing changes); 0.69d's height fog, which lifts what is far and dark and which the port does
+  not draw, is the candidate;
+- the sky up near the sun is whiter and about 1.5x 0.69d's: the cloud layer (0.26g's cloud lighting
+  over 0.69d's texture; the sky is blue with the clouds off) and 0.26g's atmosphere.
