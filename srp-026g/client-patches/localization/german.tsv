@@ -2769,6 +2769,7 @@ st_level_25_name	Schule (v0.21)
 st_level_26_name	Tarakanowski Fort (v0.21)
 st_level_28_name	RS Vostok (v0.69)
 st_level_29_name	Rudnya (v0.21)
+st_level_30_name	Köln (v0.69)
 st_level_31_name	Chemiebetrieb (v0.21)
 st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!
@@ -4110,6 +4111,7 @@ st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
 st_srp_map_chemical_plant_v021	Chemiebetrieb (v0.21)
 st_srp_map_cologne	Köln
+st_srp_map_cologne_v069	Köln (v0.69)
 st_srp_map_cs_mp_atp	Parkplatz
 st_srp_map_cs_mp_bath	Versuchsbecken
 st_srp_map_cs_mp_darkvalley	Dunkles Tal

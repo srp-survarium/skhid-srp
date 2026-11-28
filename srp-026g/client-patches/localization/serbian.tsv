@@ -2769,6 +2769,7 @@ st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovski fort (v0.21)
 st_level_28_name	Radarska stanica Vostok (v0.69)
 st_level_29_name	Rudnja (v0.21)
+st_level_30_name	Keln (v0.69)
 st_level_31_name	Hemijska fabrika (v0.21)
 st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Živokost je aktivirana! Sve kritične povrede su izlečene! Zdravlje je obnovljeno!
@@ -4110,6 +4111,7 @@ st_srp_map_chemical_plant	Hemijska fabrika
 st_srp_map_chemical_plant_v011	Hemijska fabrika (v0.11)
 st_srp_map_chemical_plant_v021	Hemijska fabrika (v0.21)
 st_srp_map_cologne	Keln
+st_srp_map_cologne_v069	Keln (v0.69)
 st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
 st_srp_map_cs_mp_darkvalley	Dark Valley

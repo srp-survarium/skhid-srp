@@ -2769,6 +2769,7 @@ st_level_25_name	Школа (v0.21)
 st_level_26_name	Таракановский форт (v0.21)
 st_level_28_name	РЛС "Восток" (v0.69)
 st_level_29_name	Рудня (v0.21)
+st_level_30_name	Кельн (v0.69)
 st_level_31_name	Химзавод (v0.21)
 st_level_32_name	Лондон (v0.42)
 st_lifebone_activation_hint	Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!
@@ -4110,6 +4111,7 @@ st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
 st_srp_map_chemical_plant_v021	Химзавод (v0.21)
 st_srp_map_cologne	Кельн
+st_srp_map_cologne_v069	Кельн (v0.69)
 st_srp_map_cs_mp_atp	АТП
 st_srp_map_cs_mp_bath	Бассейн
 st_srp_map_cs_mp_darkvalley	Тёмная долина
