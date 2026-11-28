@@ -47,6 +47,8 @@ pub mod key {
     /// 13-18, 3, 0, 1, 2, 4, 5, 6 (table 0x925FD8); press and release both
     /// act. PROVEN (0x2D8D7D).
     pub const QUICK: [u32; 6] = [0x4000, 0x8000, 0x1_0000, 0x2_0000, 0x4_0000, 0x8_0000];
+    /// The six quick-use bits together (`weapon_pickup::QUICK`).
+    pub const QUICK_ALL: u32 = 0xF_C000;
     /// Use (bit 21): on the key going down only, so 0 then 1. PROVEN
     /// (0x2D88B1).
     pub const USE: u32 = 0x20_0000;
