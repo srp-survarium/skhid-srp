@@ -54,6 +54,8 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .wiki-link p { margin:0; padding:10px 12px 12px; font-size:.85rem; line-height:1.45; color:var(--ink-2) }
 .wiki-glyphs { display:grid; grid-template-columns:repeat(3,40px); place-content:center; gap:12px 20px }
 .wiki-glyphs .glyph { width:40px; height:40px; color:var(--accent) }
+.wiki-icons { flex:1; min-height:0; display:grid; grid-template-columns:repeat(2,48px); grid-auto-rows:48px; place-content:center; gap:6px 14px; padding:10px 12px 8px }
+.wiki-icons img { width:48px; height:48px }
 .wiki-pic .doll rect { fill:var(--accent) }
 .wiki-pic .doll .outline { fill:var(--ink-3) }
 @media(max-width:1000px) {
@@ -270,6 +272,8 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
  .wiki-pic h2 { font-size:.95rem }
  .wiki-glyphs { grid-template-columns:repeat(3,30px); gap:6px 12px }
  .wiki-glyphs .glyph { width:30px; height:30px }
+ .wiki-icons { grid-template-columns:repeat(2,40px); grid-auto-rows:40px; gap:4px 10px; padding:8px 10px 6px }
+ .wiki-icons img { width:40px; height:40px }
  .wiki-link p { padding:8px 10px 10px; font-size:.8rem }
  .catalogue-tools { grid-template-columns:1fr 1fr; gap:12px }
  .catalogue-tools label:first-child { grid-column:1 / -1 }
