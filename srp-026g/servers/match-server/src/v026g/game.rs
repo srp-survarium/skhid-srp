@@ -137,6 +137,8 @@ mod desync_capture;
 mod driven;
 #[cfg(test)]
 pub(crate) use driven::world_period;
+#[cfg(test)]
+pub(crate) use driven::Handover;
 mod late_join;
 mod live;
 mod start;
@@ -2304,6 +2306,19 @@ impl Game {
             } else if peer.stage == Stage::Live
                 && let Some(serial) = send(peer, &message)
             {
+                // [entry clock] A change stamped behind the client's clock (read at the real time, as the client's runs)
+                // reaches its game in its past (live, 2026-11-28: such bots' entries were never acked, the bots never
+                // shown).
+                if let Some(client) = given_clock(&peer.set_times, now.max(Instant::now()))
+                    && at < client
+                {
+                    log::warn!(
+                        "Match {:#x}: player {index}'s {} is stamped at {at} ms, behind player {other}'s clock (about \
+                         {client} ms): it reaches its game in its past",
+                        self.id,
+                        if entered { "entry" } else { "leave" }
+                    );
+                }
                 track(peer, serial, Flight::Roster(message.clone()), at);
             }
         }
