@@ -17,8 +17,10 @@ the same 0.69d rules as Rudnya (v0.69) @4 (`rudnya-069d.md`), with no per-map tu
   the twelve languages. The lobby draws level 28 with native Vostok's pictures
   (`MapRenders.tsv`, `LIKE 28 Level3`) and its loading screen (2); the HUD draws native Vostok's
   minimap (the same layout). The loading theme is level_03's (`music-1`).
-- Not yet in Blackout, Free for All, Freeze Tag or Artifact Hunt: the last two come with School
-  (v0.69) in one run of `scripts/mode-maps/make.py` once both are merged.
+- Not yet in Blackout or Free for All. Freeze Tag (map 452) and Artifact Hunt (352, level 03's
+  points and bases; the copy drops team2 respawn_point(147), which a box stands on) came with
+  School (v0.69)'s (451, 351) in one run of `scripts/mode-maps/make.py` (pack
+  `artefact-hunt-maps@4`).
 
 ## After the owner's first game (2026-11-22: "it is fine")
 
