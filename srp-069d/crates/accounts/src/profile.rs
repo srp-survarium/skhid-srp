@@ -271,9 +271,14 @@ impl Profile {
         self.claims.insert(name.to_string())
     }
 
-    /// The item that carries the decal item `decal_uid`, if any.
+    /// The item that carries the decal item `decal_uid`, if any (the first one: a camouflage can sit on several pieces).
     pub fn decal_owner(&self, decal_uid: u32) -> Option<u32> {
         self.decals.iter().find(|(_, l)| l.iter().any(|d| d.decal_uid == decal_uid)).map(|(o, _)| *o)
+    }
+
+    /// Every item that carries the decal item `decal_uid`.
+    pub fn decal_owners(&self, decal_uid: u32) -> Vec<u32> {
+        self.decals.iter().filter(|(_, l)| l.iter().any(|d| d.decal_uid == decal_uid)).map(|(o, _)| *o).collect()
     }
 
     pub fn item(&self, uid: u32) -> Option<&ItemRow> {

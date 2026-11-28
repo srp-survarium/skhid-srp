@@ -202,7 +202,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 184,
+      "expected_count": 188,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_01_day_2.options",
@@ -212,7 +212,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 185,
+      "expected_count": 189,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_01_evn_2.options",
@@ -222,7 +222,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 186,
+      "expected_count": 190,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_01_rain_2.options",
@@ -232,7 +232,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 187,
+      "expected_count": 191,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_02_day_2.options",
@@ -242,7 +242,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 188,
+      "expected_count": 192,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_02_evn_2.options",
@@ -252,7 +252,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 189,
+      "expected_count": 193,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_02_rain_2.options",
@@ -262,7 +262,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 190,
+      "expected_count": 194,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_03_day_2.options",
@@ -272,7 +272,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 191,
+      "expected_count": 195,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_03_evn_2.options",
@@ -282,7 +282,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 192,
+      "expected_count": 196,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_03_rain_2.options",
@@ -292,7 +292,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 193,
+      "expected_count": 197,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_04_day_2.options",
@@ -302,7 +302,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 194,
+      "expected_count": 198,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_04_evn_2.options",
@@ -312,7 +312,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 195,
+      "expected_count": 199,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_04_rain_2.options",
@@ -322,7 +322,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 196,
+      "expected_count": 200,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_05_day_2.options",
@@ -332,7 +332,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 197,
+      "expected_count": 201,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_05_evn_2.options",
@@ -342,7 +342,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 198,
+      "expected_count": 202,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_05_rain_2.options",
@@ -352,7 +352,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 199,
+      "expected_count": 203,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_06_day_2.options",
@@ -362,7 +362,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 200,
+      "expected_count": 204,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_06_evn_2.options",
@@ -372,7 +372,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 201,
+      "expected_count": 205,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_06_rain_2.options",
@@ -382,7 +382,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 202,
+      "expected_count": 206,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_07_day_2.options",
@@ -392,7 +392,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 203,
+      "expected_count": 207,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_07_evn_2.options",
@@ -402,7 +402,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 204,
+      "expected_count": 208,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_07_rain_2.options",
@@ -412,7 +412,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 205,
+      "expected_count": 209,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_08_day_2.options",
@@ -422,7 +422,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 206,
+      "expected_count": 210,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_08_evn_2.options",
@@ -432,7 +432,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 207,
+      "expected_count": 211,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_08_prerain_2.options",
@@ -442,7 +442,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 208,
+      "expected_count": 212,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/v021d_level_03_day_2.options",
@@ -452,7 +452,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 209,
+      "expected_count": 213,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/v021d_level_06_day_2.options",
@@ -462,7 +462,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 210,
+      "expected_count": 214,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/level_09_day_2.options",
@@ -472,7 +472,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 211,
+      "expected_count": 215,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/v011e_level_04_day_2.options",
@@ -482,7 +482,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 212,
+      "expected_count": 216,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/v011e_level_03_day_2.options",
@@ -492,7 +492,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 213,
+      "expected_count": 217,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "blackout/v069d_level_01_day_2.options",

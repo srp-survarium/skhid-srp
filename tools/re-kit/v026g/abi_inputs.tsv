@@ -6872,3 +6872,9 @@ va	name	location	role	basis
 0x00119760	vostok::render::camouflage_decal_cook_parameters::camouflage_decal_cook_parameters	entry ESP+4	P's layout: two decal layers of 270h at +0 (0x119740 each: a float4x4, then four 8Ch buffer_strings at +40h), the camouflage's four 8Ch buffer_strings (80h of room, 0x40530) at +520h, +5ACh, +638h, +6C4h, constructed apart (+4E0h..+520h left as they are), an identity float4x4 at +750h (0x33390's), +790h, +794h, +79Ch and +7A0h zeroed, the bake's name at +7A4h over 104h bytes at +7B0h ('/' at +8B4h)	observed
 0x002ac6c0	survarium::particle_game_effect_presenter::effect_data::operator=	ESI	the entry written (on_event's stop at 0x2AC615: each entry of the stopped effect, from an empty one)	observed
 0x002ac6c0	survarium::particle_game_effect_presenter::effect_data::operator=	EAX	the entry copied: its effect reference (0x2A9B10), resource and child, its particle (count +0D0h) and two floats	observed
+0x00172bf0	vostok::render::stage_shadow_direct::is_cached_caster	EDI	caster entry (render_surface_instance*)	observed
+0x00172bf0	vostok::render::stage_shadow_direct::is_cached_caster	entry ESP+4	cascade index	observed
+0x00173f10	vostok::render::stage_shadow_direct::cascade_needs_static_draw	EAX	cascade index	observed
+0x00173f10	vostok::render::stage_shadow_direct::cascade_needs_static_draw	ESI	shadow stage receiver	observed
+0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	ECX	shadow stage receiver	observed
+0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	EAX	cascade index	observed

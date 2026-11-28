@@ -198,7 +198,7 @@ fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 12] {
         (
             cosmetics::CAMOUFLAGES,
             lang.t("Camouflages"),
-            lang.t("Every camouflage: how to get it and what it goes on."),
+            lang.t("Every camouflage: how to get it."),
             Picture::Row(
                 ["camo_multicam", "flecktarn_01_camo", "camo_black_leather"]
                     .map(|name| cosmetics::icon_of(Page::Camouflages, name))
@@ -208,7 +208,7 @@ fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 12] {
         (
             cosmetics::DECALS,
             lang.t("Decals"),
-            lang.t("Every decal: how to get it and what it goes on."),
+            lang.t("Every decal: how to get it."),
             Picture::Row(
                 ["decals_3_1", "decals_1_7", "decals_2_6"]
                     .map(|name| cosmetics::icon_of(Page::Decals, name))

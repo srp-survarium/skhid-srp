@@ -138,6 +138,9 @@ JAR_SHARDS = {jar: _jars.shard_names(k) for k, jar in enumerate(_jars.jar_names(
 # the bays a building's glass has (Vector's 23), and more
 PANES = {_windows.pane_name(k): _windows.broken_name(k) for k in range(64)}
 BELLS = ('props/electric/bell_school', 'ported/v021d/props/electric/bell_school')
+# A bell's collision object: a port that merged the bell's visual into a cluster keeps it at the bell
+# (School (v0.69): three of its four; scripts/school-bells/make_edits.py bells_of).
+BELL_SOLIDS = tuple(f'resources/models/{name}.model/collision' for name in BELLS)
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
 # triangles make_pack.py drops: lamp_midle_0N y -0.099..-0.055, lamp_big_01
@@ -488,7 +491,7 @@ def check_built(path, data):
         bindings += sum(len(row.get(t, {})) for t in ('visuals', 'loose', 'lights', 'ambient_lights', 'particles',
                                                        'probes'))
         if row.get('reaction', 'break') == 'ring':
-            problems += ring_problems(path, name, row, visuals)
+            problems += ring_problems(path, name, row, visuals, root.get('collision_objects', []))
             continue
 
         def visual(key, table='visuals'):
@@ -580,10 +583,11 @@ def pane_frame_ok(piece):
         and abs(out[1]) < 1e-6
 
 
-def ring_problems(path, name, row, visuals):
+def ring_problems(path, name, row, visuals, solids=()):
     """A bell's row: no visual, no piece, no light of its own; its interval
-    the client's (over 0, to 600 s); a bell of the map inside its bounds;
-    its glass line (where the ring plays) inside them too."""
+    the client's (over 0, to 600 s); a bell of the map inside its bounds (its
+    render visual, or its collision object where a port merged the visual into
+    a cluster); its glass line (where the ring plays) inside them too."""
     problems = []
     inside = lambda p: all(row['min_' + a] - 1e-3 <= c <= row['max_' + a] + 1e-3 for a, c in zip('xyz', p))
     every = row.get('ring_every')
@@ -591,7 +595,8 @@ def ring_problems(path, name, row, visuals):
         problems.append(f'{path}: {name}: ring_every {every!r}')
     if any(row.get(t) for t in ('visuals', 'loose', 'lights', 'ambient_lights', 'particles', 'probes')):
         problems.append(f'{path}: {name}: a bell binds nothing')
-    if not any(model_name(v) in BELLS and inside(v['position']) for v in visuals):
+    if not any(model_name(v) in BELLS and inside(v['position']) for v in visuals) \
+            and not any(o.get('lib_name') in BELL_SOLIDS and inside(o['position']) for o in solids):
         problems.append(f'{path}: {name}: no bell of the map in its bounds')
     for end in ('from', 'to'):
         if not inside([row[f'glass_{end}_{a}'] for a in 'xyz']):

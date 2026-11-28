@@ -2066,7 +2066,8 @@ fn a_custom_room_starts_with_its_bots_and_leaves_the_reserve_out() {
     let gd = game_data::testing::tables();
     let row = gd.matches.modes().iter().find(|r| (r.map, r.mode, r.variation) == (room.map.into(), room.mode.into(), room.weather.into())).unwrap().clone();
     let cap = ((if row.max_players > 0 { row.max_players } else { row.min_players }) / 2).clamp(1, 9) as u8;
-    let bots = cap.min(lobby_server::online::BOT_TEAM_MAX as u8);
+    let size = if row.max_players > 0 { row.max_players } else { row.min_players };
+    let bots = cap.min(lobby_server::online::bot_team_cap(LobbyConfig::default().bots_per_team, size).0 as u8);
     assert_eq!((room.max_ai, room.max_players), (bots, cap), "bots offered up to the team limit");
     // the host ticks "bots ignore players" (62 1E, the same row): stored and shown, and it goes with the bots at the Start
     send(&mut w, 0, Custom62::Parameters { map: room.map, weather: room.weather, mode: room.mode, region: 0, voice: 0, ai_ignore: 1 });
@@ -2149,7 +2150,7 @@ fn tdm_row() -> (u32, u32, u32, usize) {
     let gd = game_data::testing::tables();
     let r = gd.matches.modes().iter().filter(|r| r.project.ends_with("_tdm") && r.min_players >= 12).min_by_key(|r| (r.map, r.variation)).expect("a tdm row of 12 or more").clone();
     let size = if r.max_players > 0 { r.max_players } else { r.min_players };
-    (r.map, r.mode, r.variation, (size as usize / 2).min(lobby_server::online::BOT_TEAM_MAX))
+    (r.map, r.mode, r.variation, lobby_server::online::bot_team_cap(LobbyConfig::default().bots_per_team, size).0)
 }
 
 /// The humans' average equipped match-making level as the lobby computes it (online.rs `bot_level`), from the store.

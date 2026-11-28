@@ -6,6 +6,9 @@ right?". After playing the first build (boxes): "i am not sure showing bbs like 
 since this doesn't give people idea on what is collision and where": draw the collision itself.
 2026-11-17, after playing revision 63: "can we make variation which fills in collision? so it is
 easier to find holes", and "just slightly bigger buffers for all meshes".
+2026-11-28: "start work so that collision fill only works in private lobbies" (in public matches the
+fill showed anyone the collision), then the line view too: the whole command only in private rooms'
+matches and replays.
 
 ## The command
 
@@ -30,9 +33,40 @@ easier to find holes", and "just slightly bigger buffers for all meshes".
   Typing what is shown turns the view off; anything else of these switches to it. Anything else
   prints `collision: collision [walk | shot | solid | anomaly] [fill]` and the options, and changes
   nothing.
-- It works in a match, a replay and while spectating: the lines are those of the camera's player's
-  physics world, around the camera. In the lobby it draws nothing.
+- **Only in a private room's match or a replay** ("Where it works", below). Elsewhere it prints
+  `collision: only in private rooms and replays` and turns nothing on.
+- The lines are those of the camera's player's physics world, around the camera, in a match, a
+  replay or while spectating, where it works. In the lobby it draws nothing.
 - Never saved: a new game starts with it off.
+
+## Where it works
+
+- **The whole view, lines and fill alike** (every filter: walk, shot, solid, anomaly; the owner,
+  2026-11-28, after the fill: the line view must not work everywhere either).
+- **A private room's match**: a room with a PIN (`rooms.md`), with bots or without. **Any replay**,
+  of whatever match, since a replay is not live. **Nowhere else**: an open room's match (Play's), a
+  clan match, Player vs Bots, a match of an older server, or before the game has had any match.
+- **The server says it**: the lobby knows a room's PIN when it makes the match
+  (`MatchKind::PrivateRoom`, `PrivateRoomWithBots`), and the match server writes it into the
+  match's options as srp's block's entry 8 (one byte, 1: `static_info::SRPX_PRIVATE_ROOM`;
+  `static_info.md`), for its first players and for every late joiner. A game reads it where it reads
+  the options (`static_info.options_read`). A replay's options (`replay.options_read`) allow the
+  view whatever they say. The options last read decide until the next are read, as for Blackout's
+  and Free for All's entries. Every patch steps over a tag it does not know, so an older game
+  ignores the entry; an older server sends none, so the view is refused.
+- **Spectating** a live match (a dead player's camera on another player, a spectator) is that
+  match: the view only if it is a private room's.
+- **Elsewhere** `collision` with any filter prints `collision: only in private rooms and replays`
+  and turns nothing on (no room is made for it). A wrong argument still prints the usage; turning a
+  view off works anywhere.
+- **A view carried** into a match that does not allow it (turned on in a private room's match or a
+  replay, then a public match) draws nothing there and reads nothing. The console says once
+  `collision: only in private rooms and replays: nothing drawn in this match`. It comes back by
+  itself, with its legend, in the next match that allows it. Typing what is shown still turns it
+  off there; another filter is refused. In the lobby the last match read decides: `collision` typed
+  there after a public match is refused.
+- **The gate is the client's.** The game draws the view, so a changed exe could draw it anywhere.
+  The server decides which matches are private, and the released exe draws only in those.
 
 ## What is drawn
 
@@ -126,4 +160,5 @@ easier to find holes", and "just slightly bigger buffers for all meshes".
 ## How
 
 - Exe patch 156 (`client-patches/rust/patches/src/collision_view.rs`, `client_patch.md`
-  section 3.112, `check_collision_view_026g.py`). Nothing a match computes changes.
+  section 3.112, `check_collision_view_026g.py`, the `collision-view` check). Nothing a match
+  computes changes.

@@ -1022,8 +1022,8 @@ History since {0}, plus {1} earlier matches made again from their recordings, fr
 # The wiki's camouflages and decals (src/cosmetics.rs).
 Camouflages	Álcaminták
 Decals	Matricák
-Every camouflage: how to get it and what it goes on.	Minden álcaminta: hogyan szerezheted meg, és mire kerülhet.
-Every decal: how to get it and what it goes on.	Minden matrica: hogyan szerezheted meg, és mire kerülhet.
+Every camouflage: how to get it.	Minden álcaminta: hogyan szerezheted meg.
+Every decal: how to get it.	Minden matrica: hogyan szerezheted meg.
 Given to account {0}	A(z) {0} azonosítójú fiók kapja
 Premium	Prémium
 Flags	Zászlók
@@ -1038,8 +1038,3 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Minden kereskedő árulja ezüstért.
 Found in drops, never one you already have.	Dropokból jönnek, soha nem olyan, ami már megvan.
 Each is given to one account.	Mindegyiket egy fiók kapja.
-Where it goes	Hová kerülhet
-Items that take it	Ezt fogadó tárgyak
-At once	Egyszerre
-Bought once, it is yours: put it on any number of your items at the same time.	Egyszer megvéve a tiéd: akárhány tárgyadra felteheted egyszerre.
-Sold back, it pays a quarter of its price and comes off every item.	Eladva az ára negyedét hozza, és minden tárgyról lekerül.

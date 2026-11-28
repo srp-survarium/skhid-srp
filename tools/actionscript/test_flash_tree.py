@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import struct
 import tempfile
@@ -194,6 +195,25 @@ class MovieTests(unittest.TestCase):
             flash_tree.check(flash_tree.assemble(original, [do_abc('x', 'A')]))
         with self.assertRaisesRegex(ValueError, 'more than once: A'):
             flash_tree.check(flash_tree.assemble(original, [do_abc('x', 'A', 'pkg.B'), do_abc('y', 'A')]))
+
+    def test_a_picture_is_a_class_holding_a_movie_of_its_own(self):
+        with tempfile.TemporaryDirectory() as temp:
+            (Path(temp) / 'pictures').mkdir()
+            (Path(temp) / 'pictures' / 'Shown.png').write_bytes(png(3, 2, bytes(range(24))))
+            [(relative, source)] = flash_tree.picture_classes(Path(temp)).items()
+            self.assertEqual(relative, Path('Shown.as'))
+            self.assertIn('public class Shown', source)
+            text, = re.findall(r'public static const MOVIE:String = "([A-Za-z0-9+/=]*)";', source)
+            header, tags = swf.split(base64.b64decode(text))
+            self.assertEqual([k for k, _ in tags], [69, swf.DEFINE_BITS_LOSSLESS2, 2, 26, 1, 0])
+            # an AS3 movie, the picture's size (3 x 2 pixels, in twips), one frame
+            self.assertEqual(struct.unpack('<I', swf.payload(tags[0][1]))[0], swf.AS3)
+            self.assertEqual(swf.payload(tags[1][1]), swf.payload(flash_tree.bitmaps(Path(temp), 'pictures')[0].define(1)[1]))
+            self.assertEqual(header[8:], bytes([0x38, 0x07, 0x80, 0x14, 0x00]) + struct.pack('<HH', 30 << 8, 1))
+            (Path(temp) / 'src').mkdir()
+            (Path(temp) / 'src' / 'Shown.as').write_text('')
+            with self.assertRaisesRegex(ValueError, 'a class of the tree already'):
+                flash_tree.picture_classes(Path(temp))
 
 
     def test_a_placement_is_put_right_in_its_sprite_frame_and_depth(self):

@@ -333,7 +333,68 @@ or count check (0x2002F4C40, 0x2002F4D30). So an item loads when the rule list a
   Ranked tickets group regardless of their masks; still humans only, no squads (client), off during an event.
 * Bot fill (`matches.bot_wait_secs`) uses the same unrated pick on the served rows, without the modes the AI cannot play
   (`online::NO_BOT_MODES`, 7.4). The match options carry the picked row's project and map name
-  (`local_match::online_options_row`); the world host builds that project.
+  (`local_match::online_options_row`); the world host builds that project. Players per team (`online::bot_team_cap`):
+  the smallest of `matches.bots_per_team` (default 6, 1..=8), the hard cap `online::BOT_TEAM_MAX` 8, half the row's
+  match size and the patrol graphs per team (8, 7.4); the bot-fill log line names the limit that set it.
+
+### 7.3a Loaded maps: the world host's room
+The world host loads at most `max_zygotes` maps (level projects) and runs at most `max_matches` matches per map (up to
+twice it while 1.2 GB is free); a match it has no room for waits 20 s in its front and is then refused. The lobby
+therefore chooses with the host's room (`lobby_server::host_room`):
+* srp asks the daemon for its room about every 0.5 s (`ListStatus` 0x06 -> `Status` 0x8C on a connection of its own,
+  `world_host::watch_room`, `match_server::query_status`). The front answers from the same rules a match meets
+  (`daemon::room_status`): per loaded map its running and starting matches (handed over and not taken, or Creates the
+  front has read and not handed over), whether it takes one more (`match_room`), its rank in the eviction order when idle
+  (no match running or on its way; the front's own placement counts an idle map with a Create on its way as busy too)
+  and its age; the maps that are not loaded and can load now, in order, each with the idle maps evicted for it (`plan`
+  for a new map again and again: under the limit, idle maps to evict, or one over the limit with 1.4 GB free, each map
+  listed before it counting 0.42 GB of that memory; none while the base process is not ready); and, only while no new
+  map can load and the base is ready, the map to drain
+  (`daemon::DrainTurn`: the busy map loaded the longest that is not a `prestart` map; kept while busy, for at most
+  20 min; once idle or gone the next one; one still busy after its 20 min is passed over until a drain succeeds; the
+  front cannot tell a custom room's or clan battle's map, so such a map is passed over that way). srp keeps the latest status
+  (`srp::host_room::RoomBook`); the lobby reads it without waiting (`OnlineMatches::host_room`). Every match srp creates
+  is counted against it (a reservation, `with_reserved`) until a status asked 1 s or more later arrives (the daemon
+  counts the Create from its first frame, sent at the match's creation): a start on a loaded map counts as starting
+  there (and makes an idle map busy); a start on a map that is not loaded takes the next new map, and the idle maps the
+  front evicts for it are closed to the queues; the new maps left are those whose evictions are still possible. So two
+  groups never both take a map's last slot or the same idle map. A failed read keeps the last status; one older than
+  5 s, or no world host, = no status: the queue picks as before. Custom rooms and clan battles do not check the room.
+* The choice (`host_room::scope`, `PvpQueue::choose_in` / `pick_in`), at every start, with no state kept between starts:
+  a new map can load -> the rotation of 7.3 over every served row (without loaded maps that take no more match);
+  no new map can load -> only the served rows whose map is loaded and takes one more, the rotation's order among them
+  (the mode, then the map whose last queue match is the oldest, a never started one first; so a freshly loaded map is
+  picked once, then the others take their turn), the variant the loaded one started the longest ago (ties drawn).
+  Avoided rows (`host_room::avoided`, taken only when no other row fits the group: a group is never held for them):
+  while no map can load, the idle maps and the map the front drains (`host_room::drain_map`), so busy maps with room
+  go first and the drained map turns idle (over the limit a second map can idle too, and two evictions make room for a
+  load); while a new map can load, the idle maps that load evicts (the first new map's evictions, the lowest ranks), so
+  the rotation loads a map that is not loaded and the idle map goes, instead of the rotation picking the idle map again
+  (its last start is old, since it was drained). Ranked takes its slot mode from every
+  served row in both scopes (it falls through to the next slot's mode only when the slot's mode has no served row at all)
+  and then only the scope's rows of that mode: every map of it full or not loaded -> held. Nothing fits -> the group is
+  held (`PvpQueue::group_in`): it stays queued, a line is logged once per group (its mode mask) and kind of hold (maps
+  full, no room, base not ready; `queue: held, the group (key 0x...) stays queued: ...`; again after a start) and the
+  queue is tried again every second from the tick until it starts. As soon as a map can load, the next start is the
+  rotation's again. The bot fill (same hold lines) and the ranked fall-through after a failed team split use the same
+  scope. The reservations err on the safe side (an over-limit slot is used up by one start; a match the next status
+  already counts is counted twice until the reservation ends): a group can be held for up to about 1.5 s more than
+  needed, which the 1 s retry recovers.
+* PvE (`pve::start_full`, `host_room::pve_maze`): while a new map can load, the lobby's maze draw when that maze is not
+  loaded or takes one more match, else the other maze under the same test, else held; while no map can load, a loaded
+  maze of the group's difficulty with room (both: the one not drained, else the one started the longest ago); neither:
+  the group is held before anything is charged (one line per difficulty and kind), tried again every second; the groups
+  behind it may still start (`next_group_without`).
+* Log lines: `world host room status read (every 500 ms): ...` / `... not read (...)` (srp, at each change of the link),
+  `queue: no new map can load: narrowed to the N loaded row(s) with room (...; world host status M ms old: ...): ...
+  candidates ...: picked P (...)` (with `draining D (loaded N s, the longest): ...`), `PvE queue: the drawn maze K ... is
+  loaded and takes no more match: maze J instead`, `PvE queue: no new map can load: maze K ... is loaded with room
+  (...)`, and the held lines.
+* Checked in runs without game clients (a daemon, srp reading its room, matches created by the test tools): the
+  status and its 500 ms reads, maps over the limit and full ones, the drain pick (the busy map loaded the longest),
+  the drained map going idle and evicted first, a dropped link logged once and read again, no refused match. The
+  queue's holds, reservations and rotation over the loaded maps need game clients in the queue and are not checked in
+  a run yet (unit tests only).
 
 ### 7.4 Search and Destroy (mode 5)
 * Rows: besides the training modes (0, 1, 2, 6, 9) the extractor
@@ -360,8 +421,12 @@ or count check (0x2002F4C40, 0x2002F4D30). So an item loads when the rule list a
 * Achievements 627 / 628 (mode mask bit 5) count from an S&D win; 627 needs the 5 - 0 lead (team values = rounds).
 * Bots: the exe's AI cannot play S&D. A PvP bot claims a team patrol graph from the level project's `server_objects`; the S&D
   projects have none (world host runs on level_02_day_sad_v3, level_03_day_sad and sad_abandoned_base: "patrol graphs per team
-  [0, 0]", PROVEN; level_03_day_sad_v2 LIKELY the same), a bot without a graph is undefined in the exe and the host refuses the
-  match. The client offers no S&D bots training either. So S&D gets no bot fill and no room bots (`online::NO_BOT_MODES`): an
+  [0, 0]", PROVEN; level_03_day_sad_v2 has none in its project data either), a bot without a graph is undefined in the
+  exe and the host refuses the match. The graphs are exclusive: a bot claims a FREE graph of its team (`team_id`) at its
+  start and at each respawn and frees it at death; with none free the pick reads an uninitialised index. Every project
+  of a bot-playable row has 8 graphs per team (one has 9; project data, PROVEN; the world host logs [8, 8]), so a team
+  gets at most 8 bots (`online::PATROL_GRAPHS_PER_TEAM`). The exe holds 20 player records and 20 AI controllers per
+  match, so 8 + 8 fit. The client offers no S&D bots training either. So S&D gets no bot fill and no room bots (`online::NO_BOT_MODES`): an
   S&D-only search waits for ten players; a search that also ticks another mode gets its bot fill there. The AI's objective
   code (plant / defuse / carry) was therefore not reachable and is not claimed.
 * Facts of an online match with real statistics (`Ended::stats`): `team_place` = teammates with a higher score (0 = best, equal scores share a
@@ -568,3 +633,376 @@ local matches, none when no result was reported at all (verdict unknown).
 ## Protocol audit
 
 See `protocol-audit.md`: the DF confirmation carries the match clock at arrival, options +0x107A = 500 ms online, player record games played / face / premium, 85 states.
+
+## World host memory
+
+Each map is a zygote process (its matches are fork children that share its pages), and every zygote is itself a fork
+of one **base process**, so the start-up that does not depend on the level is done once and shared by every map:
+
+* **The base process (`daemon::base_loop`, `world-host --base-fd 3`, started and restarted by the front).** It runs
+  steps 1-2 (CRT, static ctors, engine init, the 76 volumes, the config query) and step 3 up to the cut
+  (`run::step3_base`: the world thread's FPU set-up, the render worlds and the null render init, the game object
+  0x200107CA0, the cook registration 0x200118090, the null cooks, the items dictionary, startup.cfg). Nothing in it
+  reads the level, and every query in it has finished when it returns. The cut is before the line that names the
+  level: the Bullet hooks and the localization holder 0x20013DFA0 stay after it (that holder's load is still running
+  when its call returns, so it must not be in flight at a fork). Per map the base fork()s (`run::fork_world`, kind
+  Zygote); the child gets the command line a zygote started on its own would get (read through `cmdline`), its own
+  output folder and log, restarts `:hdd` and `:resources manager` as a match child does (reporting the base's thread
+  ids), loads the level, pre-warms and serves its matches. The overlay and private drive stay the base's (nothing is
+  written there after the cut). Every map after the first therefore shares the base's start-up pages instead of
+  holding its own copy (measured: the base holds about 124 MB at the cut, about 100 MB of which every zygote shares,
+  and about 168 MB with the base pre-warm set below; what a zygote still holds alone shows as Private_Dirty in its
+  `MEM [zygote ready]` line, the part shared with the base as Shared_Dirty). Measured map sizes (Private_Dirty at
+  `zygote ready` without the base pre-warm set: the level and the pre-warm list): a usual PvP map 0.11-0.15 GB (its
+  level alone 31-98 MB), a PvE mission 0.25-0.26 GB (185-192 MB), the largest, `level_11`'s three modes, 0.31 GB
+  (level 281-283 MB; measured as a zygote in a played match: 308 MB, 277 MB with the base pre-warm set, loaded 4.6-5.2 s
+  after the fork). With the set a zygote holds about
+  51 MB less (PvP 112 -> 61 MB, PvE 252 -> 200 MB). A match child: a recorded two-player PvP match 37 MB at its
+  creation and 41-43 MB at its end, a PvE mission 92 -> 100 MB; a 12-slot PvP match with 11 of the host's AI players
+  on a map started from the common seed 126-131 MB at creation and at most 137-140.5 MB, a PvE mission with the host's
+  AI driving its 17 AI players at most 122 MB, an 18-minute PvE mission at most 106 MB (docs/guide-server.md, "Memory:
+  how many maps and matches").
+* **The front and the base.** The front asks the base for a zygote with a Load message (`base.rs`: the project and the
+  zygote's command line, its control socket attached); the base answers with the zygote's pid and a pidfd. The front
+  watches (`poll`) and kills (`pidfd_send_signal`) zygotes through their pidfds, so a reaped and reused pid is never
+  hit; the base reaps them. A map that needs loading while no base is ready waits like a match waiting for room.
+* **Checked.** Every served project (118: each PvP map, mode and variant and each PvE mission) loaded after a fork at
+  the cut gives a byte-equal start world (`start_item.bin`) and the same static geometry as a cold load
+  (`HOST_FORK_AT_CUT=1`); the regression recordings through the daemon give ticks and captures equal to the golden
+  runs; the daemon's cases (zygote restarts and lists, eviction, a map over the limit, a third map that waits and is
+  refused, idle eviction, a burst over `max_matches`, a stopped zygote killed after eviction, a killed base replaced
+  while the old zygotes keep their matches, `prestart` through the base) behave as described.
+
+Four host-side steps keep pages
+that only hold zeros, or that nothing uses, out of the zygote's private memory. The first three change no byte the exe
+reads; the fourth changes the render command pool's capacity and free list (render data only, never run by the host):
+
+* **Zero pages of the image (`mem::drop_startup_zero_pages`, end of step 1).** The static ctor 0x200075B70 fills 27
+  per-thread job-slot arrays (0x20411B0F0 + i x 0x400008, 108 MiB of BSS) with zeros (0x2000AA770, 0x2000AF590). At the
+  end of step 1 only the world thread runs exe code (the first CreateThread is in step 2; the drop checks that no exe
+  thread exists), so every resident page of the writable image that is all zero is given back with `MADV_DONTNEED`
+  (the image is one private anonymous mapping; the drop checks `/proc/self/maps` and refuses anything else). A read
+  gives zeros again, a write allocates the page again. Saving per zygote: up to 108 MiB, minus the arrays the threads
+  fill later (a PvE zygote's step 1 gave back 117 MB of all-zero pages in all; the part its threads fill again is not
+  measured on its own).
+* **No zeroing of fresh heap memory (`mem::heap_alloc`).** A zeroed request (HEAP_ZERO_MEMORY, LMEM/GMEM_ZEROINIT, a
+  zeroing realloc's tail) writes zeros only into a block reused from a free list; a new mapping or unused chunk space
+  holds zeros already. Saving: about 24 MB per zygote (`prepare_process`: 8 MB network client stand-in + 16 MB
+  player-record buffer).
+* **Null-cook stand-ins in a pool, sized per class (`mem::pool_alloc`, `nullcook::null_res_size`).** An empty
+  resource takes the size of its class's real object where the exe's own cook allocates a fixed size (texture 0x488,
+  particle system 0x600, sounds 0x238 ...: allocation sites in the code), rounded up to 16, instead of a 5120-byte heap
+  block. The classes with a variable-length tail get their fixed part: static render model instances (0x13, one per
+  render visual of the level, the most frequent class) 0x3F0 (0x3E8 + 0x1A8 per surface in the exe), composite
+  sounds (0x101, 0x238 + 0x40 per sound item) and sound collections (0x102, 0x240 + 0x20 per entry) 0x240, grass
+  (0x79) 0x350. A real object of these classes can be larger (0x13 up to 0x8370 in the data); the tails are filled
+  only by the real cooks, which never run in the host, and reached only through the object's own pointers and counts,
+  which are 0 on a stand-in (PROVEN for the cooks; for every other reader by the guard-page run,
+  `HOST_NULL_RES_GUARD=right` below, at these sizes or smaller: no access past them on any served project's level
+  load and match creation or through the regression recordings). Saving for 0x13: about 3 KiB per render visual,
+  about 22 MB in a PvE mission's zygote (7 190 visuals) and 3-6 MB in a PvP one; for 0x101 / 0x102 about 0.5-0.8 MB
+  a map.
+  The skeleton model instance (0x14) is 0x5D58 bytes in the exe, and exe render code writes past +0x1000 of it in a
+  render job the host never runs: it gets its full size in whole pages (untouched pages cost no memory). The size the
+  exe's memory statistics are told stays 0x1000. Saving: at least 1 KiB per null-cook answer (5 862 to 12 878 answers
+  per zygote and match), about 3.5 KiB per particle system. Measured in a PvE zygote: 11 243 stand-ins in 14.5 MB of
+  pool, 43 MB less than as heap blocks.
+* **A smaller render command pool for the matches (`world::compact_render_pool`, in a loaded zygote).** The scene's
+  command pool (`single_size_buffer_allocator<0x628>` at 0x2034C3F40, 0x2000 records = 12.3 MiB, every page written by
+  the scene init 0x2005FD980) feeds the render thread, which the host does not have: its commands are retired unrun
+  (the zygote's retire after its level load and pre-warm, a drain thread during each match creation, a retire after
+  every step). The level load and the pre-warm keep the exe's capacity (their peak, about 7200 on PvE, stays under
+  it): at a lower capacity the exe's full callback 0x2005FEC90 would free commands there, and its free 0x2000FA0D0
+  takes no lock. Once the zygote has loaded and retired everything, every record is free: the free list is rebuilt over
+  records 0..1087 in ascending order, the capacity goes down to 1024 and the pages after record 1087 are given back.
+  The allocate 0x2005FEC30 checks the count, pops, then counts, so threads that allocate at the same instant each take
+  at most one record past the capacity, and the list is last in, first out, so the highest record handed out is the
+  most records out at once: 64 spare records cover every thread the exe has. A match's creation then copies at most
+  1.6 MiB of the pool instead of up to 11 MiB (PvE), and the zygote gives back the pool pages its level load wrote
+  (up to about 10.7 MiB; 10.9 MB in a measured PvE zygote). A producer at the capacity waits in the exe's full
+  callback; its yield (SwitchToThread at 0x2005FECC0, Sleep(0) at 0x2005FECCC) retires the queued commands itself, so
+  even a step that queues more than the capacity goes on.
+
+Trace: every `MEM [...]` line is followed by `MEM [...] savings` (totals of the process; a fork child counts its
+zygote's part too), and step 1 logs the pages given back (`zero-page drop ...`) and `MEM [after the zero-page drop (step 1)]`.
+The pool logs `render pool: free list rebuilt over records 0..1087 (...); capacity 1024 of 8192; <n> pages after it
+given back`, the creation drains `pool peak <n> of 1024` (before: of 8192, values up to 7190; not comparable), and a
+producer that retired commands at the capacity `render pool: a producer at the capacity ... (first time)`.
+
+In a match, the **history pool keeps 22 items instead of 47** (`world::cap_history_pool`, right after
+`pvp_match_resource`, before the first item). The match core's history pool ([W+0x7DE8]) is sized in client mode for 47
+items of 0x106268 bytes; `new_game_state_history_item` 0x2002F0D10 recycles the oldest item once `used` (+0x38) reaches
+the capacity (+0x40), the only reader of that field (0x2002F0D4C). 22 is the exe's own server-mode count (0x2002E61AF),
+and server mode (22) and client mode (47) gave equal ticks and captures on the recorded matches without late inputs.
+What reads old items at a 50 ms tick: the host's resync DE answers `WantDe` with the newest final tick T = the newest
+stepped DF - 300 ms (session.rs:173-174, `final_lag_ms` session.rs:90) and `run::de_with_tail` writes the items of
+exact times from T - 500 ms (options +0x107A, run.rs:1807-1813) up to T: 17 items back from the newest (a missing one
+would be written as a zero byte instead of its animation block); the exe's late-input restart, its 500 ms horizon, the
+load backfill and lag compensation stay within 12 items. 22 keeps 5 to spare; for another tick, horizon or final lag
+the capacity is the DE's items + 5 when that is more (`world::history_capacity`), never above the exe's. Items 23..47
+are then never touched (only their free-list link page): about 25 x 0.17-0.29 MB = 4-7 MB less per match. Trace:
+`history pool: capacity 22 items (the exe's 47); the resync DE reads 17 (tick 50 ms, final lag 300 ms, horizon 500 ms)` at the
+creation, `history pool: U of C items in use at the end, the oldest of time T0, the present T` at the end (`child: ...`
+in a match child). Diagnosis: `HOST_HISTORY_POOL=exe` keeps the exe's 47 (A/B runs). Checked through the daemon at
+22 items: the equality suite (the six regression recordings, ticks and captures equal to the golden runs); the
+late-input copy of a recorded match (`HOST_CAPTURE_DELAY=300`) with its captures 248 / 245 / 248 equal as before; a
+resync DE (`HOST_DE_AT`) byte-equal to the one with `HOST_HISTORY_POOL=exe`; at the end 22 of 22 items in use,
+spanning 1050 ms of world time.
+
+**Late loads (`registry.rs`).** What a match cooks for itself is what its creation finds missing in its zygote; the
+matches load nothing more after the creation: the trace below logged 0 late loads in every match it watched (the
+regression recordings; 12-slot PvP with 11 of the host's AI players; a PvE mission with the host's AI driving its 17
+AI players; an 18-minute PvE mission), and the one later
+query the host makes itself, at the AI's start, finds its entry cached. Every match child keeps checking it, without
+a breakpoint:
+
+* **The exe's name cache.** One hash table of 0x8000 buckets at 0x200C71270 (bucket i's first node at +8 + i x 8),
+  its entry count (u32) right after the last bucket at 0x200CB1278. A node holds the class (+0), its owner (+8), a
+  pointer to the zero-terminated name (+0x10) and the next node of its bucket (+0x18). A resource of a class shared
+  through the cache enters it where a lookup does not find its name (0x2000CB019, before it is cooked) and, once
+  finished, as its own node with a copy of its name (0x2000CAC2D); every insert adds 1 to the count, every erase takes
+  1 off. The exe holds the critical section 0x200CB1280 around every find, insert and erase (taken at 0x2000A7A90,
+  0x2000C1EA0, 0x2000CABC0, 0x2000CAFC0), and nothing in the exe walks the table or reads the count: the table's address
+  occurs only in those finds, inserts and erases, and the count only in insert and erase.
+* **The trace.** The child walks the table once at the end of its creation query (the creation's entries), then reads
+  the count (one u32, without the lock) before Ready, after the host's AI started and after every stepped DF. When the
+  count differs from the last walk's, it walks the table under the exe's own lock and names every entry it has not
+  seen; in play at most one walk per second of world time, and one more walk at the end whatever the count did. The
+  lock is taken with the host's TryEnterCriticalSection and given back with its LeaveCriticalSection (the calls an exe
+  thread makes; a free section's bytes are the same after them); a lock not free within 50 ms skips that walk (counted).
+  A walk stops after 2^20 nodes and reads only node and name pointers in the image or the host's low area.
+* **The list.** At the end the late entries of the classes a zygote can query by name alone join the project's own
+  pre-warm list through the creation's union (`daemon::grow_prewarm_list`: appended, never shrinking, written only
+  when something is new), so the project's next zygote, or its running zygote's top-up, holds them for every later
+  match. Names are read whole (the creation's recorder cuts at 119 bytes).
+* **Exactness.** Reads only: no exe byte is written, no breakpoint, no debug register, no signal. The lock is the only
+  shared state the trace touches, through the same calls the exe makes, and it is free again after each walk; an exe
+  thread that asks for it during a walk waits that long (time only). The trace's allocations are the host's own.
+* **What it can miss:** an entry registered and erased again between two checks, and in play an insert and an erase
+  between two walks that leave the count unchanged (the walk at the end finds the insert if it is still there).
+* **Lines (match child):** `late loads: watching the name cache (N entries at the end of the creation query, K nodes;
+  walk T us)`; per entry `late load: world time T, before Ready|at the bots' start|in play: class 0xC NAME` (the
+  first 32, then `late loads: M more not listed`); at the end `pre-warm list FILE: late loads: E entries, A new (list
+  now L)` when the list grew, and always `late loads: K after the creation (B before Ready, S at the bots' start, P in
+  play); cache entries C0 at Ready, C1 at the end, N changes of the count, W walks; list: A new` (`not recorded (no
+  own list)` for a project without a `prewarm_dir` list). A zygote logs `zygote: name cache [zygote ready]: N entries
+  (K nodes), names S kB; walk T us`.
+
+**Pre-warm top-up (`daemon::TopUp`).** A zygote reads its pre-warm list once, at start; its matches then grow the
+project's list (what their creations missed, and late loads). A zygote that started from the common seed or from no
+list therefore had every match cook those resources privately until the map was loaded again (measured on a
+two-player PvP match: 70 MB at creation instead of 39 MB with the list that match itself had just recorded). Now the
+zygote takes in what its list file gained:
+
+* **When.** On an idle turn of its hand-over loop (no hand-over for a second, so no fork and no other exe code runs),
+  when the list file's size or time changed since it read it, or the last top-up left entries over; not while a child
+  forked in the last 5 s may still be in its creation (it may grow the list once more); not while MemAvailable is under
+  1.2 GB (the rule for a match over `max_matches`; logged once per wait); at most one top-up per turn, of at most
+  200 ms of queries (the rest on the next idle turn); at most 48 MB of the zygote's private memory in all its top-ups,
+  then no more (logged once). Nothing for a project with a `prewarm` file set by hand (it records nothing).
+* **What.** The entries of the project's own list file that this zygote has not queried yet (at start or by a top-up),
+  in the file's order, each through the start's own query (`run::prewarm_entries`: the exe query and callback of
+  `run::prewarm`, one reference kept each), with the fork gate's idle parking off meanwhile as during the start's
+  pre-warm; then render commands are retired as after the start's pre-warm (none are expected), parking goes on again,
+  and every later fork runs the gate and the census as every fork does.
+* **Exactness** (the argument of `config.md` 1.1, at a later time): the entries are queried through the same exe query,
+  with the project's own level loaded, before the fork of every match that finds them; an entry a match also asks for
+  is cooked in the state an own list would cook it in, and one it never asks for only stays in the cache, which nothing
+  in the exe walks ("Late loads" above). The order is the file's, and growth only appends: a zygote that loaded its own
+  list (or the common seed written as its own list) has queried a prefix of the file, so after a top-up it has queried
+  the same entries in the same order as a zygote started with the grown list (a zygote that loaded a variant's list
+  queries the own file's other entries after it). Children forked before a top-up are other processes; between
+  top-ups the zygote runs no exe code. A later clock is nothing new (every creation's cooks run at the child's later
+  clock). An entry that faults when queried by name alone would end the zygote, but it is in the list file already:
+  without the top-up it ends the project's next zygote at its start instead. What this does not prove is the premise
+  of every pre-warm list: that a cache hit and a match's own cook give the match the same bytes (the equality runs).
+* **Checked.** The equality suite with the top-up and with `HOST_PREWARM_TOPUP=0`: ticks and captures equal to the
+  golden runs. A recorded two-player PvP match replayed twice on one zygote started from the common seed: the zygote
+  topped up 723 entries in 196 ms between them, and the second match held 39 MB at its creation instead of 70 MB.
+* **Lines (zygote):** `zygote: pre-warm top-up: follows FILE (N entries queried at start)` (or `none (no recorded list
+  for this project)`); per top-up `zygote: pre-warm top-up: N new entries (K kept, E empty) in T ms; list now L (top-up
+  n; the file has F[; R left for the next idle turn]); render commands retired C; Private_Dirty A -> B kB`, then
+  `zygote: name cache [after top-up n]: ...`; `zygote: pre-warm top-up waits: MemAvailable M MB, under 1200 MB`,
+  `zygote: pre-warm top-up stopped: the top-ups added X kB (TOPUP_MAX_MB 48)`. A match child's `child: the zygote's
+  pre-warm list: ...` ends with `; topped up by N entries (K kept, E empty) in n top-up(s)` once its zygote topped up.
+
+**Base pre-warm set (`baseset.rs`).** The entries common to the maps' pre-warm lists (player and weapon configs,
+animations: about 710 entries are on every PvP list) are queried once in the base process, before the cut, so every
+zygote shares their pages instead of holding its own copy; a zygote's own pre-warm skips them. Always on. Measured
+with a set of 1413 entries (two lists): the base 121.5 -> 168.5 MB (once), a PvP zygote 112.2 -> 60.8 MB, a PvE
+zygote 252.2 -> 200.3 MB, the match children unchanged (36.8 / 92.4 MB at creation).
+
+* **The set (front, at every base start).** An entry joins when at least two of the served projects' own lists hold it
+  (each list file once; a common seed is an own list) and, with `max_zygotes` set, its share of the lists is at least
+  1.5 / `max_zygotes`: the set pays once about two loaded maps use an entry (15 lists: 12 needed at `max_zygotes` 2, 5
+  at 5, 2 at 12 or more or without a cap). The entries of `base-exclude.tsv` (in `prewarm_dir`, else in `out`) never
+  join. Written to the base's folder as `base-prewarm.tsv` and passed as `--base-prewarm FILE --base-exclude FILE`.
+  No list, no common entry or `HOST_BASE_PREWARM=0`: no set, nothing changes.
+* **The base.** At the end of `run::step3_base` (after startup.cfg, before the cut) it queries the set entry by entry
+  through the zygote pre-warm's own query (`run::query_kept`, one reference kept each), and reads the exe's name cache
+  ("Late loads" above) before the set, after every entry that changed the cache's count, and after the set: the cache
+  entries the set added (their nodes) and the entries whose queries added each one. The set's cooks also put in what
+  they ask for themselves (an animation's two baked forms, for instance), which no list names; the cache read sees
+  them.
+* **The check (zygote).** Moving the set before the level changes one thing the level load can see in the cache: an
+  entry the level load asks for may already be there. Every found entry passes one place in the exe: the lookup
+  0x2000CAF70 branches to 0x2000CB03D only when its find 0x2000C2A10 returned a node, and from there either attaches the
+  request to that node's request in flight or hands out its finished resource; the find's other two callers (before an
+  erase, and the completion path) serve no request. From the start of the level load until its own pre-warm starts
+  (`prepare_process` included) the zygote holds an execution breakpoint there on every thread; the handler reads the
+  found node and looks it up among the nodes the set added (host memory only). None found: the level load met exactly
+  the cache state it meets without the set (a set node is either found or not, and none was), and the zygote goes on.
+  One found, a breakpoint missing on a thread, or a base whose cache read failed: the zygote serves no match. It adds
+  the set entries behind the found node to `base-exclude.tsv` (the union under its lock, as the lists) and runs its own
+  command line again as a new program (same process and pid, the control socket kept, output in `<zygote folder>/own`),
+  so a hand-over already queued is served by a zygote that loaded everything itself, as before the set. The front
+  replaces the base once the exclusion file changed (as at BASE_MAX_AGE: no request in flight; old zygotes go on), so
+  the set shrinks by the entries a level load asks for; an empty set is the behaviour without it. The exclusion file
+  starts empty: on the recorded data two config entries of the lists are asked for by level loads (one by the level
+  loads of 4 projects, one by 116; the second joins the set only from `max_zygotes` 5, by the share rule), and the
+  first zygote that finds one excludes it this way, at the cost of one more level load.
+* **Exactness.** The check covers the cache (a found set entry is never served to a level load that is kept). The rest
+  of what moves when the set is loaded before the level (addresses in the resource arenas, the order of their free
+  blocks, a later clock) was compared on every served project with a one-shot run that queries 709 common entries right
+  before the level project: the start world (`start_item.bin`) and the static geometry count are equal on 118 of 118
+  projects. The level part's Private_Dirty is 18-24 MB smaller there; a diagnosis run with and without the entries
+  first showed the level load's requests identical, no name shared with the set and differences only in entries named
+  by address, so that drop is the level load reusing memory the set's cooks freed, not cache hits (the end of each run,
+  holding more resources, is 5-19 MB smaller too). In a zygote those freed blocks are the base's pages, which the level
+  load copies as it writes them, so the saving per zygote is the set's own cost, not more (measured above: about 51 MB
+  a zygote). A base that ends before Ready with a set (an entry that cannot be queried before the level) makes the
+  front start every later base without one.
+* **Lists.** A match on such a zygote finds the set's entries cached, so its creation never shows what their cooks ask
+  for; the recorder adds the cache entries the set added through the entries the creation asked for, of the list
+  classes (`baseset::with_closure`), as a cold creation records them, so the lists and the set do not shrink.
+* **Lines.** Front: `front: base pre-warm set: N entries (in at least K of L lists (max_zygotes Z)[, X left out by
+  FILE]) -> FILE` or `front: base pre-warm set: none (...)`; on a change `front: base pid P: the base pre-warm set's
+  exclusion file FILE changed, ...: replaced`. Base: `base pre-warm: N entries (K kept, E empty) in T ms from FILE; the
+  set added A name-cache entries to the B before it (W walks)`, `base pre-warm: empty entries (first n): ...` when E >
+  0, `MEM [base: after the base pre-warm]`. Zygote: `zygote: level-load check: F lookups found a cached entry, none
+  of the A the base set added (T ms, n threads)`, or `zygote: level-load check: H of F lookups found entries the base
+  set added`, one `zygote: level-load check: found CLASS NAME (added by ...)` per node, `zygote: base set exclusion
+  FILE: ...` and `zygote: ...: it serves no match and starts again on its own, without the base set (log
+  .../own/host.log)`; `prewarm list FILE: K resources kept, E empty, in T ms (S more in the base pre-warm set, not
+  queried here)` and `zygote: pre-warm list: own, N entries (K kept, E empty; S in the base, M loaded here) from FILE;
+  base pre-warm set B entries`. Match child: `pre-warm list FILE: N entries the base set's cooks asked for join this
+  creation's M`.
+* **Checked.** The equality suite through the daemon (the six regression recordings, ticks and captures) with the set
+  and with `HOST_BASE_PREWARM=0`: equal to the golden runs in both. Every zygote's level-load check found none of the
+  set's entries (3888 found lookups on a PvP level load, 9648 on a PvE one). Memory: the numbers above.
+
+Diagnosis switches for the memory work (environment variables of the world host, inherited by the base process,
+its zygotes and every match; off by default, and without them nothing is recorded and nothing changes):
+
+* `HOST_NO_COMMON_SEED=1`: projects without a list start without the common seed (`config.md` 1.1), for the A/B proof
+  of the seed's ticks and memory.
+
+* `HOST_LATE_TRACE=0`: the name cache is never read (no late-load trace, no `zygote: name cache` line; a match child
+  logs `late loads: not watched (diagnosis HOST_LATE_TRACE=0)`), for the A/B proof that the trace changes no tick.
+* `HOST_PREWARM_TOPUP=0`: zygotes never top up their pre-warm list (`zygote: pre-warm top-up off (diagnosis
+  HOST_PREWARM_TOPUP=0)`), for the A/B proof of the top-up's ticks and memory.
+* `HOST_BASE_PREWARM=0`: no base pre-warm set (`front: base pre-warm set: none (diagnosis HOST_BASE_PREWARM=0)`; a
+  base given one anyway logs `base pre-warm: off (...)`): every zygote queries its whole list itself, for the A/B proof
+  of the set's ticks and memory.
+* `HOST_PRELEVEL_LIST=FILE`: the pre-warm list FILE (`0xCLASS<TAB>name` lines) is queried right before the level
+  project query (`run::step3_level`) instead of only after the level, in a one-shot run or a zygote. It answers whether
+  a level load that finds resources already in the cache gives the same start world (`start_item.bin`, the static
+  geometry line) and how much less it holds: the question a shared base set or a per-level layer depends on. Lines:
+  `diagnosis: HOST_PRELEVEL_LIST=FILE: ...`, `prewarm list FILE: K resources kept, E empty, in T ms`, `MEM [after the
+  prewarm list]`, then the level as usual (`MEM [after project query (step 3)]`). Run on every served project with
+  three lists (the 709 entries common to the PvP lists, the 3033 in two or more lists, and per level the entries its
+  level loads ask for): the start world and the static geometry equal to the cold load on 118 of 118 projects each.
+* `HOST_PAGEMAP=1`: `PAGEMAP [label] ...` lines at the base's cut, at `zygote ready`, at a match child's Ready and at
+  its end (and the one-shot run's level load and fork children): where the process's private pages are, read from
+  `/proc/self/pagemap`. A page is private when it is present, anonymous and exclusively mapped (bit 56): a page a match
+  still shares with its zygote, the shared zero page and a page merged by KSM do not count, a page it copied on write
+  or allocated does. Linux shows bit 56 to an unprivileged process for its own pages (only the frame numbers need
+  CAP_SYS_ADMIN); every report checks it on a page of its own first and, when it does not show, counts every present
+  anonymous page and says so. Regions: each per-thread job-slot array and its job deque by thread index, the render
+  command pool, the match core buffer, the CRT allocator arena, the rest of .data/BSS in 1 MiB buckets, the null-cook
+  pool by class, the host heap, the host's low stacks, the exe's VirtualAlloc block split by the engine's arena table
+  (the offsets of its start-up lines `memory stats for arena [...]`), the host binary, libraries and anonymous memory,
+  then the 64 KiB ranges with the most private pages.
+* `HOST_NULL_RES_GUARD=right[,CLASS=SIZE...]` / `scan`: checks that no exe code reaches an empty resource past a size.
+  `right` puts every null-cook stand-in at the end of a slot of its own with an inaccessible page right after it and a
+  0xA5 fill before it, sized 0x3F0 for class 0x13, one page for 0x14, 0x310 for 0x79, 0x240 for 0x101 and 0x102, its
+  normal slot for every other class, or the size the switch names (hex, at least 0x220). An access past the size
+  faults at once, and the fault line `null guard fault: class C stand-in A (size S) accessed at +O, from exe address X`
+  names it before the usual fault report; at the points above `null guard [label]: right: ...` counts the guarded
+  stand-ins per class and the fill bytes that changed. Two mappings per stand-in: a PvE zygote and its match stay
+  under the kernel's default limit of 65530 mappings. `scan` keeps the normal layout and logs per class the highest
+  non-zero byte of its stand-ins (writes only).
+
+Test tools for these runs: `world-host projects` (with `HOST_DATA_DIR`) lists every project a daemon serves from the
+game data with the one-shot arguments that load it (`--match MAP,MODE,VARIATION` for PvP, `HOST_PVE=D:M` for PvE; a
+one-shot `--match` takes the variation as a third field), and `world-host room-status --socket S [--every-ms N]
+[--count K]` prints the front's room status (7.3a) as the lobby reads it.
+
+Base and zygote trace: the base's own `host.log` (`<out>/base/b<ms>/`) holds steps 1-2 and the null render init with
+their `MEM` lines, then `MEM [base: at the cut]`, `base: ready, pid B; cut after apply_startup_cfg at T s` and per map
+`base: zygote for P requested`, `fork census: k of n timer thread(s) in their idle wait after U us`, `base: zygote P
+-> pid Z (pidfd sent) after M ms` (or `failed: ...`) and `base: zygote P pid Z exited, status S`. A zygote's `host.log`
+starts at its fork: `child pid Z after fork; reporting world thread id W`, `fork gate: kept on in the zygote; N stale
+poller record(s) of the parent cleared`, the two `restart: exe thread ...` lines, `zygote L: forked from base pid B (log
+...) at its uptime U s`, `zygote: arguments: ...`, `MEM [zygote: right after fork]`, then the level lines as before and
+`zygote: level L loaded after the fork in N ms (static geometry G, pre-warm ..., render commands retired R)`. The front
+logs `front: base started / ready after T s / exited`, `front: zygote for P (...) started through the base, pid Z, in N
+ms` and `front: zygote P (pid Z) exited`.
+
+Fork safety: before every fork two waits run, each for at most 250 ms: the fork gate waits until every worker poller
+seen so far (a thread that has called the worker loop's Sleep at least once) is parked in it, and the fork census waits
+until every exe timer-loop thread seen so far (`:hdd`, `:resources manager`: a thread that has entered its idle wait,
+WaitForMultipleObjects returning to 0x2000AEC42, at least once) is inside that wait. The handle table is then held across
+fork(); a timer thread needs it to leave its wait. The host allocator's page pool, heap and region locks are held
+across fork() as well. What this guarantees:
+
+* **A zygote** (forked by the base) is forked only when both waits completed: no thread seen by the gate or the census
+  runs exe code at the fork instant. After a TIMEOUT of either the base does not fork; it answers `Busy` (`base: zygote
+  P refused for now: ...`), and the front lets the match wait and asks again (up to the base wait, 30 s).
+* **A match child** is forked also after a TIMEOUT (logged `TIMEOUT`): that fork may copy a thread in the middle of exe
+  code, and the one match can then hang (its backstop ends it).
+* Not covered either way: an exe thread that has never reached the gate's Sleep or its idle wait (none besides the
+  three named ones exists in the recorded logs), and exe work on such a thread.
+
+Clock: a zygote inherits the base's monotonic clock, so it loads its level at the base's uptime instead of a few seconds
+after start. The front therefore replaces a ready base older than 6 hours when no request is in flight (`front: base pid
+B is ... h old (BASE_MAX_AGE 21600 s) ...: replaced`); its zygotes go on, the old base ends on its closed control
+socket, and new maps fork from the new base. `HOST_BASE_MAX_AGE_S=<s>` (diagnosis, at least 60) sets that age for a
+run, so a replacement can be seen without waiting 6 hours. `HOST_CLOCK_OFFSET_S=<s>` (diagnosis) starts a
+one-shot run's clock that far ahead, to compare a level load and a match at a large clock with a normal run.
+`HOST_FORK_AT_CUT=1` (diagnosis) makes a one-shot run fork once at the cut and load the level in the child, to compare
+with a cold load without a daemon.
+
+## World host CPU
+
+* **Start-up pump.** Step 2 delivers the queued callbacks (among them the volume mount) by pumping the dispatch
+  0x2000BCF60 until every `resources.<n>.db` of the game folder has had its FAT signature checked, then 250 ms more,
+  at most `--pump-ms` (3000): about 1.45 s less than the fixed 3 s in the recorded starts. If the config check after it
+  fails, it pumps the rest of the 3 s and checks again (logged).
+* **Map load.** The base process runs steps 1-2 and step 3 up to the cut once; a map's zygote only forks and loads its
+  level and pre-warm list (about 3 s less per map than a zygote that starts on its own). Measured on a test PC: the
+  base is ready about 2.8 s after its start, a zygote's fork takes 1-2 ms, and its level with its pre-warm list is
+  loaded about 1.0 s (PvP) or 3.1 s (PvE) after the fork (`zygote: level ... loaded after the fork in N ms`).
+* **Idle zygote.** The engine's worker loop dispatches before every Sleep(1) once its dispatch byte is set, which in
+  0.69d is for good (0x20009117B): about 935 dispatches a second while a zygote waits. Between hand-overs a poller with
+  no job and no lock parks in the fork gate for 25 ms per Sleep (a deadline: other pollers' notifications do not end
+  it), so its loop still dispatches, at most 25 ms late, about 40 times a second. Fork children poll as before. That
+  poller is `:sound`, which only the base process has: a zygote restarts `:hdd` and `:resources manager` after its
+  fork, not `:sound` (it never gets a job in a zygote), so a zygote has no worker poller. Measured: an idle zygote
+  uses about 0.1 % of a core, the idle base about 0.2 %.
+* **No transparent huge pages** (`mem::disable_huge_pages`, at process start, inherited by every fork): the image, the
+  exe's 3 GB reserved arena and the low mappings are touched sparsely, and under the THP mode "always" a touched 4 KB
+  page could be backed by a whole 2 MB page. Logged as `transparent huge pages: off for this process (system mode:
+  ...)`; under "madvise" (Ubuntu's default) nothing changes.
+* **Same-page merging (KSM)** (`mem::enable_memory_merge`, at process start): `PR_SET_MEMORY_MERGE` (kernel 6.4+)
+  marks every anonymous mapping of the process and its forks; on an older kernel the exe's own mappings get
+  `MADV_MERGEABLE` (the image, VirtualAlloc regions, low mappings; a decommitted range again). The kernel's ksmd then
+  merges identical pages of the base, the zygotes and the matches into one copy and copies it again on the first
+  write, so no byte any process reads changes. It merges only while the operator has `/sys/kernel/mm/ksm/run` at 1
+  (guide-server.md), and costs ksmd's CPU. Logged as `memory merging (KSM): ...; system switch ... = N`. Huge pages are
+  off (above), which KSM needs: it does not merge a 2 MB page. Measured with KSM on (`pages_sharing`): about 27 MB
+  for the base and two idle zygotes, about 37 MB with one PvP match running, about 185 MB with five PvE matches of one
+  mission (about 30-40 MB a match). ksmd's CPU is not measured.
+* **Import calls.** Each import thunk decides once per slot whether its import is in the `--escape-at` / `--end-at`
+  lists (before: two formatted strings and two copies of the thread name per call), and the thread id the
+  critical-section and thread-id stand-ins ask for is read once per thread (the fork child's thread reads its own).

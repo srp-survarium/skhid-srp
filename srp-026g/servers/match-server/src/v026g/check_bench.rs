@@ -31,7 +31,16 @@ impl Match {
             ),
             growing_roster: false,
             initial_players,
-            kind: session::v026g::match_kind::MatchKind::Normal,
+            // Its kind as far as the options say it: a private room's (the
+            // entry its rebuilt 0xE4s keep) or any other.
+            kind: match options.privacy {
+                survarium::v026g::match_msgs::static_info::Privacy::PrivateRoom => {
+                    session::v026g::match_kind::MatchKind::PrivateRoom
+                }
+                survarium::v026g::match_msgs::static_info::Privacy::Public => {
+                    session::v026g::match_kind::MatchKind::Normal
+                }
+            },
             room_minimum: None,
             // Keeper's draw gives a late joiner's kits (registry::Formed::keeper); the bench only
             // checks uploads, whose profiles carry the match's draw already.

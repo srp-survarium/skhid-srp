@@ -51,9 +51,11 @@ handler = "on_drops_apply"
 [[hook]]
 site = "material.begin_pass"
 handler = "on_material_pass"
+order = 1
 [[hook]]
 site = "water.normal_texture"
 handler = "on_water_texture"
+order = 2
 
 # The god rays: once a frame, as 0.21 draws them (0.26 draws them for the sky stage too).
 [[hook]]

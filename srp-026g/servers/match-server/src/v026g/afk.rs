@@ -190,7 +190,9 @@ impl Watch {
     /// The watch of a match of `kind` under the setting.
     pub fn new(setting: Setting, kind: MatchKind) -> Self {
         match (setting, kind) {
-            (Setting::Off, _) | (_, MatchKind::PrivateRoom | MatchKind::VsBots) => Self::Exempt,
+            (Setting::Off, _) | (_, MatchKind::PrivateRoom | MatchKind::PrivateRoomWithBots | MatchKind::VsBots) => {
+                Self::Exempt
+            }
             (Setting::After(limit), MatchKind::Normal) => Self::Watched {
                 limit,
                 players: Vec::new(),
@@ -425,6 +427,7 @@ mod tests {
         for mut watch in [
             Watch::new(Setting::default(), MatchKind::PrivateRoom),
             Watch::new(Setting::default(), MatchKind::VsBots),
+            Watch::new(Setting::default(), MatchKind::PrivateRoomWithBots),
             Watch::new(Setting::Off, MatchKind::Normal),
             Watch::new(Setting::Off, MatchKind::PrivateRoom),
         ] {

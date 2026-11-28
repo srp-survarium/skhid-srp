@@ -16,7 +16,7 @@
 use crate::hlog;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, AtomicUsize, Ordering};
 
 pub const MAX_SLOTS: usize = 4096;
 /// Log every import call (except the hottest few) - switched on around the step under investigation.
@@ -29,6 +29,44 @@ pub struct Slot {
     pub imp: AtomicUsize,
     pub count: AtomicU64,
     pub first_ret: AtomicU64,
+    /// The slot's `--escape-at` / `--end-at` match, decided once ([`SlotFlags`]); 0 = not decided yet.
+    flags: AtomicU8,
+}
+
+/// What a slot's import is for the run's `--escape-at` and `--end-at` lists. Decided once per slot after the lists are
+/// set (run::hook_lists_ready), so a call does no string work: the lists name an import by "DLL!name", "name" or
+/// "DLL", which needs a formatted string per test.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct SlotFlags(u8);
+
+impl SlotFlags {
+    const DECIDED: u8 = 1;
+    const ESCAPE: u8 = 2;
+    const END_AT: u8 = 4;
+
+    pub fn new(escape: bool, end_at: bool) -> SlotFlags {
+        SlotFlags(Self::DECIDED | if escape { Self::ESCAPE } else { 0 } | if end_at { Self::END_AT } else { 0 })
+    }
+    pub fn escape(self) -> bool {
+        self.0 & Self::ESCAPE != 0
+    }
+    pub fn end_at(self) -> bool {
+        self.0 & Self::END_AT != 0
+    }
+}
+
+/// The flags of slot `s`: the stored ones, else decided now (stored once the run's lists are set; before that they are
+/// decided again at each call, which then matches nothing).
+fn slot_flags(s: &Slot, dll: &str, name: &str) -> SlotFlags {
+    let f = s.flags.load(Ordering::Relaxed);
+    if f != 0 {
+        return SlotFlags(f);
+    }
+    let v = SlotFlags::new(crate::run::is_escape_point(dll, name), crate::run::is_end_at(dll, name));
+    if crate::run::hook_lists_ready() {
+        s.flags.store(v.0, Ordering::Relaxed);
+    }
+    v
 }
 
 struct Table {
@@ -50,6 +88,7 @@ fn table() -> &'static Table {
                 imp: AtomicUsize::new(0),
                 count: AtomicU64::new(0),
                 first_ret: AtomicU64::new(0),
+                flags: AtomicU8::new(0),
             });
         }
         let slots: &'static [Slot] = Box::leak(v.into_boxed_slice());
@@ -83,13 +122,18 @@ unsafe extern "win64" fn note(idx: u64, ret: u64) -> u64 {
     if TRACE.load(Ordering::Relaxed) && !matches!(name, "QueryPerformanceCounter" | "GetCurrentThreadId" | "TlsGetValue" | "GetLastError" | "SetLastError") {
         hlog!("trace: tid {} {dll}!{name} from {ret:#x}", crate::teb::gettid());
     }
-    if imp == 0 && !crate::run::is_escape_point(dll, name) {
-        crate::k32::maybe_end_thread(dll, name);
+    let flags = slot_flags(s, dll, name);
+    if imp == 0 && !flags.escape() {
+        if flags.end_at() {
+            crate::k32::maybe_end_thread(dll, name);
+        }
         hlog!("TRAP: unimplemented import {dll}!{name} called from {ret:#x}; aborting");
         crate::run::abort_run(3);
     }
-    crate::k32::maybe_end_thread(dll, name);
-    if crate::run::is_escape_point(dll, name) {
+    if flags.end_at() {
+        crate::k32::maybe_end_thread(dll, name);
+    }
+    if flags.escape() {
         hlog!("escape point reached: {dll}!{name} called from {ret:#x}");
         crate::k32::escape(0xE5C);
     }

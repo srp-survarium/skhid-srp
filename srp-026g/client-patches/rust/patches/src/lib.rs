@@ -168,6 +168,8 @@ pub mod light_occlusion;
 pub mod first_person_occlusion;
 // patch 215: everything held in first person moves with the view in TAA (optics, parts)
 pub mod first_person_motion;
+// patch 222: after a camera cut the sun's cached shadow cascades are drawn again whole
+pub mod sun_shadow_cut;
 // patch 193: material_pair takes an id past its table as the default material
 pub mod material_bounds;
 pub mod animation_math;
@@ -200,6 +202,8 @@ pub mod battery_hit;
 pub mod lobby_seeding;
 // patch 159: the console's output scrolls
 pub mod console_scroll;
+// patch 221: a material draws with the shaders, textures and constants its own config names
+pub mod material_shaders;
 pub mod v021d_render;
 // patch 178: the ported Londons' deferred composition is 0.44a5's
 pub mod composition_v044a;

@@ -1022,8 +1022,8 @@ History since {0}, plus {1} earlier matches made again from their recordings, fr
 # The wiki's camouflages and decals (src/cosmetics.rs).
 Camouflages	Tarnungen
 Decals	Aufnäher
-Every camouflage: how to get it and what it goes on.	Jede Tarnung: wie man sie bekommt und worauf sie passt.
-Every decal: how to get it and what it goes on.	Jeder Aufnäher: wie man ihn bekommt und worauf er passt.
+Every camouflage: how to get it.	Jede Tarnung: wie man sie bekommt.
+Every decal: how to get it.	Jeder Aufnäher: wie man ihn bekommt.
 Given to account {0}	Für das Konto {0}
 Premium	Premium
 Flags	Flaggen
@@ -1038,8 +1038,3 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Bei jedem Händler für Silber erhältlich.
 Found in drops, never one you already have.	Kommen aus Drops, nie eines, das du schon hast.
 Each is given to one account.	Jedes wird einem Konto gegeben.
-Where it goes	Wohin es passt
-Items that take it	Gegenstände, die es tragen
-At once	Gleichzeitig
-Bought once, it is yours: put it on any number of your items at the same time.	Einmal gekauft, gehört es dir: auf beliebig viele deiner Gegenstände gleichzeitig.
-Sold back, it pays a quarter of its price and comes off every item.	Zurückverkauft bringt es ein Viertel seines Preises und verschwindet von allen Gegenständen.

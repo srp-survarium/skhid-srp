@@ -1,7 +1,9 @@
 # Patch 156: the console command `collision` draws the level's collision
 # geometry near the camera as lines, a colour a group (collision_view.rs;
 # client_patch.md section 3.112). configs.start after patches 79, 83, 81, 88,
-# 112, 133, 66 and 144 (orders 1 to 8); camera.viewed after patch 133.
+# 112, 133, 66 and 144 (orders 1 to 8); camera.viewed after patch 133; the two
+# options reads after patches 154, 65, 86, 83, 88 (the replay's), 142, 123, 160
+# and 214 (orders -1 to 7).
 name = "collision_view"
 patch = 156
 
@@ -10,6 +12,18 @@ patch = 156
 site = "configs.start"
 handler = "on_configs"
 order = 9
+
+# the options read: what the match shown allows (srp's private room entry,
+# tag 8; a replay: allowed too)
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 8
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 8
 
 # update_camera after the view's update: the lines near the eye made
 [[hook]]

@@ -31,8 +31,8 @@ pub fn binary(d: &DaemonSettings) -> Result<PathBuf, String> {
         .ok_or_else(|| format!("no world host binary next to {} (build it: cargo build --release -p world-host; or set world_host.bin)", me.display()))
 }
 
-/// The pre-warm folder: the setting, else `prewarm` in the game table folder. The world host writes a project's list
-/// there after the project's first match (the resources a match creation asks for), so later zygotes load them ahead.
+/// The pre-warm folder: the setting, else `prewarm` in the game table folder. Every match adds the resources its
+/// creation asked for to its project's list there (a union), so later zygotes load them ahead.
 pub fn prewarm_dir(c: &Config, d: &DaemonSettings) -> Option<PathBuf> {
     d.prewarm_dir.clone().or_else(|| c.data_dir.as_ref().map(|dd| dd.join("prewarm")))
 }
@@ -90,6 +90,51 @@ pub fn fetch_projects(socket: &Path, online: &crate::online::Online) {
                 std::thread::sleep(Duration::from_secs(5));
             }
         }
+    }
+}
+
+/// How often the room status is read ([`watch_room`]).
+pub const ROOM_PERIOD: Duration = Duration::from_millis(500);
+/// How long one room status read may take (the daemon's front answers it under its zygotes lock, which a map load
+/// holds for up to about 3 s).
+pub const ROOM_WAIT: Duration = Duration::from_secs(4);
+
+/// The room status link as [`watch_room`] last saw it (its changes are logged once).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RoomLink {
+    Unknown,
+    Up,
+    Down,
+}
+
+/// Read the world host's room status about every [`ROOM_PERIOD`] for the queues ([`crate::host_room`]); a failed read
+/// keeps the last status until it is [`crate::host_room::STALE`] old (the queues then choose as without one until a read
+/// answers again). Runs on its own thread: the lobby never waits for the daemon.
+#[cfg(unix)]
+pub fn watch_room(socket: &Path, online: &crate::online::Online) {
+    let h = match_server::HostConfig::unix(socket);
+    let mut link = RoomLink::Unknown;
+    loop {
+        let asked = Instant::now();
+        match match_server::query_status(&h, ROOM_WAIT) {
+            Ok(s) => {
+                if link != RoomLink::Up {
+                    log::info!("world host room status read (every {} ms): {}", ROOM_PERIOD.as_millis(), s.summary());
+                    link = RoomLink::Up;
+                }
+                online.room_book().set(s, asked);
+            }
+            Err(e) => {
+                if link != RoomLink::Down {
+                    log::warn!(
+                        "world host room status not read ({e}): the last one is used until it is {} s old, then the queues choose without it until a read answers",
+                        crate::host_room::STALE.as_secs()
+                    );
+                    link = RoomLink::Down;
+                }
+            }
+        }
+        std::thread::sleep(ROOM_PERIOD.saturating_sub(asked.elapsed()));
     }
 }
 
@@ -188,7 +233,8 @@ pub fn run_foreground(c: &Config) -> Result<i32, String> {
     Ok(st.code().unwrap_or(1))
 }
 
-/// How long the self-test waits for the start world (a cold level loads in about 8 s on a fast PC).
+/// How long the self-test waits for the start world (on a test PC the base is ready after about 3 s and a level loads
+/// about 1-3 s after its fork).
 pub const SELFTEST_WAIT: Duration = Duration::from_secs(180);
 
 /// `srp selftest [project]`: start a world host of its own (socket, run and log folders under `selftest/`, so a running

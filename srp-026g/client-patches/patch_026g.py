@@ -691,6 +691,12 @@ Patches:
   of a material with srp_grass_v021d its 0.21 vertex shader family
   (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
   normals (0x1E603C). Nothing a match computes;
+- a material draws with the shaders, textures and constants its own config
+  names (patch 221, the Rust patch material_shaders; docs/notes/client_patch.md
+  section 3.116): compile_begin's begin_pass takes the family a material's
+  srp_pixel_shader gives for the pass's own (0x1CD1B6), its end sends the
+  material's srp_constants (0x1CD361), and the forward water binds the
+  material's srp_textures t_normal_map (0x1E603C). Nothing a match computes;
 - the ported Londons' deferred composition is 0.44a5's (patch 178, the
   Rust patch composition_v044a; docs/notes/client_patch.md section 3.98):
   the eight effect_composition compiles compile a twin of their technique

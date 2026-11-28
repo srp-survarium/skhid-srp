@@ -188,7 +188,7 @@ fn a_room_with_bots_fills_a_free_for_all_as_a_match_of_two_teams() {
     assert_eq!(bots, 14);
     // The members first, the bots after them.
     assert!(setup.players[..2].iter().all(|player| !player.driven));
-    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::VsBots);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::PrivateRoomWithBots);
 }
 
 /// A private room's owner starts a free-for-all alone: a match of one, the

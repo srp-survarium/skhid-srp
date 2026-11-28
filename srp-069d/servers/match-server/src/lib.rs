@@ -11,7 +11,7 @@
 //! * [`relay`]: one match (join, DE, DF loop, leave, end), sans IO.
 //! * [`host`]: the link of a match to the world host daemon (start world, PvE end, winner, counters, E0, resync and
 //!   bots from the exe's own world code), socket IO on its own threads; [`host::query_projects`] asks the daemon which
-//!   level projects it serves.
+//!   level projects it serves, [`host::query_status`] for its room (loaded maps, matches, whether a new map loads).
 //! * [`hub`]: the lobby-facing API (create match -> tickets, end callback) and the datagram router, sans IO.
 //! * [`server`]: UDP socket driver thread around the hub.
 
@@ -30,7 +30,7 @@ pub use relay::{
     options_header, ConfMode, CreateError, EndReason, LeaveReason, MatchConfig, MatchEnd, MatchSpec, MatchStats, PlayerResult, PlayerSpec,
     FinalStats, PlayerStat, HostOutcome, OutcomePlayer, BotsStats, BOT_SPAWN_PROFILE, pvp_winner, mode_winner, GUNRACE_MODE, GUNRACE_NO_RESULT,
 };
-pub use host::{query_projects, Connector, HostConfig, HostStream, LinkState};
+pub use host::{query_projects, query_status, Connector, HostConfig, HostStream, LinkState};
 pub use server::MatchServer;
 pub use relay::{EndRule, PveEndRule};
 pub use world::{RosterObjects, StartObject, World, WorldStore};

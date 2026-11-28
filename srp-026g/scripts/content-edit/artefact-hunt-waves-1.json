@@ -1,5 +1,5 @@
 {
- "_about": "Artifact Hunt's respawn waves every 20 s (the owner, 2026-11-27: \"also make timers 20 seconds now since we removed wait time\"; 0.46c2's 15 s was set beside its 7 s least time dead, time_needed_to_respawn, which the port dropped: docs/notes/artefact_hunt.md, \"Differences from 0.46c2\"): mode/parameters/respawn_time 15 -> 20 in every Artifact Hunt config, the 27 of pack artefact-hunt and the 27 of pack artefact-hunt-maps (mode 13 alone: Freeze Tag has no deaths in a round, a lethal hit freezes). The waves stay on the match clock's multiples of it (900 s is one).",
+ "_about": "Artifact Hunt's respawn waves every 20 s (the owner, 2026-11-27: \"also make timers 20 seconds now since we removed wait time\"; 0.46c2's 15 s was set beside its 7 s least time dead, time_needed_to_respawn, which the port dropped: docs/notes/artefact_hunt.md, \"Differences from 0.46c2\"): mode/parameters/respawn_time 15 -> 20 in every Artifact Hunt config, the 27 of pack artefact-hunt and the 29 of pack artefact-hunt-maps (mode 13 alone: Freeze Tag has no deaths in a round, a lethal hit freezes). The waves stay on the match clock's multiples of it (900 s is one).",
  "set": [
   {"file": "gameplay/game_modes/artefact_hunt/level_01_day_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20},
   {"file": "gameplay/game_modes/artefact_hunt/level_01_evn_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20},
@@ -54,6 +54,8 @@
   {"file": "gameplay/game_modes/artefact_hunt/v044a_level_09_day_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20},
   {"file": "gameplay/game_modes/artefact_hunt/v044a_level_09_evn_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20},
   {"file": "gameplay/game_modes/artefact_hunt/v044a_level_09_rain_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20},
-  {"file": "gameplay/game_modes/artefact_hunt/v069d_level_01_day_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20}
+  {"file": "gameplay/game_modes/artefact_hunt/v069d_level_01_day_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20},
+  {"file": "gameplay/game_modes/artefact_hunt/v069d_level_02_day_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20},
+  {"file": "gameplay/game_modes/artefact_hunt/v069d_level_03_day_ah.options", "path": "mode/parameters/respawn_time", "from": 15, "to": 20}
  ]
 }

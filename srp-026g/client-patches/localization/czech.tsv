@@ -2767,6 +2767,7 @@ st_level_13_name	Radarová stanice Vostok (v0.11)
 st_level_14_name	Rudňa (v0.69)
 st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovská pevnost (v0.21)
+st_level_27_name	Škola (v0.69)
 st_level_28_name	Radarová stanice Vostok (v0.69)
 st_level_29_name	Rudňa (v0.21)
 st_level_30_name	Kolín nad Rýnem (v0.69)
@@ -4130,6 +4131,7 @@ st_srp_map_rudnya_v021	Rudňa (v0.21)
 st_srp_map_rudnya_v069	Rudňa (v0.69)
 st_srp_map_school	Škola
 st_srp_map_school_v021	Škola (v0.21)
+st_srp_map_school_v069	Škola (v0.69)
 st_srp_map_soc_ug_depository	Depository
 st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovská pevnost

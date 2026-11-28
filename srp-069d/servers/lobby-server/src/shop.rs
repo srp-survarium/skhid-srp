@@ -120,8 +120,8 @@ pub fn sell(cx: &mut Ctx, peer: &mut Peer, item: u32, amount: u32) {
         let stack = gd.items.is_stackable(row.dict_id);
         // a weapon wearing a skin sells as the weapon it is, not as the skin variant
         let (amount, gain) = gd.shop.sell_gain(&gd.items, p.real_dict(&row), amount, row.count);
-        // a sold decal leaves the piece it sat on: that piece's record is sent again below
-        let decal_owner = p.decal_owner(item);
+        // a sold decal leaves the pieces it sat on (a camouflage can sit on several): their records are sent again below
+        let decal_owners = p.decal_owners(item);
         // modules installed on a sold weapon go back into the inventory, free (0.63 dev notes: "when selling a
         // weapon its modules are removed automatically"); the client still shows them attached to the weapon
         let freed: Vec<u32> = p.attach.get(&item).map(|m| m.values().copied().collect()).unwrap_or_default();
@@ -134,7 +134,7 @@ pub fn sell(cx: &mut Ctx, peer: &mut Peer, item: u32, amount: u32) {
         p.credit(Currency::Silver, gain);
         log::info!("46 01 sold item {item} (dict {}) x{amount} for {gain}, {} modules freed", row.dict_id, freed.len());
         let mut freed: Vec<u32> = freed.into_iter().filter(|u| p.item(*u).is_some()).collect();
-        freed.extend(decal_owner.filter(|o| p.item(*o).is_some()));
+        freed.extend(decal_owners.into_iter().filter(|o| p.item(*o).is_some()));
         Some((amount, build::records(gd, p, &freed)))
     });
     let Some(Some((amount, freed))) = sold else {

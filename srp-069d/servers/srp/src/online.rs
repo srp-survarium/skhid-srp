@@ -34,6 +34,8 @@ pub struct Online {
     /// shows them by name); taken when the match ends
     /// per bot-filled match: each bot's (first name index, second name index, ai_players index), in slot order
     bot_names: Mutex<HashMap<u32, Vec<(u8, u8, u16)>>>,
+    /// The world host's room status and the matches created since it was read ([`crate::host_room`])
+    room: crate::host_room::RoomBook,
 }
 
 impl Online {
@@ -43,7 +45,13 @@ impl Online {
             ended: Arc::new(Mutex::new(Vec::new())),
             host_projects: Mutex::new(None),
             bot_names: Mutex::new(HashMap::new()),
+            room: Default::default(),
         }
+    }
+
+    /// The world host's room status ([`crate::world_host::watch_room`] keeps it).
+    pub fn room_book(&self) -> &crate::host_room::RoomBook {
+        &self.room
     }
 
     /// Name the level projects the world host serves ([`host_projects`]): the PvP queue then offers and plays only those
@@ -158,6 +166,10 @@ impl Online {
             );
         }
         let t = hub.create_match(&spec, Instant::now()).map_err(|e| e.to_string())?;
+        // counted against the world host's room until its status shows the match
+        if let Some(p) = &spec.project {
+            self.room.reserve(p, Instant::now());
+        }
         if !bots.is_empty() {
             self.bot_names.lock().unwrap().insert(t.match_id, bots.iter().map(|b| (b.first, b.second, b.ai as u16)).collect());
         }
@@ -425,6 +437,12 @@ impl OnlineMatches for Online {
         players.extend(bots.iter().map(|b| PlayerSpec::bot(&b.name, b.team)));
         let spec = MatchSpec { match_id: Some(match_id), map, mode, options, players, level_checksum: None, roster: Some(roster), project: Some(project), end_rule: None, pve_end: Some(PveEndRule::PVE_LUA), ai_ignore_players: false };
         let t = hub.create_match(&spec, Instant::now()).map_err(|e| e.to_string())?;
+        // counted against the world host's room until its status shows the match
+        if hub.host_builds(map, mode, spec.project.as_deref())
+            && let Some(p) = &spec.project
+        {
+            self.room.reserve(p, Instant::now());
+        }
         Ok(Ticket82 { match_id: t.match_id, host: t.host, port: t.port, orders: t.players.iter().map(|p| p.order_id).collect() })
     }
 
@@ -507,6 +525,12 @@ impl OnlineMatches for Online {
 
     fn world_host(&self, match_id: u32) -> bool {
         self.hub.lock().unwrap().host_active(match_id)
+    }
+
+    /// The world host's room for the queues (lobby-server `host_room`): the latest status with the matches created
+    /// since counted in; None without a world host or a fresh status.
+    fn host_room(&self) -> Option<lobby_server::host_room::HostRoom> {
+        self.room.room(Instant::now())
     }
 
     fn take_ended(&self) -> Vec<Ended> {

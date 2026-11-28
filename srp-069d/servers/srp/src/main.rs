@@ -233,9 +233,10 @@ fn check(c: &srp::Config, file: Option<&std::path::Path>) -> i32 {
     }
     let l = &c.lobby;
     println!(
-        "queue      min {} players, AI players after {}, report grace {} s",
+        "queue      min {} players, AI players after {} (up to {} per team), report grace {} s",
         l.online_min_players,
         l.online_bot_wait.map_or("never".to_string(), |d| format!("{} s", d.as_secs())),
+        l.bots_per_team,
         l.online_report_grace.as_secs()
     );
     println!("economy    equipment use costs {:?}, match silver factors {:?}", l.equipment_use_costs, l.match_silver_factors);

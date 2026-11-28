@@ -474,7 +474,8 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     // a free-for-all (its kill target), for a map id over a byte (patch
     // 154: the whole id, the options' byte its low byte), for the roster's
     // faces when one is not face 0 (the faces patch), for a Freeze Tag match
-    // (patch 160) and for the places' mode notices (patch 214).
+    // (patch 160), for the places' mode notices (patch 214) and
+    // for a private room's match (patch 156: the collision view).
     // Keep this in sync with static_info::read_srp_block on the server.
     let mut wide = None;
     if !reader.is_done() {
@@ -491,8 +492,9 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         // a roster of own sides has, the faces' `{5, roster, a face a place}`
         // (not every one face 0; a face the game's data does not list is
         // drawn as face 0), and after Blackout's or Freeze Tag's entry the
-        // notices' `{7, roster, 0 or 1 a place}`.
-        let (mut mode, mut faces, mut notices) = (false, false, false);
+        // notices' `{7, roster, 0 or 1 a place}`, and a private room's
+        // match's `{8, 1, 1}` (patch 156's collision view; any mode).
+        let (mut mode, mut faces, mut notices, mut private) = (false, false, false, false);
         // The mode's entry is one of a mode with a notice.
         let mut noticed = false;
         while !reader.is_done() {
@@ -521,6 +523,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
                         .is_some_and(|entry| entry.iter().any(|&face| face != 0))
                         && !core::mem::replace(&mut faces, true)
                 }
+                [8, 1, 1, ..] => !core::mem::replace(&mut private, true),
                 _ => false,
             };
             if !fits {
@@ -529,7 +532,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
             let [_tag, len] = reader.array().map_err(short)?;
             reader.skip(usize::from(len)).map_err(short)?;
         }
-        if !mode && (own_sides || (wide.is_none() && !faces)) {
+        if !mode && (own_sides || (wide.is_none() && !faces && !private)) {
             return Err(trailing(&reader));
         }
     } else if own_sides {

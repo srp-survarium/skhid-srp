@@ -90,8 +90,8 @@ reserve needs none, CHOICE). A row the match server does not serve is refused wi
 the other refusals with the `st_custom_match_error_*` texts or `st_cant_start_custom_match_error`. The room then closes: the players get
 `A0` after their `82`, the reserve `A1 st_custom_match_match_started_without_you` (LIKELY: the text exists only for this).
 **Bots in rooms**: training rooms only (the client hides the bot settings of a clan room and whenever `max_ai_count` is 0, PROVEN
-CustomMatchWindow.setData). The server offers them (`max_ai_count`) when the match server's world host drives bots, at most 6 per team
-(`online::BOT_TEAM_MAX`, the bot-filled match limit) and within the row's team size; the Start passes the room's counts per team as the
+CustomMatchWindow.setData). The server offers them (`max_ai_count`) when the match server's world host drives bots, at most
+`online::bot_team_cap` per team (the bot-filled match limit: `matches.bots_per_team`, at most 8) and within the row's team size; the Start passes the room's counts per team as the
 match's AI players (`online::start_room`, the queue's bot path; their level = the humans' average equipment level).
 **Bots ignore players**: the room byte (98 `ai_ignore_players`, `62 1E` last byte) is the client's "harmless bots". In 0.69d
 it is no match-options field: the exe keeps it in the plain global byte 0x20F43FE53 (the bots tab's Play writes it from `ignore_player`

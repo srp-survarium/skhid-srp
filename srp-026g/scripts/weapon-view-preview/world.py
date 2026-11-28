@@ -1,4 +1,4 @@
-"""The Weapon view window's worlds (flash/main_menu/bitmaps/SrpPreviewWorld*.jpg), from three captures.
+"""The Weapon view window's worlds (flash/main_menu/pictures/SrpPreviewWorld*.jpg), from three captures.
 
 python world.py <scripts/sight-alignment> <character assets> <captures folder> <poses JSON> <out folder>
                 <weapon-modules pack files> <content packs folder> <preview_eyes JSON>

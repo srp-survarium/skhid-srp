@@ -6,7 +6,7 @@
 # WEATHERS: a weather's word in a picture's name. A level's picture is the library bitmap
 # Level<level>_<weather>, its day one for a weather it has none of, but for:
 # LIKE: a level drawn as another's (name: that picture's name before its weather; the v0.21 ports,
-#   an older look of the same map, Vostok and Cologne (v0.69) as Vostok and Cologne, and London (v0.42) as London);
+#   an older look of the same map, School, Vostok and Cologne (v0.69) as School, Vostok and Cologne, and London (v0.42) as London);
 # ONE: a level with one picture whatever the weather (the v0.11, v0.69 and STALKER maps' loading image).
 list	id:int	name:String
 WEATHERS	1	day
@@ -18,6 +18,7 @@ LIKE	10	Level3
 LIKE	11	Level6
 LIKE	25	Level2
 LIKE	26	Level5
+LIKE	27	Level2
 LIKE	28	Level3
 LIKE	29	Level1
 LIKE	30	Level8

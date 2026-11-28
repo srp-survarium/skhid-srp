@@ -1,9 +1,10 @@
 package
 {
-    import flash.display.Bitmap;
-    import flash.display.BitmapData;
+    import flash.display.DisplayObject;
+    import flash.display.Loader;
     import flash.display.Shape;
     import flash.display.Sprite;
+    import flash.utils.ByteArray;
     import flash.utils.Dictionary;
 
     // The Weapon view window's preview (exe patch 219, docs/notes/weapon-view-settings.md): the AK-12 aimed
@@ -22,9 +23,12 @@ package
     //   1P69's 0.25), the player's World FOV.
     // - "Weapon at the world FOV" draws the gun at that world angle, as the game does.
     // - The sight distance crossfades the two renders around it: approximate.
-    // The pictures are smoothed Bitmaps scaled on the GPU under a mask (drawn at the screen's own pixels at
+    // The pictures are smoothed fills scaled on the GPU under a mask (drawn at the screen's own pixels at
     // any UI scale; a BitmapData drawn at the pane's size was enlarged without filtering by the game's
-    // Scaleform at 1440p), made only while shown (a 1600x900 layer is 5.8 MB decoded, the world 11.4 MB).
+    // Scaleform at 1440p). Each is a movie of its own, compressed, in its class's MOVIE (pictures/; a bitmap
+    // of the movie is decoded when the movie loads, and the main menu's stays loaded the whole game: 44 of
+    // them were 243 MB), decoded only while shown (Loader.loadBytes; a 1600x900 layer is 5.8 MB decoded,
+    // the world 11.4 MB) and let go when it is not (unloadAndStop), all of them when the window closes.
     public class SrpWeaponPreview extends Sprite
     {
         public static const HIP:int = 0;
@@ -45,7 +49,8 @@ package
         // at most 1.47 times the next's half-angle tangent, the last over the narrowest by as much).
         public static const TIERS:Array = [[100, 77.5, 56.78], [94.8, 74.16, 55.42, 40.11, 28.47], [77.7, 57.71, 41.3, 28.91],
             [32.5, 23.06]];
-        // The layers' classes by view, distance and tier (named here so the build keeps them).
+        // The layers' classes by view, distance and tier (named here so the build keeps them), each a
+        // picture's movie (MOVIE); all LAYER_WIDTH x LAYER_HEIGHT.
         private static const LAYERS:Array = [
             [[SrpPreviewHipA, SrpPreviewHipB, SrpPreviewHipC]],
             [[SrpPreviewIronM20A, SrpPreviewIronM20B, SrpPreviewIronM20C, SrpPreviewIronM20D, SrpPreviewIronM20E],
@@ -57,13 +62,21 @@ package
              [SrpPreviewRedDot25A, SrpPreviewRedDot25B, SrpPreviewRedDot25C, SrpPreviewRedDot25D],
              [SrpPreviewRedDot50A, SrpPreviewRedDot50B, SrpPreviewRedDot50C, SrpPreviewRedDot50D]],
             [[SrpPreviewScopeA, SrpPreviewScopeB]]];
+        private static const LAYER_WIDTH:Number = 1600;
+        private static const LAYER_HEIGHT:Number = 900;
+        // The worlds' sizes (world.py's).
+        private static const WORLD_SIZES:Array = [[SrpPreviewWorld, 2250, 1266], [SrpPreviewWorld60, 1920, 1080],
+            [SrpPreviewWorldScope, 1440, 810]];
         private static const EDGE:uint = 0x585A5D;
+        private static const BASE64:String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        // "="
+        private static const PAD:int = 61;
 
         private var pane:Sprite = new Sprite();
-        // The world shown (the capture's, or the scope's closer one), made while shown.
-        private var world:Bitmap;
+        // The world shown (the capture's, or the scope's closer one), loaded while shown.
+        private var world:Loader;
         private var worldClass:Class;
-        // The gun's layers made, by class.
+        // The gun's layers loaded, by class.
         private var made:Dictionary = new Dictionary();
         private var view:int = IRON;
         // The pane's edge: its bounds are the preview's (the pictures past it are masked).
@@ -153,14 +166,19 @@ package
             {
                 if (world != null)
                 {
-                    pane.removeChild(world);
-                    world.bitmapData.dispose();
+                    letGo(world);
                 }
-                world = bitmap(new Picture());
+                world = loaded(Picture);
                 worldClass = Picture;
                 pane.addChildAt(world, 0);
             }
-            place(world, scaleOf(worldFov, worldAt));
+            for each (var size:Array in WORLD_SIZES)
+            {
+                if (size[0] == Picture)
+                {
+                    place(world, size[1], size[2], scaleOf(worldFov, worldAt));
+                }
+            }
             drawn.push({held: worldAt, made: worldFov, scale: scaleOf(worldFov, worldAt), alpha: 1});
             var tier:int = tierOf(view, held);
             var made:Number = TIERS[view][tier];
@@ -209,30 +227,43 @@ package
             {
                 if (!keep[key])
                 {
-                    var old:Bitmap = this.made[key];
-                    pane.removeChild(old);
-                    old.bitmapData.dispose();
+                    letGo(this.made[key]);
                     delete this.made[key];
                 }
             }
             var scale:Number = scaleOf(made, held);
             for each (w in wanted)
             {
-                var b:Bitmap = this.made[w[0]];
-                if (b == null)
+                var layer:Loader = this.made[w[0]];
+                if (layer == null)
                 {
-                    var Picture:Class = w[0];
-                    b = bitmap(new Picture());
-                    this.made[w[0]] = b;
+                    layer = loaded(w[0]);
+                    this.made[w[0]] = layer;
                 }
-                pane.addChild(b);
-                place(b, scale);
-                b.alpha = w[1];
+                pane.addChild(layer);
+                place(layer, LAYER_WIDTH, LAYER_HEIGHT, scale);
+                layer.alpha = w[1];
                 drawn.push({held: held, made: made, scale: scale, alpha: w[1]});
             }
         }
 
-        // The layers made (a copy of the keys, so they can be let go while walked).
+        // Every picture let go (the window closed): the next draw loads what it shows again.
+        public function release():void
+        {
+            for each (var key:Object in made_())
+            {
+                letGo(made[key]);
+                delete made[key];
+            }
+            if (world != null)
+            {
+                letGo(world);
+                world = null;
+                worldClass = null;
+            }
+        }
+
+        // The layers loaded (a copy of the keys, so they can be let go while walked).
         private function made_():Array
         {
             var keys:Array = [];
@@ -248,20 +279,61 @@ package
             return value >= least && value <= most ? value : otherwise;
         }
 
-        // A picture filling the pane at `scale`, about its centre.
-        private static function place(b:Bitmap, scale:Number):void
+        // A width x height picture filling the pane at `scale`, about its centre.
+        private static function place(picture:DisplayObject, width:Number, height:Number, scale:Number):void
         {
-            var fit:Number = HEIGHT / b.bitmapData.height * scale;
-            b.scaleX = b.scaleY = fit;
-            b.x = (WIDTH - b.bitmapData.width * fit) / 2;
-            b.y = (HEIGHT - b.bitmapData.height * fit) / 2;
+            var fit:Number = HEIGHT / height * scale;
+            picture.scaleX = picture.scaleY = fit;
+            picture.x = (WIDTH - width * fit) / 2;
+            picture.y = (HEIGHT - height * fit) / 2;
         }
 
-        private static function bitmap(data:BitmapData):Bitmap
+        // The picture of `Picture`, decoding: it shows once decoded.
+        private static function loaded(Picture:Class):Loader
         {
-            var b:Bitmap = new Bitmap(data, "never", true);
-            b.smoothing = true;
-            return b;
+            var loader:Loader = new Loader();
+            loader.loadBytes(movie(Object(Picture).MOVIE));
+            return loader;
+        }
+
+        // The bytes of base64 `text` (a picture's MOVIE). Written into a ByteArray first (natively) and
+        // read from it: a String's characters are slow to index in Scaleform.
+        private static function movie(text:String):ByteArray
+        {
+            var from:ByteArray = new ByteArray();
+            from.writeUTFBytes(text);
+            var digits:Array = [];
+            for (var d:int = 0; d < BASE64.length; d++)
+            {
+                digits[BASE64.charCodeAt(d)] = d;
+            }
+            var to:ByteArray = new ByteArray();
+            var end:int = from.length;
+            while (end > 0 && from[end - 1] == PAD)
+            {
+                end--;
+            }
+            var bits:int = 0;
+            var held:int = 0;
+            for (var i:int = 0; i < end; i++)
+            {
+                bits = bits << 6 | digits[from[i]];
+                held += 6;
+                if (held >= 8)
+                {
+                    held -= 8;
+                    to.writeByte(bits >> held);
+                    bits &= (1 << held) - 1;
+                }
+            }
+            return to;
+        }
+
+        // A picture taken out of the pane, its movie unloaded (its decoded pixels freed).
+        private function letGo(picture:Loader):void
+        {
+            pane.removeChild(picture);
+            picture.unloadAndStop();
         }
     }
 }

@@ -9,8 +9,8 @@ use crate::mem;
 use crate::strings::*;
 use crate::teb;
 use std::cell::Cell;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
+use std::sync::{Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 type A = u64;
@@ -62,8 +62,25 @@ fn cmdline_a() -> u64 {
     *P.get_or_init(|| leak_cstr(&PROC.get().unwrap().cmdline))
 }
 static T0: OnceLock<Instant> = OnceLock::new();
+/// `HOST_CLOCK_OFFSET_S=<seconds>` (diagnosis): the exe's monotonic clock (QueryPerformanceCounter, GetTickCount)
+/// reads that much more, as in a process that has run that long. A zygote forked from the base process inherits the
+/// base's clock, so its level loads at the base's uptime instead of a few seconds after start; this lets a one-shot
+/// run show whether a large clock changes a level load or a match.
+static CLOCK_OFFSET: OnceLock<Duration> = OnceLock::new();
 fn mono() -> Duration {
-    T0.get_or_init(Instant::now).elapsed()
+    let off = *CLOCK_OFFSET.get_or_init(|| {
+        let d = clock_offset(std::env::var("HOST_CLOCK_OFFSET_S").ok().as_deref());
+        if !d.is_zero() {
+            hlog!("HOST_CLOCK_OFFSET_S: the exe's monotonic clock starts at {} s", d.as_secs());
+        }
+        d
+    });
+    T0.get_or_init(Instant::now).elapsed() + off
+}
+
+/// The `HOST_CLOCK_OFFSET_S` value: whole seconds, anything else 0.
+pub fn clock_offset(v: Option<&str>) -> Duration {
+    v.and_then(|s| s.trim().parse::<u64>().ok()).map(Duration::from_secs).unwrap_or_default()
 }
 
 // ------------------------------------------------------------------ process / module
@@ -906,6 +923,16 @@ unsafe extern "win64" fn LeaveCriticalSection(cs: A) -> A {
     }
     0
 }
+/// The host's own TryEnterCriticalSection on an exe critical section, for host code that reads exe state under the
+/// exe's lock (`registry`): the same call an exe thread makes, so the section's bytes are those of a free section again
+/// after [`critical_section_leave`].
+pub fn critical_section_try_enter(cs: u64) -> bool {
+    unsafe { TryEnterCriticalSection(cs) != 0 }
+}
+/// The host's own LeaveCriticalSection, after a successful [`critical_section_try_enter`] on the same thread.
+pub fn critical_section_leave(cs: u64) {
+    unsafe { LeaveCriticalSection(cs) };
+}
 static SLIST: Mutex<()> = Mutex::new(());
 unsafe extern "win64" fn InitializeSListHead(h: A) -> A {
     unsafe { zero(h, 16) };
@@ -1214,7 +1241,341 @@ unsafe extern "win64" fn SetThreadStackGuarantee(p: A) -> A {
     }
     1
 }
+// ------------------------------------------------------------------ fork gate (zygote)
+//
+// The engine's worker loop 0x2000FECC0 (arguments: the slot index and may_dispatch; slot = [0x200AB1A00] + index * 0x40)
+// waits for a posted job like this (0x2000FED10..0x2000FED8F):
+//
+//     while [slot+0x38] == 0 {
+//         if may_dispatch && byte [0x20F43C664] != 0 { (one-time init) ; dispatch 0x2000BCF60(0x200C70FE0, 0) }
+//         Sleep(1)                                  ; the import 0x2008A6070, called at 0x2000FED84, returns to 0x2000FED8A
+//     }
+//
+// At that Sleep the thread is between two iterations: the loop body takes no lock of its own and the dispatch, when
+// it ran, has returned (its TryEnter/Enter/LeaveCriticalSection pairs close inside it). The loop's callers are the
+// engine thread entries (0x200101B40 :hdd slot 6, 0x200101F30 :resources manager slot 7, 0x2000FD4F0 :sound slot 5,
+// 0x2000FF590 slot 0, 0x2000FE670 slot 2, 0x2000FF3B0 slot 3, 0x2000FDD50 slot 4): each calls it first, after only
+// thread set-up imports (GetCurrentThreadId; slot 3 CoInitializeEx, slot 4 GetCurrentThread + SetThreadPriority) and
+// the store of its id at +0x30, and last, with nothing but the epilogue and `ret` after it (slot 3: a tail jump). So a
+// thread inside this Sleep stand-in called from 0x2000FED8A runs no exe code and its frames hold no lock of their own
+// (a lock left taken by a callee before the last call could never be released: the entry only returns after it). The
+// fork gate parks such threads there, so a zygote's fork() never copies one of them in the middle of exe code (a lock
+// it held would stay locked in the child). `HELD_CS == 0` (no Windows critical section taken) is checked at run time.
+//
+// Idle parking: while the zygote waits for hand-overs its world thread runs no exe code. A poller whose posted flag is
+// 0 and that holds no critical section has no job to run. If its dispatch byte is 0 too, it can only read that flag
+// and sleep again (the loop writes nothing), so it blocks in the gate, re-reading both every GATE_IDLE_RECHECK
+// (`IdlePark::Stay`). In the 0.69d exe the dispatch byte [0x20F43C664] is set to 1 once (0x20009117B, on the
+// `:resources manager` start) and never back to 0 (PROVEN), so the loop dispatches 0x2000BCF60 before every Sleep(1):
+// about 935 times a second in an idle zygote. Such a poller parks for one GATE_IDLE_RECHECK per Sleep and then lets
+// the loop run once (`IdlePark::Once`): the dispatch still runs, at most 25 ms late, about 40 times a second. A
+// fork()ed child turns the gate off for good: its restarted threads poll exactly as before.
+
+/// Return address of the worker loop's `call [Sleep]` at 0x2000FED84.
+pub const WORKER_POLL_RET: u64 = 0x2000FED8A;
+/// The worker loop's dispatch byte (read at 0x2000FED1C; its only writer, 0x20009117B, stores 1).
+const GATE_PUMP_BYTE: u64 = 0x20F43C664;
+/// The engine's worker slot table pointer (0x40 bytes per slot: +0 job, +0x30 thread id, +0x38 posted flag).
+const GATE_SLOT_TABLE: u64 = 0x200AB1A00;
+/// Slots searched for a poller's own (the range `run::fork_world` re-posts).
+const GATE_SLOTS: u64 = 16;
+/// A poller that polled within this many ms is in its loop (it polls about every 1.07 ms).
+const GATE_ACTIVE_MS: u64 = 50;
+/// A fork waits this long at most for the pollers in their loop to park; then it forks as it did before (logged).
+const GATE_FORK_WAIT: Duration = Duration::from_millis(250);
+/// An idle-parked poller re-reads its posted flag and the dispatch byte this often; with the dispatch byte set it parks
+/// for this long per Sleep.
+const GATE_IDLE_RECHECK: Duration = Duration::from_millis(25);
+
+const GATE_OPEN: u8 = 0;
+const GATE_IDLE: u8 = 1;
+const GATE_FORK: u8 = 2;
+/// A fork()ed child: the gate never acts again.
+const GATE_OFF: u8 = 3;
+
+static GATE_MODE: AtomicU8 = AtomicU8::new(GATE_OPEN);
+static GATE: Mutex<()> = Mutex::new(());
+static GATE_CV: Condvar = Condvar::new();
+static GATE_EPOCH: OnceLock<Instant> = OnceLock::new();
+/// Park / leave lines logged so far (the first 64 are logged).
+static GATE_LOGS: AtomicU32 = AtomicU32::new(0);
+
+/// One thread seen in the worker loop's Sleep.
+struct Poller {
+    tid: u64,
+    /// its worker slot (its thread id at +0x30), or -1
+    slot: i64,
+    /// its latest poll, ms since GATE_EPOCH
+    last_ms: AtomicU64,
+    parked: AtomicBool,
+    /// its first one-recheck idle park was logged (they come about 40 times a second: only the first is logged)
+    once_logged: AtomicBool,
+}
+static POLLERS: Mutex<Vec<&'static Poller>> = Mutex::new(Vec::new());
+thread_local! {
+    static MY_POLLER: Cell<Option<&'static Poller>> = const { Cell::new(None) };
+}
+
+fn gate_ms() -> u64 {
+    GATE_EPOCH.get_or_init(Instant::now).elapsed().as_millis() as u64
+}
+
+fn gate_log_ok() -> bool {
+    GATE_LOGS.fetch_add(1, Ordering::Relaxed) < 64
+}
+
+fn gate_pump_byte() -> u8 {
+    unsafe { std::ptr::read_volatile(GATE_PUMP_BYTE as *const u8) }
+}
+
+/// This thread's worker slot: the slot whose +0x30 holds the id the exe sees on this thread; -1 if none.
+fn own_worker_slot() -> i64 {
+    let me = GetCurrentThreadIdPub() as u32;
+    unsafe {
+        let t = r64(GATE_SLOT_TABLE);
+        if t == 0 {
+            return -1;
+        }
+        for i in 0..GATE_SLOTS {
+            if r32(t + i * 0x40 + 0x30) == me {
+                return i as i64;
+            }
+        }
+    }
+    -1
+}
+
+/// The posted flag of worker slot `slot` (None = no slot).
+fn slot_posted(slot: i64) -> Option<u32> {
+    if slot < 0 {
+        return None;
+    }
+    unsafe {
+        let t = r64(GATE_SLOT_TABLE);
+        if t == 0 {
+            return None;
+        }
+        Some((*((t + slot as u64 * 0x40 + 0x38) as *const AtomicU32)).load(Ordering::Acquire))
+    }
+}
+
+/// How a worker poller may block in the zygote's idle gate.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum IdlePark {
+    /// It has a job (posted flag set), holds a critical section, or has no worker slot: it runs on.
+    No,
+    /// No job, no lock, but the dispatch byte is set: one GATE_IDLE_RECHECK, then its loop dispatches once.
+    Once,
+    /// No job, no lock, no dispatch: its loop can only read its posted flag, so it stays until that changes.
+    Stay,
+}
+
+/// The idle gate's rule for a poller: `pump_byte` = the dispatch byte, `posted` = its slot's posted flag (None = no
+/// slot found), `held_cs` = the critical sections it holds.
+pub fn idle_park(pump_byte: u8, posted: Option<u32>, held_cs: i64) -> IdlePark {
+    if posted != Some(0) || held_cs != 0 {
+        IdlePark::No
+    } else if pump_byte == 0 {
+        IdlePark::Stay
+    } else {
+        IdlePark::Once
+    }
+}
+
+/// The fork gate's census over the worker pollers, each (parked, latest poll in ms): (expected, parked, away). A
+/// poller is expected to park when it is parked or polled within `active_ms` of `now_ms`; one that has not polled for
+/// longer is away from its loop (it runs its job, or its thread ended) and cannot park.
+pub fn poller_census(p: &[(bool, u64)], now_ms: u64, active_ms: u64) -> (usize, usize, usize) {
+    let parked = p.iter().filter(|x| x.0).count();
+    let active = p.iter().filter(|x| !x.0 && now_ms.saturating_sub(x.1) <= active_ms).count();
+    (parked + active, parked, p.len() - parked - active)
+}
+
+/// The worker loop's Sleep(1) (called from 0x2000FED8A): note the poll, and park while the gate says so. true = the
+/// thread was parked (its Sleep is over: it waited at least that long).
+fn worker_poll_gate() -> bool {
+    let me = match MY_POLLER.with(|c| c.get()) {
+        Some(p) => p,
+        None => {
+            // under the gate's lock, which a fork holds across fork(): never copied in the middle of a log line
+            let _g = GATE.lock().unwrap_or_else(|e| e.into_inner());
+            let p: &'static Poller = Box::leak(Box::new(Poller {
+                tid: teb::gettid(),
+                slot: own_worker_slot(),
+                last_ms: AtomicU64::new(0),
+                parked: AtomicBool::new(false),
+                once_logged: AtomicBool::new(false),
+            }));
+            POLLERS.lock().unwrap_or_else(|e| e.into_inner()).push(p);
+            MY_POLLER.with(|c| c.set(Some(p)));
+            hlog!("fork gate: thread {} polls in the worker loop's Sleep ({WORKER_POLL_RET:#x}), worker slot {}", p.tid, p.slot);
+            p
+        }
+    };
+    me.last_ms.store(gate_ms(), Ordering::Relaxed);
+    let held = HELD_CS.with(|h| h.get());
+    let mode = GATE_MODE.load(Ordering::Acquire);
+    if mode == GATE_OPEN || mode == GATE_OFF || held != 0 {
+        return false;
+    }
+    let first = if mode == GATE_IDLE { idle_park(gate_pump_byte(), slot_posted(me.slot), held) } else { IdlePark::Stay };
+    if first == IdlePark::No {
+        return false;
+    }
+    // a one-recheck park is logged once per poller (they repeat about 40 times a second); every other park is counted
+    // against the gate's 64 lines
+    let quiet = first == IdlePark::Once && me.once_logged.swap(true, Ordering::Relaxed);
+    let mut g = GATE.lock().unwrap_or_else(|e| e.into_inner());
+    // the lines are written while the gate's lock is held: a fork (which holds it across fork()) never copies a
+    // poller in the middle of a log line
+    me.parked.store(true, Ordering::SeqCst);
+    GATE_CV.notify_all();
+    if !quiet && gate_log_ok() {
+        let how = match (mode, first) {
+            (GATE_FORK, _) => "fork",
+            (_, IdlePark::Once) => "idle, one recheck per Sleep while the dispatch byte is set",
+            _ => "idle",
+        };
+        hlog!("fork gate: thread {} (worker slot {}) parked in Sleep ({how})", me.tid, me.slot);
+    }
+    // a one-recheck park ends at its deadline, not at the first wake (other pollers' park / leave notifications)
+    let until = Instant::now() + GATE_IDLE_RECHECK;
+    loop {
+        let m = GATE_MODE.load(Ordering::Acquire);
+        if m == GATE_OPEN || m == GATE_OFF {
+            break;
+        }
+        let mut wait = GATE_IDLE_RECHECK;
+        if m == GATE_IDLE {
+            match idle_park(gate_pump_byte(), slot_posted(me.slot), held) {
+                IdlePark::No => break,
+                IdlePark::Once => {
+                    let now = Instant::now();
+                    if now >= until {
+                        break;
+                    }
+                    wait = until - now;
+                }
+                IdlePark::Stay => {}
+            }
+        }
+        g = GATE_CV.wait_timeout(g, wait).unwrap_or_else(|e| e.into_inner()).0;
+    }
+    me.parked.store(false, Ordering::SeqCst);
+    // back in its loop now: the fork census counts it as polling from here, not from when it entered the Sleep
+    me.last_ms.store(gate_ms(), Ordering::Relaxed);
+    GATE_CV.notify_all();
+    if !quiet && gate_log_ok() {
+        hlog!(
+            "fork gate: thread {} (worker slot {}) leaves the gate (posted flag {:?}, dispatch byte {})",
+            me.tid,
+            me.slot,
+            slot_posted(me.slot),
+            gate_pump_byte()
+        );
+    }
+    drop(g);
+    true
+}
+
+/// The zygote between hand-overs (its world thread runs no exe code): `on` = idle worker pollers may block in the
+/// gate (`idle_park`); off = they poll again.
+pub fn fork_gate_idle(on: bool) {
+    if GATE_MODE.load(Ordering::SeqCst) == GATE_OFF {
+        return;
+    }
+    let _g = GATE.lock().unwrap_or_else(|e| e.into_inner());
+    GATE_MODE.store(if on { GATE_IDLE } else { GATE_OPEN }, Ordering::SeqCst);
+    GATE_CV.notify_all();
+    let n = POLLERS.lock().unwrap_or_else(|e| e.into_inner()).len();
+    hlog!("fork gate: idle parking {}; dispatch byte [{GATE_PUMP_BYTE:#x}] = {}; {n} worker poller(s) known", if on { "on" } else { "off" }, gate_pump_byte());
+}
+
+/// Held across fork(): the gate's lock, and the mode the parent returns to.
+pub struct ForkGate {
+    guard: Option<std::sync::MutexGuard<'static, ()>>,
+    prev: u8,
+    /// every poller still in its loop parked within GATE_FORK_WAIT (false = TIMEOUT)
+    pub complete: bool,
+}
+
+/// Before fork(): every worker poller that reaches its Sleep parks (mode fork); wait until each poller still in its
+/// loop is parked (at most GATE_FORK_WAIT, then fork as before), and keep the gate's lock across the fork.
+pub fn fork_gate_close() -> ForkGate {
+    let prev = GATE_MODE.swap(GATE_FORK, Ordering::SeqCst);
+    if prev == GATE_OFF {
+        GATE_MODE.store(GATE_OFF, Ordering::SeqCst);
+        return ForkGate { guard: None, prev, complete: true };
+    }
+    let t0 = Instant::now();
+    let mut g = GATE.lock().unwrap_or_else(|e| e.into_inner());
+    let complete = loop {
+        let (snap, tids): (Vec<(bool, u64)>, Vec<String>) = {
+            let ps = POLLERS.lock().unwrap_or_else(|e| e.into_inner());
+            (ps.iter().map(|p| (p.parked.load(Ordering::SeqCst), p.last_ms.load(Ordering::Relaxed))).collect(), ps.iter().filter(|p| p.parked.load(Ordering::SeqCst)).map(|p| p.tid.to_string()).collect())
+        };
+        let (expected, parked, away) = poller_census(&snap, gate_ms(), GATE_ACTIVE_MS);
+        let done = parked >= expected;
+        if done || t0.elapsed() >= GATE_FORK_WAIT {
+            hlog!(
+                "fork gate: {parked} of {expected} worker poller(s) parked in Sleep ({WORKER_POLL_RET:#x}) after {} us{}{}; {away} away from their loop",
+                t0.elapsed().as_micros(),
+                if tids.is_empty() { String::new() } else { format!(" (threads {})", tids.join(", ")) },
+                if done { "" } else { ": TIMEOUT, not every poller parked" }
+            );
+            break done;
+        }
+        g = GATE_CV.wait_timeout(g, Duration::from_millis(2)).unwrap_or_else(|e| e.into_inner()).0;
+    };
+    ForkGate { guard: Some(g), prev, complete }
+}
+
+impl ForkGate {
+    /// The parent after fork(): back to the mode before (an idle zygote keeps its pollers parked; an open gate lets
+    /// them go).
+    pub fn reopen(self) {
+        let ForkGate { guard, prev, .. } = self;
+        GATE_MODE.store(prev, Ordering::SeqCst);
+        GATE_CV.notify_all();
+        drop(guard);
+    }
+
+    /// The child after fork(): the gate is off for good. None of the parked threads exists here; the threads the
+    /// child starts again poll exactly as before. The lock stays taken (nothing in the child takes it again).
+    pub fn child(self) {
+        GATE_MODE.store(GATE_OFF, Ordering::SeqCst);
+        std::mem::forget(self);
+    }
+
+    /// A zygote forked from the base process, which forks match children itself: the gate stays usable. Open mode,
+    /// the poller records of the base's threads (none of which exists here; they would count as parked in every later
+    /// census) dropped, the log budget reset, and the gate's lock released (this thread holds it: it took it before the
+    /// fork). Every POLLERS access happens under the gate's lock, so that list is not locked by a missing thread.
+    /// Returns the number of stale poller records dropped.
+    pub fn child_keep(self) -> usize {
+        let ForkGate { guard, .. } = self;
+        let stale = {
+            let mut p = POLLERS.lock().unwrap_or_else(|e| e.into_inner());
+            let n = p.len();
+            p.clear();
+            n
+        };
+        GATE_LOGS.store(0, Ordering::Relaxed);
+        GATE_MODE.store(GATE_OPEN, Ordering::SeqCst);
+        drop(guard);
+        stale
+    }
+}
+
 unsafe extern "win64" fn Sleep(ms: A) -> A {
+    // the render pool's full callback (a producer waiting for records): retire the queued commands
+    if ms == 0 && crate::thunks::caller() == crate::world::POOL_FULL_SLEEP_RET {
+        crate::world::retire_at_capacity();
+    }
+    // the fork gate: only the engine worker loop's Sleep(1), never in a fork()ed child
+    if ms != 0 && GATE_MODE.load(Ordering::Relaxed) != GATE_OFF && crate::thunks::caller() == WORKER_POLL_RET && worker_poll_gate() {
+        return 0;
+    }
     if ms == 0 {
         std::thread::yield_now();
     } else {
@@ -1227,6 +1588,10 @@ unsafe extern "win64" fn SleepEx(ms: A, _alertable: A) -> A {
     0
 }
 unsafe extern "win64" fn SwitchToThread() -> A {
+    // the render pool's full callback (a producer waiting for records): retire the queued commands
+    if crate::thunks::caller() == crate::world::POOL_FULL_SWITCH_RET {
+        crate::world::retire_at_capacity();
+    }
     std::thread::yield_now();
     1
 }
@@ -1304,9 +1669,12 @@ unsafe extern "win64" fn WaitForSingleObject(h: A, ms: A) -> A {
 unsafe extern "win64" fn WaitForSingleObjectEx(h: A, ms: A, _al: A) -> A {
     handles::wait(&[h], false, ms as u32) as A
 }
+/// Return address of the exe timer loop's idle wait (WaitForMultipleObjects called at 0x2000AEC3C in 0x2000AE860, the
+/// loop of the `:hdd` / `:resources manager` threads): a thread in it runs no exe code and its loop holds no lock.
+pub const TIMER_IDLE_WAIT_RET: u64 = 0x2000AEC42;
 unsafe extern "win64" fn WaitForMultipleObjects(n: A, arr: A, all: A, ms: A) -> A {
     let hs = unsafe { std::slice::from_raw_parts(arr as *const u64, n as u32 as usize) }.to_vec();
-    handles::wait(&hs, all as u32 != 0, ms as u32) as A
+    handles::wait_marked(&hs, all as u32 != 0, ms as u32, crate::thunks::caller() == TIMER_IDLE_WAIT_RET) as A
 }
 unsafe extern "win64" fn CloseHandle(h: A) -> A {
     if h == handles::PSEUDO_PROCESS || h == handles::PSEUDO_THREAD {
@@ -1757,4 +2125,40 @@ pub fn table() -> Vec<(&'static str, usize)> {
         SetEndOfFile, GetFileAttributesW, GetFileAttributesA, GetFileAttributesExW, FindFirstFileExW, FindNextFileW,
         FindClose, CreateDirectoryW, DeleteFileW, GetFullPathNameW, GetDiskFreeSpaceExW, GetDriveTypeW,
     ]
+}
+
+#[cfg(test)]
+mod gate_tests {
+    use super::*;
+
+    #[test]
+    fn an_idle_poller_parks_only_while_it_has_no_job_and_no_lock() {
+        assert_eq!(idle_park(0, Some(0), 0), IdlePark::Stay, "no dispatch, no job, no lock: the loop only reads its flag");
+        assert_eq!(idle_park(1, Some(0), 0), IdlePark::Once, "the dispatch byte is set: one recheck, then it dispatches");
+        assert_eq!(idle_park(0, Some(1), 0), IdlePark::No, "a job is posted: it must run it");
+        assert_eq!(idle_park(1, Some(1), 0), IdlePark::No, "a job is posted, dispatch byte set");
+        assert_eq!(idle_park(0, None, 0), IdlePark::No, "no worker slot found: not parked while idle");
+        assert_eq!(idle_park(1, Some(0), 1), IdlePark::No, "it holds a critical section");
+    }
+
+    #[test]
+    fn the_fork_waits_for_every_poller_still_in_its_loop() {
+        // (parked, last poll ms); now 1000, active within 50 ms
+        assert_eq!(poller_census(&[], 1000, 50), (0, 0, 0), "no poller: fork at once");
+        assert_eq!(poller_census(&[(true, 10)], 1000, 50), (1, 1, 0), "parked long ago still counts as parked");
+        assert_eq!(poller_census(&[(false, 999)], 1000, 50), (1, 0, 0), "polling: the fork waits for it");
+        assert_eq!(poller_census(&[(false, 900)], 1000, 50), (0, 0, 1), "away from its loop (a job, or ended): not waited for");
+        assert_eq!(poller_census(&[(true, 0), (false, 990), (false, 100)], 1000, 50), (2, 1, 1));
+        assert_eq!(poller_census(&[(false, 1005)], 1000, 50), (1, 0, 0), "a poll stamped after `now`");
+    }
+
+    #[test]
+    fn the_clock_offset_takes_whole_seconds_only() {
+        assert_eq!(clock_offset(None), Duration::ZERO);
+        assert_eq!(clock_offset(Some("3600")), Duration::from_secs(3600));
+        assert_eq!(clock_offset(Some(" 20000 ")), Duration::from_secs(20000));
+        assert_eq!(clock_offset(Some("1.5")), Duration::ZERO);
+        assert_eq!(clock_offset(Some("-5")), Duration::ZERO);
+        assert_eq!(clock_offset(Some("")), Duration::ZERO);
+    }
 }

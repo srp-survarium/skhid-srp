@@ -1,0 +1,25 @@
+# Patch 221: a material draws with the shaders, textures and constants its
+# own config names (docs/notes/client_patch.md section 3.110, README "A
+# material's own shaders"). Only the decisions: which sites and the handlers.
+# The sites are sites_026g.tsv's; the logic is material_shaders.rs.
+name = "material_shaders"
+patch = 221
+
+# compile_begin's begin_pass: the material's pixel shader (after patch 130's
+# grass vertex shaders there).
+[[hook]]
+site = "material.begin_pass"
+handler = "on_material_pass"
+order = 2
+
+# compile_begin's end: the material's constants.
+[[hook]]
+site = "material.begun"
+handler = "on_material_begun"
+
+# The forward water's t_normal_map: the material's texture (before patch
+# 130's 0.21 wave normals there; a material has one key or the other).
+[[hook]]
+site = "water.normal_texture"
+handler = "on_water_texture"
+order = 1

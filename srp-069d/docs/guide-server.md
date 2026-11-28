@@ -12,9 +12,11 @@ programmer: copy the commands one by one. Commands in grey boxes are typed in a 
 * **A computer that stays on** while people play: Linux (64-bit, x86-64), or Windows 10 / 11 with WSL 2.
 * **Survarium 0.69d installed on that computer**, the last Steam build, unmodified (about 24 GB). The server needs the
   game files because it runs the game's own world code from your `survarium.exe` (start worlds, match ends, AI players).
-* **Memory:** about 25 MB while idle. Each map in use is loaded once (about 0.35-0.56 GB) and shared by all matches on
-  it; each running match adds about 60-150 MB. About 1.5 GB covers two maps and several matches. The default allows up
-  to 8 maps loaded at once (up to about 5 GB); on a small machine set `max_zygotes` lower (section `[world_host]` below).
+* **Memory:** about 0.2-0.25 GB while idle, then about 0.06-0.15 GB per map in use (a PvE mission map about
+  0.2-0.26 GB, the largest map about 0.34 GB) and about 0.04-0.14 GB per running match (measured in test runs; 0.14 GB
+  is a 12-player match with 11 AI players; 12 human players were not measured). How much the server may use is yours
+  to set with `max_zygotes` and `max_matches`: see "Memory: how many maps and matches" in section `[world_host]` below;
+  `srp setup` prints a suggestion for the machine it runs on.
 * **Disk:** a few GB for the database and logs.
 * **For players outside your home:** a router where you can forward ports, or a rented server (VPS) with a public IP
   address.
@@ -297,7 +299,7 @@ What the setup checks, in order:
 | world host program | `world-host` next to `srp` |
 | config | `srp.toml` written (first run) or updated; your other edits are kept |
 | game tables | the server's tables (items, shop, quests, drops, maps, bots: 32 files, about 2 MB) built from your game's own files into `data/` next to the config; takes a few seconds. Nothing is downloaded and nothing is written into the game folder. |
-| pre-warm lists | the folder `data/prewarm`: after the first match on a map the world host saves the list of resources that match loaded, so later matches on that map start faster and share them |
+| pre-warm lists | the folder `data/prewarm`: every match on a map adds the resources it loaded to that map's list, so later matches on that map start faster and share them; a map without a list yet uses the list of another variant of the same map and mode, else the part every map of its kind has in common; that common part is loaded once for all maps |
 | ports free | the four ports are free ([7. Letting players in](#7-letting-players-in)) |
 | memory, disk | free memory for the maps loaded at once; free disk for the database and logs |
 | database | `srp-069d.sqlite` created on the first run, with the number of accounts |
@@ -359,7 +361,8 @@ scripts/srp-host.sh log       # follow the log (Ctrl+C stops following, not the 
 scripts/srp-host.sh stop      # stop a server started with start
 ```
 
-The first match on a map waits about 8 seconds while that map loads; the map `pve_01_v1_maze2` is loaded at start.
+The first match on a map waits a few seconds while that map loads (on a test PC about 1 s for a PvP map and 3 s for
+a PvE mission, plus about 3 s right after the server started); no map is loaded at start (`prestart = []`).
 
 ## 6. Try it yourself
 
@@ -527,16 +530,203 @@ client_version = ""      # "" = any game version string
 ```toml
 [world_host]
 exe = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Survarium/game/binaries/x64/survarium.exe"
-max_matches = 4      # matches at once per map
-max_zygotes = 8      # maps loaded at once (about 0.35-0.56 GB each, shared by its matches); one more unloads the least used
+max_matches = 4      # matches at once per map (up to twice as many while the machine has 1.2 GB available)
+max_zygotes = 8      # maps loaded at once (0.06-0.35 GB each, shared by its matches), a map still unloading included
 idle_secs = 600      # a map without matches for this long is unloaded
-prestart = ["pve_01_v1_maze2"]   # maps loaded at start
+prestart = []        # maps loaded at start ([] = maps load when a match needs them)
 ```
 
 `exe` is written by `srp setup`. The other path settings normally stay empty (`prewarm_dir` "" = `data/prewarm`).
 
-On a PC with little memory: `max_zygotes = 2` (two maps loaded at a time; a map that is not loaded needs a few seconds
-more before its first match).
+`max_zygotes` is a hard limit: a match for a map that is not loaded unloads the least recently used map that runs no
+match (`prestart` maps last) and waits until it is gone. A map that runs matches is never unloaded; while every loaded map
+runs matches, the new map loads one over the limit if the machine has 1.4 GB available (the next new map unloads back
+down to the limit), else the new match waits up to 20 s for one to finish and is then refused. A map is never loaded
+twice. The queue does not send players into such a match: srp reads the world host's room about every 0.5 s, and when no
+new map can load it starts the match on a loaded map of the group's modes that takes one more, or keeps the group
+waiting in the queue until one does (see "Limiting the maps loaded" below).
+
+On a PC with little memory: the `max_zygotes` that `srp setup` prints (`1` = one map loaded at a time; a map that is not
+loaded needs a few seconds more before its first match) and no `prestart`.
+
+#### Memory: how many maps and matches
+
+The numbers below are measured in test runs and played matches, except where they say "estimate" (no test run had 12
+human players); your own server logs the real ones (see "Reading the real numbers").
+
+**What takes memory**
+
+| Part | Memory | How many |
+|---|---|---|
+| srp (login, lobby, match relay) | about 40 MB, plus about 5 MB per running match | one |
+| World host base process (the game code's start-up, shared by every map) | about 0.12 GB, about 0.1 GB of it shared with every map; about 0.17 GB once it also holds the resources common to the maps' lists (see below) | one (replaced every 6 hours; for a while the old one stays with the maps it started) |
+| A loaded map | PvP about 0.06-0.1 GB (0.11-0.15 GB while the maps have no common lists yet); the largest map, `level_11` (its three modes), about 0.28-0.31 GB (it loads in about 5 s); PvE mission about 0.2 GB (0.26 GB without common lists) | at most `max_zygotes` (one more only while 1.4 GB is free) |
+| A running match | PvP with 11 AI players filling 12 slots (the default `bots_per_team = 6`) about 0.13-0.14 GB; with 15 AI players in 16 slots (`bots_per_team = 8`) 0.1-0.12 GB measured with level-1 equipment (a match grows with the equipment it carries); with 2 players and no AI players about 40-45 MB; PvE (17 AI players) about 0.1-0.12 GB | at most `max_matches` per map (up to twice that only while 1.2 GB is free) |
+
+Maps differ a lot: the level itself is 31-98 MB on the usual PvP maps, 185-192 MB on a PvE mission and 281-283 MB on
+`level_11` (as a loaded map 308 MB, 277 MB with the common part in the base process); the rest of a map is its list of the equipment and animations its matches load (about 38-54 MB on a PvP
+map, 65 MB on a mission), which its matches then share. Most of that list is the same on every map: once two or more
+maps have recorded lists, the world host loads the common part once in its base process (about 47 MB there) and each
+map holds about 51 MB less (measured: a PvP map 112 -> 61 MB, a PvE mission 252 -> 200 MB). A map whose matches have
+not recorded a list yet starts from the part every map of its kind shares: its first match takes about 70 MB instead
+of 39 MB with two players, and from its second match on the loaded map has taken in what the first one recorded.
+
+**What counts as a map:** every map, mode and variant the game data has is a map of its own (about 110: for example
+`level_02_day_br_v1` ... `_v4` are four, `level_02_day_tdm` and `level_02_day_ctp` two more, each PvE mission one). Two
+matches share a loaded map only when they are on exactly the same one. AI players cost about as much as human players
+(their equipment): a 12-player match with 11 AI players measured 126-131 MB at its start and at most 140.5 MB, on a
+map started from the common part of the lists.
+
+**The most it can use** with your settings (every loaded map full):
+
+    about 0.35 GB + max_zygotes x (map + max_matches x match)
+
+with each map and match of the largest kind (0.35 GB a map, 0.165 GB a match; the largest measured match is 0.14 GB):
+`srp setup` counts this way. Keep that under the machine's memory minus what the system and other programs need (at
+least 0.5 GB on a server of its own; on a PC with WSL, the memory WSL has). The over-the-limit rules only use memory that is free at that moment, so
+they never push the server past this.
+
+**By players online.** Each row is the number of players online at the same time; the other columns follow from it.
+Players do not split into full matches: queues fill unevenly, small groups get AI players, some play a PvE mission
+alone or in two. A match costs about the same whatever the number of people in it (AI players carry equipment too; a
+PvE mission always has its 17 AI players), so what counts is the number of matches. Assumed for the table, at the
+busiest moment: every online player is in a match, 3 players per match on average, a quarter of the matches are PvE
+missions (6 mission maps, so several missions share one).
+
+**Maps loaded** assumes that every PvP match is on a map of its own. A loaded map is one map in one mode and one
+variant (`level_02_day_br_v3` is not `level_02_day_br_v4`, nor `level_02_day_tdm`): two matches share it only when the
+queue gave both exactly that one. The queue rotates through about 100 such PvP maps and draws the variant, so at a
+given moment few matches share one; this column is the upper end. The table has no limit on the maps loaded; the next
+table shows a limit.
+
+| Online | Matches at once (PvP + PvE) | Maps loaded | PvE missions per mission map | Memory, usual | Memory, worst case | Server memory | `max_zygotes` | CPU |
+|---|---|---|---|---|---|---|---|---|
+| 10 | 4 (3 + 1) | 4 | 1 | 1.2 GB | 2.1 GB | 4 GB | 5 | 0.6 core |
+| 20 | 7 (5 + 2) | 7 | 1 | 2.0 GB | 3.4 GB | 4-6 GB | 8 | 1.1 cores |
+| 50 | 17 (13 + 4) | 17 | 1 | 4.3 GB | 7.8 GB | 10-12 GB | 19 | 2.5 cores |
+| 100 | 34 (26 + 8) | 32 | 2 | 8.0 GB | 14.5 GB | 16 GB | 34 | 5.1 cores |
+| 200 | 67 (50 + 17) | 56 | 3 | 14.2 GB | 25.9 GB | 32 GB | 58 | 10 cores |
+
+* Memory, usual = 0.25 GB + PvP maps x 0.085 GB + mission maps x 0.2 GB + PvP matches x 0.13 GB + PvE matches x
+  0.12 GB: the measured sizes once the maps have recorded their lists (the common part then sits in the base
+  process); a PvP match counts as one filled with AI players (with the default settings a match short of players gets
+  them after `bot_wait_secs`: 11 AI players in 12 slots measured 0.13-0.14 GB; two players without AI players take
+  41-43 MB). A new server's first matches, before the lists exist, take more. Worst case = 0.35 GB + PvP maps x
+  0.25 GB + mission maps x 0.35 GB + PvP matches x 0.165 GB + PvE matches x 0.16 GB: room for maps and matches larger
+  than any measured so far.
+* Server memory = the worst case plus about 0.5 GB for the system, rounded up to a usual size.
+* `max_zygotes` = the maps loaded plus one or two kept loaded for the next matches (no limit in practice).
+* `max_matches = 4` covers every row (missions per mission map stay under it); raise it only for many PvE players.
+* CPU: about 0.15 of a server core per match filled with AI players, for a server core three times slower than a test
+  PC (estimate for 11 AI players: a 16-slot match with 15 AI players measured about 5.7 % of the test PC's core for
+  the match and its relay, 0.17 taken three times slower; the AI players' own thinking is under 1 %, the cost is the
+  world of 12-16 players); a two-player match without AI players about 0.05.
+* The biggest part is one map per PvP match. Fewer maps in the queue's rotation, or more players per match, lower it:
+  with 6 players per match the matches and maps halve.
+
+**Limiting the maps loaded.** A lower `max_zygotes` saves the memory of the maps, not of the matches: the matches
+still run, more of them on each loaded map. srp reads the world host's room about every 0.5 s. While a new map can load
+(under the limit, an idle map to unload, or one over the limit while 1.4 GB is free), the queue picks the map by its
+rotation as always. When none can, the queue starts the match on a loaded map of the group's ticked modes that takes one
+more match: up to `max_matches` per map, and up to twice that while 1.2 GB is free, so fewer groups wait. A group waits
+in the queue only when no loaded map of its modes has a free match slot, and starts as soon as one has or a map can load
+again. PvE missions do the same with their two mazes. This covers the PvP queue (with its AI-player fill) and PvE
+missions; custom rooms and clan battles play the map their players chose and do not check the room. Without a status
+from the world host (none read yet, or the last one older than 5 s) the queue picks as it did before. The mission maps
+stay loaded (their missions share them); the rest of the limit goes to PvP maps. Same assumptions as the
+table above (3 players per match, a quarter PvE), at the busiest moment, with `max_matches = 4`:
+
+| Online | `max_zygotes` | Maps for missions + PvP | PvP matches running | Matches per PvP map | PvE missions | PvP matches waiting in the queue | Memory, usual | Memory, worst case | Server memory |
+|---|---|---|---|---|---|---|---|---|---|
+| 10 | no limit (5) | 1 + 3 | 3 | 1 | 1 | 0 | 1.2 GB | 2.1 GB | 3 GB |
+| 10 | 3 | 1 + 2 | 3 | 2 | 1 | 0 | 1.1 GB | 1.9 GB | 3 GB |
+| 10 | 2 | 1 + 1 | 3 | 3 | 1 | 0 | 1.0 GB | 1.6 GB | 3 GB |
+| 20 | no limit (8) | 2 + 5 | 5 | 1 | 2 | 0 | 2.0 GB | 3.4 GB | 4 GB |
+| 20 | 5 | 2 + 3 | 5 | 2 | 2 | 0 | 1.8 GB | 2.9 GB | 4 GB |
+| 20 | 3 | 2 + 1 | 4 | 4 | 2 | 1 | 1.5 GB | 2.3 GB | 3 GB |
+| 50 | no limit (19) | 4 + 13 | 13 | 1 | 4 | 0 | 4.3 GB | 7.8 GB | 10 GB |
+| 50 | 10 | 4 + 6 | 13 | 3 | 4 | 0 | 3.7 GB | 6.0 GB | 8 GB |
+| 50 | 6 | 4 + 2 | 8 | 4 | 4 | 5 | 2.7 GB | 4.2 GB | 6 GB |
+| 100 | no limit (34) | 6 + 26 | 26 | 1 | 8 | 0 | 8.0 GB | 14.5 GB | 16 GB |
+| 100 | 20 | 6 + 14 | 26 | 2 | 8 | 0 | 7.0 GB | 11.5 GB | 12 GB |
+| 100 | 12 | 6 + 6 | 24 | 4 | 8 | 2 | 6.0 GB | 9.2 GB | 10-12 GB |
+| 200 | no limit (58) | 6 + 50 | 50 | 1 | 17 | 0 | 14.2 GB | 25.9 GB | 32 GB |
+| 200 | 32 | 6 + 26 | 50 | 2 | 17 | 0 | 12.2 GB | 19.9 GB | 24 GB |
+| 200 | 16 | 6 + 10 | 40 | 4 | 17 | 10 | 9.5 GB | 14.3 GB | 16 GB |
+
+Memory with a limit, usual: 0.25 GB + mission maps x 0.2 GB + PvP maps x 0.085 GB + PvP matches running x 0.13 GB +
+PvE missions x 0.12 GB (a PvP match counts as one filled with AI players); worst case: 0.35 GB + mission maps x 0.35 GB + PvP maps x 0.25 GB + PvP matches running x
+0.165 GB + PvE missions x 0.16 GB; with the PvP matches running = the PvP matches, at most PvP maps x 4.
+Server memory = the worst case plus 0.5 GB, rounded up. The waiting column counts at `max_matches = 4` per map; with
+1.2 GB free a map takes up to 8, so fewer wait. It is the worst moment: a match that ends frees its slot for the next
+group, and an idle map can be unloaded for another one.
+
+* **Variety narrows, then comes back.** While the memory limits the maps, the queue's matches are on the loaded maps
+  only. It takes turns among them: the mode and the map whose last match started the longest ago (a freshly loaded map
+  at most once before the others get their turn again), and the variants of a loaded map in turn too. As soon as a map
+  can load again, the next match follows the rotation over every map.
+* **The oldest loaded map is rotated out.** While no map can load, the world host picks one busy map to drain: the one
+  loaded the longest, not a `prestart` map. The queue starts no new match on it, nor on an idle map, as long as a busy
+  loaded map fits the group (a group that fits only there still plays there). Its matches end and it becomes idle. As
+  soon as an idle map can be unloaded for a new one, the queue avoids the maps that load would unload, so the next match
+  that needs a new map loads the rotation's next map and the idle map goes; then the next map drains, one at a time. A
+  map that stays busy for 20 minutes (custom rooms, clan battles, missions with nowhere else to go keep it busy) is passed
+  over and the next one drains. So under a steady full load the loaded maps keep changing, at the pace of the matches
+  that end.
+* **One rare mode waits longer.** A group that ticked only one mode nobody else plays may find no loaded map of it, and
+  none can load until a map is idle.
+* A limit is worth it when the memory is short; with enough memory leave `max_zygotes` above the maps you see loaded at
+  your busiest time (`front:` lines of `logs/world-host/front.log`). `srp.log` shows each narrowed choice (`queue: no new
+  map can load: narrowed to ...`, with the candidates, the map being rotated out and why one was picked) and each held
+  group once (`queue: held, ...`).
+
+**Suggested settings by memory** (`max_matches = 4`, every loaded map full, about 0.5 GB left for the system):
+
+| Memory for the server | Worst case: every map of the largest kind | Usual PvP maps (measured sizes) |
+|---|---|---|
+| 2 GB | `max_zygotes = 1` | `max_zygotes = 3` with `max_matches = 2` (or 1 map with 4) |
+| 4 GB | `max_zygotes = 3` | `max_zygotes = 5` |
+| 8 GB | `max_zygotes = 7` | `max_zygotes = 12` |
+| 16 GB | `max_zygotes = 15` | `max_zygotes = 25` |
+
+`srp setup` prints both numbers for the memory it finds (`this memory fits N map(s) in the worst case ... or about M
+usual PvP maps`); when fewer than 3 usual PvP maps fit, it also prints the usual fit with `max_matches = 2` (`; with
+max_matches = 2 about K usual PvP maps`): on a small machine the same memory then holds more maps with fewer matches
+each, so the queue has more variety. Worst case: 0.35 GB + `max_zygotes` x (0.35 GB + `max_matches` x 0.165 GB), safe whatever the
+players choose. Usual PvP maps: 0.35 GB + `max_zygotes` x (0.085 GB + `max_matches` x 0.13 GB), PvP maps of the
+measured size once their lists' common part is in the base process, with matches filled with AI players (11 AI
+players in 12 slots: 0.13-0.14 GB). A value between the two is a reasonable start; the
+over-the-limit rules only use memory that is free at that moment. The large maps are few: the six PvE missions
+(0.2-0.26 GB each) and `level_11`'s three modes (0.28-0.31 GB each).
+
+More maps loaded means fewer matches that wait for a map to load (a few seconds each); more matches per map only helps
+when many players queue for the same map. With few players, lower `max_matches` frees nothing: a match that does not run
+costs nothing.
+
+**Same-page merging (optional, saves memory):** the world host marks its memory for the Linux kernel's same-page
+merging (KSM). With it switched on, the kernel keeps one copy of pages that are byte-identical in several matches or
+maps (for example the same AI players' equipment in every PvE mission of one map) until one of them changes the page.
+Results do not change. It is off until you switch it on, as root:
+
+    echo 1 > /sys/kernel/mm/ksm/run
+
+(to keep it after a restart, put that line in a start-up script, for example a systemd unit or `/etc/rc.local`). It
+costs some CPU for the kernel's `ksmd` thread: `pages_to_scan` and `sleep_millisecs` in the same folder set how fast it
+scans; the defaults are gentle. `/sys/kernel/mm/ksm/pages_sharing` shows how many pages it saves (times 4 kB). The
+world host's log says at start whether its memory takes part (`memory merging (KSM): ...`). On WSL the kernel has KSM
+too. The tables above do not count on it: whatever it saves comes on top. Measured in test runs: about 27 MB for the
+base process and two idle maps, about 10 MB per loaded map and per running match on any map, and about 30-40 MB per
+PvE mission when several run on one mission map (five missions on one map: about 185 MB). Its CPU cost on a one-core
+server has not been measured yet: compare the server's CPU with it on and off.
+
+**Reading the real numbers:** every process of the world host writes `MEM [...] smaps_rollup:` lines to its log. The
+memory a process uses alone is its `Private_Dirty`; `Rss` also counts the pages it shares and would count the shared
+part once per map.
+* A map: `MEM [zygote ready]` in `logs/world-host/<map>/z.../host.log`.
+* A match: `MEM [child: end]` in `logs/world-host/<map>/z.../m<match>-<pid>/host.log` (at its end, its largest).
+* The base: `MEM [base: at the cut]` in `logs/world-host/base/b.../host.log`.
+
+Add them up as in the formula above and adjust `max_zygotes` / `max_matches`.
 
 ### `[matches]`
 
@@ -544,12 +734,20 @@ more before its first match).
 [matches]
 min_players = 2          # players a queue group needs before an online match starts
 bot_wait_secs = 30       # after this many seconds AI players fill the match (0 = never)
+bots_per_team = 6        # players per team of a match AI players fill, 1..8 (also a custom room's AI maximum)
 report_grace_secs = 20   # wait for the players' result reports before paying out
 equipment_use_costs = [0, 0, 1000, 2000, 5000, 8000]   # silver a match costs by equipment level 0..5
 match_silver_factors = [1.0, 1.0, 3.5, 7.0, 10.0, 14.0] # silver reward factor by level 0..5
 ```
 
 With few players: `min_players = 1` and a short `bot_wait_secs` let one player start a match with AI players.
+
+`bots_per_team` fills each team of such a match up to that many players. A map's own match size and its AI paths
+keep it lower where needed: a 12-player map gets at most 6 per team, a 14-player map 7, and no map more than 8 (every
+map the AI plays has 8 paths per team, and each AI player needs a path of its own). More AI players means more memory
+and CPU per match: the sizes in [Memory: how many maps and matches](#memory-how-many-maps-and-matches) were measured
+with at most 11 AI players in a 12-player match (6 per team, up to 0.14 GB); with 8 per team a match on a larger map
+can hold 15 AI players, which no test run has measured, so plan for larger matches.
 
 Game modes in the online queue: the modes of the game's own map list, among them Search and Destroy (random and ranked).
 Search and Destroy matches are players only: its maps have no paths for AI players, so `bot_wait_secs` never fills
