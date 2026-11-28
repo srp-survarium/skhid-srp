@@ -61,13 +61,28 @@ pub fn typical_pvp_maps_that_fit(available_mb: u64, max_matches: u32) -> u32 {
     (available_mb.saturating_sub(BASE_MB) / per_map).max(1) as u32
 }
 
-/// The two fits `srp setup` prints for `available_mb`: the worst case and the usual PvP maps.
+/// `max_matches` the usual fit also counts with on a small machine: the same memory then holds more maps (more
+/// variety) with fewer matches each.
+const SMALL_MAX_MATCHES: u32 = 2;
+/// Fewer usual PvP maps than this at the configured `max_matches` = a small machine (2 GB: 1 map of 4 matches, or 3
+/// maps of 2).
+const SMALL_USUAL_MAPS: u32 = 3;
+
+/// The two fits `srp setup` prints for `available_mb`: the worst case and the usual PvP maps; on a small machine also
+/// the usual fit with `max_matches` = [`SMALL_MAX_MATCHES`].
 pub fn memory_fit_text(available_mb: u64, max_matches: u32) -> String {
-    format!(
-        "this memory fits {} map(s) in the worst case (each map its largest kind, every match slot used) or about {} usual PvP maps, with max_matches = {max_matches}",
+    let usual = typical_pvp_maps_that_fit(available_mb, max_matches);
+    let mut t = format!(
+        "this memory fits {} map(s) in the worst case (each map its largest kind, every match slot used) or about {usual} usual PvP maps, with max_matches = {max_matches}",
         zygotes_that_fit(available_mb, max_matches),
-        typical_pvp_maps_that_fit(available_mb, max_matches)
-    )
+    );
+    if usual < SMALL_USUAL_MAPS && max_matches > SMALL_MAX_MATCHES {
+        t += &format!(
+            "; with max_matches = {SMALL_MAX_MATCHES} about {} usual PvP maps (the same memory, more maps)",
+            typical_pvp_maps_that_fit(available_mb, SMALL_MAX_MATCHES)
+        );
+    }
+    t
 }
 /// Free disk below this gets a warning (logs, the database, the world host's per-match folders).
 const DISK_WARN_MB: u64 = 2048;
@@ -720,6 +735,13 @@ mod tests {
             memory_fit_text(8192 - 512, 4),
             "this memory fits 7 map(s) in the worst case (each map its largest kind, every match slot used) or about 12 usual PvP maps, with max_matches = 4"
         );
+        // a small machine also gets the fit with 2 matches a map: 2 GB holds 3 such maps instead of 1 of 4
+        assert_eq!(typical_pvp_maps_that_fit(2048 - 512, 2), 3, "1186 / 345");
+        assert_eq!(
+            memory_fit_text(2048 - 512, 4),
+            "this memory fits 1 map(s) in the worst case (each map its largest kind, every match slot used) or about 1 usual PvP maps, with max_matches = 4; with max_matches = 2 about 3 usual PvP maps (the same memory, more maps)"
+        );
+        assert!(!memory_fit_text(2048 - 512, 2).contains("; with"), "already at 2: nothing more to say");
     }
 
     #[test]
