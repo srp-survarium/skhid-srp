@@ -23,8 +23,8 @@ tuning.
   `st_srp_map_cologne`) with " (v0.69)" in each of the twelve languages. The lobby draws level 30 with
   native Cologne's pictures (`MapRenders.tsv`, `LIKE 30 Level8`) and its loading screen (21); the HUD
   draws native Cologne's minimap (the same layout). The loading theme is level_08's (`music-1`). The
-  modes' rows are native Cologne's (`modes.tsv`: 150 tickets, 2 charging stations); `maps.tsv` takes
-  the v0.69 ports' row.
+  modes' rows are native Cologne's (`modes.tsv`: 150 tickets, 2 charging stations), and so is its `maps.tsv`
+  row (spawn zone 3000 ms with no fade; no artefact search, as Cologne has no artefact containers).
 - Ammo only at the bases (`cologne-v069-ammo-1.json`, `scripts/base-ammo/make.py`): 0.69d's two
   mid-map crates (`logic/resupply/neutral/first` at 2.4 33.8 26.5, `second` at 6.5 36.3 59.4) go
   whole; `logic/resupply/team1` (-61.4 33.0 17.5) is team 0's base and `team2` (69.1 33.2 44.1)
