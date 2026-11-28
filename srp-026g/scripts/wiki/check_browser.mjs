@@ -651,9 +651,9 @@ try {
           await Promise.all(images.map(i => i.decode().catch(() => {})));
           return JSON.stringify([...document.querySelectorAll('.cosmetic')].filter(c => {
             const img = c.querySelector('img');
-            return !img || !img.naturalWidth || !c.querySelector('b').textContent.trim() || !c.querySelector('small').textContent.trim();
+            return !img || !img.naturalWidth || !c.querySelector('b').textContent.trim() || (!c.closest('#drop') && !c.querySelector('small')?.textContent.trim());
           }).map(c => c.id));
-        })()`)), [], `${page}, ${lang}: every card has its icon, name and way`);
+        })()`)), [], `${page}, ${lang}: every card has its icon, name and (off Drops) way`);
         assert.ok(await evaluate("document.querySelectorAll('#where tbody tr').length") >= 2, `${page}, ${lang}: where it goes`);
         assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), true, `${page}, ${lang} at ${width}: no sideways scroll`);
         assert.equal(await evaluate("document.documentElement.innerHTML.includes('⟦')"), false, `${page}, ${lang}: no place left`);

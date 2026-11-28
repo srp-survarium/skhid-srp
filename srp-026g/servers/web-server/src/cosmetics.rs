@@ -298,6 +298,10 @@ fn all(page: Page) -> &'static [Cosmetic] {
                     Shelf::Faction
                 } else if kind == prices::BADGE {
                     Shelf::Badge
+                } else if ways.iter().any(|way| matches!(way, Way::Sold { .. })) {
+                    // Sold, though it may drop too (Dust, camo_khaki_fabric_03, 100 silver): on
+                    // a sold shelf, its price on its card (the owner, 2026-11-28).
+                    premium(item)
                 } else if kind.starts_with("drp_") {
                     Shelf::Drop
                 } else if kind.starts_with("prm_") || item.is_premium {
@@ -366,7 +370,7 @@ fn seller(lang: Lang, seller: u8, rank: u8) -> String {
 /// How a player gets a cosmetic, a line each way.
 fn ways(lang: Lang, cosmetic: &Cosmetic) -> String {
     let silver = modifiers::text(lang, "st_regular_money");
-    let mut lines: Vec<String> = cosmetic
+    let lines: Vec<String> = cosmetic
         .ways
         .iter()
         .flat_map(|&way| match way {
@@ -383,21 +387,11 @@ fn ways(lang: Lang, cosmetic: &Cosmetic) -> String {
                     vec![price, escape(&seller(lang, who, rank))]
                 }
             }
-            Way::Dropped(Table::Match) => vec![escape(&lang.t("Drops after a match"))],
-            Way::Dropped(Table::FirstMatch) => vec![escape(&lang.t("Drops after a first match"))],
-            Way::Dropped(Table::DropCard) => vec![escape(&lang.t("Drops from a stash map"))],
+            // The Drops shelf's line says it; a card does not (the owner, 2026-11-28).
+            Way::Dropped(_) => vec![],
             Way::Given(id) => vec![escape(&lang.tf("Given to account {0}", &[("0", &id)]))],
         })
         .collect();
-    // A premium item where premium is news: one that drops (Dust, camo_khaki_fabric_03).
-    if cosmetic.item.is_premium
-        && matches!(cosmetic.shelf, Shelf::Faction | Shelf::Badge | Shelf::Drop)
-    {
-        lines.push(format!(
-            "<span class=cosmetic-tag>{}</span>",
-            escape(&lang.t("Premium"))
-        ));
-    }
     lines
         .iter()
         .map(|line| format!("<span>{line}</span>"))
@@ -405,12 +399,17 @@ fn ways(lang: Lang, cosmetic: &Cosmetic) -> String {
 }
 
 fn card(lang: Lang, page: Page, cosmetic: &Cosmetic) -> String {
+    let ways = ways(lang, cosmetic);
+    let ways = if ways.is_empty() {
+        String::new()
+    } else {
+        format!("<small>{ways}</small>")
+    };
     format!(
-        "<li class=cosmetic id=\"i{}\">{}<b>{}</b><small>{}</small></li>",
+        "<li class=cosmetic id=\"i{}\">{}<b>{}</b>{ways}</li>",
         cosmetic.item.dict_id,
         picture(page, cosmetic.cell),
         escape(&name(lang, cosmetic.item)),
-        ways(lang, cosmetic),
     )
 }
 
