@@ -71,7 +71,7 @@ _spec.loader.exec_module(ah)
 research = ah.research
 
 FT_EDITS, AH_EDITS = 'freeze-tag-maps-1.json', 'artefact-hunt-maps-1.json'
-PACK_ID, VERSION = 'artefact-hunt-maps', '3'
+PACK_ID, VERSION = 'artefact-hunt-maps', '4'
 FT_MODE, AH_MODE, TDM = 12, 13, 4
 FT_ICON = 4
 # The first ids of a mode ids.tsv has none of: past Artifact Hunt's 300-326, over a byte (exe patch

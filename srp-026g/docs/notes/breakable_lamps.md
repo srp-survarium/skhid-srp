@@ -328,7 +328,7 @@ glass's collision stays (leftover glass). Vector has 180 rows a project.
 ## Bells
 
 School's wall bells (`props/electric/bell_school`, four a project, School's
-21 and v0.21's 10) ring when shot (the owner, 2026-11-27: "should be
+21, v0.21's 10 and v0.69's 5) ring when shot (the owner, 2026-11-27: "should be
 directional and just once or every n seconds"). `school-bells-1.json`
 (`scripts/school-bells/make_edits.py`) adds rows `bell<k>` of `"reaction":
 "ring"` and `"ring_every": 4`: the bell's bounds (2 cm larger) and its middle
@@ -341,8 +341,19 @@ resimulated after a rollback). The frame (`game_world.after_move`, on the
 game's thread, outside the registry's lock) plays each due bell's ring at its
 middle, a point sound of the world's scene (`GameWorld::play_sound_at`, as
 the corpse shot's): heard from where the bell is, by everyone near (each
-client its own bullets' and blasts', as it draws them). The bells have no
-collision: the ray reaches their bounds on its way to the wall.
+client its own bullets' and blasts', as it draws them). School's and v0.21's
+bells have no collision: the ray reaches their bounds on its way to the wall.
+
+School (v0.69)'s bells are 0.69d's: the same four places, the same stock model
+with its collision (`metall_thin`, cgroup 8, cmask 16; 0.69d has no sound,
+script or object of its own at a bell: a shot plays the metal's hit, as in
+0.26g), so the ray stops on the bell, inside its bounds. Its converter merged
+three of the four render visuals into clusters of models alike
+(`v069d_school/srp_cluster/...`) and kept every collision object, so
+`make_edits.py` takes a bell from its collision object where no render visual
+of it stands within 5 cm. Until it did, the port's projects had no ring rows
+at all: the list was made before the port and named School's and v0.21's
+projects alone, so a shot bell played only the metal's hit.
 
 The ring is one of ten takes, each the collection
 `sounds/collections/props/school_bell_srp/ring_<k>` (`RING_TAKES`, asked at
