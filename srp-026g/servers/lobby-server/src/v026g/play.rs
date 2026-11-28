@@ -1155,9 +1155,12 @@ impl Core<'_> {
                 .collect(),
             (None, _) => Vec::new(),
         };
-        // Against bots, a room's with bots too: paid as against bots.
+        // Against bots, a room's with bots too: paid as against bots; a room
+        // with a PIN, with bots or without, says so to its games (the
+        // collision view, `collision-view.md`).
         let kind = match (pvb, room.map(|room| room.kind)) {
-            (Some(_), _) | (None, Some(RoomKind::WithBots { .. })) => MatchKind::VsBots,
+            (Some(_), _) => MatchKind::VsBots,
+            (None, Some(RoomKind::WithBots { .. })) => MatchKind::PrivateRoomWithBots,
             (None, Some(RoomKind::Private)) => MatchKind::PrivateRoom,
             (None, Some(RoomKind::Open) | None) => MatchKind::Normal,
         };
@@ -1684,6 +1687,7 @@ mod tests {
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
+            privacy: survarium::v026g::match_msgs::static_info::Privacy::Public,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (index, read) = parse_payload(&info.payload(1).unwrap(), dictionary).unwrap();
@@ -1755,6 +1759,7 @@ mod tests {
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
+            privacy: survarium::v026g::match_msgs::static_info::Privacy::Public,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();
@@ -1859,6 +1864,7 @@ mod tests {
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
+            privacy: survarium::v026g::match_msgs::static_info::Privacy::Public,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();

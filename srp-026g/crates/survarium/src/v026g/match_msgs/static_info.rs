@@ -21,7 +21,8 @@
 //! 0x1F096C), tag 3 a free-for-all's kill target, tag 4 a map id over a
 //! byte (patch 154), tag 5 the players' faces (`face-choice.md`), tag 6
 //! Freeze Tag (patch 160), tag 7 each place's mode notice (patch 214,
-//! `mode_introductions.md`); tag 1 is kept for team damage (#370).
+//! `mode_introductions.md`), tag 8 a private room's match (patch 156,
+//! the collision view: `collision-view.md`); tag 1 is kept for team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -636,6 +637,21 @@ pub struct MatchOptions {
     pub match_id: u32,
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
+    /// Whose room the match is: a room's with a PIN carries srp's private
+    /// room entry (tag 8; exe patch 156: the collision view).
+    pub privacy: Privacy,
+}
+
+/// Whose room a match is, as its games are told (`collision-view.md`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Privacy {
+    /// Any other: an open room's (Play's), a clan match, Player vs Bots, a
+    /// recording converted. No entry.
+    #[default]
+    Public,
+    /// A room's with a PIN, with bots or without (`rooms.md`): the entry
+    /// [`SRPX_PRIVATE_ROOM`].
+    PrivateRoom,
 }
 
 /// srp's block after the options: its magic, then tagged entries
@@ -664,6 +680,10 @@ pub const SRPX_FREEZE_TAG: u8 = 6;
 /// in every match of a mode that has a notice ([`maps::GameMode::notice`]),
 /// in no other: a game that finds none (an older server) shows it.
 pub const SRPX_NOTICES: u8 = 7;
+/// The entry of a private room's match ([`Privacy::PrivateRoom`]), its one
+/// byte 1: exe patch 156 draws the collision view only in such a match or
+/// in a replay; none: any other match, or an older server's.
+pub const SRPX_PRIVATE_ROOM: u8 = 8;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -932,12 +952,12 @@ pub(super) fn profile_bytes(
     check_sent(player, profile, dictionary)?;
     let mut bytes = Vec::new();
     write_profile(profile, dictionary, &mut bytes);
-    write_srp_block(None, SrpBlock::Plain, &[profile.face], None, &mut bytes);
+    write_srp_block(None, SrpBlock::Plain, &[profile.face], None, Privacy::Public, &mut bytes);
     Ok(bytes)
 }
 
 /// [`profile_bytes`]' reader: a block with another entry than the faces
-/// one (a notices entry too) is refused.
+/// one (a notices or private room entry too) is refused.
 pub(super) fn parse_profile(
     bytes: &[u8],
     player: usize,
@@ -945,8 +965,8 @@ pub(super) fn parse_profile(
 ) -> Result<MatchProfile, StaticInfoError> {
     let mut reader = Reader { bytes };
     let mut profile = read_profile(&mut reader, player, dictionary)?;
-    let SrpEntries { wide, mode, faces, notices } = read_srp_block(&mut reader, 1)?;
-    if wide.is_some() || mode != SrpBlock::Plain || notices.is_some() {
+    let SrpEntries { wide, mode, faces, notices, privacy } = read_srp_block(&mut reader, 1)?;
+    if wide.is_some() || mode != SrpBlock::Plain || notices.is_some() || privacy != Privacy::Public {
         return Err(StaticInfoError::SrpBlock);
     }
     if let Some([face]) = faces.as_deref() {
@@ -995,7 +1015,7 @@ pub fn options_bytes(
         .mode()
         .notice()
         .map(|_| options.players.iter().map(|profile| profile.notice).collect());
-    write_srp_block(Some(map_id), SrpBlock::of(options.map), &faces, notices.as_deref(), &mut out);
+    write_srp_block(Some(map_id), SrpBlock::of(options.map), &faces, notices.as_deref(), options.privacy, &mut out);
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -1230,7 +1250,7 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let SrpEntries { wide, mode: block, faces, notices } = read_srp_block(&mut reader, roster)?;
+    let SrpEntries { wide, mode: block, faces, notices, privacy } = read_srp_block(&mut reader, roster)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
@@ -1271,6 +1291,7 @@ pub fn parse_options(
         match_id,
         match_level,
         score_weights,
+        privacy,
     })
 }
 
@@ -1285,6 +1306,8 @@ struct SrpEntries {
     faces: Option<Vec<Face>>,
     /// Each place's mode notice, when the entry is there ([`SRPX_NOTICES`]).
     notices: Option<Vec<Notice>>,
+    /// A private room's match when the entry is there ([`SRPX_PRIVATE_ROOM`]).
+    privacy: Privacy,
 }
 
 /// srp's block after the options or a late joiner's profile, if any: as
@@ -1297,12 +1320,12 @@ struct SrpEntries {
 /// is read with.
 fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, StaticInfoError> {
     if reader.bytes.is_empty() {
-        return Ok(SrpEntries { wide: None, mode: SrpBlock::Plain, faces: None, notices: None });
+        return Ok(SrpEntries { wide: None, mode: SrpBlock::Plain, faces: None, notices: None, privacy: Privacy::Public });
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
-    let (mut wide, mut block, mut faces, mut notices) = (None, None, None, None);
+    let (mut wide, mut block, mut faces, mut notices, mut privacy) = (None, None, None, None, None);
     while !reader.bytes.is_empty() {
         let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
         let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
@@ -1330,6 +1353,7 @@ fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, Stat
                 let read: Option<Vec<Notice>> = entry.iter().map(|&byte| Notice::of_byte(byte)).collect();
                 read.is_some_and(|read| notices.replace(read).is_none())
             }
+            (SRPX_PRIVATE_ROOM, [1]) => privacy.replace(Privacy::PrivateRoom).is_none(),
             _ => false,
         };
         if !fresh {
@@ -1337,22 +1361,25 @@ fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, Stat
         }
     }
     // A block of no entries: never sent.
-    if (wide, block) == (None, None) && faces.is_none() && notices.is_none() {
+    if (wide, block, privacy) == (None, None, None) && faces.is_none() && notices.is_none() {
         return Err(StaticInfoError::SrpBlock);
     }
-    Ok(SrpEntries { wide, mode: block.unwrap_or(SrpBlock::Plain), faces, notices })
+    let privacy = privacy.unwrap_or(Privacy::Public);
+    Ok(SrpEntries { wide, mode: block.unwrap_or(SrpBlock::Plain), faces, notices, privacy })
 }
 
 /// srp's block after the options, or after a late joiner's profile (no
 /// map, no mode, the faces of its one place, no notices): the whole map id
 /// when it is over a byte, then the mode's entry, then the places' `faces`
 /// when one is not 0, then the places' `notices` when the mode has a notice
-/// (every place's, 0 or 1); nothing when it has none of them.
+/// (every place's, 0 or 1), then a private room's entry; nothing when it has
+/// none of them.
 fn write_srp_block(
     map_id: Option<MapId>,
     block: SrpBlock,
     faces: &[Face],
     notices: Option<&[Notice]>,
+    privacy: Privacy,
     out: &mut Vec<u8>,
 ) {
     let mut entries = Vec::new();
@@ -1376,6 +1403,10 @@ fn write_srp_block(
     if let Some(notices) = notices {
         entries.extend([SRPX_NOTICES, notices.len() as u8]);
         entries.extend(notices.iter().map(|notice| notice.byte()));
+    }
+    match privacy {
+        Privacy::Public => {}
+        Privacy::PrivateRoom => entries.extend([SRPX_PRIVATE_ROOM, 1, 1]),
     }
     if !entries.is_empty() {
         out.extend(SRPX_MAGIC);
@@ -1517,7 +1548,33 @@ mod tests {
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
+            privacy: Privacy::Public,
         }
+    }
+
+    /// A private room's match (tag 8, exe patch 156: the collision view): its entry last,
+    /// alone in a plain mode or after the others; read back. Twice, of another
+    /// value or length, or in a late joiner's profile: refused.
+    #[test]
+    fn a_private_rooms_options_end_with_its_entry_and_read_back() {
+        let plain = options(vec![alice()]);
+        let without = options_bytes(&plain, dictionary()).unwrap();
+        let private = MatchOptions { privacy: Privacy::PrivateRoom, ..plain.clone() };
+        let bytes = options_bytes(&private, dictionary()).unwrap();
+        assert_eq!(bytes[without.len()..], b"SRPX\x08\x01\x01"[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(private.clone()));
+        assert_eq!(parse_options(&without, dictionary()), Ok(plain.clone()), "no entry: public");
+        let blackout = MatchOptions { map: blackout_map(), ..private };
+        let bytes = options_bytes(&blackout, dictionary()).unwrap();
+        assert!(bytes.ends_with(b"SRPX\x02\x01\x01\x07\x01\x00\x08\x01\x01"), "after the mode's and the notices");
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(blackout));
+        for bad in [&b"SRPX\x08\x01\x00"[..], b"SRPX\x08\x01\x02", b"SRPX\x08\x02\x01\x01", b"SRPX\x08\x01\x01\x08\x01\x01", b"SRPX\x08\x01"] {
+            assert_eq!(parse_options(&[&without[..], bad].concat(), dictionary()), Err(StaticInfoError::SrpBlock), "{bad:?}");
+        }
+        let mut profile = Vec::new();
+        write_profile(&alice(), dictionary(), &mut profile);
+        profile.extend(b"SRPX\x08\x01\x01");
+        assert_eq!(parse_profile(&profile, 1, dictionary()), Err(StaticInfoError::SrpBlock));
     }
 
     /// A Blackout map of the test data.
@@ -1532,9 +1589,9 @@ mod tests {
     fn freeze_tag_options_have_a_versioned_mode_entry() {
         let read = |bytes: &[u8]| read_srp_block(&mut Reader { bytes }, 1);
         let mut block = Vec::new();
-        write_srp_block(None, SrpBlock::FreezeTag, &[], None, &mut block);
+        write_srp_block(None, SrpBlock::FreezeTag, &[], None, Privacy::Public, &mut block);
         assert_eq!(block, b"SRPX\x06\x01\x01");
-        assert_eq!(read(&block), Ok(SrpEntries { wide: None, mode: SrpBlock::FreezeTag, faces: None, notices: None }));
+        assert_eq!(read(&block), Ok(SrpEntries { wide: None, mode: SrpBlock::FreezeTag, faces: None, notices: None, privacy: Privacy::Public }));
         for bytes in [b"SRPX\x06\x01\x00".as_slice(), b"SRPX\x06\x01", b"SRPX\x06\x02\x01\x01", b"SRPX\x06\x01\x01\x02\x01\x01"] {
             assert_eq!(read(bytes), Err(StaticInfoError::SrpBlock), "{bytes:?}");
         }
@@ -1684,16 +1741,16 @@ mod tests {
         let wide = MapId::new(300);
         let read = |bytes: &[u8]| read_srp_block(&mut Reader { bytes }, 1);
         let mut block = Vec::new();
-        write_srp_block(Some(wide), SrpBlock::Plain, &[], None, &mut block);
+        write_srp_block(Some(wide), SrpBlock::Plain, &[], None, Privacy::Public, &mut block);
         assert_eq!(block, b"SRPX\x04\x02\x2c\x01");
-        let entries = |mode| Ok(SrpEntries { wide: Some(wide), mode, faces: None, notices: None });
+        let entries = |mode| Ok(SrpEntries { wide: Some(wide), mode, faces: None, notices: None, privacy: Privacy::Public });
         assert_eq!(read(&block), entries(SrpBlock::Plain));
         let mut block = Vec::new();
-        write_srp_block(Some(wide), SrpBlock::FreeForAll { kills_to_win: 30 }, &[], None, &mut block);
+        write_srp_block(Some(wide), SrpBlock::FreeForAll { kills_to_win: 30 }, &[], None, Privacy::Public, &mut block);
         assert_eq!(block, b"SRPX\x04\x02\x2c\x01\x03\x02\x1e\x00");
         assert_eq!(read(&block), entries(SrpBlock::FreeForAll { kills_to_win: 30 }));
         let mut block = Vec::new();
-        write_srp_block(Some(MapId::new(255)), SrpBlock::Plain, &[], None, &mut block);
+        write_srp_block(Some(MapId::new(255)), SrpBlock::Plain, &[], None, Privacy::Public, &mut block);
         assert!(block.is_empty());
         // The entry of an id of a byte, twice, short, or a block of none:
         // refused.

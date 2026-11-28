@@ -26,7 +26,7 @@ use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing, WeaponCounts};
 use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
-    MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
+    MatchOptions, MatchProfile, Privacy, SCORE_EVENTS, StaticInfo, StaticInfoError,
 };
 
 /// Set in every [`static_id`], clear in every match id.
@@ -47,6 +47,14 @@ const STATIC_ID_BIT: u32 = 0x8000_0000;
 /// again (seen live that day).
 pub fn static_id(match_id: u32) -> u32 {
     match_id | STATIC_ID_BIT
+}
+
+/// What a match of `kind` tells its games of its room (the static info's
+/// private room entry, `collision-view.md`): a room's with a PIN, with bots
+/// or without, is private; any other match is not. Its first players and
+/// every late joiner are told the same.
+pub fn privacy(kind: MatchKind) -> Privacy {
+    if kind.pin_room() { Privacy::PrivateRoom } else { Privacy::Public }
 }
 
 /// One player of a match to be made. The roster place is the player's
@@ -561,6 +569,7 @@ impl MatchRegistry {
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
+            privacy: privacy(setup.kind),
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -723,6 +732,7 @@ impl MatchRegistry {
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
+                privacy: privacy(next.kind),
             },
             Dictionary::shared(),
         )
@@ -1219,6 +1229,18 @@ mod tests {
             // The largest standard deviation over 20 000 matches (Larkspur, Spring) is 0.35 points.
             let near = (percent - f64::from(share)).abs() < 2.0;
             assert!(near, "{name}: {percent} %");
+        }
+    }
+
+    #[test]
+    fn a_pin_rooms_match_with_bots_or_without_is_private_to_its_games() {
+        for (kind, privacy) in [
+            (MatchKind::Normal, Privacy::Public),
+            (MatchKind::VsBots, Privacy::Public),
+            (MatchKind::PrivateRoom, Privacy::PrivateRoom),
+            (MatchKind::PrivateRoomWithBots, Privacy::PrivateRoom),
+        ] {
+            assert_eq!(super::privacy(kind), privacy, "{kind:?}");
         }
     }
 }

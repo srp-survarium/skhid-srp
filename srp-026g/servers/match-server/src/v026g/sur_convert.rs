@@ -284,6 +284,7 @@ pub fn of_map(map: maps::MatchMap, length_ms: u32) -> Result<Vec<u8>, String> {
         match_id: 1,
         match_level: 1,
         score_weights: static_info::score_weights(map.map().mode.rules()),
+        privacy: static_info::Privacy::Public,
     };
     let info = static_info::StaticInfo::new(&options, Dictionary::shared())
         .map_err(|error| format!("the options: {error}"))?;
@@ -1516,6 +1517,7 @@ mod tests {
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
+            privacy: static_info::Privacy::Public,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         let mut records = vec![
@@ -1962,6 +1964,7 @@ mod tests {
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
+            privacy: static_info::Privacy::Public,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         for place in 0..3u8 {
