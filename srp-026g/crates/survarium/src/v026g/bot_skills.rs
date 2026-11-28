@@ -1104,8 +1104,11 @@ mod tests {
     }
 
     /// No bot kit is overburdened: every kit of every tier and role
-    /// weighs less than the capacity its skills give (40 kg), and its
-    /// skills are those of its tier's gear level.
+    /// weighs less than the capacity its skills give (the player's 30 kg and
+    /// Athlete's, 209: +2 kg a rank in the data of revisions 56 to 74, +1 kg
+    /// since revision 75, so 40 or 35 kg at its five ranks), and its skills
+    /// are those of its tier's gear level. Each kit's weight and capacity are
+    /// printed (`--nocapture`).
     #[test]
     fn no_bot_kit_is_over_its_capacity() {
         assert_eq!(item_params::player().max_carried_weight, 30.0);
@@ -1122,12 +1125,14 @@ mod tests {
                 "{tier} {role}"
             );
             let modifiers = skills.modifiers_with(new);
+            // The player's and the skills' kilograms (Athlete's from the data), and at most 5 of the carry upgrades.
+            let base = item_params::player().max_carried_weight + modifiers[MAX_CARRIED_WEIGHT];
             for kit in kits {
                 let capacity = carry_capacity(kit, &modifiers);
-                // 40 kg, and the kilograms of the carry upgrades.
-                assert!(capacity >= 40.0, "{tier} {role}");
-                assert!(capacity <= 45.0, "{tier} {role}: {capacity}");
-                assert!(kit.weight() < capacity, "{tier} {role}: {}", kit.weight());
+                println!("{tier} {role} new={new}: kit {:.2} kg, capacity {capacity:.2} kg (skills {base:.2})", kit.weight());
+                assert!(capacity >= base, "{tier} {role}: {capacity} {base}");
+                assert!(capacity <= base + 5.0, "{tier} {role}: {capacity} {base}");
+                assert!(kit.weight() < capacity, "{tier} {role}: {} of {capacity}", kit.weight());
             }
         }
     }
