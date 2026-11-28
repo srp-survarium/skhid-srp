@@ -1473,8 +1473,25 @@ pub fn routed_crossing_to(
     routed_crossing_via(tactics, None, to, side, stop_m, armour, rules)
 }
 
-/// [`routed_crossing_to`] with its entry search kept in `memo` ([`memo::Memo::entry`]: made at map load for the battery
-/// spawners' stands): the same answer.
+/// [entry slices] A crossing's answer, or not yet: its routed crossing's entry search is under way ([`memo::Memo::entry_ask`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CrossingAsk {
+    Known(Option<Crossing>),
+    Pending,
+}
+
+impl CrossingAsk {
+    /// The answer, none while it is not known yet.
+    pub fn answer(self) -> Option<Crossing> {
+        match self {
+            Self::Known(found) => found,
+            Self::Pending => None,
+        }
+    }
+}
+
+/// [`routed_crossing_to`] with its entry search kept in `memo` ([`memo::Memo::entry_ask`]: made at map load for the battery
+/// spawners' stands): the same answer, none while the search is under way.
 pub fn routed_crossing_via(
     tactics: &Tactics,
     memo: Option<&memo::Memo>,
@@ -1484,22 +1501,53 @@ pub fn routed_crossing_via(
     armour: Option<&ZoneArmour>,
     rules: memo::RoutedRule,
 ) -> Option<Crossing> {
-    let (rule, way_out) = (rules.route, rules.way_out);
-    if rule == RouteCrossing::Off {
-        return None;
+    routed_crossing_ask(tactics, memo, to, side, stop_m, armour, rules).answer()
+}
+
+/// [entry slices] [`routed_crossing_via`], or not yet ([`CrossingAsk::Pending`]): `memo`'s entry search for it is under way.
+pub fn routed_crossing_ask(
+    tactics: &Tactics,
+    memo: Option<&memo::Memo>,
+    to: Vec3,
+    side: Option<i32>,
+    stop_m: f32,
+    armour: Option<&ZoneArmour>,
+    rules: memo::RoutedRule,
+) -> CrossingAsk {
+    if rules.route == RouteCrossing::Off {
+        return CrossingAsk::Known(None);
     }
     let grid = &tactics.world.grid;
-    let side = side?;
-    let spawn = tactics.world.map.spawns.iter().find(|p| p.team == side)?;
-    let from = grid.locate(spawn.position, 3.0)?;
-    let goal = grid.locate(to, 3.0)?;
+    let ends = side.and_then(|side| {
+        let spawn = tactics.world.map.spawns.iter().find(|p| p.team == side)?;
+        Some((side, grid.locate(spawn.position, 3.0)?, grid.locate(to, 3.0)?))
+    });
+    let Some((side, from, goal)) = ends else {
+        return CrossingAsk::Known(None);
+    };
     // The way's floors priced as its leg is (`leg_cost_per_s`, the margin's price included): the entry found is the one
     // whose leg is least, not one cheap by another price.
     let leg_per_s = |node| tactics.hazards.leg_cost_per_s(grid, node, armour, rules.hurt).most();
     let path = match memo {
-        Some(memo) => memo.entry(tactics, from, goal, side, armour, rules.hurt).map(|way| way.to_vec()),
+        Some(memo) => match memo.entry_ask(tactics, from, goal, side, armour, rules.hurt) {
+            memo::EntryAsk::Way(way) => way.map(|way| way.to_vec()),
+            memo::EntryAsk::Pending => return CrossingAsk::Pending,
+        },
         None => crate::v026g::bots::zone_search::cheapest_entry(tactics, from, goal, Some(side), leg_per_s, ENTRY_WITHIN_M),
     };
+    CrossingAsk::Known(routed_crossing_on(tactics, path, stop_m, armour, rules))
+}
+
+/// [`routed_crossing_via`]'s crossing on the entry way `path` (none: no crossing), priced for `armour`.
+fn routed_crossing_on(
+    tactics: &Tactics,
+    path: Option<Vec<mapdata::NodeId>>,
+    stop_m: f32,
+    armour: Option<&ZoneArmour>,
+    rules: memo::RoutedRule,
+) -> Option<Crossing> {
+    let (rule, way_out) = (rules.route, rules.way_out);
+    let grid = &tactics.world.grid;
     #[cfg(test)]
     if path.is_none() {
         crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedNoRoute);
@@ -1609,13 +1657,20 @@ impl Ctx<'_> {
     /// The crossing to take a battery lying at `at` by (its stand needs
     /// one, [`Ctx::needs_crossing`]), if one is found.
     pub fn crossing(&self, at: Vec3) -> Option<Crossing> {
-        let stand = self.tactics.stand_to_take(at)?;
+        self.crossing_ask(at).answer()
+    }
+
+    /// [entry slices] [`Self::crossing`], or not yet: its entry search is under way (`memo::Memo::entry_ask`).
+    pub fn crossing_ask(&self, at: Vec3) -> CrossingAsk {
+        let Some(stand) = self.tactics.stand_to_take(at) else {
+            return CrossingAsk::Known(None);
+        };
         if !self.needs_crossing(stand) {
-            return None;
+            return CrossingAsk::Known(None);
         }
-        // Kept for the match (`memo::Memo::crossing`): the same answer.
+        // Kept for the match (`memo::Memo::crossing_ask`): the same answer, once it is worked out.
         counted_for(self.me.team, || {
-            self.memo.crossing(
+            self.memo.crossing_ask(
                 self.tactics,
                 stand,
                 self.bot.side,
@@ -1692,6 +1747,9 @@ impl Ctx<'_> {
     }
 }
 
+/// [entry slices] Why a battery is no Collect candidate while its crossing's entry search is under way (`memo::Memo::entry_ask`).
+pub const ENTRY_PENDING: &str = "its crossing is being worked out";
+
 /// Why a battery is no Collect candidate when its stand is in a pocket
 /// with no way out for a carrier (no standing jump, and no teammate got out
 /// by one): whoever took it could not bring it home.
@@ -1752,7 +1810,12 @@ impl Ctx<'_> {
         // Its stand in zones on all match: by a crossing's dry edge, if the
         // bot's health bears it.
         let stand = if self.needs_crossing(stand) {
-            let Some(crossing) = self.crossing(at) else {
+            // [entry slices] Its crossing's entry search under way: not yet a candidate, as before the search.
+            let asked = self.crossing_ask(at);
+            if asked == CrossingAsk::Pending {
+                return Some(ENTRY_PENDING);
+            }
+            let Some(crossing) = asked.answer() else {
                 // [anomaly batteries] A stand in an energy core's zones that switch: by its own way in, if a rule lets it.
                 if super::zone_take::in_core(self, at) {
                     return match super::zone_take::decide(self, at, false) {
@@ -5109,6 +5172,125 @@ mod tests {
             assert_eq!(via, routed_crossing_to(&s.tactics, stand, Some(0), 0.0, armour.as_deref(), *rule));
         }
         assert_eq!(kept.entry_counts(), (2, 0), "made at load, none searched in play");
+    }
+
+    /// [entry slices] A zone so wide that no straight walk crosses to the battery at `at` (`with_hurting`'s), the field's.
+    fn wide_toxic_zone(at: Vec3) -> Scenario {
+        let mut s = Scenario::field(Mode::Batteries);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "toxic".into(),
+                team: -1,
+                position: at,
+                protection: None,
+                damage_type: "toxic".into(),
+                damage: Some(mapdata::Damage { max_hit: 0.01, interval_ms: 1000, parts: 2, ..mapdata::Damage::default() }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Sphere,
+                    center: at + Vec3::new(0.0, 1.0, 0.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(26.0, 26.0, 26.0),
+                }],
+            });
+        });
+        s.tactics = Tactics::new(world, 1.0);
+        s
+    }
+
+    /// [entry slices] The bound: an armour asking after another armour's search gets that search's way (`Memo::entry_ask`,
+    /// counted as cut by the bound), priced for itself, and that way's price under its own leg price is never below its own
+    /// search's way's (`zone_search::entry_price`): the bound never gives a cheaper way than the armour's own search.
+    #[test]
+    fn another_armours_way_is_never_cheaper_than_the_armours_own() {
+        use crate::v026g::bots::zone_cost::ZoneArmour;
+        use crate::v026g::bots::zone_search::{cheapest_entry, entry_price};
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let s = wide_toxic_zone(at);
+        let rule = memo::RoutedRule {
+            route: RouteCrossing::Total,
+            way_out: true,
+            hurt: crate::v026g::bots::hazards::HurtTest::of(&crate::v026g::bots::tuning::Tuning::default().hazard, 0.38),
+        };
+        let grid = &s.tactics.world.grid;
+        let spawn = s.tactics.world.map.spawns.iter().find(|p| p.team == 0).expect("a side 0 spawn");
+        let from = grid.locate(spawn.position, 3.0).expect("the spawn's floor");
+        let goal = grid.locate(at, 3.0).expect("the battery's floor");
+        let worn = ZoneArmour::of_items([1u16]);
+        let armours = [None, Some(&worn)];
+        let leg = |armour: Option<&ZoneArmour>, node| s.tactics.hazards.leg_cost_per_s(grid, node, armour, rule.hurt).most();
+        for (first, then) in [(armours[0], armours[1]), (armours[1], armours[0])] {
+            let kept = memo::Memo::default();
+            let searched_first = routed_crossing_via(&s.tactics, Some(&kept), at, Some(0), 2.0, first, rule);
+            assert_eq!(searched_first, routed_crossing_to(&s.tactics, at, Some(0), 2.0, first, rule), "the first armour's own");
+            assert!(searched_first.is_some(), "a routed crossing to the battery");
+            let bound = routed_crossing_via(&s.tactics, Some(&kept), at, Some(0), 2.0, then, rule).expect("the bound's crossing");
+            assert_eq!(kept.slice_counts().bound, 1, "the second armour's search cut");
+            assert_eq!(kept.entry_counts(), (2, 1), "one search for two armours");
+            let memo::EntryAsk::Way(Some(way)) = kept.entry_ask(&s.tactics, from, goal, 0, then, rule.hurt) else {
+                panic!("the kept way");
+            };
+            let own = cheapest_entry(&s.tactics, from, goal, Some(0), |n| leg(then, n), ENTRY_WITHIN_M).expect("its own way");
+            let (bound_price, own_price) =
+                (entry_price(&s.tactics, &way, |n| leg(then, n)), entry_price(&s.tactics, &own, |n| leg(then, n)));
+            eprintln!("bound {bound_price} own {own_price}, {} and {} floors", way.len(), own.len());
+            assert!(bound_price >= own_price, "the bound {bound_price} below its own {own_price}");
+            // The crossing on the bound's way is priced for the asking armour: its own leg, the same way.
+            assert_eq!(bound.edge, grid.position(way[0]), "{bound:?}");
+            assert!(bound.routed, "{bound:?}");
+        }
+    }
+
+    /// [entry slices] An entry search run in slices (a pop budget a run, `zone_search::PopBudget`) gives the way the whole search
+    /// gives, floor for floor, whatever the budget; through the memo, the ask is not yet answered (and no crossing kept) while its
+    /// search is under way, the polls run it on by themselves (`Memo::new_poll`), and the answer is then the whole search's.
+    #[test]
+    fn an_entry_search_in_slices_is_the_whole_search() {
+        use crate::v026g::bots::zone_search::{EntrySearch, EntryStep, EntrySteps, PopBudget, cheapest_entry};
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let s = wide_toxic_zone(at);
+        let hurt = crate::v026g::bots::hazards::HurtTest::of(&crate::v026g::bots::tuning::Tuning::default().hazard, 0.38);
+        let grid = &s.tactics.world.grid;
+        let spawn = s.tactics.world.map.spawns.iter().find(|p| p.team == 0).expect("a side 0 spawn");
+        let from = grid.locate(spawn.position, 3.0).expect("the spawn's floor");
+        let goal = grid.locate(at, 3.0).expect("the battery's floor");
+        let leg = |node| s.tactics.hazards.leg_cost_per_s(grid, node, None, hurt).most();
+        let whole = cheapest_entry(&s.tactics, from, goal, Some(0), leg, ENTRY_WITHIN_M);
+        assert!(whole.as_ref().is_some_and(|w| w.len() > 2), "a way over the zone: {whole:?}");
+        for pops in [1u64, 7, 100, 1_000] {
+            // Kept steps for every other budget (made by the first), new ones for the first: both give the whole search's way.
+            let mut steps = EntrySteps::new(from, goal, Some(0), ENTRY_WITHIN_M);
+            let mut search = EntrySearch::begin(&s.tactics, &mut steps);
+            let mut runs = 0;
+            let sliced = loop {
+                runs += 1;
+                match search.run(&s.tactics, &mut steps, leg, &mut PopBudget::Left(pops)) {
+                    EntryStep::Done(way) => break way,
+                    EntryStep::Pending => assert!(runs < 1_000_000, "it ends"),
+                }
+            };
+            assert_eq!(sliced, whole, "{pops} pops a run");
+            if pops < 100 {
+                assert!(runs > 1, "{pops} pops a run: {runs} runs");
+            }
+        }
+        // Through the memo: a poll's budget of 7 pops.
+        let rule = memo::RoutedRule { route: RouteCrossing::Total, way_out: true, hurt };
+        let kept = memo::Memo::default();
+        kept.new_poll(Some(&s.tactics), 7);
+        assert_eq!(kept.crossing_ask(&s.tactics, at, Some(0), 2.0, None, rule), CrossingAsk::Pending, "not yet");
+        let mut polls = 0;
+        while kept.slice_counts().runs == 0 {
+            kept.new_poll(Some(&s.tactics), 7);
+            polls += 1;
+            assert!(polls < 1_000_000, "it ends");
+        }
+        let answer = kept.crossing_ask(&s.tactics, at, Some(0), 2.0, None, rule);
+        assert_eq!(answer, CrossingAsk::Known(routed_crossing_to(&s.tactics, at, Some(0), 2.0, None, rule)), "the whole search's");
+        let counts = kept.slice_counts();
+        assert_eq!((counts.sliced, counts.bound), (1, 0), "{counts:?}");
+        assert_eq!(counts.waited_polls, polls, "{counts:?}");
+        assert!(counts.runs > 1, "{counts:?}");
     }
 
     /// The real maps (private files; `SRP_MAPDATA_DIR`; `ZONES_TUNING` a merge patch file over the defaults, none: the
