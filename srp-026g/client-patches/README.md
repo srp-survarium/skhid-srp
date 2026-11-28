@@ -7231,3 +7231,28 @@ The look only: the camera, the shot, the recoil, the spread and what a world hol
 no `simulation_changes.tsv` row. Checked with Unicorn (`check_attachments_026g.py`,
 `check_weapon_view_options_026g.py`) and Ruffle (`../scripts/hud-options/check.sh`); not run in a
 game. The reasoning: `../docs/notes/weapon-view-settings.md`, `../docs/notes/client_patch.md` 3.115.
+
+## The sun's shadows after a camera cut (patch 221, unreleased)
+
+The game keeps each sun cascade's static casters from frame to frame (`r_use_csm_scrolling`, on):
+the cached depth is scrolled to where the cascade moved, and only a caster the cascade did not
+hold the frame before is drawn again (`../docs/notes/renderer-026g.md` 4.5). After a jump of the
+eye of about 40 to 50 m a caster both places' cascades hold is neither drawn again nor carried by
+the scroll, and its shadow stays gone until the eye has been far enough away for it to leave the
+cascade. School (v0.69)'s ground at terrain_06 is shaded in 0.69d and when the camera starts there
+or walks there from the gym (1 m steps), and sunlit after the camera jumped there from the gym
+(42 m), from 40, 42, 45 or 50 m along +x and 42 m along +z (headless captures, patch 176's rig,
+2026-11-28); 30, 35, 60 and 70 m along +x, jumps along -x and -z and a turn on the spot keep it.
+`r_use_csm_scrolling off` keeps it too. In a match the eye jumps at a respawn, on the death
+camera and at a spectator's switch to another player: stock code, any map.
+
+Patch 221 hooks stage_shadow_direct::execute after it placed the cascades
+(`shadow_direct.cascades_placed` 0x172FBF). When the eye (renderer context +54A4h) moved over 2 m
+since the frame before, it sets the stage's own cache reset for that frame (+2Ch 1, its count +2Dh
+101): the stage flushes every cascade, draws every caster again, and caches from the next frame,
+as it does at its start and when the sun changes. A walk, a sprint or a fall moves the eye
+centimetres a frame; the cost is one frame's static casters drawn again after a cut.
+
+Rendering only: nothing a match computes. Checked with `check_sun_shadow_cut_026g.py` (Unicorn;
+`tools/check sun-shadow-cut`) and with captures: the gym's jump and the back-and-forth keep
+terrain_06 shaded with it, sunlit without it. Not run in a game.
