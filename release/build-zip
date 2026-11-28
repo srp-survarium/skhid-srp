@@ -12,7 +12,9 @@
 #   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g,
 #      SKHID_REVISION=<n>: their version resource says it;
 #      SKHID_BUILTIN_PATCHES and SKHID_BUILTIN_GAME: the list's /patches and
-#      /game, which the updater uses when the server cannot be reached; the
+#      /game, which the updater uses when the server cannot be reached, and
+#      SKHID_BUILTIN_PATCH_SIZES its /patch-sizes, for the launcher's bar over
+#      every patch when the server does not say them; the
 #      torrents' public key built in: the commit's release/signing.pub, with
 #      SKHID_TEST_PUBLIC_KEY unset; --test: its release/signing-test.pub as
 #      SKHID_TEST_PUBLIC_KEY; the ZIP's updater is read back for it),
@@ -92,6 +94,10 @@ read_patch_list
 required=$(list_numbers)
 [[ -n $required ]] || die "$PATCH_LIST names no patch: the exe would require none (patch 49)"
 [[ -n $GAME_ROW ]] || say "WARNING: $GAME_LIST has no row of $GAME_NAME: the updater and Skhid-without-updater.bat get no address of the game built in"
+# The /patch-sizes of the list (each patch's sha256 and size, as srp offers
+# them), for the updater's bar over every patch when the server does not say them.
+builtin_sizes=$(jq -cnS --arg list "$LIST" '$list | split("\n") | map(select(length > 0) | split(" ")
+    | {key: (.[0] | ltrimstr("resources.db.")), value: {sha256: .[1], size: (.[2] | tonumber)}}) | from_entries')
 builtin_patches=$(list_patches_json) builtin_game=$(list_game_json)
 [[ -d $SKHID_GAME ]] || die "SKHID_GAME: $SKHID_GAME is not a folder"
 if [[ -z $work ]]; then
@@ -150,7 +156,7 @@ say "building bugtrap.dll and updater_skhid.exe (log: $work/build.log) ..."
 # SKHID_REVISION: their version resource says this release's revision
 # (FileVersion <n>.0.0.0, ProductVersion "revision <n>"; client/windows_build.rs).
 if ! (cd "$work/src" && env "${key_env[@]}" SKHID_REVISION="$revision" SKHID_BUILTIN_PATCHES="$builtin_patches" \
-    SKHID_BUILTIN_GAME="$builtin_game" nix develop ./srp-026g -c bash -c \
+    SKHID_BUILTIN_PATCH_SIZES="$builtin_sizes" SKHID_BUILTIN_GAME="$builtin_game" nix develop ./srp-026g -c bash -c \
     'client/bugtrap/build.sh && bash client/updater/build.sh') >"$work/build.log" 2>&1; then
     tail -n 30 "$work/build.log" >&2
     die "the build failed (log: $work/build.log)"

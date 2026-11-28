@@ -358,6 +358,65 @@ class PatchTest(WineTest):
         self.assertIn("patches: 2 file(s) as they were when hashed in the last week: not read again",
                       self.log_since(mark))
 
+    @staticmethod
+    def downloads_said(said):
+        """The progress messages of the patches' downloads, from the first
+        "(1/n)" on (not the overlay's ZIP before them): (done, total, speed,
+        seconds left)."""
+        out, downloading = [], False
+        for frame in said:
+            if frame[0] == 0x0B and struct.unpack_from("<H", frame, 1)[0] > 0:
+                downloading = True
+            elif frame[0] == 0x01 and downloading:
+                out.append(struct.unpack_from("<QQQQ", frame, 1))
+        return out
+
+    def test_the_bar_and_so_its_time_left_are_of_every_patch_when_the_server_says_their_sizes(self):
+        patches = self.make_patches(14, 17, 20, size=1_500_000)
+        self.site.patch_sizes = "true"
+        self.site.patch_slow = 0.002
+        # A part of patch 17 kept from before: its bytes are done from the
+        # start.
+        held = 500_000
+        self.write(f"game/.skhid-patch_17.{sha256(patches[17])}.part", patches[17][:held])
+        code, said = self.run_launched()
+        self.assertEqual(code, 0, self.log())
+        self.assert_patches(patches)
+        total = sum(len(data) for data in patches.values())
+        bars = [(done, of) for done, of, _, _ in self.downloads_said(said) if of]
+        self.assertTrue(bars, said)
+        # The launcher's "... left" and time left are total - done: never
+        # one file's.
+        self.assertEqual({of for _, of in bars}, {total})
+        dones = [done for done, _ in bars]
+        self.assertEqual(dones, sorted(dones), "on from one file to the next, never back to 0")
+        self.assertGreaterEqual(dones[0], held)
+        self.assertEqual(bars[-1], (total, total))
+        self.assertEqual(self.site.requests.count("/patch-sizes"), 1)
+        self.assertIn(f"patches: the launcher's bar is over the 3 downloads, {total} bytes in all", self.log())
+        # One patch to download: no sizes asked, its own bar.
+        os.remove(self.path(self.patch_name(20)))
+        self.site.requests.clear()
+        code, said = self.run_launched()
+        self.assertEqual(code, 0, self.log())
+        self.assertNotIn("/patch-sizes", self.site.requests)
+        self.assertEqual({of for _, of, _, _ in self.downloads_said(said) if of}, {len(patches[20])})
+
+    def test_without_the_sizes_the_bar_is_each_files_as_before(self):
+        patches = self.make_patches(14, 17, size=1_000_000)
+        # Not the form (a server of another version): as with none (a 404,
+        # every other test).
+        self.site.patch_sizes = json.dumps({"patch_14": {"sha256": sha256(patches[14]), "size": 1, "x": 1}}).encode()
+        code, said = self.run_launched()
+        self.assertEqual(code, 0, self.log())
+        self.assert_patches(patches)
+        totals = {of for _, of, _, _ in self.downloads_said(said) if of}
+        self.assertEqual(totals, {len(data) for data in patches.values()})
+        log = self.log()
+        self.assertIn("patches: the sizes from the server: not an answer (BadEntry(\"patch_14\")): those built in", log)
+        self.assertIn("patches: the size of resources.db.patch_14, resources.db.patch_17 is not known: "
+                      "the launcher's bar is each file's", log)
+
     def test_an_empty_list_has_nothing_to_do(self):
         self.assertEqual(self.run_updater(), 0, self.log())
         self.assertEqual(self.patch_files(), {})

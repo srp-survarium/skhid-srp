@@ -940,6 +940,47 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     assert_eq!(body, expected);
 }
 
+/// The patches' sizes at `/patch-sizes`, apart from the list (whose
+/// entries the updaters already installed take only as exactly `sha256`
+/// and `urls`): each one by its name, with its SHA-256, wherever
+/// `/patches` is answered.
+#[test]
+fn the_patches_sizes_are_offered_apart_from_the_list() {
+    let empty = world();
+    assert_eq!(empty.web.route(&get("/patch-sizes"), "t").body, "{}");
+    let mut world = world();
+    world.web.token = None;
+    world.web.admin_path = None;
+    let mut big = offered(14, 'a', &["http://203.0.113.5/p14"]);
+    big.size = 3_700_000_000;
+    let mut small = offered(16, '0', &["https://files.example/p16"]);
+    small.size = 40_387_410;
+    world.web.game.downloads = Arc::new(crate::Downloads::new(vec![big, small], None, None));
+    let expected = format!(
+        "{{\"patch_14\":{{\"sha256\":\"{}\",\"size\":3700000000}},\
+         \"patch_16\":{{\"sha256\":\"{}\",\"size\":40387410}}}}",
+        "a".repeat(64),
+        "0".repeat(64)
+    );
+    let sizes = world.web.route(&get("/patch-sizes"), "t");
+    assert_eq!((sizes.status, sizes.body.as_str()), ("200 OK", expected.as_str()));
+    // The list is as before: no size in it.
+    let list = world.web.route(&get("/patches"), "t").body;
+    assert!(!list.contains("size"), "{list}");
+    assert!(list.contains("\"patch_14\":{\"sha256\":"), "{list}");
+    assert_eq!(
+        world.web.route(&post("/patch-sizes", &[]), "t").status,
+        "404 Not Found"
+    );
+    let (head, body) = patches_over_http(world.web, b"GET /patch-sizes HTTP/1.0\r\n\r\n");
+    assert!(
+        head.contains("\r\nContent-Type: application/json\r\n"),
+        "{head}"
+    );
+    assert!(head.contains("\r\nCache-Control: no-store\r\n"), "{head}");
+    assert_eq!(body, expected);
+}
+
 /// The game's archive at `/game`, apart from the patches: a 404 when the
 /// data names none (the updater then uses the addresses built into it).
 #[test]

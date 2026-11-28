@@ -10,7 +10,8 @@
 //! - `/torrent` and `/Skhid-get.bat`: the download file's torrent and the
 //!   bootstrap script, when there are ([`torrent`]).
 //! - `/patches` is the list of `resources.db`'s patches the updater keeps in
-//!   the game folder: those the server's game data was made of ([`patches`]).
+//!   the game folder: those the server's game data was made of ([`patches`]);
+//!   `/patch-sizes` their sizes, for the updater's bar over all it downloads.
 //! - `/replays/<token>` is the replay file of the match a token of the
 //!   lobby's "Watch replay" is for
 //!   (`session::v026g::replays`): `SRP_REPLAY_DIR/<id:08x>.sur`, named from
@@ -1084,6 +1085,7 @@ impl Web {
                     );
                 }
                 "/patches" => return patches::response(&game.downloads),
+                "/patch-sizes" => return patches::sizes_response(&game.downloads),
                 "/game" => {
                     if let Some(response) = patches::game_response(&game.downloads) {
                         return response;

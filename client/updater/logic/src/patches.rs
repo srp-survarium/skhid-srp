@@ -41,6 +41,10 @@
 //!   left over);
 //! - the game may be played when every listed patch is there with its
 //!   checksum and no other `resources.db.patch_*` is ([`check`]).
+//!
+//! The list says no size: the updaters already installed refuse an entry of
+//! any other member (this parser too, so it stays so). The sizes, for the launcher's bar over every patch a step
+//! downloads, are apart, `GET <site>/patch-sizes` ([`parse_sizes`]).
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -254,10 +258,38 @@ pub fn parse_list(bytes: &[u8]) -> Result<List, ListError> {
     if bytes.len() > MAX_LIST {
         return Err(ListError::TooLarge);
     }
+    let mut list = List::default();
+    entries(bytes, false, &mut |name, number, entry| {
+        let (Some(sha256), Some(texts)) = (entry.sha256, entry.addresses) else {
+            return Err(ListError::BadEntry(name.into()));
+        };
+        let sha256 = from_hex(sha256).ok_or_else(|| ListError::BadHash(name.into()))?;
+        let addresses = addresses(name, texts)?;
+        if list.get(number).is_some() {
+            return Err(ListError::Duplicate(name.into()));
+        }
+        list.patches.push(Patch {
+            number,
+            sha256,
+            addresses,
+        });
+        Ok(())
+    })?;
+    list.patches.sort_by_key(|patch| patch.number);
+    Ok(list)
+}
+
+/// A JSON object of `patch_<n>` keys and nothing else, each value an entry
+/// ([`Reader::entry`]; with `sized`, a size may be among its members):
+/// `take(name, n, entry)` for each, in the text's order.
+fn entries<'a>(
+    bytes: &'a [u8],
+    sized: bool,
+    take: &mut dyn FnMut(&str, u8, Entry<'a>) -> Result<(), ListError>,
+) -> Result<(), ListError> {
     let mut reader = Reader { bytes, at: 0 };
     reader.space();
     reader.expect(b'{')?;
-    let mut list = List::default();
     reader.space();
     if !reader.take(b'}') {
         loop {
@@ -268,23 +300,11 @@ pub fn parse_list(bytes: &[u8]) -> Result<List, ListError> {
             reader.space();
             let name = core::str::from_utf8(key).map_err(|_| ListError::Syntax(reader.at))?;
             let number = parse_name(name).ok_or_else(|| ListError::BadName(name.into()))?;
-            let entry = reader.entry(false).map_err(|error| match error {
+            let entry = reader.entry(sized).map_err(|error| match error {
                 ListError::BadEntry(_) => ListError::BadEntry(name.into()),
                 other => other,
             })?;
-            let (Some(sha256), Some(texts)) = (entry.sha256, entry.addresses) else {
-                return Err(ListError::BadEntry(name.into()));
-            };
-            let sha256 = from_hex(sha256).ok_or_else(|| ListError::BadHash(name.into()))?;
-            let addresses = addresses(name, texts)?;
-            if list.get(number).is_some() {
-                return Err(ListError::Duplicate(name.into()));
-            }
-            list.patches.push(Patch {
-                number,
-                sha256,
-                addresses,
-            });
+            take(name, number, entry)?;
             reader.space();
             if reader.take(b'}') {
                 break;
@@ -296,8 +316,7 @@ pub fn parse_list(bytes: &[u8]) -> Result<List, ListError> {
     if reader.at != bytes.len() {
         return Err(ListError::Syntax(reader.at));
     }
-    list.patches.sort_by_key(|patch| patch.number);
-    Ok(list)
+    Ok(())
 }
 
 /// The list as it is kept beside the updater: one line, in the order of
@@ -393,6 +412,55 @@ pub fn parse_game(bytes: &[u8]) -> Result<Download, ListError> {
         size,
         addresses: addresses(GAME, texts)?,
     })
+}
+
+/// The longest answer of `GET /patch-sizes` taken: 255 entries of about
+/// 110 bytes each.
+pub const MAX_SIZES: usize = 64 << 10;
+
+/// The sizes of the patches' files: `GET <site>/patch-sizes`, or the sizes
+/// built into the updater at release time (`SKHID_BUILTIN_PATCH_SIZES`).
+/// They serve the launcher's bar over every patch a step downloads, and so
+/// its time left ([`crate::progress::Step`]), and nothing else. They are
+/// asked for apart from the list because the updaters before them take a
+/// list entry only as it is (exactly `sha256` and the addresses). Each
+/// size is a file's, by its number and SHA-256.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Sizes {
+    files: Vec<(u8, [u8; 32], u64)>,
+}
+
+impl Sizes {
+    /// The size of `patch`'s file, when it is a file these name.
+    pub fn of(&self, patch: &Patch) -> Option<u64> {
+        self.files
+            .iter()
+            .find(|(number, sha256, _)| *number == patch.number && *sha256 == patch.sha256)
+            .map(|(_, _, size)| *size)
+    }
+}
+
+/// Reads `GET /patch-sizes`: `{"patch_14": {"sha256": "<64 hex>", "size":
+/// <bytes>}, ...}`, a JSON object of `patch_<n>` keys as the list's, each
+/// value of exactly those two members (in either order), no key twice; `{}`
+/// names none. Anything else is no answer: the bar is then each file's.
+pub fn parse_sizes(bytes: &[u8]) -> Result<Sizes, ListError> {
+    if bytes.len() > MAX_SIZES {
+        return Err(ListError::TooLarge);
+    }
+    let mut sizes = Sizes::default();
+    entries(bytes, true, &mut |name, number, entry| {
+        let (Some(sha256), Some(size), None) = (entry.sha256, entry.size, &entry.addresses) else {
+            return Err(ListError::BadEntry(name.into()));
+        };
+        let sha256 = from_hex(sha256).ok_or_else(|| ListError::BadHash(name.into()))?;
+        if sizes.files.iter().any(|(known, _, _)| *known == number) {
+            return Err(ListError::Duplicate(name.into()));
+        }
+        sizes.files.push((number, sha256, size));
+        Ok(())
+    })?;
+    Ok(sizes)
 }
 
 /// A list's value as it was read: its checksum, its size (the game's
@@ -1511,5 +1579,60 @@ mod tests {
             parse_list(sized.as_bytes()),
             Err(ListError::BadEntry("patch_3".into()))
         );
+    }
+
+    #[test]
+    fn the_sizes_are_read_apart_from_the_list_and_tied_to_each_file() {
+        let (a, b) = (hex(b"14"), hex(b"17"));
+        let text = alloc::format!(
+            " {{\"patch_17\": {{\"size\": 76740663, \"sha256\": \"{b}\"}},\n\
+             \"patch_14\":{{\"sha256\":\"{}\",\"size\":848021018}}}}\n",
+            a.to_ascii_uppercase()
+        );
+        let sizes = parse_sizes(text.as_bytes()).unwrap();
+        assert_eq!(sizes.of(&patch(14, b"14")), Some(848_021_018));
+        assert_eq!(sizes.of(&patch(17, b"17")), Some(76_740_663));
+        // Another file of the same number, a number it has not.
+        assert_eq!(sizes.of(&patch(14, b"other")), None);
+        assert_eq!(sizes.of(&patch(20, b"14")), None);
+        assert_eq!(parse_sizes(b"{}"), Ok(Sizes::default()));
+        let bad = |name: &str| Err(ListError::BadEntry(name.into()));
+        for (text, expected) in [
+            // Not the form: no size, no checksum, an address, a size of 0
+            // or not a number, another member.
+            (alloc::format!("{{\"patch_1\": {{\"sha256\": \"{a}\"}}}}"), bad("patch_1")),
+            ("{\"patch_1\": {\"size\": 5}}".into(), bad("patch_1")),
+            (
+                alloc::format!("{{\"patch_1\": {{\"sha256\": \"{a}\", \"size\": 5, \"urls\": []}}}}"),
+                bad("patch_1"),
+            ),
+            (alloc::format!("{{\"patch_1\": {{\"sha256\": \"{a}\", \"size\": 0}}}}"), bad("patch_1")),
+            (alloc::format!("{{\"patch_1\": {{\"sha256\": \"{a}\", \"size\": \"5\"}}}}"), bad("patch_1")),
+            (alloc::format!("{{\"patch_1\": {{\"sha256\": \"{a}\", \"size\": 5, \"x\": 1}}}}"), bad("patch_1")),
+            ("{\"patch_1\": 5}".into(), bad("patch_1")),
+            (
+                "{\"patch_1\": {\"sha256\": \"x\", \"size\": 5}}".into(),
+                Err(ListError::BadHash("patch_1".into())),
+            ),
+            (
+                alloc::format!("{{\"patch_01\": {{\"sha256\": \"{a}\", \"size\": 5}}}}"),
+                Err(ListError::BadName("patch_01".into())),
+            ),
+            (
+                alloc::format!(
+                    "{{\"patch_1\": {{\"sha256\": \"{a}\", \"size\": 5}}, \"patch_1\": {{\"sha256\": \"{b}\", \"size\": 6}}}}"
+                ),
+                Err(ListError::Duplicate("patch_1".into())),
+            ),
+            ("[]".into(), Err(ListError::Syntax(0))),
+            ("{} x".into(), Err(ListError::Syntax(3))),
+        ] {
+            assert_eq!(parse_sizes(text.as_bytes()), expected, "{text}");
+        }
+        let long = alloc::vec![b' '; MAX_SIZES + 1];
+        assert_eq!(parse_sizes(&long), Err(ListError::TooLarge));
+        // And the list still takes no size, as its updaters before.
+        let sized = alloc::format!("{{\"patch_14\": {{\"sha256\": \"{a}\", \"size\": 5, \"urls\": []}}}}");
+        assert_eq!(parse_list(sized.as_bytes()), Err(ListError::BadEntry("patch_14".into())));
     }
 }

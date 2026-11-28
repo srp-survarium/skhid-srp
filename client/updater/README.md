@@ -982,7 +982,8 @@ list's SHA-256, and the list came from the update server over HTTPS.
 
   (the game's archive: `skhid-game  speed    <host>: ...`). The launcher's
   bar keeps its bytes across a move, and its speed and time left are those
-  of the address in use.
+  of the address in use (the one before for its first 2 s, below "The
+  launcher's bar").
 - **Redirects** are followed, up to 5 a download (the 6th is a failure),
   WinHTTP's own following being off: each `Location` (absolute, `//host`,
   `/path`, `?query` or relative) is resolved against the address it came
@@ -1102,14 +1103,54 @@ the installation lock):
    read back and hashed, and renamed to its name only when it has the
    list's SHA-256. When every address failed, the run ends; the part
    stays for the next start (one of no byte is deleted). The launcher's
-   line says which of them it is at, "(5/69)" after what is left of the
-   file (message `0B`, launcher patch 17; taken back when the downloads
-   end).
+   line says which of them it is at, "(5/69)" after what is left (message
+   `0B`, launcher patch 17; taken back when the downloads end). What is
+   left, the bar and the time left are of every patch still to come when
+   their sizes are known ("The launcher's bar", below), else of the file.
 6. The folder is checked against the list as `ready` checks it: no other
    patch file, the downloaded files as they were hashed (by their file ID
    in place; hashed again there if the rename did not keep it), the
    others as step 2 found them (nothing touched them since). Then the
    status says `ready`, and the record of the hashes is written.
+
+**The launcher's bar.** The launcher computes the time left of a download
+itself, `(total - done) / speed` of the progress message `01`, and "...
+left" is `total - done` (`srp-026g/docs/notes/launcher.md` 5.4, updater
+state 9; the message's own seconds left are shown only while it installs,
+"Extracting file ..."). So for its time left to be that of every patch,
+the bar is over them all (`logic/src/progress.rs`, `Step`): done is the
+bytes of the patches already in place this run, of the one downloading,
+and what the later ones' parts hold; total is all their sizes. It goes on
+from one patch to the next without a jump or a return to 0; "(5/69)"
+says which file it is at. That needs every size, which the list does
+not give (an entry of exactly `sha256` and `urls`: the updaters
+installed refuse any other member, and PLAY would stay off for them).
+So, when two patches or more are to be downloaded (and only then), the
+updater asks for them apart, once and briefly (5 s a step):
+
+```json
+{"patch_14": {"sha256": "<64 hex>", "size": 848021018}, "patch_17": {"sha256": "<64 hex>", "size": 76740663}}
+```
+
+`GET <server>/patch-sizes` (`patches::parse_sizes`: the list's keys,
+each value exactly `sha256` and `size`, a number of bytes above 0, at
+most 64 KB). A size counts only for the file of its number and SHA-256.
+No answer, another status, another form: the sizes built into the updater
+at release time (`SKHID_BUILTIN_PATCH_SIZES`, the `/patch-sizes` of
+`release/patches.tsv`, which `release/build-zip` passes to the build;
+also those of a run with the list built in). A patch to download whose
+size neither gives leaves the bar each file's, as before; a patch the
+torrent gave counts for nothing. The log says which (`patches: the
+launcher's bar is over the 5 downloads, <n> bytes in all`, or `patches:
+the size of resources.db.patch_<n> is not known: the launcher's bar is
+each file's`). Updaters before this one never ask; servers before it
+answer 404, and the bar is each file's.
+
+The speed is measured anew for each request (each patch, each address,
+each try) from its first report, and until it has run 2 s the speed
+measured of the one before is shown (`progress::Meter`): the time left
+does not vanish or jump at each patch's start. Another kind of progress
+(checking, the game's archive, an install) measures from nothing.
 
 Before each delete and each rename, `resources.db` is opened by the updater
 alone and closed again: the game keeps the db open while it runs (not its
