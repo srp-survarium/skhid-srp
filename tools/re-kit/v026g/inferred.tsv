@@ -3732,3 +3732,4 @@ va	status	ref_021d	name
 0x00172bf0	inferred-medium		vostok::render::stage_shadow_direct::is_cached_caster [descriptive]
 0x00173f10	inferred-medium		vostok::render::stage_shadow_direct::cascade_needs_static_draw [descriptive]
 0x001741f0	inferred-medium		vostok::render::stage_shadow_direct::is_cascade_updated_this_frame [descriptive]
+0x000396b0	inferred-medium	0x0002a301	vostok::collision::unmove_object [descriptive]

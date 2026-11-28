@@ -1,0 +1,11 @@
+# Patch 222: a loose octree's moved flags cleared by one loop, the same bytes
+# (octree_unmove_026g.asm). Only the decision: the site and the code.
+name = "octree_unmove"
+patch = 222
+
+# loose_oct_tree::unmove_all 0x396C0, whole
+[[hook]]
+site = "octree.unmove_all"
+source = "octree_unmove_026g.asm"
+symbol = "octree_unmove_all"
+limit = 160
