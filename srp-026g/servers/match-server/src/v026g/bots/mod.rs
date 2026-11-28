@@ -37,6 +37,7 @@ pub mod body;
 pub mod breach;
 pub mod camp_flank;
 pub mod carrier_home;
+pub mod carrier_strike;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
@@ -554,6 +555,9 @@ pub struct Bot {
     offers: threat::LastOffers,
     /// Its drift over the match for the match-end table (A294, `nav_drift.rs`): written, never read back.
     drift: nav_drift::Tally,
+    /// [patch 143] [measure] Its keep-off from enemy carriers' strikes this match, and whether the last tick kept off.
+    carrier_keep: carrier_strike::KeepCounts,
+    carrier_keeping: bool,
     /// Whether the match traces, and the trace lines made while driving
     /// (written at the bot's ticks).
     tracing: bool,
@@ -801,6 +805,8 @@ impl Bot {
             view: view_schedule::View::default(),
             offers: threat::LastOffers::default(),
             drift: nav_drift::Tally::default(),
+            carrier_keep: carrier_strike::KeepCounts::default(),
+            carrier_keeping: false,
             tracing: false,
             traced: Vec::new(),
             pause_until: 0,
@@ -2809,6 +2815,12 @@ impl Bots {
             "{}empty-clip reload reads since the last match end (every match on this server): by the world's pick {picked}, of them unlike the magazine's {differed}, no pick yet {unpicked}",
             nav_log::PREFIX
         ));
+        // [patch 143] The bots' keep-off from enemy carriers' strikes (`carrier_strike.rs`).
+        let mut keep = carrier_strike::KeepCounts::default();
+        for bot in self.bots.iter().flatten() {
+            keep.add(&bot.carrier_keep);
+        }
+        lines.push(format!("{}{}", nav_log::PREFIX, keep.line()));
         let split = nav_drift::cross_track::take_split();
         lines.extend(nav_drift::cross_track::split_lines(&split).into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
