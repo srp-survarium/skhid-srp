@@ -1241,6 +1241,15 @@ pub(crate) fn real_bot_cost() {
                 })
                 .collect();
             bots.set_shot_reach(reach);
+            // [Gap 8, patch 179] `SRP_BENCH_PROTECTION=on`: the map's spawn protection by team, as the live server gives it
+            // (`game/driven.rs`), and each bot's protected enemies after every world (`Bots::share_protection`). The
+            // stand-in's damage does not model protection: the bots' held fire is what it reads.
+            let protection_on = bench_settings().var("SRP_BENCH_PROTECTION").ok().as_deref() == Some("on");
+            if protection_on {
+                let row = survarium::v026g::maps::find(level, survarium::v026g::maps::weather::DAY, mode.into());
+                bots.set_spawn_protection_ms(row.map_or([None, None], |row| row.spawn_protection_ms));
+                eprintln!("  spawn protection by team: {:?} ms", row.map(|row| row.spawn_protection_ms));
+            }
             // The armour each bot wears against a zone's hits, as the stand-in's body wears it (the kit of the
             // bench's tier and rusher kit that has the bot's gun): read only with `HazardTuning::zone_pools`
             // routed, which also makes the stand-in's zones hurt the pools their hits take from.
@@ -1520,6 +1529,11 @@ pub(crate) fn real_bot_cost() {
             // opponent, and a change of the bots' aim does not move him.
             // [A302] `SRP_BENCH_CAMPER_AIM=hunter`: the hunter's tuning instead, a camping owner.
             let camper_options = camper::CamperOptions::from_env();
+            // [patch 179] The A/B's "before" arm: the shot rule off (`SRP_BENCH_SHOT_RULE=off`).
+            crate::v026g::bots::protection::held::SHOT_RULE_OFF.store(
+                bench_settings().var("SRP_BENCH_SHOT_RULE").ok().as_deref() == Some("off"),
+                std::sync::atomic::Ordering::Relaxed,
+            );
             let camper_aim = bench_settings().var("SRP_BENCH_CAMPER_AIM").ok();
             let camper_plays_by = Arc::new(camper_tuning(camper_aim.as_deref()).unwrap_or_else(|e| panic!("{e}")));
             bots.bench_camper = bench_settings()
@@ -2057,6 +2071,9 @@ pub(crate) fn real_bot_cost() {
                     // [shot origin] The bots' shots from now on are scattered at this world's age.
                     game.note_world(clock);
                     events.world(clock, &mut game, &bots);
+                    if protection_on {
+                        bots.share_protection();
+                    }
                     let world_tick = clock / TICK_MS * TICK_MS - 300;
                     let hurts = game.hurts_at(world_tick).unwrap_or_default();
                     let all_hits = game.hits_at(world_tick).unwrap_or_default();
@@ -2535,6 +2552,9 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  own trap refusals: {}", crate::v026g::bots::traps::own_trap_counts::line());
                 eprintln!("  own trap feet off route within 3 m: {}", crate::v026g::bots::traps::tight::line());
                 eprintln!("  own trap promise to world: {}", crate::v026g::bots::trap_know::landing_offsets::line());
+                // [patch 179] The match-end log's protection line, and the shots held off a protected target.
+                eprintln!("  base protection: {}", bots.base_report());
+                eprintln!("  protection held: {}", crate::v026g::bots::protection::held::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());
                 eprintln!("  trap looks, team 1: {}", looks[1].line());

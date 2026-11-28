@@ -563,6 +563,8 @@ pub struct Bot {
     next_think: u32,
     /// Sounds up to this time were heard already.
     heard_until: u32,
+    /// [patch 179] Its enemies' gun shots it heard or saw, and the lives whose protection they ended.
+    shots_known: protection::ShotsKnown,
     entered: Option<u32>,
     last_trace: u32,
     partner: Option<Place>,
@@ -804,6 +806,7 @@ impl Bot {
             pause_until: 0,
             next_think: 0,
             heard_until: 0,
+            shots_known: protection::ShotsKnown::default(),
             entered: None,
             last_trace: 0,
             partner: None,
@@ -1218,6 +1221,8 @@ pub struct Bots {
     bases: Vec<protection::Base>,
     /// [item 4] The base rule's entries so far: added to a bot's list, and spawn-rule ends it moved later.
     base_counts: (u32, u32),
+    /// [patch 179] Enemy lives whose protection a shot a bot heard or saw ended, a bot each.
+    shot_ends: u32,
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
     memo: plays::memo::Memo,
@@ -1315,6 +1320,7 @@ impl Bots {
             tactics: None,
             bases: Vec::new(),
             base_counts: (0, 0),
+            shot_ends: 0,
             memo: Default::default(),
             kit_armours: Vec::new(),
             teams: [team_state(tunings.of(0)), team_state(tunings.of(1))],
@@ -1879,6 +1885,17 @@ impl Bots {
                     }
                 }
             }
+            // [patch 179] An enemy it heard or saw fire a gun in his present life is protected no more, the base's entry
+            // too (the exact rule's world end is already none after his shot).
+            #[cfg(test)]
+            let rule_off = protection::held::SHOT_RULE_OFF.load(std::sync::atomic::Ordering::Relaxed);
+            #[cfg(not(test))]
+            let rule_off = false;
+            if tuning.aim.combat.spawn_protection && !exact && !rule_off {
+                self.shot_ends += bot.shots_known.end_protection(&mut list, |who| self.tracker.spawned_at(who));
+            }
+            #[cfg(test)]
+            bot.reflex.set_shooters(list.iter().map(|&(who, _)| who).filter(|&who| self.tracker.fired_this_life(who)).collect());
             bot.reflex.set_protected(list);
         }
         changes
@@ -1926,7 +1943,10 @@ impl Bots {
     }
 
     pub fn base_report(&self) -> String {
-        format!("added {}, ends moved later {}", self.base_counts.0, self.base_counts.1)
+        format!(
+            "added {}, ends moved later {}, protection ended by a shot {}",
+            self.base_counts.0, self.base_counts.1, self.shot_ends
+        )
     }
 
     /// [Gap 7] A trusted world's hand wounds of one place: a bot's own weapon is gated as the client gates it

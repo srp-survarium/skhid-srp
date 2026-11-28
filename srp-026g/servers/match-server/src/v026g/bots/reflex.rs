@@ -4586,6 +4586,9 @@ pub struct Reflex {
     protected: Vec<(Place, u32)>,
     /// [Gap 8] [measure] Ticks a shot was held off a protected target.
     protected_held: u32,
+    /// [patch 179] [measure] Its protected enemies that truly fired in their life (the bench's count only).
+    #[cfg(test)]
+    shooters: Vec<Place>,
     /// [Gap 7] [measure] Ticks its keys were gated by broken hands (aim, fire, a reload, a throw kept back).
     hands_gated: u32,
     /// The aim's slow wander about the target, radians (yaw, pitch).
@@ -8297,6 +8300,13 @@ impl Reflex {
         self.protected = protected;
     }
 
+    /// [patch 179] [measure] Its protected enemies that truly fired in their life (`Bots::share_protection`, the bench's
+    /// count only).
+    #[cfg(test)]
+    pub fn set_shooters(&mut self, shooters: Vec<Place>) {
+        self.shooters = shooters;
+    }
+
     /// [Gap 8] Whether `who` cannot be hurt at `now`.
     fn unhurtable(&self, who: Place, now: u32) -> bool {
         self.protected.iter().any(|&(place, until)| place == who && now < until)
@@ -8629,10 +8639,16 @@ impl Reflex {
 
     /// [Gap 8] No shot at a target a hit cannot hurt: the trigger let go (its counted rounds given back).
     fn protection_gate(&mut self, over: &mut Override, now: u32) {
+        #[cfg(test)]
+        if self.target.is_some_and(|target| self.unhurtable(target, now)) {
+            super::protection::held::targeted();
+        }
         if over.fire && self.target.is_some_and(|target| self.unhurtable(target, now)) {
             over.fire = false;
             self.hold_fire(now);
             self.protected_held += 1;
+            #[cfg(test)]
+            super::protection::held::count(self.target.is_some_and(|target| self.shooters.contains(&target)));
         }
     }
 

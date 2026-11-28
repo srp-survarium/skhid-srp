@@ -383,6 +383,21 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         rays,
         &mut bot.rng,
     );
+    // [patch 179] The enemies' gun shots its own senses had at this think (`protection::ShotsKnown`): a shot heard (a
+    // heard percept is busy for a shot only), or the shots of an enemy it sees, since its last think.
+    for percept in &percepts {
+        match percept.source {
+            Source::Heard if percept.busy => bot.shots_known.fired(percept.who, percept.time),
+            Source::Seen => {
+                for sound in view.sounds.iter().filter(|sound| {
+                    sound.time > bot.heard_until && sound.from == percept.who && sound.kind == crate::v026g::bots::view::SoundKind::Shot
+                }) {
+                    bot.shots_known.fired(percept.who, sound.time);
+                }
+            }
+            _ => {}
+        }
+    }
     bot.heard_until = now;
     // A sight it had, lost to smoke: one note (the reflex's notes, taken at its think).
     for &(who, outcome) in &looks {
