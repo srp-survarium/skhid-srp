@@ -1241,14 +1241,15 @@ pub(crate) fn real_bot_cost() {
                 })
                 .collect();
             bots.set_shot_reach(reach);
-            // [Gap 8, patch 179] `SRP_BENCH_PROTECTION=on`: the map's spawn protection by team, as the live server gives it
-            // (`game/driven.rs`), and each bot's protected enemies after every world (`Bots::share_protection`). The
-            // stand-in's damage does not model protection: the bots' held fire is what it reads.
-            let protection_on = bench_settings().var("SRP_BENCH_PROTECTION").ok().as_deref() == Some("on");
+            // [Gap 8, patch 179] `SRP_BENCH_PROTECTION` (on unless `off`): the map's spawn protection by team, as the live
+            // server gives it (`game/driven.rs`), each bot's protected enemies after every world (`Bots::share_protection`),
+            // and the stand-in's damage model's protection (`standin_protection.rs`: the spawn, the bases, a shot's end).
+            let protection_on = bench_settings().is_on("SRP_BENCH_PROTECTION");
+            let spawn_protection_ms = survarium::v026g::maps::find(level, survarium::v026g::maps::weather::DAY, mode.into())
+                .map_or([None, None], |row| row.spawn_protection_ms);
             if protection_on {
-                let row = survarium::v026g::maps::find(level, survarium::v026g::maps::weather::DAY, mode.into());
-                bots.set_spawn_protection_ms(row.map_or([None, None], |row| row.spawn_protection_ms));
-                eprintln!("  spawn protection by team: {:?} ms", row.map(|row| row.spawn_protection_ms));
+                bots.set_spawn_protection_ms(spawn_protection_ms);
+                eprintln!("  spawn protection by team: {spawn_protection_ms:?} ms");
             }
             // The armour each bot wears against a zone's hits, as the stand-in's body wears it (the kit of the
             // bench's tier and rusher kit that has the bot's gun): read only with `HazardTuning::zone_pools`
@@ -1290,6 +1291,12 @@ pub(crate) fn real_bot_cost() {
                 timed,
             );
             game.use_line = bench_settings().flag("SRP_BENCH_USE_LINE");
+            if protection_on {
+                game.protection = Some(super::standin_protection::Rule {
+                    spawn_ms: spawn_protection_ms,
+                    bases: crate::v026g::bots::protection::Base::of_map(&world.map),
+                });
+            }
             // The respawn delay from the live data's mode config and the radio.
             if live_data {
                 game.respawn_rule = respawn_rule_from_data(level, survarium::v026g::maps::weather::DAY, mode);
@@ -2554,6 +2561,7 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  own trap promise to world: {}", crate::v026g::bots::trap_know::landing_offsets::line());
                 // [patch 179] The match-end log's protection line, and the shots held off a protected target.
                 eprintln!("  base protection: {}", bots.base_report());
+                eprintln!("  {}", game.protection_counts.line());
                 eprintln!("  protection held: {}", crate::v026g::bots::protection::held::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());

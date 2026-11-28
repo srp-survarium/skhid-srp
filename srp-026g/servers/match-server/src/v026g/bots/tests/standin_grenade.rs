@@ -165,6 +165,12 @@ pub(crate) fn explode(game: &mut Game, thrower: Place, at: Vec3, tick: u32) -> V
         if !game.hurts(thrower, place, tick) {
             continue;
         }
+        // [Gap 8] A blast's hits on a protected body: dropped whole, or times `1 - factor` (`standin_protection.rs`).
+        let Some(scale) = game.protected_scale(place, tick) else {
+            continue;
+        };
+        let amount = amount * scale;
+        let body = &game.bodies[place];
         let enemy_blast = game.bodies[thrower].team != game.bodies[place].team;
         game.metric_rays += splash.affected.len() as u64;
         let hits: Vec<(usize, f32)> = splash

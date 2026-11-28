@@ -21,6 +21,8 @@ use super::view::Place;
 pub struct Base {
     pub team: u8,
     pub duration_ms: u32,
+    /// The zone's `invulnerability_attenuation`, ms: the fade after its end (the bench's stand-in game reads it).
+    pub fade_ms: u32,
     pub shapes: Vec<mapdata::project::Shape>,
 }
 
@@ -32,7 +34,7 @@ impl Base {
             .filter_map(|zone| {
                 let protection = zone.protection?;
                 let team = u8::try_from(zone.team).ok().filter(|&team| team < 2)?;
-                Some(Self { team, duration_ms: protection.duration_ms, shapes: zone.shapes.clone() })
+                Some(Self { team, duration_ms: protection.duration_ms, fade_ms: protection.attenuation_ms, shapes: zone.shapes.clone() })
             })
             .collect()
     }
@@ -227,7 +229,7 @@ mod tests {
         use mapdata::project::{Shape, ShapeKind};
         use mapdata::{Rotation, Vec3};
         let sphere = |x: f32| Shape { kind: ShapeKind::Sphere, center: Vec3::new(x, 0.0, 0.0), rotation: Rotation::IDENTITY, half: Vec3::new(5.0, 5.0, 5.0) };
-        let bases = vec![Base { team: 0, duration_ms: 2_000, shapes: vec![sphere(0.0)] }, Base { team: 1, duration_ms: 2_000, shapes: vec![sphere(100.0)] }];
+        let bases = vec![Base { team: 0, duration_ms: 2_000, fade_ms: 2_000, shapes: vec![sphere(0.0)] }, Base { team: 1, duration_ms: 2_000, fade_ms: 2_000, shapes: vec![sphere(100.0)] }];
         assert_eq!(base_until(&bases, 0, Vec3::new(1.0, 0.0, 0.0), 30_000), Some(32_001));
         assert_eq!(base_until(&bases, 0, Vec3::new(50.0, 0.0, 0.0), 30_000), None);
         assert_eq!(base_until(&bases, 1, Vec3::new(1.0, 0.0, 0.0), 30_000), None, "the other team's base");
