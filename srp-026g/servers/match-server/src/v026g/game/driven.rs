@@ -180,6 +180,22 @@ pub(super) struct Walkers {
     events_seen: usize,
     /// Whether their entry waits for their map ([`MAP_HOLD_CAP`]).
     hold: MapHold,
+    /// TEST ONLY: how the map is handed to the bots ([`Handover`]).
+    #[cfg(test)]
+    handover: Handover,
+}
+
+/// TEST ONLY: how the bots' map is handed to them in [`Walkers::world`].
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Handover {
+    /// As in the server: once it is built.
+    Now,
+    /// Not yet: the bots stay map-less (their entry held by [`MapHold`]).
+    Held,
+    /// Once built, and the poll that hands it over takes this much longer (a slow `tactics_ready`, as a big map's on
+    /// the server's one thread).
+    Slow(Duration),
 }
 
 impl Walkers {
@@ -316,6 +332,8 @@ impl Walkers {
             waiting: None,
             events_seen: 0,
             hold: MapHold::NotYet,
+            #[cfg(test)]
+            handover: Handover::Now,
             kit_in_use: all_kits,
             speed_kits,
             armour_kits,
@@ -378,6 +396,10 @@ impl Walkers {
     /// on a thread, handed to the bots once); `absent` set if there is
     /// none.
     fn world(&mut self, id: u32) -> Option<Arc<World>> {
+        #[cfg(test)]
+        if self.handover == Handover::Held {
+            return self.world.clone();
+        }
         if let Some(built) = self.tactics.as_ref() {
             match built.try_recv() {
                 Ok(tactics) => {
@@ -746,6 +768,14 @@ impl Game {
         self.walkers
             .as_ref()
             .is_some_and(|walkers| walkers.bots.has_map())
+    }
+
+    /// TEST ONLY: how the bots' map is handed to them from now on ([`Handover`]).
+    #[cfg(test)]
+    pub(crate) fn set_bots_handover(&mut self, handover: Handover) {
+        if let Some(walkers) = self.walkers.as_mut() {
+            walkers.handover = handover;
+        }
     }
 
     /// What the server's bot at `place` counts of its drugs, for the tests.
@@ -1179,7 +1209,16 @@ impl Game {
         let Some(walkers) = self.walkers.as_mut() else {
             return true;
         };
+        #[cfg(test)]
+        let had_map = walkers.bots.has_map();
         walkers.world(id);
+        #[cfg(test)]
+        if let Handover::Slow(took) = walkers.handover
+            && !had_map
+            && walkers.bots.has_map()
+        {
+            std::thread::sleep(took);
+        }
         let ready = walkers.absent || walkers.bots.has_map();
         let (hold, step) = walkers.hold.poll(now, ready, may_hold);
         walkers.hold = hold;
@@ -1213,7 +1252,13 @@ impl Game {
             return;
         }
         let clock = self.clock(now);
+        // [entry clock] The hold's check may hand the bots their map in this poll (`tactics_ready`, about 0.8 s on
+        // level_07 on the server's one thread): that time has passed for the clients too. The entries are stamped from
+        // the clock after it, else they reach a live client behind its clock (live, 2026-11-28: 15 bots stamped 900 ms
+        // reached a client at about 1,300 ms, never acked, never shown). The bots' own clock in this poll stays the poll's.
+        let started = Instant::now();
         let may_enter = self.live() > 0 && self.bots_may_enter(now);
+        let entry_now = now + started.elapsed();
         let mut due = Vec::new();
         for index in 0..self.drives.len() {
             if self.drives[index].is_none() {
@@ -1227,8 +1272,8 @@ impl Game {
                 if !may_enter {
                     continue;
                 }
-                let at = grid_up(clock + ROSTER_LEAD_MS);
-                let at = self.roster_change(None, index, true, at, now);
+                let at = grid_up(self.clock(entry_now) + ROSTER_LEAD_MS);
+                let at = self.roster_change(None, index, true, at, entry_now);
                 if let Some(drive) = self.drives[index].as_mut() {
                     drive.entered(at);
                 }

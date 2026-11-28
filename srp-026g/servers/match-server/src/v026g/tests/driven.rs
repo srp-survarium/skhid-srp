@@ -447,6 +447,63 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
     bench.assert_no_faults();
 }
 
+/// [entry clock] The bots enter after their map hold, in the poll that hands them their map, which takes 1 s more (as a
+/// big map's `tactics_ready` on the server's one thread): their entries are stamped from the clock after that poll's work,
+/// so they reach the client in sync ahead of its clock, as a human's entry does.
+#[test]
+fn the_bots_entries_after_a_slow_map_handover_are_stamped_after_it() {
+    let settings = Settings {
+        maps: Some(walking_map()),
+        ..Settings::default()
+    };
+    // One human of 6 places is under the countdown's 4 (6 x 0.8): the countdown and the bots wait for their map.
+    let mut bench = Bench::with_driven(6, MAP_TDM, settings, &[1, 2, 3, 4, 5]);
+    let id = bench.match_id;
+    let handover = |bench: &mut Bench, handover| {
+        bench
+            .server
+            .games
+            .get_mut(&id)
+            .expect("the match is running")
+            .set_bots_handover(handover);
+    };
+    // The match is made at the client's connect: its bots' map is held from then on.
+    bench.clients[0].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+    handover(&mut bench, crate::v026g::game::Handover::Held);
+    bench.clients[0].ready();
+    assert!(bench.until(30_000, |bench| bench.stages().starts_with('L') && bench.clients[0].model.is_synced()));
+    assert!(bench.until(2_000, |bench| bench.clients[0].entered() == [0]));
+    bench.run(200);
+    assert_eq!(bench.clients[0].entered(), [0], "the bots wait for their map");
+    assert_eq!(bench.stages(), "L-----");
+
+    // The bots' tactics are built on a thread of their own, in real time; the poll that hands them over takes 1 s.
+    let slow = std::time::Duration::from_millis(1_000);
+    handover(&mut bench, crate::v026g::game::Handover::Slow(slow));
+    let started = std::time::Instant::now();
+    let mut before = bench.clock();
+    while !bench.game().bots_have_map() {
+        assert!(started.elapsed().as_secs() < 20, "no tactics");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        before = bench.clock();
+        bench.step(5);
+    }
+    let entries: Vec<u32> = bench
+        .game()
+        .events()
+        .iter()
+        .filter(|(_, who, entered)| *who != 0 && *entered)
+        .map(|(at, _, _)| *at)
+        .collect();
+    assert_eq!(entries.len(), 5, "{:?}", bench.game().events());
+    // From the poll's own time (`before` + 5 ms), the 1 s it took, and the lead.
+    let after = before + 5 + slow.as_millis() as u32;
+    assert!(entries.iter().all(|&at| at >= after), "{entries:?}, the poll's work ended at {after} ms");
+    assert!(bench.until(2_000, |bench| bench.clients[0].entered().len() == 6));
+    bench.assert_no_faults();
+}
+
 /// The game-level intake (`Game::observe_stock`) on bytes a live client wrote:
 /// the roster place 2 is a real player's profile, and the worlds the client
 /// uploads hold that player's state as recorded in a match of 20 places
