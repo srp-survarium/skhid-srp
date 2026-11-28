@@ -1110,3 +1110,53 @@ fn client_pitch(game: &mut Game) {
         body.scale = crate::v026g::bots::pitch::PitchScale::Client;
     }
 }
+
+/// [use stands prewarm] The map's use stands are worked out at map load (`Bots::prewarm_use_stands`), at the match-wide tuning's
+/// eye and use ray whatever this thread's were before, and are the stands a first ask at that tuning works out: the same lists
+/// for every container and zone. Both eyes are asked, and their stands differ, so the load's are the tuning's.
+#[test]
+fn the_use_stands_made_at_map_load_are_the_first_asks() {
+    use crate::v026g::bots::view::{set_live_eye, set_use_ray_m};
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            set_live_eye(true);
+            set_use_ray_m(mapdata::stands::USE_RAY_M);
+        }
+    }
+    let _reset = Reset;
+    let world = soak_world();
+    let mut made = Vec::new();
+    for live in [true, false] {
+        let mut tuning = Tuning::default();
+        tuning.aim.combat.live_eye = live;
+        tuning.sense.use_ray_m = 1.8;
+        // The thread's flags other than the tuning's: the load sets its own.
+        set_live_eye(!live);
+        set_use_ray_m(mapdata::stands::USE_RAY_M);
+        let teams = [0u8, 1];
+        let mut bots = Bots::new(
+            0x7A6E,
+            survarium::v026g::maps::RuleMode::Batteries,
+            0,
+            &teams,
+            &[true, false],
+            &[None, None],
+            Arc::new(tuning),
+            Trace::none(0),
+        );
+        let line = bots.map_ready(world.clone());
+        assert!(line.contains("use stands prewarmed in"), "{line}");
+        assert!(bots.memo.use_stands_built(), "made at load");
+        let tactics = bots.tactics.as_ref().expect("the map");
+        // A first ask as the poll makes it: the tuning's flags set, a memo with nothing kept.
+        set_live_eye(live);
+        set_use_ray_m(1.8);
+        let lazy = super::plays::memo::Memo::default();
+        let (loaded, asked) = (bots.memo.use_stands(tactics), lazy.use_stands(tactics));
+        assert!(!loaded.of(0).is_empty() && !loaded.of(1).is_empty(), "both boxes have stands");
+        assert_eq!(format!("{loaded:?}"), format!("{asked:?}"), "live eye {live}");
+        made.push(format!("{loaded:?}"));
+    }
+    assert_ne!(made[0], made[1], "the eyes give other stands: the load's are the tuning's");
+}
