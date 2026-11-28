@@ -1464,7 +1464,7 @@ mod game_tests {
         // A bullet's shot: the table's shooters carry no shotgun (the Support role's primary); a shotgun's pellets fly
         // in the live shot alone (G35).
         assert!(standin_damage::ammo_of(&game.damage, gun).buck_shot <= 1, "the old shot is a bullet's");
-        standin_damage::hit(&game.damage, other, gun, along, 1, &mut game.rng, tick);
+        standin_damage::hit(&game.damage, other, gun, along, 1, 1.0, &mut game.rng, tick);
         other.last_hit = tick;
         other.stagger.hit(tick, standin_stagger::power_of(&game.damage, gun));
         let lethal = other.health <= 1e-3;
