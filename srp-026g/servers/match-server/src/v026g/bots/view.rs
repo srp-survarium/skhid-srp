@@ -1666,6 +1666,21 @@ impl Tracker {
             .collect()
     }
 
+    /// [patch 179] The start of a living player's life (`None` dead, or no spawn seen), as the fair rule reads it.
+    pub fn spawned_at(&self, place: Place) -> Option<u32> {
+        self.places
+            .get(place)
+            .filter(|state| state.alive && state.spawned != u32::MAX && state.spawned != 0)
+            .map(|state| state.spawned)
+    }
+
+    /// [patch 179] [measure] Whether a living player pressed fire in this life (the bench's count only: true state).
+    pub fn fired_this_life(&self, place: Place) -> bool {
+        self.spawned_at(place)
+            .zip(self.places.get(place).and_then(|state| state.last_shot))
+            .is_some_and(|(spawned, shot)| shot >= spawned)
+    }
+
     /// [Gap 13] The mode's plain respawn delay, ms (no radio).
     pub fn set_plain_respawn_ms(&mut self, ms: u32) {
         self.plain_respawn_ms = Some(ms);

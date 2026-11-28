@@ -12,6 +12,8 @@
 //!   an enemy is. So the bots take an enemy's protection by the rule a player can apply (his life's start and the
 //!   points' time), and the world's own end and fade only with `cheats.enemy_protection_exact`.
 
+use super::view::Place;
+
 /// A team's base: an `effect_zone` of the map with its team and its protection (`mapdata::project::Protection`, kept in
 /// the bots' maps since #1880): while a body of that team is inside it, the zone sets his end to the time now plus
 /// `duration_ms` every tick (`effect_zone_core::apply_invulnerability` 0x31ACA0, 0x31AD03..0x31AD15).
@@ -73,9 +75,132 @@ pub fn fully_until(exact: bool, world_end: Option<u32>, spawned: Option<u32>, po
     end.map(|end| end.saturating_add(1))
 }
 
+/// [patch 179] What one bot knows of its enemies' gun shots, and the lives whose protection a known shot ended.
+///
+/// Exe patch 179 (`client-patches/rust/patches/src/shot_protection.rs:16` `on_fired`, PROVEN in its code, Unicorn-checked,
+/// `docs/notes/shot-protection.md`): a gun's shot (`weapon_stats.fired` 0x2D7843 in `base_player::on_fire` 0x2D7800, which
+/// `weapon_core::instant_fire` 0x2E23A0 calls for every shot at 0x2E258D) sets the shooter's end to -1: his protection
+/// ends at once and whole, with no fade, until his next spawn; a base's zone never starts an ended one
+/// (`shot_protection.rs:24` `on_zone_protect`, the skip at `effect_zone.protect` 0x31AD0F). A melee strike
+/// (`weapon_core_melee_state_base::on_shoot` 0x33AB50 emits its bullet without on_fire), a thrown grenade and a battery's
+/// strike are not shots. So the fair rule counts only an enemy's fire (the FIRE key, bit 0x20, `player_bots.md`'s input
+/// table; melee is bit 0x8000000 and a throw 0x800000) that the bot itself heard or saw: never the team's word or a
+/// cheat.
+#[derive(Clone, Debug, Default)]
+pub struct ShotsKnown {
+    /// Each enemy's latest gun shot the bot heard or saw (match ms).
+    last: Vec<(Place, u32)>,
+    /// The lives (enemy, his life's start) whose protection a known shot ended, each counted once.
+    ended: Vec<(Place, u32)>,
+}
+
+impl ShotsKnown {
+    /// The bot heard or saw `who` fire a gun at `time`.
+    pub fn fired(&mut self, who: Place, time: u32) {
+        match self.last.iter_mut().find(|(place, _)| *place == who) {
+            Some((_, last)) => *last = (*last).max(time),
+            None => self.last.push((who, time)),
+        }
+    }
+
+    /// Whether a known shot ended the protection of the life that started at `spawned`.
+    fn ends(&self, who: Place, spawned: Option<u32>) -> bool {
+        let shot = self.last.iter().find(|(place, _)| *place == who).map(|&(_, time)| time);
+        matches!((spawned, shot), (Some(spawned), Some(shot)) if shot >= spawned)
+    }
+
+    /// Takes off `list` (enemy, until) each enemy whose present life (its start by `spawned`) has a known shot: the
+    /// spawn's entries and the base's alike, since no base gives an ended one back. Returns the lives ended for the
+    /// first time.
+    pub fn end_protection(
+        &mut self,
+        list: &mut Vec<(Place, u32)>,
+        spawned: impl Fn(Place) -> Option<u32>,
+    ) -> u32 {
+        self.ended.retain(|&(who, life)| spawned(who) == Some(life));
+        let mut new = 0;
+        list.retain(|&(who, _)| {
+            let life = spawned(who);
+            if !self.ends(who, life) {
+                return true;
+            }
+            if let Some(life) = life
+                && !self.ended.contains(&(who, life))
+            {
+                self.ended.push((who, life));
+                new += 1;
+            }
+            false
+        });
+        new
+    }
+}
+
+/// [patch 179] [measure] Ticks a bot's shot was held off a protected target, all and those on a target that truly fired
+/// in his life (the bench's true state, read for the count only), and the "before" switch of the bench's A/B.
+#[cfg(test)]
+pub mod held {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
+
+    static HELD: AtomicU64 = AtomicU64::new(0);
+    static ON_SHOOTER: AtomicU64 = AtomicU64::new(0);
+    /// The bench's "before" arm: the shot rule off (`SRP_BENCH_SHOT_RULE=off`).
+    pub static SHOT_RULE_OFF: AtomicBool = AtomicBool::new(false);
+
+    pub fn count(on_shooter: bool) {
+        HELD.fetch_add(1, Relaxed);
+        if on_shooter {
+            ON_SHOOTER.fetch_add(1, Relaxed);
+        }
+    }
+
+    pub fn line() -> String {
+        format!(
+            "held ticks {} on a shooter {} shot rule {}",
+            HELD.load(Relaxed),
+            ON_SHOOTER.load(Relaxed),
+            if SHOT_RULE_OFF.load(Relaxed) { "off" } else { "on" }
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [patch 179] An enemy heard or seen firing in his present life is no longer protected (the spawn's entry and the
+    /// base's), each life counted once; a shot before his present life ends nothing; an enemy who has not fired keeps his.
+    #[test]
+    fn a_known_shot_ends_the_shooters_protection_for_his_life() {
+        let mut shots = ShotsKnown::default();
+        // Enemy 3 spawned at 10 s, enemy 4 at 12 s, enemy 5 at 40 s (his earlier life fired at 20 s).
+        let spawned = |who| match who {
+            3 => Some(10_000),
+            4 => Some(12_000),
+            5 => Some(40_000),
+            _ => None,
+        };
+        shots.fired(5, 20_000);
+        let mut list = vec![(3, 16_001), (4, 18_001), (5, 46_001)];
+        assert_eq!(shots.end_protection(&mut list, spawned), 0);
+        assert_eq!(list, vec![(3, 16_001), (4, 18_001), (5, 46_001)], "no shot in a present life");
+        shots.fired(3, 11_500);
+        shots.fired(3, 11_000);
+        assert_eq!(shots.end_protection(&mut list, spawned), 1);
+        assert_eq!(list, vec![(4, 18_001), (5, 46_001)], "3 fired after his spawn");
+        // The next world gives 3 a base entry again: still ended, not counted twice.
+        let mut list = vec![(3, 14_001), (4, 18_001), (5, 46_001)];
+        assert_eq!(shots.end_protection(&mut list, spawned), 0);
+        assert_eq!(list, vec![(4, 18_001), (5, 46_001)], "no base gives an ended protection back");
+        // 3's next life is protected again until he fires in it.
+        let respawned = |who| if who == 3 { Some(30_000) } else { spawned(who) };
+        let mut list = vec![(3, 36_001)];
+        assert_eq!(shots.end_protection(&mut list, respawned), 0);
+        assert_eq!(list, vec![(3, 36_001)], "a new life");
+        shots.fired(3, 31_000);
+        assert_eq!(shots.end_protection(&mut list, respawned), 1, "the new life counted once");
+        assert!(list.is_empty());
+    }
 
     /// The client's factor: full to the end inclusive, then the fade's line, then nothing; no fade ends it at once.
     #[test]
