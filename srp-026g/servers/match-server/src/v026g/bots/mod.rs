@@ -1614,6 +1614,11 @@ impl Bots {
         let summary = if late > 0 { format!("{summary}; {late} bots spawned before the map, sides read now") } else { summary };
         self.tactics = Some(tactics);
         self.memo = Default::default();
+        // [core ways] The energy cores' battery spawners' ways in, both sides, made now, before any live field.
+        let summary = match self.tactics.as_ref().map(|tactics| self.memo.prewarm_zone_ways(tactics)) {
+            Some((asked, ms)) if asked > 0 => format!("{summary}; core ways in prewarmed: {asked} stands and sides in {ms:.1} ms"),
+            _ => summary,
+        };
         let summary = match self.prewarm_use_stands() {
             Some((ms, containers, zones)) => format!("{summary}; use stands prewarmed in {ms:.1} ms ({containers} containers, {zones} zones)"),
             None => summary,
@@ -2809,6 +2814,24 @@ impl Bots {
             drive::lip_repeats::take()
         ));
         // [crossing prewarm] The routed crossings' entry searches asked in play, and of them searched then (not made at load).
+        // [core ways] The energy cores' ways in: made at load, asks in play and what answered them, the ways dropped as the live
+        // fields of their box changed, the searches in play, sliced and begun again, and the polls their askers waited.
+        let ways = self.memo.zone_way_counts();
+        lines.push(format!(
+            "{}core ways in this match: made at load {} in {:.1} ms; asked in play {}, kept answers {}, dropped as the live fields in their box changed {}, searched in play {}, over more than one poll {} in {} runs, begun again as the fields changed {}, polls the askers waited {} (the longest {})",
+            nav_log::PREFIX,
+            ways.prewarmed,
+            ways.prewarm_ms,
+            ways.asks,
+            ways.kept_answers,
+            ways.dropped,
+            ways.searches,
+            ways.sliced,
+            ways.runs,
+            ways.restarts,
+            ways.waited_polls,
+            ways.longest_wait
+        ));
         let (entry_asks, entry_searches) = self.memo.entry_counts();
         lines.push(format!(
             "{}crossing entries this match: asked in play {entry_asks}, searched then {entry_searches} (the rest made at map load)",
@@ -3436,10 +3459,12 @@ impl Bots {
     /// walk ticks (the worst poll's walk work is bounded). Called by [`Self::poll`] and by the bench's timed copy of it, so
     /// the bench measures the server's budget.
     /// [entry slices] And the routed crossings' entry searches share [`plays::memo::ENTRY_POPS_A_POLL`] floor pops; the searches
-    /// under way run first with them, so an answer comes in while no commander pass asks.
+    /// under way run first with them, so an answer comes in while no commander pass asks. [core ways] The energy cores' way-in
+    /// searches have as many of their own ([`plays::memo::WAY_POPS_A_POLL`]), run the same way.
     pub(super) fn poll_budgets(&self) {
         mapdata::grid::controlled::set_pull_walk_budget(path::PULL_WALK_TICKS_A_POLL);
         self.memo.new_poll(self.tactics.as_ref(), plays::memo::ENTRY_POPS_A_POLL);
+        self.memo.new_poll_ways(self.tactics.as_ref(), plays::memo::WAY_POPS_A_POLL);
     }
 
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {

@@ -267,7 +267,7 @@ pub enum PopBudget {
 
 impl PopBudget {
     /// One pop taken, if one is left.
-    fn take(&mut self) -> bool {
+    pub(crate) fn take(&mut self) -> bool {
         match self {
             Self::Unbounded => true,
             Self::Left(0) => false,
