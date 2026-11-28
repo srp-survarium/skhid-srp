@@ -316,6 +316,122 @@
         "ring_every": 4.0,
         "visuals": {}
       }
+    },
+    {
+      "files": [
+        "projects/v069d_level_02/day_2/client_project",
+        "projects/v069d_level_02/day_3/client_project",
+        "projects/v069d_level_02/day_4/client_project",
+        "projects/v069d_level_02/day_5/client_project",
+        "projects/v069d_level_02/day_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bell0",
+      "value": {
+        "glass_from_x": 0.12605886706317804,
+        "glass_from_y": 19.473514707539206,
+        "glass_from_z": 106.2689977421496,
+        "glass_to_x": 0.12605886706317804,
+        "glass_to_y": 19.473514707539206,
+        "glass_to_z": 106.2689977421496,
+        "lights": {},
+        "max_x": 0.18511692227519763,
+        "max_y": 19.63603058333357,
+        "max_z": 106.4429977430224,
+        "min_x": 0.06700081185115847,
+        "min_y": 19.31099883174484,
+        "min_z": 106.09499774127679,
+        "reaction": "ring",
+        "ring_every": 4.0,
+        "visuals": {}
+      }
+    },
+    {
+      "files": [
+        "projects/v069d_level_02/day_2/client_project",
+        "projects/v069d_level_02/day_3/client_project",
+        "projects/v069d_level_02/day_4/client_project",
+        "projects/v069d_level_02/day_5/client_project",
+        "projects/v069d_level_02/day_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bell1",
+      "value": {
+        "glass_from_x": 42.95400457670158,
+        "glass_from_y": 23.621499281941574,
+        "glass_from_z": 81.06009770609617,
+        "glass_to_x": 42.95400457670158,
+        "glass_to_y": 23.621499281941574,
+        "glass_to_z": 81.06009770609617,
+        "lights": {},
+        "max_x": 43.013429800876686,
+        "max_y": 23.78399945547647,
+        "max_z": 81.23420499284802,
+        "min_x": 42.89457935252647,
+        "min_y": 23.458999108406683,
+        "min_z": 80.88599041934431,
+        "reaction": "ring",
+        "ring_every": 4.0,
+        "visuals": {}
+      }
+    },
+    {
+      "files": [
+        "projects/v069d_level_02/day_2/client_project",
+        "projects/v069d_level_02/day_3/client_project",
+        "projects/v069d_level_02/day_4/client_project",
+        "projects/v069d_level_02/day_5/client_project",
+        "projects/v069d_level_02/day_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bell2",
+      "value": {
+        "glass_from_x": 11.014367598156454,
+        "glass_from_y": 19.51648329643264,
+        "glass_from_z": 72.8738119360003,
+        "glass_to_x": 11.014367598156454,
+        "glass_to_y": 19.51648329643264,
+        "glass_to_z": 72.8738119360003,
+        "lights": {},
+        "max_x": 11.191362633199713,
+        "max_y": 19.679063087471178,
+        "max_z": 72.94685282945511,
+        "min_x": 10.837372563113195,
+        "min_y": 19.3539035053941,
+        "min_z": 72.80077104254546,
+        "reaction": "ring",
+        "ring_every": 4.0,
+        "visuals": {}
+      }
+    },
+    {
+      "files": [
+        "projects/v069d_level_02/day_2/client_project",
+        "projects/v069d_level_02/day_3/client_project",
+        "projects/v069d_level_02/day_4/client_project",
+        "projects/v069d_level_02/day_5/client_project",
+        "projects/v069d_level_02/day_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bell3",
+      "value": {
+        "glass_from_x": 29.850368040661337,
+        "glass_from_y": 19.51648329643264,
+        "glass_from_z": 72.8738119360003,
+        "glass_to_x": 29.850368040661337,
+        "glass_to_y": 19.51648329643264,
+        "glass_to_z": 72.8738119360003,
+        "lights": {},
+        "max_x": 30.027363075704596,
+        "max_y": 19.679063087471178,
+        "max_z": 72.94685282945511,
+        "min_x": 29.67337300561808,
+        "min_y": 19.3539035053941,
+        "min_z": 72.80077104254546,
+        "reaction": "ring",
+        "ring_every": 4.0,
+        "visuals": {}
+      }
     }
   ]
 }
