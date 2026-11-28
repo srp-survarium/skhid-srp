@@ -392,6 +392,11 @@ pub struct CoverTally {
     pub shut_partial: std::sync::atomic::AtomicU64,
     /// Shut: the bullet stopped.
     pub shut_stopped: std::sync::atomic::AtomicU64,
+    /// The wall share's trace (client patch 175, `damage::wall_share`): the tests whose bullet crossed one face or
+    /// more and was not stopped, and the share of the damage they kept (thousandths) summed: as the test left it, so a
+    /// shut line's is where it gave up (at most the tuning's share).
+    pub walled: std::sync::atomic::AtomicU64,
+    pub walled_share_milli: std::sync::atomic::AtomicU64,
     /// The first [`COVER_EVENTS`] of `open_through`, drained by the bench's event file.
     events: std::sync::Mutex<Vec<CoverEvent>>,
     /// Hiding-spot queries weighed by the share that reaches (`CoverRule::spot_cost`) that found a spot.
@@ -3696,6 +3701,10 @@ impl Tactics {
         };
         let line = super::rays::follow(&self.world.sight, a, b, pierce, if exact { 0.0 } else { max_share });
         let share = line.share.value();
+        if line.crossed > 0 && share > 0.0 {
+            tally.walled.fetch_add(1, Relaxed);
+            tally.walled_share_milli.fetch_add((share * 1000.0).round() as u64, Relaxed);
+        }
         if share > max_share {
             // Open. Through cover where the solid mesh has a wall: the lines the pierce opens.
             if self.sees(a, b) {
