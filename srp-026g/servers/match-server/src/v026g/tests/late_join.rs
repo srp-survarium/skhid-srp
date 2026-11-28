@@ -7,6 +7,7 @@ use crate::v026g::JoinError;
 use session::matchmaking_policy::Closed;
 use survarium::v026g::match_msgs::late_join::{Prepare, Prepared, Status};
 use survarium::v026g::match_msgs::{ServerMessage, id, rules::state};
+use survarium::v026g::match_msgs::static_info::{Privacy, parse_options};
 
 fn running() -> Bench {
     let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
@@ -1695,9 +1696,18 @@ fn a_newcomer_that_loads_again_gives_the_games_their_install_grace_again() {
     bench.assert_no_faults();
 }
 
+/// What the static info the match server holds for the bench's match says
+/// of its room.
+fn privacy_of(bench: &Bench) -> Privacy {
+    let formed = bench.registry.formed(bench.match_id).unwrap();
+    parse_options(formed.info.options(), survarium::v026g::dictionary::Dictionary::shared()).unwrap().privacy
+}
+
 /// A room with a PIN's match (`MatchKind::PrivateRoom`): its result says so,
 /// a late joiner's place in it too, so the rewards pay none of them (the
-/// owner's of 2026-10-20).
+/// owner's of 2026-10-20); and its games are told so, the late
+/// joiner too (the static info's private room entry: the collision
+/// view's fill).
 #[test]
 fn a_private_rooms_result_says_so_with_its_late_joiner() {
     let mut private = setup(2, MAP_BATTERIES);
@@ -1709,6 +1719,10 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
     let place = reserve(&mut bench);
     bench.clients[place].connect();
     assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
+    assert_eq!(privacy_of(&bench), Privacy::PrivateRoom, "the static info the match holds");
+    let told = |client: &Client| client.model.options.as_ref().map(|options| options.privacy);
+    assert!(bench.clients.iter().all(|client| told(client) == Some(Privacy::PrivateRoom)),
+            "every game told, the late joiner's 0xE4 too");
     bench.clients[place].ready();
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
@@ -1722,6 +1736,7 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
 
     // Any other match's does not.
     let bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    assert_eq!(privacy_of(&bench), Privacy::Public);
     assert_eq!(
         bench.registry.formed(bench.match_id).unwrap().kind,
         session::v026g::match_kind::MatchKind::Normal

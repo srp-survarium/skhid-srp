@@ -21,6 +21,17 @@
 //! player's bodies (the hit model's group 40h, the character controller's
 //! 824h) and whatever moves (a battery 0A18h, a grenade 818h) never are, so
 //! the view shows nothing the map does not.
+//!
+//! The fill (`fill`) only where the match shown allows it (the owner,
+//! 2026-11-28: "collision fill only works in private lobbies"): a private
+//! room's match, which the server says with srp's block's entry 8 after the
+//! options (`static_info.options_read`; tag 8, one byte 1), or any replay
+//! (`replay.options_read`: not live). The options last read decide, as for
+//! patches 65 and 142; none read yet, or a match without the entry (an open
+//! room's, a clan match, Player vs Bots, an older server's): the lines alone.
+//! There `fill` is refused, nothing changed; a view filled before is drawn
+//! as lines in such a match, the console told once, and filled again in the
+//! next match that allows it.
 
 #![forbid(unsafe_code)]
 
@@ -34,18 +45,63 @@ use crate::vostok::console::{self, Command, ConsoleArguments, ConsoleCommand, Li
 use crate::vostok::debug_lines::{DebugLines, LineBuffer, LineColor};
 use crate::vostok::geometry::{Distance, WorldPoint, box_within};
 use crate::vostok::log::{self, Piece};
+use crate::vostok::parse::Reader;
 use crate::vostok::shape::{Shape, Triangle, TriangleMethods, TriangleSink};
 use crate::vostok::project::PhysicsId;
 use crate::vostok::world::{Motion, PhysicsWorld, ZoneState, for_each_damage_zone, match_shown};
-use crate::vostok::{Context, Flow, NoExit, OrigCcDelegateExecute, OrigTriangleProcess, Thread, YieldingLock,
-                    collision_view_methods_vtable_handle, collision_view_triangles_vtable_handle};
+use crate::vostok::{Context, Flow, NoExit, OptionsRead, OrigCcDelegateExecute, OrigTriangleProcess, Thread,
+                    YieldingLock, collision_view_methods_vtable_handle, collision_view_triangles_vtable_handle};
 
 const NAME: &CStr = c"collision";
 
 static COMMAND: Command = Command::new();
 
 /// Held by the render thread through its draws: a yielding lock.
-static STATE: YieldingLock<Collision> = YieldingLock::new(Collision { view: View::Off, rooms: Rooms::Unmade });
+static STATE: YieldingLock<Collision> =
+    YieldingLock::new(Collision { view: View::Off, rooms: Rooms::Unmade, shown: Shown::Public });
+
+/// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
+const SRPX: [u8; 4] = *b"SRPX";
+/// A private room's match: one byte, 1 (the server's `SRPX_PRIVATE_ROOM`).
+const TAG_PRIVATE_ROOM: u8 = 8;
+
+/// The match the options last read are of, as the view's fill sees it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shown {
+    /// A live match without the private room entry (an open room's, a clan
+    /// match, Player vs Bots, an older server's), or none read yet.
+    Public,
+    /// A live match of a room with a PIN: the server's entry.
+    PrivateRoom,
+    /// A replay, of any match.
+    Replay,
+}
+
+impl Shown {
+    /// What a match's options say: srp's block (the bytes after the
+    /// options' squads) with the private room entry, or not; an entry of
+    /// another tag or length is stepped over, a cut one ends the block.
+    fn of_match(mut rest: Reader) -> Shown {
+        if rest.array::<4>() != Some(SRPX) {
+            return Shown::Public;
+        }
+        let mut shown = Shown::Public;
+        while let (Some(tag), Some(len)) = (rest.u8(), rest.u8()) {
+            let Some(entry) = rest.take(usize::from(len)) else { break };
+            if (tag, entry) == (TAG_PRIVATE_ROOM, &[1][..]) {
+                shown = Shown::PrivateRoom;
+            }
+        }
+        shown
+    }
+
+    fn fills(self) -> bool {
+        match self {
+            Shown::PrivateRoom | Shown::Replay => true,
+            Shown::Public => false,
+        }
+    }
+}
 
 /// The radii a read tries (m), the largest whose lines fit the room drawn.
 const RADII: [f32; 3] = [20.0, 10.0, 5.0];
@@ -158,6 +214,12 @@ struct Filter {
 
 impl Filter {
     const ALL: Filter = Filter { only: None, fill: Fill::Lines };
+
+    /// What is drawn of it in a match `shown`: its fill only where that
+    /// allows it, else its lines.
+    fn drawn_in(self, shown: Shown) -> Filter {
+        if shown.fills() { self } else { Filter { fill: Fill::Lines, ..self } }
+    }
 }
 
 /// What the command was given.
@@ -274,15 +336,20 @@ enum Rooms {
     Lent { shown: LineBuffer },
 }
 
-/// The view and its rooms.
+/// The view (its filter what was asked), its rooms, and the match the
+/// options last read are of (what of the filter is drawn).
 struct Collision {
     view: View,
     rooms: Rooms,
+    shown: Shown,
 }
 
 /// A read the camera's thread makes outside the lock, into the spare room.
 struct Read {
+    /// The view's.
     filter: Filter,
+    /// What it draws of it ([`Filter::drawn_in`]).
+    drawn: Filter,
     after: Previous,
     at: ReadAt,
     lines: LineBuffer,
@@ -296,6 +363,11 @@ enum Reply {
     Usage,
     /// No room for the lines: still off.
     NoRoom,
+    /// `fill` where the match shown does not allow it: nothing changed.
+    FillRefused,
+    /// A match that does not allow the fill came while the view is filled:
+    /// lines in it.
+    LinesHere,
 }
 
 /// What a read reads: the level near the eye.
@@ -311,6 +383,17 @@ impl Collision {
         matches!(self.rooms, Rooms::Unmade)
     }
 
+    /// Whether `request` asks for the fill where the match shown does not allow it.
+    fn refuses(&self, request: Request) -> bool {
+        matches!(request, Request::Show(Filter { fill: Fill::Filled, .. })) && !self.shown.fills()
+    }
+
+    /// Whether `request` needs the rooms made first: one that can turn the
+    /// view on (not a wrong argument nor a refused fill) while they are unmade.
+    fn needs_rooms(&self, request: Request) -> bool {
+        request != Request::Unknown && !self.refuses(request) && self.unmade()
+    }
+
     /// `rooms`, made by the caller when unmade, are taken when the view turns on.
     fn command(&mut self, request: Request, rooms: Option<(LineBuffer, LineBuffer)>) -> Reply {
         let shown = match self.view {
@@ -319,9 +402,10 @@ impl Collision {
         };
         let view = match (shown, request) {
             (_, Request::Unknown) => return Reply::Usage,
-            (None, Request::Toggle) => View::Starting { filter: Filter::ALL },
             (Some(_), Request::Toggle) => View::Off,
             (Some(shown), Request::Show(filter)) if shown == filter => View::Off,
+            (_, request) if self.refuses(request) => return Reply::FillRefused,
+            (None, Request::Toggle) => View::Starting { filter: Filter::ALL },
             (_, Request::Show(filter)) => View::Starting { filter },
         };
         if view != View::Off && self.unmade() {
@@ -335,6 +419,22 @@ impl Collision {
         }
     }
 
+    /// A match's or a replay's options read: it is the match shown from now
+    /// on. A filled view whose drawing changes with it starts again (a read
+    /// out is dropped at its end); one now drawn as lines tells the console.
+    fn options_read(&mut self, shown: Shown) -> Option<Reply> {
+        let was = core::mem::replace(&mut self.shown, shown);
+        let filter = match self.view {
+            View::Off => return None,
+            View::Starting { filter } | View::On { filter, .. } | View::Reading { filter, .. } => filter,
+        };
+        if filter.drawn_in(was) == filter.drawn_in(shown) {
+            return None;
+        }
+        self.view = View::Starting { filter };
+        (!shown.fills()).then_some(Reply::LinesHere)
+    }
+
     /// The read a match's camera at `at` makes: after a start or a filter's
     /// change, or when the last read is stale; none while one is out.
     fn next_read(&mut self, at: ReadAt) -> Option<Read> {
@@ -344,11 +444,12 @@ impl Collision {
             View::On { filter, fit } if fit.at.stale(at) => (filter, Previous::Shown(fit)),
             View::On { .. } => return None,
         };
+        let drawn = filter.drawn_in(self.shown);
         match core::mem::replace(&mut self.rooms, Rooms::Unmade) {
             Rooms::Home { shown, spare } => {
                 self.rooms = Rooms::Lent { shown };
                 self.view = View::Reading { filter, after };
-                Some(Read { filter, after, at, lines: spare })
+                Some(Read { filter, drawn, after, at, lines: spare })
             }
             other => {
                 self.rooms = other;
@@ -400,7 +501,7 @@ fn fill(level: &impl Level, read: &mut Read) -> (usize, Option<Census>) {
     };
     loop {
         read.lines.clear();
-        level.outline(RADII[index], read.filter, &mut read.lines);
+        level.outline(RADII[index], read.drawn, &mut read.lines);
         if !read.lines.is_cut() || index + 1 == RADII.len() {
             break;
         }
@@ -651,11 +752,37 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The options read: the match shown from now on, and what the console is told of it.
+fn options_read(thread: &Thread, shown: Shown) -> Flow<NoExit> {
+    if let Some(reply) = STATE.with(thread, |state| state.options_read(shown)) {
+        for (text, suffix) in reply_lines(reply) {
+            let mut line = Line::new();
+            line.push(text);
+            line.push(suffix);
+            tell(thread, &line);
+        }
+    }
+    Flow::Continue
+}
+
+/// process_static_match_info after its deserialize (0x27B92D): a live
+/// match, private when srp's block says so.
+pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let shown = OptionsRead::at_static_info(ctx).map_or(Shown::Public, |read| Shown::of_match(read.rest()));
+    options_read(ctx.thread(), shown)
+}
+
+/// A replay's chunk 1 after its deserialize (0x1F0971): a replay, whatever
+/// its options say.
+pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    options_read(ctx.thread(), Shown::Replay)
+}
+
 /// The console executes `collision`.
 pub fn on_execute(_: &OrigCcDelegateExecute, command: &mut ConsoleCommand<'_>, arguments: &ConsoleArguments<'_>) {
     let thread = command.thread();
     let request = Request::parse(arguments.text().map_or(&[][..], CStr::to_bytes));
-    let make = request != Request::Unknown && STATE.with(thread, |state| state.unmade());
+    let make = STATE.with(thread, |state| state.needs_rooms(request));
     let rooms = if make { LineBuffer::make_pair(thread, VERTICES) } else { None };
     let reply = STATE.with(thread, |state| state.command(request, rooms));
     for (text, suffix) in reply_lines(reply) {
@@ -736,7 +863,7 @@ const HELP: [&str; 6] = [
     "  collision shot    - what stops bullets and the camera (magenta + white)",
     "  collision solid   - what stops both (white)",
     "  collision anomaly - anomaly damage zones (red, dim when off)",
-    "  ... fill          - after any of these (or alone): surfaces filled, to find holes",
+    "  ... fill          - after any of these (or alone): surfaces filled, to find holes (private rooms, replays)",
     "  collision         - again to turn off",
 ];
 
@@ -759,6 +886,8 @@ fn reply_lines(reply: Reply) -> impl Iterator<Item = (&'static str, &'static str
         Reply::Off => (("collision: off", ""), &[]),
         Reply::Usage => (("collision: collision [walk | shot | solid | anomaly] [fill]", ""), &HELP),
         Reply::NoRoom => (("collision: no room for its lines, still off", ""), &[]),
+        Reply::FillRefused => (("collision: fill only in private rooms and replays", ""), &[]),
+        Reply::LinesHere => (("collision: fill only in private rooms and replays: lines in this match", ""), &[]),
     };
     core::iter::once(first).chain(help.iter().map(|text| (*text, "")))
 }
@@ -813,7 +942,11 @@ mod tests {
     }
 
     fn state() -> Collision {
-        Collision { view: View::Off, rooms: Rooms::Unmade }
+        Collision { view: View::Off, rooms: Rooms::Unmade, shown: Shown::Public }
+    }
+
+    fn state_in(shown: Shown) -> Collision {
+        Collision { shown, ..state() }
     }
 
     fn rooms() -> Option<(LineBuffer, LineBuffer)> {
@@ -841,7 +974,95 @@ mod tests {
     }
 
     fn read(after: Previous, size: usize) -> Read {
-        Read { filter: Filter::ALL, after, at: at(0.0, 1), lines: buffer(size) }
+        Read { filter: Filter::ALL, drawn: Filter::ALL, after, at: at(0.0, 1), lines: buffer(size) }
+    }
+
+    fn filled(only: Option<LevelGroup>) -> Filter {
+        Filter { only, fill: Fill::Filled }
+    }
+
+    /// What the next read at `at` draws, its read finished.
+    fn drawn_next(s: &mut Collision, at: ReadAt) -> Option<Filter> {
+        let mut read = s.next_read(at)?;
+        let drawn = read.drawn;
+        let (start, census) = fill(&fake(|_| 3), &mut read);
+        s.finish(read, start, census);
+        Some(drawn)
+    }
+
+    #[test]
+    fn the_private_room_entry_in_srps_block() {
+        let shown = |bytes: &[u8]| Shown::of_match(Reader::new(bytes));
+        assert_eq!(shown(b"SRPX\x08\x01\x01"), Shown::PrivateRoom);
+        assert_eq!(shown(b"SRPX\x02\x01\x01\x07\x02\x00\x01\x08\x01\x01"), Shown::PrivateRoom, "after others");
+        assert_eq!(shown(b"SRPX\x09\x03xyz\x08\x01\x01"), Shown::PrivateRoom, "after an unknown tag");
+        assert_eq!(shown(b"SRPX\x08\x01\x01\x04\x02\x2c\x01"), Shown::PrivateRoom, "before others");
+        // No block, a block without it, another value or length, a cut entry,
+        // another magic: a public match.
+        for bytes in [&b""[..], b"SRPX", b"SRPX\x02\x01\x01", b"SRPX\x08\x01\x00", b"SRPX\x08\x02\x01\x01",
+                      b"SRPX\x08\x01", b"SRPY\x08\x01\x01", b"SRPX\x05\x03\x08\x01\x01"] {
+            assert_eq!(shown(bytes), Shown::Public, "{bytes:?}");
+        }
+        assert!(Shown::PrivateRoom.fills() && Shown::Replay.fills() && !Shown::Public.fills());
+    }
+
+    #[test]
+    fn fill_only_in_a_private_room_or_a_replay() {
+        let walk = Some(LevelGroup::Walk);
+        for request in [Request::Show(filled(None)), Request::Show(filled(walk))] {
+            let mut s = state();
+            assert!(!s.needs_rooms(request), "refused: no rooms made for it");
+            assert_eq!(s.command(request, rooms()), Reply::FillRefused, "no match read yet");
+            assert_eq!((s.view, s.unmade()), (View::Off, true), "nothing changed");
+            assert_eq!(s.options_read(Shown::Public), None);
+            assert_eq!(s.command(request, rooms()), Reply::FillRefused, "a public match");
+            for allowed in [Shown::PrivateRoom, Shown::Replay] {
+                let mut s = state_in(allowed);
+                assert!(s.needs_rooms(request));
+                let Request::Show(filter) = request else { unreachable!() };
+                assert_eq!(s.command(request, rooms()), Reply::On(filter), "{allowed:?}");
+                assert_eq!(drawn_next(&mut s, at(0.0, 1)), Some(filter), "drawn filled");
+            }
+        }
+        // The lines are any match's; a filled view on goes on to its lines.
+        let mut s = state();
+        assert_eq!(s.command(Request::Toggle, rooms()), Reply::On(Filter::ALL));
+        assert_eq!(s.command(Request::Show(Filter { only: walk, fill: Fill::Lines }), None),
+                   Reply::On(Filter { only: walk, fill: Fill::Lines }));
+        assert_eq!(s.command(Request::Show(filled(walk)), None), Reply::FillRefused);
+        assert_eq!(s.view, View::Starting { filter: Filter { only: walk, fill: Fill::Lines } }, "still the lines");
+    }
+
+    #[test]
+    fn a_filled_view_draws_lines_in_a_match_that_does_not_allow_it() {
+        let mut s = state_in(Shown::PrivateRoom);
+        s.command(Request::Show(filled(None)), rooms());
+        assert_eq!(drawn_next(&mut s, at(0.0, 1)), Some(filled(None)));
+        assert_eq!(s.options_read(Shown::PrivateRoom), None, "another private match: as it was");
+        assert!(matches!(s.view, View::On { .. }));
+        assert_eq!(s.options_read(Shown::Public), Some(Reply::LinesHere), "a public match: told once");
+        assert_eq!(s.view, View::Starting { filter: filled(None) }, "the asked filter kept, read again");
+        assert_eq!(drawn(&s), 0, "the filled lines no longer shown");
+        assert_eq!(drawn_next(&mut s, at(0.0, 2)), Some(Filter::ALL), "its lines alone");
+        assert_eq!(s.options_read(Shown::Public), None, "the next public match: nothing to tell");
+        assert_eq!(s.command(Request::Show(filled(None)), None), Reply::Off, "what is shown again: off, not refused");
+        s.command(Request::Toggle, None);
+        assert_eq!(s.options_read(Shown::Replay), None, "a lines view: nothing to tell");
+        assert_eq!(s.command(Request::Show(filled(None)), None), Reply::On(filled(None)));
+        assert_eq!(drawn_next(&mut s, at(0.0, 3)), Some(filled(None)), "a replay fills");
+        assert_eq!(s.options_read(Shown::PrivateRoom), None, "a replay then a private match: filled in both");
+        assert!(matches!(s.view, View::On { .. }));
+        // A read out while a public match's options are read: dropped, read again with lines.
+        assert_eq!(s.options_read(Shown::Public), Some(Reply::LinesHere));
+        assert_eq!(drawn_next(&mut s, at(0.0, 4)), Some(Filter::ALL));
+        assert_eq!(s.options_read(Shown::PrivateRoom), None, "back in a private match: filled again, nothing told");
+        let out = s.next_read(at(0.0, 5)).unwrap();
+        assert_eq!(out.drawn, filled(None));
+        assert_eq!(s.options_read(Shown::Public), Some(Reply::LinesHere));
+        assert_eq!(s.finish(out, 0, None), None);
+        assert_eq!(s.view, View::Starting { filter: filled(None) }, "the filled read dropped");
+        assert_eq!(drawn(&s), 0);
+        assert_eq!(drawn_next(&mut s, at(0.0, 5)), Some(Filter::ALL));
     }
 
     #[test]
@@ -1078,7 +1299,7 @@ mod tests {
         let mut all = vec!["collision: on, all (walk green, shot magenta, solid white, anomaly red)".to_string()];
         all.extend(HELP.map(String::from));
         assert_eq!(said(Reply::On(Filter::ALL)), all);
-        assert_eq!(HELP[4], "  ... fill          - after any of these (or alone): surfaces filled, to find holes");
+        assert_eq!(HELP[4], "  ... fill          - after any of these (or alone): surfaces filled, to find holes (private rooms, replays)");
         assert_eq!(said(on(None, Fill::Filled))[0],
                    "collision: on, all (walk green, shot magenta, solid white, anomaly red), filled");
         assert_eq!(said(on(Some(LevelGroup::Anomaly), Fill::Lines)), ["collision: on, anomaly (red, dim when off)"]);
@@ -1090,6 +1311,8 @@ mod tests {
         assert_eq!(said(Reply::Usage)[0], "collision: collision [walk | shot | solid | anomaly] [fill]");
         assert_eq!(said(Reply::Usage)[1..], HELP);
         assert_eq!(said(Reply::NoRoom), ["collision: no room for its lines, still off"]);
+        assert_eq!(said(Reply::FillRefused), ["collision: fill only in private rooms and replays"]);
+        assert_eq!(said(Reply::LinesHere), ["collision: fill only in private rooms and replays: lines in this match"]);
         let census: Vec<_> = core::iter::once(None)
             .chain(GROUPS.map(Some))
             .map(|group| {

@@ -44,6 +44,7 @@ fn options(blackout: bool) -> info::MatchOptions {
         match_id: 0x1234_5678,
         match_level: 3,
         score_weights: info::SCORE_WEIGHTS,
+        privacy: info::Privacy::Public,
     }
 }
 
@@ -361,5 +362,32 @@ fn a_map_id_over_a_byte_is_its_low_byte_and_srps_entry() {
         (44, b"SRPX"),
     ] {
         assert!(messages::options(&wide(byte, block), &data).is_err(), "{byte} {block:?}");
+    }
+}
+
+/// A private room's match (tag 8, patch 156's collision fill): the server's
+/// options pass the games' check alone, after Blackout's entry and its
+/// notices, and after a free-for-all's; twice or of another value: refused,
+/// by the check and by the server's reader alike.
+#[test]
+fn a_private_rooms_entry_passes_in_every_mode() {
+    let data = Data(Dictionary::shared());
+    let free_for_all = maps::playable()
+        .find(|map| map.mode == maps::GameMode::FreeForAll)
+        .and_then(|map| maps::MatchMap::of(map.id))
+        .expect("a free-for-all map");
+    for public in [options(false), options(true), options_on(free_for_all)] {
+        let private = info::MatchOptions { privacy: info::Privacy::PrivateRoom, ..public.clone() };
+        let bytes = info::options_bytes(&private, data.0).unwrap();
+        assert!(bytes.ends_with(b"\x08\x01\x01"));
+        assert_eq!(messages::options(&bytes, &data), Ok(1));
+        assert_eq!(info::parse_options(&bytes, data.0).unwrap(), private);
+        let native = info::options_bytes(&public, data.0).unwrap();
+        assert_eq!(messages::options(&native, &data), Ok(1), "without: as before");
+        for bad in [&b"\x08\x01\x00"[..], b"\x08\x01\x01\x08\x01\x01", b"\x08\x02\x01\x01"] {
+            let bad = [&bytes[..bytes.len() - 3], bad].concat();
+            assert!(messages::options(&bad, &data).is_err(), "{bad:?}");
+            assert!(info::parse_options(&bad, data.0).is_err(), "{bad:?}");
+        }
     }
 }
