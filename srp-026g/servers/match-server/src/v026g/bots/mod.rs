@@ -2790,6 +2790,13 @@ impl Bots {
         let (along, across) = nav_drift::cross_track::take();
         lines.push(format!("{}{}", nav_log::PREFIX, nav_drift::cross_track::line(&along, &across)));
         lines.push(format!("{}{}", nav_log::PREFIX, precise::counts::line()));
+        // [patch 205] The worlds' empty-clip reload reads (`guns::reload_clip_s`): by the reload's own pick, and how many of
+        // them the magazine would have read otherwise (after the seat).
+        let [picked, differed, unpicked] = guns::reload_picks::take();
+        lines.push(format!(
+            "{}empty-clip reload reads since the last match end (every match on this server): by the world's pick {picked}, of them unlike the magazine's {differed}, no pick yet {unpicked}",
+            nav_log::PREFIX
+        ));
         let split = nav_drift::cross_track::take_split();
         lines.extend(nav_drift::cross_track::split_lines(&split).into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
