@@ -1707,7 +1707,7 @@ fn privacy_of(bench: &Bench) -> Privacy {
 /// a late joiner's place in it too, so the rewards pay none of them (the
 /// owner's of 2026-10-20); and its games are told so, the late
 /// joiner too (the static info's private room entry: the collision
-/// view's fill).
+/// view).
 #[test]
 fn a_private_rooms_result_says_so_with_its_late_joiner() {
     let mut private = setup(2, MAP_BATTERIES);

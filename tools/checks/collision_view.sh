@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Patch 156: the console command `collision` (its lines, the fill only in a private room's match or a replay); the view alone.
+# Patch 156: the console command `collision` (only in a private room's match or a replay); the view alone.
 set -euo pipefail
 main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
 exe=${SKHID_ORIGINAL_EXE:-$main/private/function-map/inputs/026g/survarium.exe}

@@ -2464,7 +2464,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
         assert_eq!(on(false) + on(true), size, "team {side}: filled with bots");
     }
     // Paid as against bots (the owner's of 2026-11-05), not as a PIN room
-    // without bots; still a PIN room's (the collision view's fill).
+    // without bots; still a PIN room's (the collision view).
     assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::PrivateRoomWithBots);
     assert!(setup.kind.vs_bots() && !setup.kind.private() && setup.kind.pin_room());
     let list = rows(&mut world, alice, ROOMS_LIST, 10);

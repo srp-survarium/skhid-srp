@@ -1157,7 +1157,7 @@ impl Core<'_> {
         };
         // Against bots, a room's with bots too: paid as against bots; a room
         // with a PIN, with bots or without, says so to its games (the
-        // collision view's fill, `collision-view.md`).
+        // collision view, `collision-view.md`).
         let kind = match (pvb, room.map(|room| room.kind)) {
             (Some(_), _) => MatchKind::VsBots,
             (None, Some(RoomKind::WithBots { .. })) => MatchKind::PrivateRoomWithBots,

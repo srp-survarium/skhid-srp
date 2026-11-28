@@ -301,7 +301,7 @@ LZMA2 raw stream, to the end of the message, decoding to <= 0x578A0 bytes:
                                 place's face (face-choice.md; sent only when a face is
                                 not 0); tag 6 Freeze Tag, tag 7 the places' mode notices
                                 (mode_introductions.md); tag 8, one byte 1: a private room's
-                                match (patch 156 fills the collision view only there or in a
+                                match (patch 156 draws the collision view only there or in a
                                 replay; collision-view.md; last, sent only then);
                                 tag 1 is kept for team damage (#370); sent only with an entry
 ```

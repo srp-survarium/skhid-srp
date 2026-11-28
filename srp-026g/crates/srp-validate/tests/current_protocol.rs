@@ -365,7 +365,7 @@ fn a_map_id_over_a_byte_is_its_low_byte_and_srps_entry() {
     }
 }
 
-/// A private room's match (tag 8, patch 156's collision fill): the server's
+/// A private room's match (tag 8, patch 156: the collision view): the server's
 /// options pass the games' check alone, after Blackout's entry and its
 /// notices, and after a free-for-all's; twice or of another value: refused,
 /// by the check and by the server's reader alike.

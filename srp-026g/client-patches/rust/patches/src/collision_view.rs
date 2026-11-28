@@ -22,16 +22,17 @@
 //! 824h) and whatever moves (a battery 0A18h, a grenade 818h) never are, so
 //! the view shows nothing the map does not.
 //!
-//! The fill (`fill`) only where the match shown allows it (the owner,
-//! 2026-11-28: "collision fill only works in private lobbies"): a private
-//! room's match, which the server says with srp's block's entry 8 after the
-//! options (`static_info.options_read`; tag 8, one byte 1), or any replay
+//! The whole view only where the match shown allows it (the owner,
+//! 2026-11-28: "collision fill only works in private lobbies", then: not
+//! the line view everywhere either): a private room's match, which the
+//! server says with srp's block's entry 8 after the options
+//! (`static_info.options_read`; tag 8, one byte 1), or any replay
 //! (`replay.options_read`: not live). The options last read decide, as for
 //! patches 65 and 142; none read yet, or a match without the entry (an open
-//! room's, a clan match, Player vs Bots, an older server's): the lines alone.
-//! There `fill` is refused, nothing changed; a view filled before is drawn
-//! as lines in such a match, the console told once, and filled again in the
-//! next match that allows it.
+//! room's, a clan match, Player vs Bots, an older server's): nothing. There
+//! the command turns nothing on (it still turns a view off); a view on from
+//! before draws nothing in such a match, the console told once, and comes
+//! back in the next match that allows it.
 
 #![forbid(unsafe_code)]
 
@@ -65,7 +66,7 @@ const SRPX: [u8; 4] = *b"SRPX";
 /// A private room's match: one byte, 1 (the server's `SRPX_PRIVATE_ROOM`).
 const TAG_PRIVATE_ROOM: u8 = 8;
 
-/// The match the options last read are of, as the view's fill sees it.
+/// The match the options last read are of, as the view sees it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Shown {
     /// A live match without the private room entry (an open room's, a clan
@@ -95,7 +96,8 @@ impl Shown {
         shown
     }
 
-    fn fills(self) -> bool {
+    /// Whether the view may be on in it.
+    fn allows(self) -> bool {
         match self {
             Shown::PrivateRoom | Shown::Replay => true,
             Shown::Public => false,
@@ -215,11 +217,6 @@ struct Filter {
 impl Filter {
     const ALL: Filter = Filter { only: None, fill: Fill::Lines };
 
-    /// What is drawn of it in a match `shown`: its fill only where that
-    /// allows it, else its lines.
-    fn drawn_in(self, shown: Shown) -> Filter {
-        if shown.fills() { self } else { Filter { fill: Fill::Lines, ..self } }
-    }
 }
 
 /// What the command was given.
@@ -346,10 +343,7 @@ struct Collision {
 
 /// A read the camera's thread makes outside the lock, into the spare room.
 struct Read {
-    /// The view's.
     filter: Filter,
-    /// What it draws of it ([`Filter::drawn_in`]).
-    drawn: Filter,
     after: Previous,
     at: ReadAt,
     lines: LineBuffer,
@@ -363,11 +357,12 @@ enum Reply {
     Usage,
     /// No room for the lines: still off.
     NoRoom,
-    /// `fill` where the match shown does not allow it: nothing changed.
-    FillRefused,
-    /// A match that does not allow the fill came while the view is filled:
-    /// lines in it.
-    LinesHere,
+    /// Asked to turn on where the match shown does not allow the view:
+    /// nothing changed.
+    Refused,
+    /// A match that does not allow the view came while it is on: nothing
+    /// drawn in it.
+    HiddenHere,
 }
 
 /// What a read reads: the level near the eye.
@@ -383,30 +378,36 @@ impl Collision {
         matches!(self.rooms, Rooms::Unmade)
     }
 
-    /// Whether `request` asks for the fill where the match shown does not allow it.
-    fn refuses(&self, request: Request) -> bool {
-        matches!(request, Request::Show(Filter { fill: Fill::Filled, .. })) && !self.shown.fills()
-    }
-
-    /// Whether `request` needs the rooms made first: one that can turn the
-    /// view on (not a wrong argument nor a refused fill) while they are unmade.
-    fn needs_rooms(&self, request: Request) -> bool {
-        request != Request::Unknown && !self.refuses(request) && self.unmade()
-    }
-
-    /// `rooms`, made by the caller when unmade, are taken when the view turns on.
-    fn command(&mut self, request: Request, rooms: Option<(LineBuffer, LineBuffer)>) -> Reply {
+    /// The view `request` makes of this one, or the reply that changes
+    /// nothing: a wrong argument, or one that would turn the view on (or
+    /// switch it) where the match shown does not allow it. Turning it off is
+    /// allowed anywhere.
+    fn asked(&self, request: Request) -> Result<View, Reply> {
         let shown = match self.view {
             View::Off => None,
             View::Starting { filter } | View::On { filter, .. } | View::Reading { filter, .. } => Some(filter),
         };
-        let view = match (shown, request) {
-            (_, Request::Unknown) => return Reply::Usage,
-            (Some(_), Request::Toggle) => View::Off,
-            (Some(shown), Request::Show(filter)) if shown == filter => View::Off,
-            (_, request) if self.refuses(request) => return Reply::FillRefused,
-            (None, Request::Toggle) => View::Starting { filter: Filter::ALL },
-            (_, Request::Show(filter)) => View::Starting { filter },
+        match (shown, request) {
+            (_, Request::Unknown) => Err(Reply::Usage),
+            (Some(_), Request::Toggle) => Ok(View::Off),
+            (Some(shown), Request::Show(filter)) if shown == filter => Ok(View::Off),
+            _ if !self.shown.allows() => Err(Reply::Refused),
+            (None, Request::Toggle) => Ok(View::Starting { filter: Filter::ALL }),
+            (_, Request::Show(filter)) => Ok(View::Starting { filter }),
+        }
+    }
+
+    /// Whether `request` needs the rooms made first: one that turns the view
+    /// on while they are unmade.
+    fn needs_rooms(&self, request: Request) -> bool {
+        matches!(self.asked(request), Ok(View::Starting { .. })) && self.unmade()
+    }
+
+    /// `rooms`, made by the caller when unmade, are taken when the view turns on.
+    fn command(&mut self, request: Request, rooms: Option<(LineBuffer, LineBuffer)>) -> Reply {
+        let view = match self.asked(request) {
+            Ok(view) => view,
+            Err(reply) => return reply,
         };
         if view != View::Off && self.unmade() {
             let Some((shown, spare)) = rooms else { return Reply::NoRoom };
@@ -420,36 +421,40 @@ impl Collision {
     }
 
     /// A match's or a replay's options read: it is the match shown from now
-    /// on. A filled view whose drawing changes with it starts again (a read
-    /// out is dropped at its end); one now drawn as lines tells the console.
+    /// on. A view on whose match now allows it or no longer does starts again
+    /// (nothing of the last match shown; a read out is dropped at its end),
+    /// read once the match allows it; one no longer allowed tells the console.
     fn options_read(&mut self, shown: Shown) -> Option<Reply> {
         let was = core::mem::replace(&mut self.shown, shown);
         let filter = match self.view {
             View::Off => return None,
             View::Starting { filter } | View::On { filter, .. } | View::Reading { filter, .. } => filter,
         };
-        if filter.drawn_in(was) == filter.drawn_in(shown) {
+        if was.allows() == shown.allows() {
             return None;
         }
         self.view = View::Starting { filter };
-        (!shown.fills()).then_some(Reply::LinesHere)
+        (!shown.allows()).then_some(Reply::HiddenHere)
     }
 
     /// The read a match's camera at `at` makes: after a start or a filter's
-    /// change, or when the last read is stale; none while one is out.
+    /// change, or when the last read is stale; none while one is out, nor
+    /// where the match shown does not allow the view.
     fn next_read(&mut self, at: ReadAt) -> Option<Read> {
+        if !self.shown.allows() {
+            return None;
+        }
         let (filter, after) = match self.view {
             View::Off | View::Reading { .. } => return None,
             View::Starting { filter } => (filter, Previous::Start),
             View::On { filter, fit } if fit.at.stale(at) => (filter, Previous::Shown(fit)),
             View::On { .. } => return None,
         };
-        let drawn = filter.drawn_in(self.shown);
         match core::mem::replace(&mut self.rooms, Rooms::Unmade) {
             Rooms::Home { shown, spare } => {
                 self.rooms = Rooms::Lent { shown };
                 self.view = View::Reading { filter, after };
-                Some(Read { filter, drawn, after, at, lines: spare })
+                Some(Read { filter, after, at, lines: spare })
             }
             other => {
                 self.rooms = other;
@@ -501,7 +506,7 @@ fn fill(level: &impl Level, read: &mut Read) -> (usize, Option<Census>) {
     };
     loop {
         read.lines.clear();
-        level.outline(RADII[index], read.drawn, &mut read.lines);
+        level.outline(RADII[index], read.filter, &mut read.lines);
         if !read.lines.is_cut() || index + 1 == RADII.len() {
             break;
         }
@@ -863,7 +868,7 @@ const HELP: [&str; 6] = [
     "  collision shot    - what stops bullets and the camera (magenta + white)",
     "  collision solid   - what stops both (white)",
     "  collision anomaly - anomaly damage zones (red, dim when off)",
-    "  ... fill          - after any of these (or alone): surfaces filled, to find holes (private rooms, replays)",
+    "  ... fill          - after any of these (or alone): surfaces filled, to find holes",
     "  collision         - again to turn off",
 ];
 
@@ -886,8 +891,8 @@ fn reply_lines(reply: Reply) -> impl Iterator<Item = (&'static str, &'static str
         Reply::Off => (("collision: off", ""), &[]),
         Reply::Usage => (("collision: collision [walk | shot | solid | anomaly] [fill]", ""), &HELP),
         Reply::NoRoom => (("collision: no room for its lines, still off", ""), &[]),
-        Reply::FillRefused => (("collision: fill only in private rooms and replays", ""), &[]),
-        Reply::LinesHere => (("collision: fill only in private rooms and replays: lines in this match", ""), &[]),
+        Reply::Refused => (("collision: only in private rooms and replays", ""), &[]),
+        Reply::HiddenHere => (("collision: only in private rooms and replays: nothing drawn in this match", ""), &[]),
     };
     core::iter::once(first).chain(help.iter().map(|text| (*text, "")))
 }
@@ -941,8 +946,9 @@ mod tests {
         LineBuffer::over(Box::leak(vec![LineVertex::default(); 2 * lines].into_boxed_slice()))
     }
 
+    /// A view in a private room's match: the other tests' (the gate is its own tests').
     fn state() -> Collision {
-        Collision { view: View::Off, rooms: Rooms::Unmade, shown: Shown::Public }
+        Collision { view: View::Off, rooms: Rooms::Unmade, shown: Shown::PrivateRoom }
     }
 
     fn state_in(shown: Shown) -> Collision {
@@ -974,20 +980,11 @@ mod tests {
     }
 
     fn read(after: Previous, size: usize) -> Read {
-        Read { filter: Filter::ALL, drawn: Filter::ALL, after, at: at(0.0, 1), lines: buffer(size) }
+        Read { filter: Filter::ALL, after, at: at(0.0, 1), lines: buffer(size) }
     }
 
     fn filled(only: Option<LevelGroup>) -> Filter {
         Filter { only, fill: Fill::Filled }
-    }
-
-    /// What the next read at `at` draws, its read finished.
-    fn drawn_next(s: &mut Collision, at: ReadAt) -> Option<Filter> {
-        let mut read = s.next_read(at)?;
-        let drawn = read.drawn;
-        let (start, census) = fill(&fake(|_| 3), &mut read);
-        s.finish(read, start, census);
-        Some(drawn)
     }
 
     #[test]
@@ -1003,66 +1000,71 @@ mod tests {
                       b"SRPX\x08\x01", b"SRPY\x08\x01\x01", b"SRPX\x05\x03\x08\x01\x01"] {
             assert_eq!(shown(bytes), Shown::Public, "{bytes:?}");
         }
-        assert!(Shown::PrivateRoom.fills() && Shown::Replay.fills() && !Shown::Public.fills());
+        assert!(Shown::PrivateRoom.allows() && Shown::Replay.allows() && !Shown::Public.allows());
     }
 
     #[test]
-    fn fill_only_in_a_private_room_or_a_replay() {
+    fn the_view_only_in_a_private_room_or_a_replay() {
         let walk = Some(LevelGroup::Walk);
-        for request in [Request::Show(filled(None)), Request::Show(filled(walk))] {
-            let mut s = state();
+        let lines = |only| Filter { only, fill: Fill::Lines };
+        let requests = [Request::Toggle, Request::Show(lines(walk)), Request::Show(lines(Some(LevelGroup::Anomaly))),
+                        Request::Show(filled(None)), Request::Show(filled(walk))];
+        for request in requests {
+            let mut s = state_in(Shown::Public);
             assert!(!s.needs_rooms(request), "refused: no rooms made for it");
-            assert_eq!(s.command(request, rooms()), Reply::FillRefused, "no match read yet");
+            assert_eq!(s.command(request, rooms()), Reply::Refused, "no match read yet: {request:?}");
             assert_eq!((s.view, s.unmade()), (View::Off, true), "nothing changed");
             assert_eq!(s.options_read(Shown::Public), None);
-            assert_eq!(s.command(request, rooms()), Reply::FillRefused, "a public match");
+            assert_eq!(s.command(request, rooms()), Reply::Refused, "a public match");
+            assert_eq!(s.command(Request::Unknown, None), Reply::Usage, "a wrong argument: the usage, as anywhere");
+            assert_eq!(frame(&mut s, at(0.0, 1), &fake(|_| 3)), (false, None), "no read");
             for allowed in [Shown::PrivateRoom, Shown::Replay] {
-                let mut s = state_in(allowed);
+                let mut s = state_in(Shown::Public);
+                assert_eq!(s.options_read(allowed), None);
                 assert!(s.needs_rooms(request));
-                let Request::Show(filter) = request else { unreachable!() };
+                let filter = match request { Request::Show(filter) => filter, _ => Filter::ALL };
                 assert_eq!(s.command(request, rooms()), Reply::On(filter), "{allowed:?}");
-                assert_eq!(drawn_next(&mut s, at(0.0, 1)), Some(filter), "drawn filled");
+                assert!(frame(&mut s, at(0.0, 1), &fake(|_| 3)).0, "read");
+                assert!(matches!(s.view, View::On { .. }), "on");
             }
         }
-        // The lines are any match's; a filled view on goes on to its lines.
-        let mut s = state();
-        assert_eq!(s.command(Request::Toggle, rooms()), Reply::On(Filter::ALL));
-        assert_eq!(s.command(Request::Show(Filter { only: walk, fill: Fill::Lines }), None),
-                   Reply::On(Filter { only: walk, fill: Fill::Lines }));
-        assert_eq!(s.command(Request::Show(filled(walk)), None), Reply::FillRefused);
-        assert_eq!(s.view, View::Starting { filter: Filter { only: walk, fill: Fill::Lines } }, "still the lines");
     }
 
     #[test]
-    fn a_filled_view_draws_lines_in_a_match_that_does_not_allow_it() {
+    fn a_view_on_draws_nothing_in_a_match_that_does_not_allow_it() {
+        let level = fake(|_| 3);
         let mut s = state_in(Shown::PrivateRoom);
         s.command(Request::Show(filled(None)), rooms());
-        assert_eq!(drawn_next(&mut s, at(0.0, 1)), Some(filled(None)));
+        assert_eq!(frame(&mut s, at(0.0, 1), &level), (true, Some(Census([541, 511, 105, 12]))));
         assert_eq!(s.options_read(Shown::PrivateRoom), None, "another private match: as it was");
         assert!(matches!(s.view, View::On { .. }));
-        assert_eq!(s.options_read(Shown::Public), Some(Reply::LinesHere), "a public match: told once");
-        assert_eq!(s.view, View::Starting { filter: filled(None) }, "the asked filter kept, read again");
-        assert_eq!(drawn(&s), 0, "the filled lines no longer shown");
-        assert_eq!(drawn_next(&mut s, at(0.0, 2)), Some(Filter::ALL), "its lines alone");
+        assert_eq!(s.options_read(Shown::Public), Some(Reply::HiddenHere), "a public match: told once");
+        assert_eq!(s.view, View::Starting { filter: filled(None) }, "the asked filter kept");
+        assert_eq!((drawn(&s), frame(&mut s, at(0.0, 2), &level)), (0, (false, None)), "nothing drawn, no read");
         assert_eq!(s.options_read(Shown::Public), None, "the next public match: nothing to tell");
-        assert_eq!(s.command(Request::Show(filled(None)), None), Reply::Off, "what is shown again: off, not refused");
-        s.command(Request::Toggle, None);
-        assert_eq!(s.options_read(Shown::Replay), None, "a lines view: nothing to tell");
-        assert_eq!(s.command(Request::Show(filled(None)), None), Reply::On(filled(None)));
-        assert_eq!(drawn_next(&mut s, at(0.0, 3)), Some(filled(None)), "a replay fills");
-        assert_eq!(s.options_read(Shown::PrivateRoom), None, "a replay then a private match: filled in both");
+        assert_eq!(s.command(Request::Show(lines_of(Some(LevelGroup::Shot))), None), Reply::Refused,
+                   "another filter there: refused, nothing changed");
+        assert_eq!(s.view, View::Starting { filter: filled(None) });
+        assert_eq!(s.options_read(Shown::Replay), None, "a replay: back, nothing told");
+        assert_eq!(frame(&mut s, at(0.0, 3), &level), (true, Some(Census([541, 511, 105, 12]))), "read, its census");
+        assert_eq!(drawn(&s), 3);
+        assert_eq!(s.options_read(Shown::PrivateRoom), None, "a replay then a private match: on in both");
         assert!(matches!(s.view, View::On { .. }));
-        // A read out while a public match's options are read: dropped, read again with lines.
-        assert_eq!(s.options_read(Shown::Public), Some(Reply::LinesHere));
-        assert_eq!(drawn_next(&mut s, at(0.0, 4)), Some(Filter::ALL));
-        assert_eq!(s.options_read(Shown::PrivateRoom), None, "back in a private match: filled again, nothing told");
-        let out = s.next_read(at(0.0, 5)).unwrap();
-        assert_eq!(out.drawn, filled(None));
-        assert_eq!(s.options_read(Shown::Public), Some(Reply::LinesHere));
+        // A read out while a public match's options are read: dropped.
+        let out = s.next_read(at(5.0, 3)).unwrap();
+        assert_eq!(s.options_read(Shown::Public), Some(Reply::HiddenHere));
         assert_eq!(s.finish(out, 0, None), None);
-        assert_eq!(s.view, View::Starting { filter: filled(None) }, "the filled read dropped");
-        assert_eq!(drawn(&s), 0);
-        assert_eq!(drawn_next(&mut s, at(0.0, 5)), Some(Filter::ALL));
+        assert_eq!((s.view, drawn(&s)), (View::Starting { filter: filled(None) }, 0), "the read dropped");
+        assert_eq!(s.command(Request::Show(filled(None)), None), Reply::Off, "what is shown again: off, not refused");
+        assert_eq!(s.options_read(Shown::PrivateRoom), None, "off: nothing comes back");
+        assert_eq!(s.view, View::Off);
+        s.command(Request::Toggle, None);
+        s.options_read(Shown::Public);
+        assert_eq!(s.command(Request::Toggle, None), Reply::Off, "collision there: off");
+    }
+
+    fn lines_of(only: Option<LevelGroup>) -> Filter {
+        Filter { only, fill: Fill::Lines }
     }
 
     #[test]
@@ -1299,7 +1301,7 @@ mod tests {
         let mut all = vec!["collision: on, all (walk green, shot magenta, solid white, anomaly red)".to_string()];
         all.extend(HELP.map(String::from));
         assert_eq!(said(Reply::On(Filter::ALL)), all);
-        assert_eq!(HELP[4], "  ... fill          - after any of these (or alone): surfaces filled, to find holes (private rooms, replays)");
+        assert_eq!(HELP[4], "  ... fill          - after any of these (or alone): surfaces filled, to find holes");
         assert_eq!(said(on(None, Fill::Filled))[0],
                    "collision: on, all (walk green, shot magenta, solid white, anomaly red), filled");
         assert_eq!(said(on(Some(LevelGroup::Anomaly), Fill::Lines)), ["collision: on, anomaly (red, dim when off)"]);
@@ -1311,8 +1313,8 @@ mod tests {
         assert_eq!(said(Reply::Usage)[0], "collision: collision [walk | shot | solid | anomaly] [fill]");
         assert_eq!(said(Reply::Usage)[1..], HELP);
         assert_eq!(said(Reply::NoRoom), ["collision: no room for its lines, still off"]);
-        assert_eq!(said(Reply::FillRefused), ["collision: fill only in private rooms and replays"]);
-        assert_eq!(said(Reply::LinesHere), ["collision: fill only in private rooms and replays: lines in this match"]);
+        assert_eq!(said(Reply::Refused), ["collision: only in private rooms and replays"]);
+        assert_eq!(said(Reply::HiddenHere), ["collision: only in private rooms and replays: nothing drawn in this match"]);
         let census: Vec<_> = core::iter::once(None)
             .chain(GROUPS.map(Some))
             .map(|group| {

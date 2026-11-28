@@ -14,7 +14,7 @@ handler = "on_configs"
 order = 9
 
 # the options read: what the match shown allows (srp's private room entry,
-# tag 8; a replay: the fill too)
+# tag 8; a replay: allowed too)
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"

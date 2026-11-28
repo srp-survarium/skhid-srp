@@ -21,8 +21,8 @@
 //! 0x1F096C), tag 3 a free-for-all's kill target, tag 4 a map id over a
 //! byte (patch 154), tag 5 the players' faces (`face-choice.md`), tag 6
 //! Freeze Tag (patch 160), tag 7 each place's mode notice (patch 214,
-//! `mode_introductions.md`), tag 8 a private room's match (patch 156's
-//! fill, `collision-view.md`); tag 1 is kept for team damage (#370).
+//! `mode_introductions.md`), tag 8 a private room's match (patch 156,
+//! the collision view: `collision-view.md`); tag 1 is kept for team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -638,7 +638,7 @@ pub struct MatchOptions {
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
     /// Whose room the match is: a room's with a PIN carries srp's private
-    /// room entry (tag 8; exe patch 156: the collision view's fill).
+    /// room entry (tag 8; exe patch 156: the collision view).
     pub privacy: Privacy,
 }
 
@@ -681,7 +681,7 @@ pub const SRPX_FREEZE_TAG: u8 = 6;
 /// in no other: a game that finds none (an older server) shows it.
 pub const SRPX_NOTICES: u8 = 7;
 /// The entry of a private room's match ([`Privacy::PrivateRoom`]), its one
-/// byte 1: exe patch 156 draws the collision view's fill only in such a match or
+/// byte 1: exe patch 156 draws the collision view only in such a match or
 /// in a replay; none: any other match, or an older server's.
 pub const SRPX_PRIVATE_ROOM: u8 = 8;
 
@@ -1552,7 +1552,7 @@ mod tests {
         }
     }
 
-    /// A private room's match (tag 8, exe patch 156's fill): its entry last,
+    /// A private room's match (tag 8, exe patch 156: the collision view): its entry last,
     /// alone in a plain mode or after the others; read back. Twice, of another
     /// value or length, or in a late joiner's profile: refused.
     #[test]

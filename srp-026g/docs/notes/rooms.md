@@ -78,10 +78,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     "Match …: private room, no rewards". Rooms without a PIN, clan matches and Play vs Bots
     pay as before. The site's room rules say so; no in-game text (it needs the lobby movie,
     parked).
-  - **A PIN: the collision view's fill** (the owner's of 2026-11-28: "collision fill only works in
-    private lobbies"): every match of a room with a PIN, with bots or without, tells its games so
-    (the static info's private room entry, `MatchKind::pin_room`), and only there (and in replays)
-    does the console's `collision fill` fill the surfaces (`collision-view.md`).
+  - **A PIN: the collision view** (the owner's of 2026-11-28: "collision fill only works in
+    private lobbies", then the line view too): every match of a room with a PIN, with bots or
+    without, tells its games so (the static info's private room entry, `MatchKind::pin_room`), and
+    only there (and in replays) does the console's `collision` draw anything (`collision-view.md`).
 - **Play:** follows the bracket and scaling rules above, with no old search screen.
   A room's running match is joined through the existing late-join flow. A player
   with a seat in a match goes back to it.

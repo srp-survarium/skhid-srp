@@ -475,7 +475,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     // 154: the whole id, the options' byte its low byte), for the roster's
     // faces when one is not face 0 (the faces patch), for a Freeze Tag match
     // (patch 160), for the places' mode notices (patch 214) and
-    // for a private room's match (patch 156's collision fill).
+    // for a private room's match (patch 156: the collision view).
     // Keep this in sync with static_info::read_srp_block on the server.
     let mut wide = None;
     if !reader.is_done() {
@@ -493,7 +493,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         // (not every one face 0; a face the game's data does not list is
         // drawn as face 0), and after Blackout's or Freeze Tag's entry the
         // notices' `{7, roster, 0 or 1 a place}`, and a private room's
-        // match's `{8, 1, 1}` (patch 156's fill; any mode).
+        // match's `{8, 1, 1}` (patch 156's collision view; any mode).
         let (mut mode, mut faces, mut notices, mut private) = (false, false, false, false);
         // The mode's entry is one of a mode with a notice.
         let mut noticed = false;

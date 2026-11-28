@@ -32,7 +32,7 @@ impl MatchKind {
     }
 
     /// Whether it is a room's with a PIN, with bots or without: its players'
-    /// games may fill the collision view (`collision-view.md`; the static
+    /// games may show the collision view (`collision-view.md`; the static
     /// info's private room entry).
     pub fn pin_room(self) -> bool {
         matches!(self, Self::PrivateRoom | Self::PrivateRoomWithBots)

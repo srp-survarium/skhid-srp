@@ -48,18 +48,20 @@ dimensions +20h, margin +30h, up axis +40h; a compound's children +10h/+18h,
   census of those; `collision 8`: the usage and the options; `collision
   walk`: switched (walk and solid); again: off; `collision solid`: solid
   alone; `collision` off, on and off; the original never draws;
-- the fill only where the match shown allows it, the options reads run
-  whole (process_static_match_info from its pushes through the game's own
-  match_options::deserialize past `static_info.options_read`, a replay's
+- the whole view only where the match shown allows it, the options reads
+  run whole (process_static_match_info from its pushes through the game's
+  own match_options::deserialize past `static_info.options_read`, a replay's
   chunk 1 to its `ret 8`, as check_blackout_026g.py runs them, at addresses
   of this check's own), each as the game's code leaves its registers and
-  stack: `fill` refused before any options and after a public match's (srp's
-  block without tag 8), nothing changed; allowed after a private room's
-  (tag 8, one byte 1, after an unknown tag): the fill drawn; a filled view
-  given a public match's options: told once, read again, its lines and no
-  fill; another public match's: nothing told; a replay's: filled again; a
-  private room's after it: still filled, no read; the entry's value 0: a
-  public match's; `collision fill` there: off, not refused.
+  stack: `collision`, `walk`, `anomaly`, `fill`, `shot fill` refused before
+  any options and after a public match's (srp's block without tag 8),
+  nothing turned on, no room made, the usage still the usage; allowed after
+  a private room's (tag 8, one byte 1, after an unknown tag): every check
+  above; a filled view given a public match's options: told once, no read,
+  nothing drawn; another filter there refused; another public match's:
+  nothing told; a replay's: back, filled; a private room's after it: still
+  on, no read; the entry's value 0: a public match's; `collision fill`
+  there: off, not refused.
 """
 import math
 import struct
@@ -99,7 +101,7 @@ HELP = ["  collision walk    - what stops walking (green + white)",
         "  collision shot    - what stops bullets and the camera (magenta + white)",
         "  collision solid   - what stops both (white)",
         "  collision anomaly - anomaly damage zones (red, dim when off)",
-        "  ... fill          - after any of these (or alone): surfaces filled, to find holes (private rooms, replays)",
+        "  ... fill          - after any of these (or alone): surfaces filled, to find holes",
         "  collision         - again to turn off"]
 ON = ["collision: on, all (walk green, shot magenta, solid white, anomaly red)"] + HELP
 RED, DIM_RED = 0xFF0000FF, 0xFF000060
@@ -415,6 +417,22 @@ def main():
     check(drawn_old == [] and drawn_new == [] and regs_old == regs_new == (RENDERER, 0x51525354),
           "off: nothing drawn; the span's EDI and EDX the original's")
 
+    # the view only where the match shown allows it: none read yet, a public match's options, then a private room's
+    refused = ["collision: only in private rooms and replays"]
+    asks = ("collision", "collision walk", "collision anomaly", "collision fill", "collision shot fill")
+    said = [new.said(line) for line in asks]
+    check(all(s == refused for s in said) and new.frame() == [] and new.allocations == []
+          and new.debug_lines()[0] == [],
+          f"before any options read: `collision`, `walk`, `anomaly`, `fill`, `shot fill` each \"collision: only in "
+          f"private rooms and replays\", nothing turned on, no room made, no read, nothing drawn ({said[0]})")
+    check(new.said("collision 8")[0] == "collision: collision [walk | shot | solid | anomaly] [fill]",
+          "a wrong argument there: the usage, as anywhere")
+    check(new.options_read(blackout.srpx((4, b"\x2c\x01"))) == [] and new.said("collision") == refused
+          and new.said("collision solid fill") == refused and new.frame() == [] and new.allocations == [],
+          "a public match's options (srp's block without the private room entry): refused")
+    check(new.options_read(blackout.srpx((9, b"xyz"), (8, b"\x01"))) == [],
+          "a private room's options (tag 8, one byte 1, after an unknown tag): nothing told")
+
     check(new.said("collision") == ON, "collision through console_commands::execute: \"collision: on, all\" and the "
           "four options' lines")
     lines = new.frame()
@@ -546,16 +564,6 @@ def main():
           and new.said("collision") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
           "collision from anomaly: off; again: on (all, its census five lines); again: off")
 
-    # fill only where the match shown allows it: none read yet, a public match's options, then a private room's
-    refused = ["collision: fill only in private rooms and replays"]
-    check(new.said("collision walk fill") == refused and new.frame() == [] and new.debug_lines()[0] == [],
-          "collision walk fill before any options read: \"collision: fill only in private rooms and replays\", "
-          "nothing changed (still off)")
-    check(new.options_read(blackout.srpx((4, b"\x2c\x01"))) == [] and new.said("collision fill") == refused,
-          "a public match's options (srp's block without the private room entry): fill refused")
-    check(new.options_read(blackout.srpx((9, b"xyz"), (8, b"\x01"))) == [],
-          "a private room's options (tag 8, one byte 1, after an unknown tag): nothing told")
-
     # fill: the walk box's twelve faces' triangles and the solid mesh's near two, translucent, under the lines
     check(new.said("collision walk fill") == ["collision: on, walk (green + white), filled"],
           "collision walk fill: \"collision: on, walk (green + white), filled\"")
@@ -582,30 +590,31 @@ def main():
     check(new.said("collision fill") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
           "collision fill again: off")
 
-    # a filled view carried into a match that does not allow the fill: its lines; filled again where it is allowed
-    def fills_drawn():
+    # a view on carried into a match that does not allow it: nothing drawn; back where it is allowed
+    def drawn_now():
+        """The render site's line draws and fill draws."""
         new.fills = []
         draws, _ = new.debug_lines()
         return len(draws), len(new.fills)
 
+    hidden = ["collision: only in private rooms and replays: nothing drawn in this match"]
     check(new.said("collision fill") == [ON[0] + ", filled"] + HELP and len(new.frame()) == 5
-          and fills_drawn() == (1, 1), "collision fill in the private room's match: filled")
+          and drawn_now() == (1, 1), "collision fill in the private room's match: filled")
     told = new.options_read(b"")
     census = new.frame()
-    check(told == ["collision: fill only in private rooms and replays: lines in this match"] and len(census) == 5
-          and fills_drawn() == (1, 0),
-          f"a public match's options (no srp block) while filled: told once ({told}), read again (its census), the "
-          f"lines drawn and no fill ({fills_drawn()})")
-    check(new.options_read(b"") == [] and new.frame() == [] and fills_drawn() == (1, 0),
-          "another public match's options: nothing told, the lines as they were")
+    check(told == hidden and census == [] and new.queries == [] and drawn_now() == (0, 0),
+          f"a public match's options (no srp block) while on: told once ({told}), no read, nothing drawn")
+    check(new.said("collision shot") == refused and new.frame() == [] and drawn_now() == (0, 0),
+          "collision shot there: refused, nothing turned on")
+    check(new.options_read(b"") == [] and new.frame() == [] and drawn_now() == (0, 0),
+          "another public match's options: nothing told, nothing drawn")
     told = new.options_read(None)
-    check(told == [] and len(new.frame()) == 5 and fills_drawn() == (1, 1),
-          f"a replay's options (whatever they say): filled again, nothing told ({told})")
-    check(new.options_read(blackout.srpx((8, b"\x01"))) == [] and new.frame() == [] and fills_drawn() == (1, 1),
-          "a private room's match after the replay: still filled, no read again")
-    check(new.options_read(blackout.srpx((8, b"\x00"))) == ["collision: fill only in private rooms and replays: "
-                                                             "lines in this match"] and len(new.frame()) == 5
-          and fills_drawn() == (1, 0), "the entry of another value: a public match's, the lines")
+    check(told == [] and len(new.frame()) == 5 and drawn_now() == (1, 1),
+          f"a replay's options (whatever they say): back, filled, its census, nothing told ({told})")
+    check(new.options_read(blackout.srpx((8, b"\x01"))) == [] and new.frame() == [] and drawn_now() == (1, 1),
+          "a private room's match after the replay: still on, no read again")
+    check(new.options_read(blackout.srpx((8, b"\x00"))) == hidden and new.frame() == [] and drawn_now() == (0, 0),
+          "the entry of another value: a public match's, nothing drawn")
     check(new.said("collision fill") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
           "collision fill there (what is shown): off, not refused")
 
