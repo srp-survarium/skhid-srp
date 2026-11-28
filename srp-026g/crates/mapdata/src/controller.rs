@@ -185,6 +185,228 @@ pub struct Collision {
     faces: Vec<Face>,
     nodes: Vec<Node>,
     sweeps: Sweeps,
+    /// [bot CPU] This world's own number in the process (a new one for every world built, [`next_world_id`]): a remembered
+    /// sweep is one of this world's only ([`sweep_memo`]). Nothing changes a world once built (no method takes it `&mut`).
+    id: u64,
+}
+
+/// [bot CPU] A number no other [`Collision`] of this process holds.
+fn next_world_id() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// [bot CPU] The walk tick's closest sweeps remembered on this thread ([`tick`]): a sweep asked again with every bit its
+/// callback reads the same, of the same world, answers with the contact it kept before. A world never changes once built,
+/// and a sweep's contacts are a function of the world, the shape and the way; its callback's answer a function of the
+/// contacts and of what the key holds besides. Off unless a [`sweep_memo::On`] is held on the thread (the bots' lip guard
+/// forecasts, whose bodies stand again and again where the last poll's stood); the grid build and the reckoning sweep without it.
+pub mod sweep_memo {
+    use super::Contact;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    /// The entries of one generation. The table keeps two (the one filling and the one before), so at most twice this many.
+    pub const GENERATION: usize = 16_384;
+
+    /// The walk tick's sweep that remembers: each reads a different set of values besides its shape and way.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub(crate) enum Site {
+        /// `air_sweep`: the start, the end, the radius, whether it sweeps along the axis.
+        Air,
+        /// `move_sweep`'s callback: the shape, its end, the main start, the shape's own start, the move's end.
+        Move,
+        /// `down_sweep`: the start, the end, the floor limit, the radius.
+        Down,
+        /// `up_sweep`: the start, the end, the floor limit, the radius.
+        Up,
+        /// The side slide's down sweep: the shape and its end (its callback takes every contact).
+        SlideDown,
+    }
+
+    /// Every bit a sweep's answer reads: its world, its site and the values the site names, as f32 bits in a fixed order.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub(crate) struct Key {
+        world: u64,
+        site: Site,
+        bits: [u32; Key::WORDS],
+    }
+
+    impl Key {
+        /// The words a key holds: up to 23 values (the move sweep's 20: its shape's 8, then 4 points) and the count of them.
+        const WORDS: usize = 24;
+
+        /// A key of `site` in `world` with no values yet ([`Self::f`], [`Self::v3`], [`Self::shape`]).
+        pub(crate) fn of(world: &super::Collision, site: Site) -> Key {
+            Key { world: world.id, site, bits: [0; Key::WORDS] }
+        }
+
+        /// The key with the bits of `x` next.
+        pub(crate) fn f(mut self, x: f32) -> Key {
+            let n = self.bits[Key::WORDS - 1] as usize;
+            // A site holds a fixed list of values: more than a key's words is a site's key made wrong.
+            assert!(n < Key::WORDS - 1, "a sweep key over {} words", Key::WORDS - 1);
+            self.bits[n] = x.to_bits();
+            self.bits[Key::WORDS - 1] = n as u32 + 1;
+            self
+        }
+
+        /// The key with the bits of `p` next (x, y, z).
+        pub(crate) fn v3(self, p: crate::math::Vec3) -> Key {
+            self.f(p.x).f(p.y).f(p.z)
+        }
+
+        /// The key with `shape` next: its kind, then each of its numbers (8 words whatever the kind).
+        pub(crate) fn shape(self, shape: &super::Shape) -> Key {
+            use super::Shape;
+            let kind = |k: u32| f32::from_bits(k);
+            match *shape {
+                Shape::Capsule(c) => self.f(kind(0)).v3(c.low).v3(c.high).f(c.radius),
+                Shape::Cylinder { centre, half, radius, margin } => self.f(kind(1)).v3(centre).f(half).f(radius).f(margin).f(0.0),
+                Shape::Sphere { centre, radius } => self.f(kind(2)).v3(centre).f(radius).f(0.0).f(0.0).f(0.0),
+                Shape::CapsuleAt { centre, radius, half_height } => self.f(kind(3)).v3(centre).f(radius).f(half_height).f(0.0).f(0.0),
+            }
+        }
+    }
+
+    /// A key's hash: each word folded in by a rotate, xor and multiply (the `FxHash` step). A key is whole words of a fixed
+    /// length, so the table needs no keyed hash; equal keys are told apart by `Eq`, never by the hash.
+    #[derive(Default)]
+    struct FoldHasher(u64);
+
+    impl std::hash::Hasher for FoldHasher {
+        fn finish(&self) -> u64 {
+            self.0
+        }
+
+        fn write(&mut self, bytes: &[u8]) {
+            let mut words = bytes.chunks_exact(8);
+            for w in &mut words {
+                self.write_u64(u64::from_le_bytes(w.try_into().expect("8 bytes")));
+            }
+            for b in words.remainder() {
+                self.write_u64(u64::from(*b));
+            }
+        }
+
+        fn write_u8(&mut self, i: u8) {
+            self.write_u64(u64::from(i));
+        }
+
+        fn write_u32(&mut self, i: u32) {
+            self.write_u64(u64::from(i));
+        }
+
+        fn write_u64(&mut self, i: u64) {
+            self.0 = (self.0.rotate_left(5) ^ i).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+        }
+
+        fn write_usize(&mut self, i: usize) {
+            self.write_u64(i as u64);
+        }
+    }
+
+    type Map = HashMap<Key, Option<Contact>, std::hash::BuildHasherDefault<FoldHasher>>;
+
+    #[derive(Default)]
+    struct Table {
+        on: u32,
+        new: Map,
+        old: Map,
+        counts: Counts,
+    }
+
+    /// What the memo did since the last [`take_counts`].
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct Counts {
+        /// Sweeps asked while on.
+        pub asked: u64,
+        /// Of them, answered from the table.
+        pub remembered: u64,
+        /// Generations turned over (the older dropped).
+        pub turned: u64,
+        /// The most entries held at once.
+        pub most: u64,
+    }
+
+    thread_local! {
+        static TABLE: RefCell<Table> = RefCell::new(Table::default());
+    }
+
+    /// Holds the memo on for this thread while it lives (nested holds count).
+    pub struct On(());
+
+    impl On {
+        pub fn new() -> On {
+            TABLE.with(|t| t.borrow_mut().on += 1);
+            On(())
+        }
+    }
+
+    impl Default for On {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl Drop for On {
+        fn drop(&mut self) {
+            TABLE.with(|t| t.borrow_mut().on -= 1);
+        }
+    }
+
+    /// The answer of the sweep `key` names: remembered, else `sweep`'s (then remembered). Without an [`On`] held, `sweep`'s.
+    pub(crate) fn closest(key: impl FnOnce() -> Key, sweep: impl FnOnce() -> Option<Contact>) -> Option<Contact> {
+        let key = match TABLE.with(|t| t.borrow().on > 0) {
+            true => key(),
+            false => return sweep(),
+        };
+        let found = TABLE.with(|t| {
+            let mut t = t.borrow_mut();
+            t.counts.asked += 1;
+            let found = t.new.get(&key).or_else(|| t.old.get(&key)).copied();
+            if found.is_some() {
+                t.counts.remembered += 1;
+            }
+            found
+        });
+        if let Some(answer) = found {
+            return answer;
+        }
+        let answer = sweep();
+        TABLE.with(|t| {
+            let mut t = t.borrow_mut();
+            if t.new.len() >= GENERATION {
+                t.old = std::mem::take(&mut t.new);
+                t.counts.turned += 1;
+            }
+            t.new.insert(key, answer);
+            let held = (t.new.len() + t.old.len()) as u64;
+            t.counts.most = t.counts.most.max(held);
+        });
+        answer
+    }
+
+    /// The counts since the last take, the table kept.
+    pub fn counts() -> Counts {
+        TABLE.with(|t| t.borrow().counts)
+    }
+
+    /// The counts since the last take; the table is emptied too (a match's memo ends with it).
+    pub fn take_counts() -> Counts {
+        TABLE.with(|t| {
+            let mut t = t.borrow_mut();
+            t.new = Map::default();
+            t.old = Map::default();
+            std::mem::take(&mut t.counts)
+        })
+    }
+
+    /// The heap one entry takes in the table, bytes: its key and answer, and the map's control byte (at the map's 7/8 load,
+    /// up to 8/7 of that).
+    pub fn entry_bytes() -> usize {
+        std::mem::size_of::<Key>() + std::mem::size_of::<Option<Contact>>() + 1
+    }
 }
 
 /// What a sweep is cast against.
@@ -555,12 +777,12 @@ impl Collision {
             let n = faces.len();
             Self::split(&mut faces, 0, n, &mut nodes);
         }
-        Self { faces, nodes, sweeps: Sweeps::Faces(Caster::default()) }
+        Self { faces, nodes, sweeps: Sweeps::Faces(Caster::default()), id: next_world_id() }
     }
 
     /// The same faces, its sweeps against each face by `caster`.
     pub fn with_caster(self, caster: Caster) -> Self {
-        Self { sweeps: Sweeps::Faces(caster), ..self }
+        Self { sweeps: Sweeps::Faces(caster), id: next_world_id(), ..self }
     }
 
     /// The walking body's collision of `map` as the game holds it, for sweeps by the exe's own cast: the game's
