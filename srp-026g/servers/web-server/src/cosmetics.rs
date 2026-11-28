@@ -12,7 +12,8 @@
 //!   a camouflage or decal the player has is never given ([`drops::COSMETIC_CATEGORIES`]);
 //! - **given**: the number decals, each to the account of its number
 //!   ([`number_decals::Number::of_account`], `docs/notes/number-decals.md`);
-//! - nothing of these: not obtainable.
+//! - nothing of these: not listed (the owner, 2026-11-28: "no need to show not obtainable at
+//!   all"; the flags and arms not for sale are skipped on purpose).
 //!
 //! The icon is the lobby's: the cell `ui_desc.icon` ([row, column], from 1) of the camouflage or
 //! decal atlas, as `build_icons.py` cuts them ([`IconSet::Camouflage`], [`IconSet::Decal`]).
@@ -148,14 +149,54 @@ enum Shelf {
     Faction,
     /// A badge ([`prices::BADGE`]).
     Badge,
-    /// A premium camouflage or decal (`prm_*`), sold one by one.
+    /// A premium camouflage or decal (`prm_*`), sold one by one, but for the flags and the
+    /// coats of arms.
     Premium,
+    /// A premium decal of the flags' row ([`DecalRow::Flags`]).
+    Flags,
+    /// A premium decal of the coats of arms' and emblems' row ([`DecalRow::Arms`]).
+    Arms,
     /// A drop camouflage or decal (`drp_*`).
     Drop,
     /// Given to one account each.
     Given,
-    /// Nothing gives it.
-    Nowhere,
+}
+
+/// The rows of the game's decal naming that the page shelves apart: a decal's config is
+/// `char_decal_<row>_<n>` and its texture `character/human/decal/<row>_<n>`, and 0.26g and 0.69d
+/// keep their flags in row 4 and their coats of arms and emblems (NATO's, the UN's) in row 5;
+/// Skhid's own flag and coat of arms of Kosovo too (`4_76`, `5_43`; docs/notes/kosovo-decals.md).
+/// The owner, 2026-11-28: "separate flags and coats into their own category", "nato and UN goes
+/// there too".
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DecalRow {
+    Flags,
+    Arms,
+}
+
+impl DecalRow {
+    /// The row of `item`'s config name, when it is one of these.
+    fn of(item: &Item) -> Option<Self> {
+        let file = item.cfg_name.rsplit(['/', '\\']).next()?;
+        let row = file.strip_prefix("char_decal_")?.split('_').next()?;
+        match row {
+            "4" => Some(Self::Flags),
+            "5" => Some(Self::Arms),
+            _ => None,
+        }
+    }
+
+    const fn shelf(self) -> Shelf {
+        match self {
+            Self::Flags => Shelf::Flags,
+            Self::Arms => Shelf::Arms,
+        }
+    }
+}
+
+/// A premium item's shelf: its row's for a flag or coat of arms, else Premium.
+fn premium(item: &Item) -> Shelf {
+    DecalRow::of(item).map_or(Shelf::Premium, DecalRow::shelf)
 }
 
 /// A camouflage or decal.
@@ -228,7 +269,7 @@ fn all(page: Page) -> &'static [Cosmetic] {
             .items
             .iter()
             .filter(|item| item.category == page.category())
-            .map(|item| {
+            .filter_map(|item| {
                 let params = item_params::item_params(item.dict_id);
                 let mut ways: Vec<Way> = prices
                     .iter()
@@ -248,9 +289,10 @@ fn all(page: Page) -> &'static [Cosmetic] {
                 }
                 ways.extend(given().get(&item.name).map(|&id| Way::Given(id)));
                 let kind = params.map_or("", |params| params.kind);
-                let shelf = if ways.is_empty() {
-                    Shelf::Nowhere
-                } else if ways.iter().any(|way| matches!(way, Way::Given(_))) {
+                if ways.is_empty() {
+                    return None;
+                }
+                let shelf = if ways.iter().any(|way| matches!(way, Way::Given(_))) {
                     Shelf::Given
                 } else if kind == prices::SHOP_CAMO {
                     Shelf::Faction
@@ -259,18 +301,18 @@ fn all(page: Page) -> &'static [Cosmetic] {
                 } else if kind.starts_with("drp_") {
                     Shelf::Drop
                 } else if kind.starts_with("prm_") || item.is_premium {
-                    Shelf::Premium
+                    premium(item)
                 } else if ways.iter().any(|way| matches!(way, Way::Dropped(_))) {
                     Shelf::Drop
                 } else {
-                    Shelf::Premium
+                    premium(item)
                 };
-                Cosmetic {
+                Some(Cosmetic {
                     item,
                     cell: game_data::shared().file(&item.cfg_name).and_then(Cell::of),
                     ways,
                     shelf,
-                }
+                })
             })
             .collect()
     })
@@ -347,9 +389,6 @@ fn ways(lang: Lang, cosmetic: &Cosmetic) -> String {
             Way::Given(id) => vec![escape(&lang.tf("Given to account {0}", &[("0", &id)]))],
         })
         .collect();
-    if cosmetic.ways.is_empty() {
-        lines.push(escape(&lang.t("Not obtainable")));
-    }
     // A premium item where premium is news: one that drops (Dust, camo_khaki_fabric_03).
     if cosmetic.item.is_premium
         && matches!(cosmetic.shelf, Shelf::Faction | Shelf::Badge | Shelf::Drop)
@@ -402,9 +441,10 @@ fn shelf_title(lang: Lang, shelf: Shelf) -> String {
         Shelf::Faction => lang.t("Sold by the factions"),
         Shelf::Badge => lang.t("Badges"),
         Shelf::Premium => lang.t("Premium"),
+        Shelf::Flags => lang.t("Flags"),
+        Shelf::Arms => lang.t("Coats of arms and emblems"),
         Shelf::Drop => lang.t("Drops"),
         Shelf::Given => lang.t("Given"),
-        Shelf::Nowhere => lang.t("Not obtainable"),
     }
 }
 
@@ -414,10 +454,9 @@ fn shelf_line(lang: Lang, shelf: Shelf) -> String {
         Shelf::Badge => lang.t(
             "Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.",
         ),
-        Shelf::Premium => lang.t("Sold for silver by every trader."),
+        Shelf::Premium | Shelf::Flags | Shelf::Arms => lang.t("Sold for silver by every trader."),
         Shelf::Drop => lang.t("Found in drops, never one you already have."),
         Shelf::Given => lang.t("Each is given to one account."),
-        Shelf::Nowhere => lang.t("No shop sells them, nothing drops them and no one is given them."),
     }
 }
 
@@ -470,11 +509,9 @@ pub(crate) fn body(lang: Lang, page: Page) -> String {
     for cosmetic in cosmetics {
         shelves.entry(cosmetic.shelf).or_default().push(cosmetic);
     }
-    // The long shelves by name in the page's language: nothing in the data tells a flag from a
-    // holiday or a character decal (all `prm_decl`), but their names do ("Flag of …", "Coat of
-    // arms of …"). The factions' camouflages and the badges stay in the dictionary's order (by
-    // faction, the rank badges before the factions').
-    for shelf in [Shelf::Premium, Shelf::Drop] {
+    // The long shelves by name in the page's language. The factions' camouflages and the badges
+    // stay in the dictionary's order (by faction, the rank badges before the factions').
+    for shelf in [Shelf::Premium, Shelf::Flags, Shelf::Arms, Shelf::Drop] {
         if let Some(items) = shelves.get_mut(&shelf) {
             items.sort_by_cached_key(|cosmetic| name(lang, cosmetic.item).to_lowercase());
         }
@@ -570,6 +607,28 @@ mod tests {
     }
 
     #[test]
+    fn flags_and_coats_of_arms_have_shelves_of_their_own() {
+        let decals = all(Page::Decals);
+        let on = |shelf| decals.iter().filter(move |cosmetic| cosmetic.shelf == shelf);
+        assert!(on(Shelf::Flags).count() > 0 && on(Shelf::Arms).count() > 0);
+        for cosmetic in on(Shelf::Flags) {
+            let name = name(Lang::En, cosmetic.item);
+            assert!(name.starts_with("Flag"), "{}: {name}", cosmetic.item.name);
+        }
+        for cosmetic in on(Shelf::Arms) {
+            let name = name(Lang::En, cosmetic.item);
+            assert!(!name.starts_with("Flag"), "{}: {name}", cosmetic.item.name);
+        }
+        // None of them left on Premium, and no camouflage on these shelves.
+        for cosmetic in on(Shelf::Premium) {
+            assert_eq!(DecalRow::of(cosmetic.item), None, "{}", cosmetic.item.name);
+        }
+        assert!(all(Page::Camouflages)
+            .iter()
+            .all(|cosmetic| !matches!(cosmetic.shelf, Shelf::Flags | Shelf::Arms)));
+    }
+
+    #[test]
     fn the_ways_are_the_servers_own() {
         let dictionary = Dictionary::shared();
         for page in Page::ALL {
@@ -600,12 +659,7 @@ mod tests {
                 if prices::is_not_sold(item) {
                     assert!(sold.is_empty(), "{}", item.name);
                 }
-                assert_eq!(
-                    cosmetic.shelf == Shelf::Nowhere,
-                    cosmetic.ways.is_empty(),
-                    "{}",
-                    item.name
-                );
+                assert!(!cosmetic.ways.is_empty(), "{}", item.name);
             }
         }
         // The test data's: the stock drop camouflages and decals drop after a match and from a

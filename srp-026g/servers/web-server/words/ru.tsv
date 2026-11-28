@@ -1028,8 +1028,9 @@ Drops after a match	Выпадает после боя
 Drops after a first match	Выпадает после первого боя
 Drops from a stash map	Выпадает с карты схрона
 Given to account {0}	Выдаётся аккаунту {0}
-Not obtainable	Недоступно
 Premium	Премиум
+Flags	Флаги
+Coats of arms and emblems	Гербы и эмблемы
 {count} items, each given to the account of the same id	Предметов: {count}; каждый выдаётся аккаунту с тем же ID
 Sold by the factions	Продают фракции
 Badges	Значки
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Продаются за серебро у всех торговцев.
 Found in drops, never one you already have.	Выпадают в дропе; повторы не выпадают.
 Each is given to one account.	Каждый предмет выдаётся одному аккаунту.
-No shop sells them, nothing drops them and no one is given them.	Их не продают, они не выпадают и никому не выдаются.
 Where it goes	Куда ставится
 Items that take it	Предметов, на которые ставится
 At once	Одновременно

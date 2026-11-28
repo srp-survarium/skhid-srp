@@ -1028,8 +1028,9 @@ Drops after a match	Padá po zápase
 Drops after a first match	Padá po prvním zápase
 Drops from a stash map	Padá z mapy skrýše
 Given to account {0}	Dostane ji účet {0}
-Not obtainable	Nedostupné
 Premium	Prémiové
+Flags	Vlajky
+Coats of arms and emblems	Znaky a emblémy
 {count} items, each given to the account of the same id	Kusů: {count}; každý dostane účet se stejným ID
 Sold by the factions	Prodávají frakce
 Badges	Odznaky
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Prodává je za stříbro každý obchodník.
 Found in drops, never one you already have.	Padají v dropech, nikdy ty, které už máš.
 Each is given to one account.	Každý předmět dostane jeden účet.
-No shop sells them, nothing drops them and no one is given them.	Žádný obchod je neprodává, nepadají a nikdo je nedostane.
 Where it goes	Kam patří
 Items that take it	Předměty, které ho berou
 At once	Najednou

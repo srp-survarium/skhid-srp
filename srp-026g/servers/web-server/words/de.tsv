@@ -1028,8 +1028,9 @@ Drops after a match	Fällt nach einem Match
 Drops after a first match	Fällt nach dem ersten Match
 Drops from a stash map	Fällt aus einer Caches Karte
 Given to account {0}	Für das Konto {0}
-Not obtainable	Nicht erhältlich
 Premium	Premium
+Flags	Flaggen
+Coats of arms and emblems	Wappen und Embleme
 {count} items, each given to the account of the same id	{count} Stück, jedes für das Konto mit derselben ID
 Sold by the factions	Von den Fraktionen verkauft
 Badges	Abzeichen
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Bei jedem Händler für Silber erhältlich.
 Found in drops, never one you already have.	Kommen aus Drops, nie eines, das du schon hast.
 Each is given to one account.	Jedes wird einem Konto gegeben.
-No shop sells them, nothing drops them and no one is given them.	Kein Laden verkauft sie, nichts lässt sie fallen, und niemand bekommt sie.
 Where it goes	Wohin es passt
 Items that take it	Gegenstände, die es tragen
 At once	Gleichzeitig

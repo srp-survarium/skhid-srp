@@ -1028,8 +1028,9 @@ Drops after a match	Wypada po meczu
 Drops after a first match	Wypada po pierwszym meczu
 Drops from a stash map	Wypada z mapy skrytek
 Given to account {0}	Przyznawana kontu {0}
-Not obtainable	Niedostępne
 Premium	Premium
+Flags	Flagi
+Coats of arms and emblems	Herby i emblematy
 {count} items, each given to the account of the same id	Sztuk: {count}; każda przyznawana kontu o tym samym ID
 Sold by the factions	Sprzedawane przez frakcje
 Badges	Odznaki
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Sprzedawane za srebro u każdego handlarza.
 Found in drops, never one you already have.	Wypadają w dropach, nigdy te, które już masz.
 Each is given to one account.	Każdy przedmiot jest przyznawany jednemu kontu.
-No shop sells them, nothing drops them and no one is given them.	Żaden sklep ich nie sprzedaje, nie wypadają i nikt ich nie dostaje.
 Where it goes	Gdzie pasuje
 Items that take it	Przedmioty, które go przyjmują
 At once	Naraz

@@ -1028,8 +1028,9 @@ Drops after a match	Cai após uma partida
 Drops after a first match	Cai após a primeira partida
 Drops from a stash map	Cai do mapa do tesouro
 Given to account {0}	Dado à conta {0}
-Not obtainable	Indisponível
 Premium	Premium
+Flags	Bandeiras
+Coats of arms and emblems	Brasões e emblemas
 {count} items, each given to the account of the same id	{count} itens, cada um dado à conta de mesmo ID
 Sold by the factions	Vendidas pelas facções
 Badges	Insígnias
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Vendidas por prata por todo comerciante.
 Found in drops, never one you already have.	Vêm de drops, nunca um que você já tem.
 Each is given to one account.	Cada um é dado a uma conta.
-No shop sells them, nothing drops them and no one is given them.	Nenhuma loja as vende, nada as dropa e ninguém as recebe.
 Where it goes	Onde vai
 Items that take it	Itens que o aceitam
 At once	De uma vez

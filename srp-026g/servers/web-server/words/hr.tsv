@@ -1028,8 +1028,9 @@ Drops after a match	Ispada nakon meča
 Drops after a first match	Ispada nakon prvog meča
 Drops from a stash map	Ispada iz karte skrovišta
 Given to account {0}	Dodjeljuje se računu {0}
-Not obtainable	Nedostupno
 Premium	Premium
+Flags	Zastave
+Coats of arms and emblems	Grbovi i amblemi
 {count} items, each given to the account of the same id	Komada: {count}; svaki se dodjeljuje računu s istim ID-om
 Sold by the factions	Prodaju frakcije
 Badges	Značke
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Prodaju se za srebro kod svakog trgovca.
 Found in drops, never one you already have.	Ispadaju u dropu, nikad oni koje već imaš.
 Each is given to one account.	Svaki predmet dodjeljuje se jednom računu.
-No shop sells them, nothing drops them and no one is given them.	Nijedna trgovina ih ne prodaje, ne ispadaju i nitko ih ne dobiva.
 Where it goes	Gdje ide
 Items that take it	Predmeta koji ga primaju
 At once	Odjednom

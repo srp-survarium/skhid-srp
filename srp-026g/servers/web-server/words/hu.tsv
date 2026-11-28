@@ -1028,8 +1028,9 @@ Drops after a match	Meccs után eshet
 Drops after a first match	Az első meccs után eshet
 Drops from a stash map	Rejtekhelytérképből eshet
 Given to account {0}	A(z) {0} azonosítójú fiók kapja
-Not obtainable	Nem szerezhető meg
 Premium	Prémium
+Flags	Zászlók
+Coats of arms and emblems	Címerek és emblémák
 {count} items, each given to the account of the same id	{count} darab, mindegyiket az azonos azonosítójú fiók kapja
 Sold by the factions	A frakciók árulják
 Badges	Jelvények
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Minden kereskedő árulja ezüstért.
 Found in drops, never one you already have.	Dropokból jönnek, soha nem olyan, ami már megvan.
 Each is given to one account.	Mindegyiket egy fiók kapja.
-No shop sells them, nothing drops them and no one is given them.	Egy bolt sem árulja, nem esnek, és senki sem kapja meg őket.
 Where it goes	Hová kerülhet
 Items that take it	Ezt fogadó tárgyak
 At once	Egyszerre

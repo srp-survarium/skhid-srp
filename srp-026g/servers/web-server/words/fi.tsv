@@ -1028,8 +1028,9 @@ Drops after a match	Putoaa ottelun jälkeen
 Drops after a first match	Putoaa ensimmäisen ottelun jälkeen
 Drops from a stash map	Putoaa kätkökartasta
 Given to account {0}	Annetaan tilille {0}
-Not obtainable	Ei saatavilla
 Premium	Premium
+Flags	Liput
+Coats of arms and emblems	Vaakunat ja tunnukset
 {count} items, each given to the account of the same id	{count} kpl, kukin annetaan tilille, jolla on sama tunnus
 Sold by the factions	Ryhmittymien myymät
 Badges	Kunniamerkit
@@ -1040,7 +1041,6 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Jokainen kauppias myy hopealla.
 Found in drops, never one you already have.	Saadaan pudotuksista, ei koskaan jo omistettua.
 Each is given to one account.	Kukin annetaan yhdelle tilille.
-No shop sells them, nothing drops them and no one is given them.	Mikään kauppa ei myy niitä, ne eivät putoa eikä niitä anneta kenellekään.
 Where it goes	Mihin se käy
 Items that take it	Sen ottavat esineet
 At once	Kerralla
