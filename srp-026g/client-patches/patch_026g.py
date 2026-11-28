@@ -3194,6 +3194,10 @@ INSTALLS[0x298664] = (CALLEE, "correct_fingers' set_weapon_model 0x390620 (stdca
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
+# Patch 222 (the Rust patch octree_unmove's code hook, octree_unmove_026g.asm)
+INSTALLS[0x396C0] = (ENTRY, "loose_oct_tree::unmove_all: octree_unmove_all, the same flags cleared by one loop",
+                     None, None)
+
 # Distance detail: native bounded integer command owns Apply/Cancel/save.
 # Maximum also selects LOD0. Of textures it touches only the requests of records that are not
 # streamed (no mip cut for them); streaming itself stays on in the game (client_patch.md,

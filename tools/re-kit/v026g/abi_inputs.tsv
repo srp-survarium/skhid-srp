@@ -6878,3 +6878,6 @@ va	name	location	role	basis
 0x00173f10	vostok::render::stage_shadow_direct::cascade_needs_static_draw	ESI	shadow stage receiver	observed
 0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	ECX	shadow stage receiver	observed
 0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	EAX	cascade index	observed
+0x000396b0	vostok::collision::unmove_object [descriptive]	entry ESP+4	the object (cdecl; 0x3A997)	observed
+0x0003a890	vostok::collision::loose_oct_tree::for_each_iterate<void (__cdecl*)(vostok::collision::object const *)>	entry ESP+4	the callback's place (a pointer to the function)	observed
+0x0003a890	vostok::collision::loose_oct_tree::for_each_iterate<void (__cdecl*)(vostok::collision::object const *)>	entry ESP+8	the node: eight child pointers, +24h its first object (linked at object +1Ch)	observed
