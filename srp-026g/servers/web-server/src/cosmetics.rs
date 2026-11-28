@@ -1,7 +1,7 @@
 //! The wiki's camouflages and decals, `/wiki/camouflages` and `/wiki/decals` on the 0.26g site:
 //! every item of `items_dict` category 25 or 26 with its lobby icon, its name and how a player
-//! gets it on Skhid, grouped by that, and what it goes on. Two pages, not one: they share no item,
-//! their "where it goes" differs, and together they would be some 1,500 entries.
+//! gets it on Skhid, grouped by that. Two pages, not one: they share no item, and together they
+//! would be some 1,500 entries.
 //!
 //! Made from the server's own game data and rules, so it is the release's:
 //! - **sold**: the price list the lobby is sent ([`shop_offers::price_list`]: the factions' own
@@ -17,8 +17,8 @@
 //!
 //! The icon is the lobby's: the cell `ui_desc.icon` ([row, column], from 1) of the camouflage or
 //! decal atlas, as `build_icons.py` cuts them ([`IconSet::Camouflage`], [`IconSet::Decal`]).
-//! Where it goes is each item's `camo_available` / `decal_available` and srp's slots
-//! ([`modifications::cosmetic_slots`]).
+//! The page is the shelves alone (the owner, 2026-11-28: no total, no list of the shelves, no
+//! "where it goes" table and no rules).
 
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -29,11 +29,10 @@ use session::v026g::number_decals::Number;
 use survarium::v026g::dictionary::{Dictionary, Item};
 use survarium::v026g::drops::{DropTable, Drops};
 use survarium::v026g::item_params::{self, ItemParams};
-use survarium::v026g::modifications;
 use survarium::v026g::{game_data, prices, shop_offers};
 
 use crate::icons::{self, IconSet};
-use crate::modifiers::{self, Group};
+use crate::modifiers;
 use crate::skills::thousands;
 use crate::{Lang, equipment, escape};
 
@@ -75,14 +74,6 @@ impl Page {
         match self {
             Self::Camouflages => IconSet::Camouflage,
             Self::Decals => IconSet::Decal,
-        }
-    }
-
-    /// What [`modifications::cosmetic_slots`] reads of an upgrade's `type`: its ending.
-    const fn upgrade_kind(self) -> &'static str {
-        match self {
-            Self::Camouflages => "_camo",
-            Self::Decals => "_decl",
         }
     }
 
@@ -459,47 +450,6 @@ fn shelf_line(lang: Lang, shelf: Shelf) -> String {
     }
 }
 
-/// Where `page`'s items go: each group of items that takes one, how many of its items do and
-/// how many each holds at once.
-fn where_it_goes(lang: Lang, page: Page) -> String {
-    let dictionary = Dictionary::shared();
-    let mut groups: BTreeMap<Group, (usize, usize)> = BTreeMap::new();
-    for host in modifications::all_item_mods() {
-        let Some(item) = dictionary.item(host.dict_id) else {
-            continue;
-        };
-        let Some(group) = Group::of(item.category) else {
-            continue;
-        };
-        let kind = item_params::item_params(host.dict_id).map_or("", |params| params.kind);
-        let slots = modifications::cosmetic_slots(host, kind, page.upgrade_kind()).len();
-        if slots > 0 {
-            let entry = groups.entry(group).or_default();
-            entry.0 += 1;
-            entry.1 = entry.1.max(slots);
-        }
-    }
-    let rows: String = groups
-        .iter()
-        .map(|(&group, &(items, slots))| {
-            format!(
-                "<tr><th>{}{}</th><td class=num>{items}</td><td class=num>{slots}</td></tr>",
-                modifiers::glyph(IconSet::Group, &group.category().to_string()),
-                escape(&modifiers::text(lang, group.name_key())),
-            )
-        })
-        .collect();
-    format!(
-        "<section class=modifiers id=where><h2>{}</h2><div class=table-scroll>\
-         <table class=\"artefact-table cosmetic-where\"><thead><tr><th>{}</th><th>{}</th><th>{}</th>\
-         </tr></thead><tbody>{rows}</tbody></table></div></section>",
-        escape(&lang.t("Where it goes")),
-        escape(&lang.t("Item")),
-        escape(&lang.t("Items that take it")),
-        escape(&lang.t("At once")),
-    )
-}
-
 /// The page's body in `lang`.
 pub(crate) fn body(lang: Lang, page: Page) -> String {
     let code = lang.code();
@@ -516,17 +466,10 @@ pub(crate) fn body(lang: Lang, page: Page) -> String {
         }
     }
 
-    let mut contents = String::new();
     let mut sections = String::new();
     for (&shelf, items) in &shelves {
         let anchor = format!("{shelf:?}").to_lowercase();
         let title = shelf_title(lang, shelf);
-        let _ = write!(
-            contents,
-            "<li><a href=\"#{anchor}\">{}</a> <small>{}</small></li>",
-            escape(&title),
-            thousands(lang, items.len() as u32),
-        );
         let cards: String = if shelf == Shelf::Given {
             let mut by_icon: BTreeMap<Option<Cell>, Vec<&Cosmetic>> = BTreeMap::new();
             for &cosmetic in items {
@@ -552,26 +495,15 @@ pub(crate) fn body(lang: Lang, page: Page) -> String {
         );
     }
 
-    let rules = [
-        lang.t("Bought once, it is yours: put it on any number of your items at the same time."),
-        lang.t("Sold back, it pays a quarter of its price and comes off every item."),
-    ];
-    let rules: String = rules
-        .iter()
-        .map(|line| format!("<li>{}</li>", escape(line)))
-        .collect();
+    // Just the shelves (the owner, 2026-11-28: no total, no list of the shelves, no "where it
+    // goes" and no rules above them).
     let title = page.title(lang);
     format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
-         <div class=wiki-heading><div><h1>{}</h1></div><span class=catalogue-count>{}</span></div>\
-         <ul class=cosmetic-contents>{contents}</ul>{}\
-         <section class=modifiers><h2>{}</h2><ul class=mode-rules>{rules}</ul></section>{sections}",
+         <div class=wiki-heading><div><h1>{}</h1></div></div>{sections}",
         escape(&lang.t("Wiki")),
         escape(&title),
         escape(&title),
-        thousands(lang, cosmetics.len() as u32),
-        where_it_goes(lang, page),
-        escape(&lang.t("Rules")),
     )
 }
 
@@ -711,21 +643,6 @@ mod tests {
         escape(&seller(Lang::En, who, rank))
     }
 
-    #[test]
-    fn camouflages_and_decals_go_where_the_slots_are() {
-        let camouflages = where_it_goes(Lang::En, Page::Camouflages);
-        let decals = where_it_goes(Lang::En, Page::Decals);
-        for (page, table) in [("camouflages", &camouflages), ("decals", &decals)] {
-            // The test data's: stock armour (the weapons take them by the edit lists weapon-camo-1
-            // and weapon-decals-1, which only the release's data has).
-            for group in ["Body armor", "Pants"] {
-                assert!(table.contains(group), "{page}: {group}: {table}");
-            }
-        }
-        // Two decals on a vest or trousers, one camouflage (modifications::cosmetic_slots).
-        assert!(decals.contains("</td><td class=num>2</td></tr>"));
-        assert!(!camouflages.contains("</td><td class=num>2</td></tr>"));
-    }
 
     #[test]
     fn every_language_has_both_pages() {

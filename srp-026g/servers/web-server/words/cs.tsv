@@ -1022,8 +1022,8 @@ History since {0}, plus {1} earlier matches made again from their recordings, fr
 # The wiki's camouflages and decals (src/cosmetics.rs).
 Camouflages	Kamufláže
 Decals	Nášivky
-Every camouflage: how to get it and what it goes on.	Každá kamufláž: jak ji získat a na co jde.
-Every decal: how to get it and what it goes on.	Každá nášivka: jak ji získat a na co jde.
+Every camouflage: how to get it.	Každá kamufláž: jak ji získat.
+Every decal: how to get it.	Každá nášivka: jak ji získat.
 Given to account {0}	Dostane ji účet {0}
 Premium	Prémiové
 Flags	Vlajky
@@ -1038,8 +1038,3 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Prodává je za stříbro každý obchodník.
 Found in drops, never one you already have.	Padají v dropech, nikdy ty, které už máš.
 Each is given to one account.	Každý předmět dostane jeden účet.
-Where it goes	Kam patří
-Items that take it	Předměty, které ho berou
-At once	Najednou
-Bought once, it is yours: put it on any number of your items at the same time.	Jednou koupený je tvůj: dej ho na libovolný počet svých předmětů najednou.
-Sold back, it pays a quarter of its price and comes off every item.	Prodaný vrátí čtvrtinu ceny a zmizí ze všech předmětů.

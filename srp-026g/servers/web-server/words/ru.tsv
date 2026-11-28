@@ -1022,8 +1022,8 @@ History since {0}, plus {1} earlier matches made again from their recordings, fr
 # The wiki's camouflages and decals (src/cosmetics.rs).
 Camouflages	Камуфляжи
 Decals	Нашивки
-Every camouflage: how to get it and what it goes on.	Все камуфляжи: как их получить и на что они ставятся.
-Every decal: how to get it and what it goes on.	Все нашивки: как их получить и на что они ставятся.
+Every camouflage: how to get it.	Все камуфляжи: как их получить.
+Every decal: how to get it.	Все нашивки: как их получить.
 Given to account {0}	Выдаётся аккаунту {0}
 Premium	Премиум
 Flags	Флаги
@@ -1038,8 +1038,3 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Продаются за серебро у всех торговцев.
 Found in drops, never one you already have.	Выпадают в дропе; повторы не выпадают.
 Each is given to one account.	Каждый предмет выдаётся одному аккаунту.
-Where it goes	Куда ставится
-Items that take it	Предметов, на которые ставится
-At once	Одновременно
-Bought once, it is yours: put it on any number of your items at the same time.	Купив один раз, вы им владеете: ставьте на сколько угодно своих предметов одновременно.
-Sold back, it pays a quarter of its price and comes off every item.	При продаже приносит четверть цены и снимается со всех предметов.

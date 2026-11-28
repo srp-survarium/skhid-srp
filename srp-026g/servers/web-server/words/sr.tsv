@@ -1022,8 +1022,8 @@ History since {0}, plus {1} earlier matches made again from their recordings, fr
 # The wiki's camouflages and decals (src/cosmetics.rs).
 Camouflages	Kamuflaže
 Decals	Oznake
-Every camouflage: how to get it and what it goes on.	Svaka kamuflaža: kako se dobija i na šta ide.
-Every decal: how to get it and what it goes on.	Svaka oznaka: kako se dobija i na šta ide.
+Every camouflage: how to get it.	Svaka kamuflaža: kako se dobija.
+Every decal: how to get it.	Svaka oznaka: kako se dobija.
 Given to account {0}	Dodeljuje se nalogu {0}
 Premium	Premijum
 Flags	Zastave
@@ -1038,8 +1038,3 @@ Sold for silver: a faction's badge by that faction at the rank it names, the oth
 Sold for silver by every trader.	Prodaju se za srebro kod svakog trgovca.
 Found in drops, never one you already have.	Ispadaju u dropu, nikad one koje već imaš.
 Each is given to one account.	Svaki predmet se dodeljuje jednom nalogu.
-Where it goes	Gde ide
-Items that take it	Predmeta koji ga primaju
-At once	Odjednom
-Bought once, it is yours: put it on any number of your items at the same time.	Kupljen jednom, tvoj je: stavi ga na koliko god hoćeš svojih predmeta odjednom.
-Sold back, it pays a quarter of its price and comes off every item.	Prodat vraća četvrtinu cene i skida se sa svih predmeta.
