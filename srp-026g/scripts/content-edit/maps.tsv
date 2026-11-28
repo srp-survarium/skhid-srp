@@ -22,6 +22,7 @@ v044a_level_09	6			3000
 v069d_level_01	6	2000	2000	3000	6	80
 v069d_level_02	6	2000	2000	3000	6	80
 v069d_level_03	6	2000	2000	3000	6	80
+v069d_level_08	6	3000	0	3000		
 v010b_cs_mp_bath	6			3000		
 v010b_cs_mp_firestation	6					
 v010b_cs_mp_military_1	6			3000		

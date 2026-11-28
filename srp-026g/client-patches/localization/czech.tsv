@@ -2770,6 +2770,7 @@ st_level_26_name	Tarakanovská pevnost (v0.21)
 st_level_27_name	Škola (v0.69)
 st_level_28_name	Radarová stanice Vostok (v0.69)
 st_level_29_name	Rudňa (v0.21)
+st_level_30_name	Kolín nad Rýnem (v0.69)
 st_level_31_name	Chemička (v0.21)
 st_level_32_name	Londýn (v0.42)
 st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění vyléčena! Zdraví obnoveno!
@@ -4111,6 +4112,7 @@ st_srp_map_chemical_plant	Chemička
 st_srp_map_chemical_plant_v011	Chemička (v0.11)
 st_srp_map_chemical_plant_v021	Chemička (v0.21)
 st_srp_map_cologne	Kolín nad Rýnem
+st_srp_map_cologne_v069	Kolín nad Rýnem (v0.69)
 st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
 st_srp_map_cs_mp_darkvalley	Dark Valley

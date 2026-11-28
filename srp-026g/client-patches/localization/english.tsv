@@ -2770,6 +2770,7 @@ st_level_26_name	Tarakanovsky Fort (v0.21)
 st_level_27_name	School (v0.69)
 st_level_28_name	Vostok Radar Station (v0.69)
 st_level_29_name	Rudnya (v0.21)
+st_level_30_name	Cologne (v0.69)
 st_level_31_name	Chemical Plant (v0.21)
 st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Larkspur activated! All the critical wounds cured! Health restored!
@@ -4111,6 +4112,7 @@ st_srp_map_chemical_plant	Chemical Plant
 st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)
 st_srp_map_chemical_plant_v021	Chemical Plant (v0.21)
 st_srp_map_cologne	Cologne
+st_srp_map_cologne_v069	Cologne (v0.69)
 st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
 st_srp_map_cs_mp_darkvalley	Dark Valley

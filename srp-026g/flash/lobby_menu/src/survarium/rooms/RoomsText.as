@@ -9,7 +9,7 @@ package survarium.rooms
     public class RoomsText
     {
         // By level: 10..13 early ports, 14 Rudnya v0.69, 15..24 STALKER, 25/26 School/Fort v0.21, 27 School v0.69, 28 Vostok v0.69, 29 Rudnya v0.21,
-        // 31 Chemical Plant v0.21, 32 London v0.42.
+        // 30 Cologne v0.69, 31 Chemical Plant v0.21, 32 London v0.42.
         private static const LEVELS:Array = [null, "st_srp_map_rudnya", "st_srp_map_school", "st_srp_map_vostok",
             "st_srp_map_chemical_plant", "st_srp_map_tarakanovsky_fort", "st_srp_map_mamayev_kurgan",
             "st_srp_map_vector", "st_srp_map_cologne", "st_srp_map_london", "st_srp_map_vostok_v021",
@@ -17,7 +17,7 @@ package survarium.rooms
             "st_srp_map_rudnya_v069", "st_srp_map_cs_mp_bath", "st_srp_map_cs_mp_military_1", "st_srp_map_cs_training_camp", "st_srp_map_cs_mp_rembasa", "st_srp_map_soc_ug_station", "st_srp_map_soc_ug_depository",
             "st_srp_map_cs_mp_darkvalley", "st_srp_map_cs_mp_atp", "st_srp_map_cs_mp_firestation", "st_srp_map_cs_mp_sport_center",
             "st_srp_map_school_v021", "st_srp_map_tarakanovsky_fort_v021", "st_srp_map_school_v069", "st_srp_map_vostok_v069", "st_srp_map_rudnya_v021",
-            null, "st_srp_map_chemical_plant_v021", "st_srp_map_london_v042"];
+            "st_srp_map_cologne_v069", "st_srp_map_chemical_plant_v021", "st_srp_map_london_v042"];
         private static const MODES:Object = {
             "2": "st_srp_mode_protective_device",
             "3": "st_srp_mode_chargers",

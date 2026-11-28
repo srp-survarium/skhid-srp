@@ -24,7 +24,8 @@ spec.loader.exec_module(probe_light)
 # The prefixes a fixture model has: stock, and the ports' own copies of the models (a port imports a
 # model under its namespace where its materials or settings differ from players'; the London ports'
 # lamps are such copies, the same meshes, and the 0.69d ports' (v069d_<map>/)).
-PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/', 'v069d_rudnya/', 'v069d_vostok/')
+PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/', 'v069d_rudnya/', 'v069d_vostok/',
+                 'v069d_cologne/')
 # The London ports' fixtures, beside the stock ones the older ports never had.
 LONDON_PREFIXES = ('ported/v032a/', 'ported/v044a/')
 BASE_REPLACEMENTS = {

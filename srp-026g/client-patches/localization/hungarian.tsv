@@ -2770,6 +2770,7 @@ st_level_26_name	Tarakanovi erőd (v0.21)
 st_level_27_name	Iskola (v0.69)
 st_level_28_name	Vosztok radarállomás (v0.69)
 st_level_29_name	Rudnya (v0.21)
+st_level_30_name	Köln (v0.69)
 st_level_31_name	Vegyi üzem (v0.21)
 st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyult! Életerő helyreállítva!
@@ -4111,6 +4112,7 @@ st_srp_map_chemical_plant	Vegyi üzem
 st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
 st_srp_map_chemical_plant_v021	Vegyi üzem (v0.21)
 st_srp_map_cologne	Köln
+st_srp_map_cologne_v069	Köln (v0.69)
 st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
 st_srp_map_cs_mp_darkvalley	Dark Valley
