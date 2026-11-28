@@ -1018,3 +1018,31 @@ Weathers	Počasí
 Variants	Varianty
 History since {0}.	Historie od {0}.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Historie od {0} a k tomu {1} dřívějších zápasů obnovených z jejich záznamů, od {2}; zápasy před {0} nejsou všechny.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Kamufláže
+Decals	Nášivky
+Every camouflage: how to get it and what it goes on.	Každá kamufláž: jak ji získat a na co jde.
+Every decal: how to get it and what it goes on.	Každá nášivka: jak ji získat a na co jde.
+Drops after a match	Padá po zápase
+Drops after a first match	Padá po prvním zápase
+Drops from a stash map	Padá z mapy skrýše
+Given to account {0}	Dostane ji účet {0}
+Not obtainable	Nedostupné
+Premium	Prémiové
+{count} items, each given to the account of the same id	Kusů: {count}; každý dostane účet se stejným ID
+Sold by the factions	Prodávají frakce
+Badges	Odznaky
+Drops	Dropy
+Given	Přidělované
+Each faction sells its own for silver.	Každá frakce prodává své za stříbro.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Prodávají se za stříbro: odznak frakce prodává ta frakce od hodnosti, kterou nese v názvu, ostatní každý obchodník.
+Sold for silver by every trader.	Prodává je za stříbro každý obchodník.
+Found in drops, never one you already have.	Padají v dropech, nikdy ty, které už máš.
+Each is given to one account.	Každý předmět dostane jeden účet.
+No shop sells them, nothing drops them and no one is given them.	Žádný obchod je neprodává, nepadají a nikdo je nedostane.
+Where it goes	Kam patří
+Items that take it	Předměty, které ho berou
+At once	Najednou
+Bought once, it is yours: put it on any number of your items at the same time.	Jednou koupený je tvůj: dej ho na libovolný počet svých předmětů najednou.
+Sold back, it pays a quarter of its price and comes off every item.	Prodaný vrátí čtvrtinu ceny a zmizí ze všech předmětů.

@@ -1018,3 +1018,31 @@ Weathers	Погода
 Variants	Варіанти
 History since {0}.	Історія з {0}.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Історія з {0}, а також {1} давніших матчів, відновлених із їхніх записів, від {2}; матчі до {0} є не всі.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Камуфляжі
+Decals	Нашивки
+Every camouflage: how to get it and what it goes on.	Усі камуфляжі: як їх отримати і на що вони ставляться.
+Every decal: how to get it and what it goes on.	Усі нашивки: як їх отримати і на що вони ставляться.
+Drops after a match	Випадає після бою
+Drops after a first match	Випадає після першого бою
+Drops from a stash map	Випадає з мапи схрону
+Given to account {0}	Видається акаунту {0}
+Not obtainable	Недоступно
+Premium	Преміум
+{count} items, each given to the account of the same id	Предметів: {count}; кожен видається акаунту з тим самим ID
+Sold by the factions	Продають фракції
+Badges	Значки
+Drops	Випадають
+Given	Видаються
+Each faction sells its own for silver.	Кожна фракція продає свої за срібло.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Продаються за срібло: значок фракції продає ця фракція зі звання, яке він називає, інші — усі торговці.
+Sold for silver by every trader.	Продаються за срібло в усіх торговців.
+Found in drops, never one you already have.	Випадають у дропі; повтори не випадають.
+Each is given to one account.	Кожен предмет видається одному акаунту.
+No shop sells them, nothing drops them and no one is given them.	Їх не продають, вони не випадають і їх нікому не видають.
+Where it goes	Куди ставиться
+Items that take it	Предметів, що його приймають
+At once	Одночасно
+Bought once, it is yours: put it on any number of your items at the same time.	Купивши раз, ви маєте його назавжди: ставте на скільки завгодно своїх предметів одночасно.
+Sold back, it pays a quarter of its price and comes off every item.	При продажу приносить чверть ціни і знімається з усіх предметів.

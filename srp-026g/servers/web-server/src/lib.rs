@@ -37,6 +37,7 @@
 
 mod artefacts;
 mod built;
+mod cosmetics;
 mod damage;
 mod equipment;
 mod history;
@@ -795,6 +796,8 @@ impl Web {
                 | wiki::SIMULATORS
                 | wiki::MODIFIERS
                 | wiki::EQUIPMENT
+                | cosmetics::CAMOUFLAGES
+                | cosmetics::DECALS
                 | artefacts::PATH
                 | skills::PATH
                 | quests::PATH
@@ -1096,6 +1099,8 @@ impl Web {
                 | wiki::SIMULATORS
                 | wiki::MODIFIERS
                 | wiki::EQUIPMENT
+                | cosmetics::CAMOUFLAGES
+                | cosmetics::DECALS
                 | artefacts::PATH
                 | skills::PATH
                 | quests::PATH

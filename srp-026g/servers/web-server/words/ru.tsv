@@ -1018,3 +1018,31 @@ Weathers	Погода
 Variants	Варианты
 History since {0}.	История с {0}.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	История с {0}, а также {1} более ранних матчей, восстановленных по их записям, с {2}; матчи до {0} есть не все.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Камуфляжи
+Decals	Нашивки
+Every camouflage: how to get it and what it goes on.	Все камуфляжи: как их получить и на что они ставятся.
+Every decal: how to get it and what it goes on.	Все нашивки: как их получить и на что они ставятся.
+Drops after a match	Выпадает после боя
+Drops after a first match	Выпадает после первого боя
+Drops from a stash map	Выпадает с карты схрона
+Given to account {0}	Выдаётся аккаунту {0}
+Not obtainable	Недоступно
+Premium	Премиум
+{count} items, each given to the account of the same id	Предметов: {count}; каждый выдаётся аккаунту с тем же ID
+Sold by the factions	Продают фракции
+Badges	Значки
+Drops	Выпадают
+Given	Выдаются
+Each faction sells its own for silver.	Каждая фракция продаёт свои за серебро.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Продаются за серебро: значок фракции продаёт эта фракция со звания, которое он называет, остальные — все торговцы.
+Sold for silver by every trader.	Продаются за серебро у всех торговцев.
+Found in drops, never one you already have.	Выпадают в дропе; повторы не выпадают.
+Each is given to one account.	Каждый предмет выдаётся одному аккаунту.
+No shop sells them, nothing drops them and no one is given them.	Их не продают, они не выпадают и никому не выдаются.
+Where it goes	Куда ставится
+Items that take it	Предметов, на которые ставится
+At once	Одновременно
+Bought once, it is yours: put it on any number of your items at the same time.	Купив один раз, вы им владеете: ставьте на сколько угодно своих предметов одновременно.
+Sold back, it pays a quarter of its price and comes off every item.	При продаже приносит четверть цены и снимается со всех предметов.

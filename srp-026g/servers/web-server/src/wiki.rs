@@ -10,6 +10,7 @@
 //! the modes ([`crate::modes`]) from its game data, its rules and the lobby's pools.
 
 use crate::built::{Built, Script};
+use crate::cosmetics::{self, Page};
 use crate::icons::{self, IconSet};
 use crate::{
     ContentType, Lang, Response, artefacts, damage, equipment, escape, maps, modes, modifiers,
@@ -58,6 +59,9 @@ enum Picture {
     Glyphs(Vec<Option<String>>),
     /// A drawing of the section's own (an SVG), in the page's colours.
     Drawing(Option<&'static str>),
+    /// Small pictures side by side at their own size (their addresses): a
+    /// camouflage's or decal's lobby icons, too small for a tile alone.
+    Row(Vec<Option<String>>),
 }
 
 impl Picture {
@@ -93,6 +97,19 @@ impl Picture {
                 format!("<span class=wiki-glyphs aria-hidden=true>{glyphs}</span>")
             }
             Self::Drawing(svg) => svg.unwrap_or_default().to_owned(),
+            Self::Row(urls) => {
+                let pictures: String = urls
+                    .iter()
+                    .flatten()
+                    .map(|url| {
+                        format!(
+                            "<img src=\"{}\" alt=\"\" loading=lazy decoding=async>",
+                            escape(url)
+                        )
+                    })
+                    .collect();
+                format!("<span class=wiki-row>{pictures}</span>")
+            }
         }
     }
 }
@@ -121,10 +138,11 @@ fn section(lang: Lang, path: &str, name: &str, line: &str, picture: &Picture) ->
 }
 
 /// The wiki's sections in their index's order: what you play with (skills,
-/// weapons, equipment and its modifiers), then where and how (modes, maps,
+/// weapons, equipment and its modifiers, the camouflages and decals that
+/// dress them), then where and how (modes, maps,
 /// the artefacts found there, quests), then the tools. Each with its address,
 /// name, line and picture.
-fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
+fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 12] {
     let item = |name: &str| Picture::Image(icons::url(IconSet::Item, name));
     let tile = |name: &str| {
         Picture::Dense(
@@ -157,6 +175,26 @@ fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
             Picture::Glyphs(
                 ["0", "16", "11", "7", "20", "33"]
                     .map(|icon| icons::url(IconSet::Modifier, icon))
+                    .to_vec(),
+            ),
+        ),
+        (
+            cosmetics::CAMOUFLAGES,
+            lang.t("Camouflages"),
+            lang.t("Every camouflage: how to get it and what it goes on."),
+            Picture::Row(
+                ["camo_multicam", "flecktarn_01_camo", "camo_black_leather"]
+                    .map(|name| cosmetics::icon_of(Page::Camouflages, name))
+                    .to_vec(),
+            ),
+        ),
+        (
+            cosmetics::DECALS,
+            lang.t("Decals"),
+            lang.t("Every decal: how to get it and what it goes on."),
+            Picture::Row(
+                ["decals_3_1", "decals_1_7", "decals_2_6"]
+                    .map(|name| cosmetics::icon_of(Page::Decals, name))
                     .to_vec(),
             ),
         ),
@@ -232,6 +270,8 @@ pub(crate) fn page(
         (lang.t("Equipment"), equipment::body(lang))
     } else if path == artefacts::PATH {
         (lang.t("Artefacts"), artefacts::body(lang))
+    } else if let Some(page) = Page::at(path) {
+        (page.title(lang), cosmetics::body(lang, page))
     } else if path == MODIFIERS {
         (
             lang.t("Modifiers"),

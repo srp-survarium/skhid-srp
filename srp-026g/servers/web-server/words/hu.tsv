@@ -1018,3 +1018,31 @@ Weathers	Időjárás
 Variants	Változatok
 History since {0}.	Előzmények: {0} óta.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Előzmények: {0} óta, valamint {1} korábbi meccs a felvételeikből visszaállítva, {2} óta; a {0} előtti meccsek nincsenek meg mind.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Álcaminták
+Decals	Matricák
+Every camouflage: how to get it and what it goes on.	Minden álcaminta: hogyan szerezheted meg, és mire kerülhet.
+Every decal: how to get it and what it goes on.	Minden matrica: hogyan szerezheted meg, és mire kerülhet.
+Drops after a match	Meccs után eshet
+Drops after a first match	Az első meccs után eshet
+Drops from a stash map	Rejtekhelytérképből eshet
+Given to account {0}	A(z) {0} azonosítójú fiók kapja
+Not obtainable	Nem szerezhető meg
+Premium	Prémium
+{count} items, each given to the account of the same id	{count} darab, mindegyiket az azonos azonosítójú fiók kapja
+Sold by the factions	A frakciók árulják
+Badges	Jelvények
+Drops	Dropok
+Given	Kiosztott
+Each faction sells its own for silver.	Minden frakció a sajátjait árulja ezüstért.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Ezüstért árulják: egy frakció jelvényét az a frakció, a nevében szereplő rangtól, a többit minden kereskedő.
+Sold for silver by every trader.	Minden kereskedő árulja ezüstért.
+Found in drops, never one you already have.	Dropokból jönnek, soha nem olyan, ami már megvan.
+Each is given to one account.	Mindegyiket egy fiók kapja.
+No shop sells them, nothing drops them and no one is given them.	Egy bolt sem árulja, nem esnek, és senki sem kapja meg őket.
+Where it goes	Hová kerülhet
+Items that take it	Ezt fogadó tárgyak
+At once	Egyszerre
+Bought once, it is yours: put it on any number of your items at the same time.	Egyszer megvéve a tiéd: akárhány tárgyadra felteheted egyszerre.
+Sold back, it pays a quarter of its price and comes off every item.	Eladva az ára negyedét hozza, és minden tárgyról lekerül.
