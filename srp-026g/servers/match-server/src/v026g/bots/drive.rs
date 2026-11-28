@@ -1004,6 +1004,36 @@ fn drive_tick_inner(
         intent.objective = false;
         intent.straight = false;
     }
+    // [patch 143] An enemy carrier it sees within his strike's reach (`carrier_strike.rs`): out of it, whatever the play
+    // wants; the reflex still aims and fires at him. A grenade's blast (below) comes first. The battery in his hands is
+    // what it sees of him.
+    if reacts && !held {
+        let carriers = bot.memory.all_seen(time, view.clock).into_iter().filter_map(|track| {
+            let him = view.place(track.who())?;
+            (him.team != me.team && him.carrying.is_some()).then_some((track.who(), track.at()))
+        });
+        let reach = carrier_strike::reach_m(carrier_strike::melee_distance_m(), tactics.world.grid.body().radius);
+        let keep = carrier_strike::keep_off(me.feet, carriers, reach);
+        if let Some((_, to)) = keep {
+            bot.carrier_keep.ticks += 1;
+            bot.carrier_keep.began += u32::from(!bot.carrier_keeping);
+            if tactics.fine_goal(to, time, bot.side) {
+                intent.go = Go::To {
+                    at: to,
+                    within_m: AVOID_ARRIVE_M,
+                };
+                intent.crouch = false;
+                intent.pace = Pace::Run;
+                intent.objective = false;
+                intent.straight = false;
+            } else {
+                bot.carrier_keep.no_way += 1;
+            }
+        }
+        bot.carrier_keeping = keep.is_some();
+    } else {
+        bot.carrier_keeping = false;
+    }
     // [grenade_avoid] A grenade it knows of that lands or lies within its
     // reach: out of the blast first, whatever the play wants (the reflex
     // still aims and fires); `grenade_threat.rs`. The state is read while a

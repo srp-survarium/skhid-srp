@@ -60,6 +60,10 @@ pub struct ItemParams {
     pub pellets: u32,
     /// Weapons: the rounds a magazine holds.
     pub magazine_capacity: u32,
+    /// Weapons: a gun-stock hit's reach, metres (`melee.data.distance`, the gun's +578h: the melee bullet's length from the
+    /// eye, `weapon_core_melee_state_base::on_shoot` 0x33AB50; patch 143's battery strike takes the carrier's primary
+    /// gun's, `client-patches/rust/patches/src/vostok/battery.rs` `strike`). 0 without one.
+    pub melee_distance: f32,
     pub double_handed: bool,
     /// Weapons: whether a fire mode is automatic (`parameters.fire_queue_types` holds -1, the whole
     /// magazine while the trigger is held; 1 is single shots, n a burst of n).
@@ -519,6 +523,7 @@ impl ItemParams {
             clip_weight: float(p, "clip_weight")?,
             required_bags: int(p, "required_bags")?,
             magazine_capacity: int(p, "magazine_capacity")?,
+            melee_distance: float(config.get("melee").and_then(|melee| melee.get("data")), "distance")?,
             pellets: int(config.get("data"), "buck_shot")?,
             double_handed: flag(p, "double_handed")?,
             automatic: p
@@ -715,6 +720,9 @@ mod tests {
         );
         assert_eq!(ak.reliability, 1.0);
         assert_eq!(ak.magazine_capacity, 30);
+        // [patch 143] Every gun's gun-stock hit (and so a carrier's battery strike) reaches 1.7 m.
+        assert_eq!(ak.melee_distance, 1.7);
+        assert!(all().iter().filter(|item| item.gun.is_some()).all(|item| item.melee_distance == 1.7));
         assert!(ak.double_handed);
 
         let ammo = item_params(7).unwrap();
