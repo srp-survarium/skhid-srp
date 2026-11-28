@@ -1234,6 +1234,8 @@ mod tests {
         // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
         let _kit = KitSwitches::OFF.scope();
         use crate::v026g::match_msgs::static_info::MatchProfile;
+        // Every kit out of the band, gathered so that one run names them all.
+        let mut out = Vec::new();
         for (equipment, role, new, upgrades) in every_bot() {
             let tier = equipment.tier;
             let owned = bot_kits_in(equipment, role, new, upgrades);
@@ -1270,10 +1272,14 @@ mod tests {
                 // The tiers' kits: under 31 kg of 40, so a few percent
                 // slower at most (the owner's kit is 1.5 to 2.5 kg
                 // heavier); the skills' and the armour's speed above.
-                assert!((0.93..=1.15).contains(&level), "{tier} {role}: {level}");
+                println!("{tier} {role} new={new} kit {k}: level {level:.4}, {weight:.2} kg of {capacity:.2}");
+                if !(0.93..=1.15).contains(&level) {
+                    out.push(format!("{tier} {role} new={new} kit {k}: {level} ({weight:.2} kg of {capacity:.2})"));
+                }
             }
             assert_eq!(profile_movement_level(&profile, kits.len()), None);
         }
+        assert!(out.is_empty(), "out of 0.93..=1.15: {out:#?}");
     }
 
     /// [A372] On the players' data (`SRP_GAME_DATA`, the live `server-game-data.db`; 0.26g's own archive has no medical tab):
