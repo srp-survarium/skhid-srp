@@ -5174,6 +5174,45 @@ mod tests {
         assert_eq!(kept.entry_counts(), (2, 0), "made at load, none searched in play");
     }
 
+    /// [sliced load] The map's load in polls makes the entries the load made at once, whole: a spawner at a battery no straight
+    /// walk crosses to, two armours, a few floors a poll.
+    #[test]
+    fn a_load_in_polls_makes_the_entries_the_load_made_at_once() {
+        use crate::v026g::bots::plays::memo::{LoadBudget, Memo};
+        use crate::v026g::bots::zone_cost::ZoneArmour;
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "toxic".into(),
+                team: -1,
+                position: at,
+                protection: None,
+                damage_type: "toxic".into(),
+                damage: Some(mapdata::Damage { max_hit: 0.01, interval_ms: 1000, parts: 2, ..mapdata::Damage::default() }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Sphere,
+                    center: at + Vec3::new(0.0, 1.0, 0.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(26.0, 26.0, 26.0),
+                }],
+            });
+            map.battery_spawners = vec![mapdata::BatterySpawner { position: at, item: at, layer: String::new() }];
+        });
+        let mut tactics = Tactics::new(world, 1.0);
+        let rule = memo::RoutedRule {
+            route: RouteCrossing::Total,
+            way_out: true,
+            hurt: crate::v026g::bots::hazards::HurtTest::of(&crate::v026g::bots::tuning::Tuning::default().hazard, 0.38),
+        };
+        let asks = [(None, rule), (Some(std::sync::Arc::new(ZoneArmour::of_items([1u16]))), rule)];
+        let budget = LoadBudget { way_pops: 7, stand_floors: 3, entry_pops: 50, straight_checks: 1 };
+        let counts = Memo::assert_load_is_the_prewarm(&mut tactics, &asks, budget, |_, _| {});
+        assert_eq!(counts.entries.stands, 1, "{counts:?}");
+        assert!(counts.entries.searches > 0, "{counts:?}");
+        assert!(counts.polls > 3, "{counts:?}");
+    }
+
     /// [entry slices] A zone so wide that no straight walk crosses to the battery at `at` (`with_hurting`'s), the field's.
     fn wide_toxic_zone(at: Vec3) -> Scenario {
         let mut s = Scenario::field(Mode::Batteries);

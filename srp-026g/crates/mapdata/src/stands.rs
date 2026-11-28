@@ -103,7 +103,7 @@ impl UseStand {
 /// every resupply zone's box, by the zone's index in `MapData::zones` (the
 /// zone is a `usable_object` of the same kind, `resupply_zone_core`, found by
 /// the same ray: 0x2D84C0, 0x2F8080).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct UseStands {
     lists: Vec<Vec<UseStand>>,
     ids: Vec<i32>,
@@ -171,40 +171,51 @@ fn stands_of(
     let Some(shape) = shape else {
         return Vec::new();
     };
-    let grid = &world.grid;
+    let mut out: Vec<UseStand> = world
+        .grid
+        .floors_in(stand_area(shape))
+        .filter_map(|node| stand_at(world, node, shape, eye_standing, eye_crouched, ray_m))
+        .collect();
+    sort_stands(&mut out, shape);
+    out
+}
+
+/// The floors a box's stands are looked for on: [`SEARCH_M`] round its bounds.
+fn stand_area(shape: &Shape) -> [f32; 4] {
     let (lo, hi) = shape.bounds();
-    let area = [
-        lo.x - SEARCH_M,
-        lo.z - SEARCH_M,
-        hi.x + SEARCH_M,
-        hi.z + SEARCH_M,
-    ];
-    let mut out: Vec<UseStand> = Vec::new();
-    for node in grid.floors_in(area) {
-        if !grid.reached(node) {
-            continue;
-        }
-        let feet = grid.position(node);
-        if feet.y < shape.center.y - BELOW_M || feet.y > shape.center.y + ABOVE_M {
-            continue;
-        }
-        let at = |heights: [f32; 2]| -> Option<(Vec3, f32)> {
-            let first = press(&world.sight, feet + Vec3::new(0.0, heights[0], 0.0), shape, ray_m)?;
-            press(&world.sight, feet + Vec3::new(0.0, heights[1], 0.0), shape, ray_m)?;
-            Some(first)
-        };
-        let standing = at(eye_standing);
-        let crouched = at(eye_crouched);
-        if let Some((aim, pitch)) = standing.or(crouched) {
-            out.push(UseStand {
-                feet,
-                standing: standing.is_some(),
-                crouched: crouched.is_some(),
-                aim,
-                pitch,
-            });
-        }
+    [lo.x - SEARCH_M, lo.z - SEARCH_M, hi.x + SEARCH_M, hi.z + SEARCH_M]
+}
+
+/// The stand on `node` for the box `shape`, if the use ray passes from it at both eye heights of a pose.
+fn stand_at(
+    world: &World,
+    node: crate::NodeId,
+    shape: &Shape,
+    eye_standing: [f32; 2],
+    eye_crouched: [f32; 2],
+    ray_m: f32,
+) -> Option<UseStand> {
+    let grid = &world.grid;
+    if !grid.reached(node) {
+        return None;
     }
+    let feet = grid.position(node);
+    if feet.y < shape.center.y - BELOW_M || feet.y > shape.center.y + ABOVE_M {
+        return None;
+    }
+    let at = |heights: [f32; 2]| -> Option<(Vec3, f32)> {
+        let first = press(&world.sight, feet + Vec3::new(0.0, heights[0], 0.0), shape, ray_m)?;
+        press(&world.sight, feet + Vec3::new(0.0, heights[1], 0.0), shape, ray_m)?;
+        Some(first)
+    };
+    let standing = at(eye_standing);
+    let crouched = at(eye_crouched);
+    let (aim, pitch) = standing.or(crouched)?;
+    Some(UseStand { feet, standing: standing.is_some(), crouched: crouched.is_some(), aim, pitch })
+}
+
+/// A box's stands nearest its middle (across) first, then by the feet.
+fn sort_stands(out: &mut [UseStand], shape: &Shape) {
     out.sort_by(|a, b| {
         let key = |s: &UseStand| s.feet.distance_xz(shape.center);
         key(a)
@@ -213,7 +224,90 @@ fn stands_of(
             .then(a.feet.z.total_cmp(&b.feet.z))
             .then(a.feet.y.total_cmp(&b.feet.y))
     });
-    out
+}
+
+/// [sliced load] [`UseStands::build_ray`] in parts: the boxes one after another (the containers', then the zones'), the floors of
+/// each a number at a time ([`Self::run`]). The same floors in the same order with the same test, so the stands are
+/// [`UseStands::build_ray`]'s.
+#[derive(Clone, Debug)]
+pub struct UseStandsBuild {
+    eye_standing: [f32; 2],
+    eye_crouched: [f32; 2],
+    ray_m: f32,
+    /// The box being looked at: an index over the containers and then the zones.
+    at: usize,
+    /// Its floors (laid at its first run) and the next one to look at, and its stands so far.
+    floors: Option<Vec<crate::NodeId>>,
+    next: usize,
+    out: Vec<UseStand>,
+    lists: Vec<Vec<UseStand>>,
+    zones: Vec<Vec<UseStand>>,
+    looked: u64,
+}
+
+impl UseStandsBuild {
+    /// [`UseStands::build_ray`]'s build with these eye heights and ray, not begun.
+    pub fn begin(eye_standing: [f32; 2], eye_crouched: [f32; 2], ray_m: f32) -> Self {
+        Self {
+            eye_standing,
+            eye_crouched,
+            ray_m,
+            at: 0,
+            floors: None,
+            next: 0,
+            out: Vec::new(),
+            lists: Vec::new(),
+            zones: Vec::new(),
+            looked: 0,
+        }
+    }
+
+    /// Floors looked at so far.
+    pub fn looked(&self) -> u64 {
+        self.looked
+    }
+
+    /// Looks at floors of `world` while `floors_left` lasts (one less a floor): the stands once every box is done.
+    pub fn run(&mut self, world: &World, floors_left: &mut u64) -> Option<UseStands> {
+        let containers = world.map.containers.len();
+        loop {
+            let shape = if self.at < containers {
+                world.map.containers[self.at].use_shapes.first()
+            } else if let Some(zone) = world.map.zones.get(self.at - containers) {
+                match zone.kind {
+                    ZoneKind::Resupply => zone.shapes.first(),
+                    _ => None,
+                }
+            } else {
+                let ids = world.map.containers.iter().map(|c| c.id).collect();
+                return Some(UseStands { lists: std::mem::take(&mut self.lists), ids, zones: std::mem::take(&mut self.zones) });
+            };
+            if let Some(shape) = shape {
+                let floors = self.floors.get_or_insert_with(|| world.grid.floors_in(stand_area(shape)).collect());
+                while let Some(&node) = floors.get(self.next) {
+                    if *floors_left == 0 {
+                        return None;
+                    }
+                    *floors_left -= 1;
+                    self.looked += 1;
+                    if let Some(stand) = stand_at(world, node, shape, self.eye_standing, self.eye_crouched, self.ray_m) {
+                        self.out.push(stand);
+                    }
+                    self.next += 1;
+                }
+                sort_stands(&mut self.out, shape);
+            }
+            let out = std::mem::take(&mut self.out);
+            if self.at < containers {
+                self.lists.push(out);
+            } else {
+                self.zones.push(out);
+            }
+            self.at += 1;
+            self.floors = None;
+            self.next = 0;
+        }
+    }
 }
 
 /// The game's use test from `eye` against `shape`: some aim, within the
@@ -469,6 +563,42 @@ mod tests {
         assert_eq!(stands.of_zone(1), stands.of(0u8), "the same box, the same list");
         assert!(!stands.of_zone(1).is_empty());
         assert!(stands.of_zone(5).is_empty(), "no such zone");
+    }
+
+    /// [sliced load] The build in parts gives [`UseStands::build_ray`]'s stands, whole (every container's and zone's list),
+    /// whatever floors a run may look at; a small budget takes more than one run.
+    #[test]
+    fn a_build_in_parts_is_the_whole_build() {
+        let (mut world, shape) = world(false);
+        let zone = |kind| Zone {
+            kind,
+            name: String::new(),
+            team: 0,
+            position: shape.center,
+            protection: None,
+            damage_type: String::new(),
+            damage: None,
+            shapes: vec![shape],
+        };
+        world.map.zones = vec![zone(ZoneKind::Damage), zone(ZoneKind::Resupply)];
+        world.map.containers.push(Container { position: Vec3::new(5.0, 0.0, 5.0), team: 1, id: 1, use_shapes: Vec::new() });
+        let whole = UseStands::build_ray(&world, EYE_STANDING, EYE_CROUCHED, USE_RAY_CLIENT_M);
+        assert!(!whole.of(0u8).is_empty() && !whole.of_zone(1).is_empty(), "{whole:?}");
+        for floors in [1u64, 7, 100, u64::MAX] {
+            let mut build = UseStandsBuild::begin(EYE_STANDING, EYE_CROUCHED, USE_RAY_CLIENT_M);
+            let mut runs = 0;
+            let parts = loop {
+                runs += 1;
+                let mut left = floors;
+                if let Some(stands) = build.run(&world, &mut left) {
+                    break stands;
+                }
+                assert_eq!(left, 0, "a run ends short only when its floors are spent");
+            };
+            assert_eq!(parts, whole, "{floors} floors a run");
+            assert!(floors > 100 || runs > 1, "{floors} floors a run: {runs} runs");
+            assert!(build.looked() > 0);
+        }
     }
 
     #[test]

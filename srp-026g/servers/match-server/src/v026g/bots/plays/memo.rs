@@ -134,6 +134,16 @@ impl<K: Eq + Hash, V: Clone> QueryMemo<K, V> {
         kept.answers.insert(key, answer);
     }
 
+    /// [sliced load] Every kept answer, for the tests.
+    #[cfg(test)]
+    pub(crate) fn all(&self) -> Vec<(K, V)>
+    where
+        K: Clone,
+    {
+        let kept = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
+        kept.answers.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    }
+
     /// Answers kept.
     pub fn kept(&self) -> usize {
         self.kept
@@ -522,6 +532,7 @@ impl Memo {
     }
 
     /// [`Self::entry`] for `key` (its armour `armour`): the answer, and whether the search ran (`searched` called).
+    #[cfg(test)]
     fn entry_made(
         &self,
         tactics: &Tactics,
@@ -588,6 +599,7 @@ impl Memo {
     /// the map's sides and each (armour, rule) in `asks` whose rule routes crossings. A battery the worlds show where its spawner put
     /// it asks the same floors, side, armour and rule: its first commander pass reads the kept way (Vostok batteries: 0.45-0.56 s
     /// at 2 s, the first pass's entry searches). Another ask still searches, as before: the answers are the search's either way.
+    #[cfg(test)]
     pub fn prewarm_entries(&self, tactics: &Tactics, asks: &[(Option<std::sync::Arc<ZoneArmour>>, RoutedRule)]) -> EntryPrewarm {
         let started = std::time::Instant::now();
         let grid = &tactics.world.grid;
@@ -759,6 +771,7 @@ impl Memo {
     /// [core ways] The ways in of every battery spawner's stand that lies in an energy core's zones that switch, for each of the
     /// map's sides, worked out now (off the match's ticks; `zone_take::decide`'s question for a battery where its spawner put
     /// it): stands and sides asked, and the time.
+    #[cfg(test)]
     pub fn prewarm_zone_ways(&self, tactics: &Tactics) -> (usize, f32) {
         let started = std::time::Instant::now();
         let grid = &tactics.world.grid;
@@ -961,16 +974,9 @@ impl Memo {
     pub fn use_stands(&self, tactics: &Tactics) -> &UseStands {
         self.stands.get_or_init(|| {
             let ray_m = crate::v026g::bots::view::use_ray_m();
-            log::info!(
-                "bots: use stands within the view's elevations -{:.2} to +{:.2} degrees (the pitch unit's clamp, 0x2E0F60), ray {ray_m} m",
-                mapdata::stands::VIEW_DOWN_DEG,
-                mapdata::stands::VIEW_UP_DEG
-            );
-            if crate::v026g::bots::view::live_eye() {
-                UseStands::build_ray(&tactics.world, EYE_STANDING, EYE_CROUCHED, ray_m)
-            } else {
-                UseStands::build_ray(&tactics.world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED, ray_m)
-            }
+            log_stands_rule(ray_m);
+            let (standing, crouched) = stand_eyes(crate::v026g::bots::view::live_eye());
+            UseStands::build_ray(&tactics.world, standing, crouched, ray_m)
         })
     }
 
@@ -983,6 +989,562 @@ impl Memo {
     /// Crossings kept.
     pub fn crossings_kept(&self) -> usize {
         self.crossings.kept()
+    }
+}
+
+/// [sliced load] Floors the use stands' build may look at a poll (`mapdata::stands::UseStandsBuild::run`): a count, not a
+/// clock, so runs repeat. The whole build took 100-101 ms here for 5,577 floors (batt-m2) and 7,428 (batt-m1), so about
+/// 3.4-4.5 ms a poll.
+pub const USE_FLOORS_A_POLL: u64 = 250;
+
+/// [sliced load] The straight-walk checks the crossing entries' part may make a poll (`collect::crossing_to`, one for each
+/// stand, side and (armour, rule) before a search is asked): batt-m1's 32 took 24.5 ms here at once, about 3 ms a poll.
+pub const STRAIGHTS_A_POLL: u64 = 4;
+
+/// [sliced load] What the load may do in one poll, of each kind: floors its way-in searches pop, floors the use stands' build
+/// looks at, floors its entry searches pop, straight walks its entries' part checks.
+#[derive(Clone, Copy, Debug)]
+pub struct LoadBudget {
+    pub way_pops: u64,
+    pub stand_floors: u64,
+    pub entry_pops: u64,
+    pub straight_checks: u64,
+}
+
+impl LoadBudget {
+    /// A server poll's: the in-play searches' budgets ([`WAY_POPS_A_POLL`], [`ENTRY_POPS_A_POLL`]), [`USE_FLOORS_A_POLL`] and
+    /// [`STRAIGHTS_A_POLL`].
+    pub const POLL: Self = Self {
+        way_pops: WAY_POPS_A_POLL,
+        stand_floors: USE_FLOORS_A_POLL,
+        entry_pops: ENTRY_POPS_A_POLL,
+        straight_checks: STRAIGHTS_A_POLL,
+    };
+}
+
+/// The eye heights the use stands are made for: the measured ones with `live_eye` (`aim.combat.live_eye`), else the guessed
+/// ones (the bench's off switch).
+pub fn stand_eyes(live_eye: bool) -> ([f32; 2], [f32; 2]) {
+    if live_eye { (EYE_STANDING, EYE_CROUCHED) } else { (GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED) }
+}
+
+/// The use stands' rule, for the log, once a match when they are made.
+fn log_stands_rule(ray_m: f32) {
+    log::info!(
+        "bots: use stands within the view's elevations -{:.2} to +{:.2} degrees (the pitch unit's clamp, 0x2E0F60), ray {ray_m} m",
+        mapdata::stands::VIEW_DOWN_DEG,
+        mapdata::stands::VIEW_UP_DEG
+    );
+}
+
+/// [sliced load] A routed crossing's entry search the load makes: its question and the armour it prices the way with.
+type LoadEntry = (EntryKey, Option<std::sync::Arc<ZoneArmour>>);
+
+/// [sliced load] An energy core's way in the load makes: the stand's floor and the side.
+type LoadWay = (mapdata::NodeId, i32);
+
+/// [sliced load] A straight-walk check before an entry search is asked: the stand, how far short of it the walk stops, the
+/// search's question if no straight walk crosses, and the index of its (armour, rule) in the load's asks.
+type LoadCheck = (Vec3, f32, EntryKey, usize);
+
+/// [sliced load] Where a map's load is: its three parts in the order the load made them before, each with what is left of it.
+enum LoadPart {
+    /// The energy cores' ways in ([`Memo::zone_way_ask`]'s answers): the stands and sides left, and the search under way.
+    CoreWays {
+        left: std::collections::VecDeque<LoadWay>,
+        running: Option<(LoadWay, crate::v026g::bots::switch_take::WayInSearch)>,
+    },
+    /// The containers' and resupply zones' use stands ([`Memo::use_stands`]'s).
+    UseStands(Box<mapdata::stands::UseStandsBuild>),
+    /// The routed crossings' entry searches ([`Memo::entry`]'s): the battery spawners left (indices of the map's), the
+    /// straight-walk checks of the one looked at, the searches they asked, and the search under way.
+    Entries {
+        spawners: std::collections::VecDeque<usize>,
+        checks: std::collections::VecDeque<LoadCheck>,
+        left: std::collections::VecDeque<LoadEntry>,
+        running: Option<(LoadEntry, crate::v026g::bots::zone_search::EntrySearch)>,
+    },
+    Done,
+}
+
+impl LoadPart {
+    /// The part's name in the load's line.
+    fn name(&self) -> &'static str {
+        match self {
+            Self::CoreWays { .. } => "the cores' ways in",
+            Self::UseStands(_) => "the use stands",
+            Self::Entries { .. } => "the crossing entries",
+            Self::Done => "none",
+        }
+    }
+}
+
+/// [sliced load] The crossing entries' part under way, borrowed for a run.
+struct EntryWork<'a> {
+    spawners: &'a mut std::collections::VecDeque<usize>,
+    checks: &'a mut std::collections::VecDeque<LoadCheck>,
+    left: &'a mut std::collections::VecDeque<LoadEntry>,
+    running: &'a mut Option<(LoadEntry, crate::v026g::bots::zone_search::EntrySearch)>,
+}
+
+/// [sliced load] What a map's load made and what it took, for its lines.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LoadCounts {
+    /// Polls it ran in, the most one of them took (and the part it ran) and all of them, ms (the wall clock).
+    pub polls: u32,
+    pub most_ms: f32,
+    pub most_in: &'static str,
+    /// [CPU] The thread's CPU of the poll that took the most of it (and its part) and of all of them, ms (`cpu_time::thread`;
+    /// TEST ONLY: the bench reads it, the server keeps the wall clock alone).
+    #[cfg(test)]
+    pub most_cpu_ms: f32,
+    #[cfg(test)]
+    pub most_cpu_in: &'static str,
+    #[cfg(test)]
+    pub cpu_ms: f32,
+    pub work_ms: f32,
+    /// The match clock of its first and its last poll.
+    pub from_ms: Option<u32>,
+    pub to_ms: u32,
+    /// The energy cores' ways in asked (stands times sides), and their time.
+    pub core_ways: usize,
+    pub core_ways_ms: f32,
+    /// The use stands: floors looked at, and their time.
+    pub stand_floors: u64,
+    pub stands_ms: f32,
+    /// The routed crossings' entries.
+    pub entries: EntryPrewarm,
+}
+
+/// [sliced load] The work a map's load does for the match's memo (the energy cores' ways in, the use stands, the routed
+/// crossings' entries), run in parts by the polls before the bots enter ([`Self::run`]) with a budget of each kind a poll, or
+/// whole. Its searches read the hazards as they were when it began, as the load read them when it made them at once, so its
+/// answers are those: the same parts in the same order, each search the whole one in slices.
+pub struct MapLoad {
+    /// The hazards when it began: its searches read these, not the match's own, which go on with the clock and the worlds.
+    hazards: Hazards,
+    sides: Vec<i32>,
+    asks: Vec<(Option<std::sync::Arc<ZoneArmour>>, RoutedRule)>,
+    /// The use stands' eye heights and ray.
+    stands: (([f32; 2], [f32; 2]), f32),
+    part: LoadPart,
+    counts: LoadCounts,
+}
+
+impl MapLoad {
+    /// The load of `tactics` (its anomalies attached): the energy cores' ways in for each battery spawner whose stand lies in a
+    /// core's switching zones and each of the map's sides; the use stands with `eyes` and the use ray `ray_m`; the routed
+    /// crossings' entries for each (armour, rule) in `asks`.
+    pub fn begin(
+        tactics: &Tactics,
+        asks: Vec<(Option<std::sync::Arc<ZoneArmour>>, RoutedRule)>,
+        eyes: ([f32; 2], [f32; 2]),
+        ray_m: f32,
+    ) -> Self {
+        let grid = &tactics.world.grid;
+        let mut sides: Vec<i32> = Vec::new();
+        for spawn in &tactics.world.map.spawns {
+            if !sides.contains(&spawn.team) {
+                sides.push(spawn.team);
+            }
+        }
+        let mut left = std::collections::VecDeque::new();
+        for spawner in &tactics.world.map.battery_spawners {
+            let Some(stand) = tactics.stand_to_take(spawner.item).and_then(|stand| grid.locate(stand, 3.0)) else {
+                continue;
+            };
+            if crate::v026g::bots::switch_take::core_of(tactics, stand).is_none() {
+                continue;
+            }
+            left.extend(sides.iter().map(|&side| (stand, side)));
+        }
+        let counts = LoadCounts {
+            entries: EntryPrewarm { asks: asks.len(), sides: sides.len(), ..EntryPrewarm::default() },
+            ..LoadCounts::default()
+        };
+        Self {
+            hazards: tactics.hazards.clone(),
+            sides,
+            asks,
+            stands: (eyes, ray_m),
+            part: LoadPart::CoreWays { left, running: None },
+            counts,
+        }
+    }
+
+    /// What it made and took so far.
+    pub fn counts(&self) -> &LoadCounts {
+        &self.counts
+    }
+
+    /// Runs the load at the match clock `clock` (its poll): with `budget` of each kind ([`LoadBudget::POLL`] a server poll's; a
+    /// part that ends leaves the next to the next poll), or with none to its end. Whether it is done.
+    pub fn run(&mut self, memo: &Memo, tactics: &mut Tactics, budget: Option<LoadBudget>, clock: u32) -> bool {
+        let started = std::time::Instant::now();
+        self.counts.polls += 1;
+        self.counts.from_ms.get_or_insert(clock);
+        self.counts.to_ms = clock;
+        let part = self.part.name();
+        #[cfg(test)]
+        let cpu = crate::v026g::bots::cpu_time::thread();
+        std::mem::swap(&mut tactics.hazards, &mut self.hazards);
+        let done = self.run_parts(memo, tactics, budget);
+        std::mem::swap(&mut tactics.hazards, &mut self.hazards);
+        let ms = started.elapsed().as_secs_f32() * 1000.0;
+        self.counts.work_ms += ms;
+        if ms > self.counts.most_ms {
+            self.counts.most_ms = ms;
+            self.counts.most_in = part;
+        }
+        #[cfg(test)]
+        {
+            let cpu = crate::v026g::bots::cpu_time::thread().saturating_sub(cpu).as_secs_f32() * 1000.0;
+            self.counts.cpu_ms += cpu;
+            if cpu > self.counts.most_cpu_ms {
+                self.counts.most_cpu_ms = cpu;
+                self.counts.most_cpu_in = part;
+            }
+        }
+        done
+    }
+
+    fn run_parts(&mut self, memo: &Memo, tactics: &Tactics, budget: Option<LoadBudget>) -> bool {
+        use crate::v026g::bots::zone_search::PopBudget;
+        let pops = |n: fn(&LoadBudget) -> u64| budget.as_ref().map_or(PopBudget::Unbounded, |b| PopBudget::Left(n(b)));
+        loop {
+            let started = std::time::Instant::now();
+            let Self { hazards: _, sides, asks, stands, part, counts } = self;
+            let ended = match part {
+                LoadPart::CoreWays { left, running } => {
+                    let ended = Self::run_ways(memo, tactics, left, running, &mut pops(|b| b.way_pops), counts);
+                    counts.core_ways_ms += started.elapsed().as_secs_f32() * 1000.0;
+                    ended
+                }
+                LoadPart::UseStands(build) => {
+                    let mut floors = budget.map_or(u64::MAX, |b| b.stand_floors);
+                    let made = build.run(&tactics.world, &mut floors);
+                    counts.stand_floors = build.looked();
+                    counts.stands_ms += started.elapsed().as_secs_f32() * 1000.0;
+                    match made {
+                        Some(made) => {
+                            memo.keep_load_stands(made, stands.1);
+                            true
+                        }
+                        None => false,
+                    }
+                }
+                LoadPart::Entries { spawners, checks, left, running } => {
+                    let mut pops = pops(|b| b.entry_pops);
+                    let mut straights = budget.map_or(u64::MAX, |b| b.straight_checks);
+                    let work = EntryWork { spawners, checks, left, running };
+                    let ended = Self::run_entries(memo, tactics, sides, asks, work, &mut pops, &mut straights, &mut counts.entries);
+                    counts.entries.ms += started.elapsed().as_secs_f32() * 1000.0;
+                    ended
+                }
+                LoadPart::Done => return true,
+            };
+            if !ended {
+                return false;
+            }
+            *part = match part {
+                LoadPart::CoreWays { .. } => {
+                    memo.set_way_prewarm(counts.core_ways, counts.core_ways_ms);
+                    let ((standing, crouched), ray_m) = *stands;
+                    LoadPart::UseStands(Box::new(mapdata::stands::UseStandsBuild::begin(standing, crouched, ray_m)))
+                }
+                LoadPart::UseStands(_) => LoadPart::Entries {
+                    spawners: (0..tactics.world.map.battery_spawners.len()).collect(),
+                    checks: Default::default(),
+                    left: Default::default(),
+                    running: None,
+                },
+                LoadPart::Entries { .. } | LoadPart::Done => LoadPart::Done,
+            };
+            if matches!(part, LoadPart::Done) {
+                return true;
+            }
+            if budget.is_some() {
+                return false;
+            }
+        }
+    }
+
+    /// The ways in left, one search at a time with `pops`: whether they are all made. A way kept already (two spawners on one
+    /// stand) is not searched again, as the ask reads it.
+    fn run_ways(
+        memo: &Memo,
+        tactics: &Tactics,
+        left: &mut std::collections::VecDeque<LoadWay>,
+        running: &mut Option<(LoadWay, crate::v026g::bots::switch_take::WayInSearch)>,
+        pops: &mut crate::v026g::bots::zone_search::PopBudget,
+        counts: &mut LoadCounts,
+    ) -> bool {
+        use crate::v026g::bots::switch_take::{WAY_WITHIN_M, WayInSearch, WayStep, core_of};
+        loop {
+            if running.is_none() {
+                let Some((stand, side)) = left.pop_front() else {
+                    return true;
+                };
+                counts.core_ways += 1;
+                if memo.load_way_kept(tactics, (stand, side)) {
+                    continue;
+                }
+                let Some(core) = core_of(tactics, stand) else {
+                    continue;
+                };
+                *running = Some(((stand, side), WayInSearch::begin(tactics, core, side, stand, WAY_WITHIN_M)));
+            }
+            let Some((key, search)) = running.as_mut() else {
+                continue;
+            };
+            let Some(core) = core_of(tactics, key.0) else {
+                *running = None;
+                continue;
+            };
+            match search.run(tactics, core, pops) {
+                WayStep::Done(way) => {
+                    memo.keep_load_way(tactics, *key, way);
+                    *running = None;
+                }
+                WayStep::Pending => return false,
+            }
+        }
+    }
+
+    /// The entry searches left, one at a time with `budget`, the spawners' searches listed as [`Memo::prewarm_entries`] lists
+    /// them, a spawner at a time (its straight-walk checks first, `straights` of them at most, then its searches): whether they
+    /// are all made. A way kept already (the same question again) is not searched.
+    #[allow(clippy::too_many_arguments)]
+    fn run_entries(
+        memo: &Memo,
+        tactics: &Tactics,
+        sides: &[i32],
+        asks: &[(Option<std::sync::Arc<ZoneArmour>>, RoutedRule)],
+        work: EntryWork<'_>,
+        budget: &mut crate::v026g::bots::zone_search::PopBudget,
+        straights: &mut u64,
+        out: &mut EntryPrewarm,
+    ) -> bool {
+        use crate::v026g::bots::zone_search::{EntrySearch, EntryStep};
+        let grid = &tactics.world.grid;
+        let EntryWork { spawners, checks, left, running } = work;
+        loop {
+            if running.is_none() {
+                if let Some(&(stand, stop_m, key, ask)) = checks.front() {
+                    if *straights == 0 {
+                        return false;
+                    }
+                    *straights -= 1;
+                    checks.pop_front();
+                    let (armour, rule) = &asks[ask];
+                    let (_, _, side, _, _) = key;
+                    let straight = quiet(|| crossing_to(tactics, stand, Some(side), stop_m, armour.as_deref(), rule.hurt));
+                    if straight.is_none() {
+                        left.push_back((key, armour.clone()));
+                    }
+                    continue;
+                }
+                let Some(entry) = left.pop_front() else {
+                    let Some(at) = spawners.pop_front() else {
+                        return true;
+                    };
+                    Self::spawner_entries(tactics, sides, asks, at, checks, out);
+                    continue;
+                };
+                if memo.entries.peek(zones_stamp(&tactics.hazards), &entry.0).is_some() {
+                    continue;
+                }
+                let (from, goal, side, _, _) = entry.0;
+                let search = memo.with_entry_steps(tactics, from, goal, side, |steps| EntrySearch::begin(tactics, steps));
+                *running = Some((entry, search));
+            }
+            let Some(((key, armour), search)) = running.as_mut() else {
+                continue;
+            };
+            let (from, goal, side, _, hurt) = *key;
+            let armour = armour.as_deref();
+            let step = memo.with_entry_steps(tactics, from, goal, side, |steps| {
+                search.run(tactics, steps, |node| tactics.hazards.leg_cost_per_s(grid, node, armour, hurt).most(), budget)
+            });
+            match step {
+                EntryStep::Done(way) => {
+                    out.searches += 1;
+                    out.found += usize::from(way.is_some());
+                    memo.entries.insert(zones_stamp(&tactics.hazards), *key, way.map(std::sync::Arc::new));
+                    *running = None;
+                }
+                EntryStep::Pending => return false,
+            }
+        }
+    }
+
+    /// The straight-walk checks of the battery spawner at `at` (of the map's), as [`Memo::prewarm_entries`] makes them: its
+    /// stand if it needs a crossing, for each side and each (armour, rule) that routes crossings; a check no straight walk
+    /// passes asks its search.
+    fn spawner_entries(
+        tactics: &Tactics,
+        sides: &[i32],
+        asks: &[(Option<std::sync::Arc<ZoneArmour>>, RoutedRule)],
+        at: usize,
+        checks: &mut std::collections::VecDeque<LoadCheck>,
+        out: &mut EntryPrewarm,
+    ) {
+        let grid = &tactics.world.grid;
+        let spawner = &tactics.world.map.battery_spawners[at];
+        let Some(stand) = tactics.stand_to_take(spawner.item) else {
+            return;
+        };
+        if !super::collect::needs_crossing_at(tactics, stand) {
+            return;
+        }
+        out.stands += 1;
+        let stop_m = super::collect::stop_short(stand, spawner.item);
+        let Some(goal) = grid.locate(stand, 3.0) else {
+            return;
+        };
+        for &side in sides {
+            let Some(from) = tactics.world.map.spawns.iter().find(|p| p.team == side).and_then(|p| grid.locate(p.position, 3.0)) else {
+                continue;
+            };
+            for (ask, (armour, rule)) in asks.iter().enumerate() {
+                if rule.route == RouteCrossing::Off {
+                    continue;
+                }
+                let key = (from, goal, side, armour.as_deref().map_or(0, ZoneArmour::key), rule.hurt);
+                checks.push_back((stand, stop_m, key, ask));
+            }
+        }
+    }
+
+    /// The parts of the load line, as the load's line gave them: the cores' ways in (when there were any), the use stands, the
+    /// crossing entries (when a stand needed one).
+    pub fn parts_line(&self, tactics: &Tactics) -> String {
+        let c = &self.counts;
+        let mut line = String::new();
+        if c.core_ways > 0 {
+            line += &format!("; core ways in prewarmed: {} stands and sides in {:.1} ms", c.core_ways, c.core_ways_ms);
+        }
+        let map = &tactics.world.map;
+        line += &format!(
+            "; use stands prewarmed in {:.1} ms ({} containers, {} zones; {} floors looked at)",
+            c.stands_ms,
+            map.containers.len(),
+            map.zones.len(),
+            c.stand_floors
+        );
+        let e = &c.entries;
+        if e.stands > 0 {
+            line += &format!(
+                "; crossing entries made at load: {} searches ({} ways) for {} stands, {} sides, {} armour and rule pairs in {:.1} ms",
+                e.searches, e.found, e.stands, e.sides, e.asks, e.ms
+            );
+        }
+        line
+    }
+
+    /// The line of a load in polls, once it is done (in test builds with its thread CPU, after the wall times).
+    pub fn done_line(&self, tactics: &Tactics) -> String {
+        let c = &self.counts;
+        #[cfg(test)]
+        let cpu = format!(" (thread CPU: the most in one poll {:.1} ms ({}), {:.1} ms in all)", c.most_cpu_ms, c.most_cpu_in, c.cpu_ms);
+        #[cfg(not(test))]
+        let cpu = "";
+        format!(
+            "the map's load ran in {} polls, from {} to {} ms of the clock: the most in one poll {:.1} ms ({}), {:.1} ms in all{cpu}{}",
+            c.polls,
+            c.from_ms.unwrap_or(c.to_ms),
+            c.to_ms,
+            c.most_ms,
+            c.most_in,
+            c.work_ms,
+            self.parts_line(tactics)
+        )
+    }
+}
+
+impl Memo {
+    /// [sliced load] Whether the way in of `key` is kept (the zones' stamp first, as [`Self::zone_way_ask`] reads it).
+    fn load_way_kept(&self, tactics: &Tactics, key: LoadWay) -> bool {
+        let mut guard = self.zone_ways.lock().unwrap_or_else(PoisonError::into_inner);
+        let ways: &mut ZoneWays = &mut guard;
+        Self::ways_for_stamp(tactics, ways);
+        ways.kept.contains_key(&key)
+    }
+
+    /// [sliced load] The way in of `key` the load's search made, kept as [`Self::zone_way_ask`] keeps a search's: with the live
+    /// fields of its box and the board's version now.
+    fn keep_load_way(&self, tactics: &Tactics, key: LoadWay, way: Option<Vec<mapdata::NodeId>>) {
+        let mut guard = self.zone_ways.lock().unwrap_or_else(PoisonError::into_inner);
+        let ways: &mut ZoneWays = &mut guard;
+        Self::ways_for_stamp(tactics, ways);
+        let kept = KeptWay { way: way.map(std::sync::Arc::new), fields: way_fields(tactics, key.0), checked: tactics.hazards.live.version() };
+        ways.kept.insert(key, kept);
+    }
+
+    /// [sliced load] The ways in the load made and its time, for the match-end line ([`ZoneWayCounts`]).
+    fn set_way_prewarm(&self, asked: usize, ms: f32) {
+        let mut ways = self.zone_ways.lock().unwrap_or_else(PoisonError::into_inner);
+        ways.counts.prewarmed = asked as u32;
+        ways.counts.prewarm_ms = ms;
+    }
+
+    /// [sliced load] The use stands the load made, kept as [`Self::use_stands`] keeps its first ask's.
+    fn keep_load_stands(&self, stands: UseStands, ray_m: f32) {
+        log_stands_rule(ray_m);
+        let _ = self.stands.set(stands);
+    }
+
+    /// [sliced load] The test of a load in parts: today's load (made at once: [`Self::prewarm_zone_ways`], [`Self::use_stands`],
+    /// [`Self::prewarm_entries`], in that order) and [`MapLoad`] run in polls with `budget` keep the same, whole: every way in
+    /// with its fields and version, the use stands, every entry. `between` runs on the tactics after each poll (a world, the
+    /// clock): the load's searches read the hazards of its beginning, as the load made at once did. The load's polls.
+    #[cfg(test)]
+    pub(crate) fn assert_load_is_the_prewarm(
+        tactics: &mut Tactics,
+        asks: &[(Option<std::sync::Arc<ZoneArmour>>, RoutedRule)],
+        budget: LoadBudget,
+        mut between: impl FnMut(&mut Tactics, u32),
+    ) -> LoadCounts {
+        let ray_m = crate::v026g::bots::view::use_ray_m();
+        let eyes = stand_eyes(crate::v026g::bots::view::live_eye());
+        let whole = Memo::default();
+        whole.prewarm_zone_ways(tactics);
+        whole.use_stands(tactics);
+        whole.prewarm_entries(tactics, asks);
+        let at_once = Memo::default();
+        let mut load = MapLoad::begin(tactics, asks.to_vec(), eyes, ray_m);
+        assert!(load.run(&at_once, tactics, None, 0), "made at once in one run");
+        assert_eq!(at_once.load_kept(), whole.load_kept(), "made at once");
+        let sliced = Memo::default();
+        let mut load = MapLoad::begin(tactics, asks.to_vec(), eyes, ray_m);
+        let mut poll = 0;
+        while !load.run(&sliced, tactics, Some(budget), poll) {
+            poll += 1;
+            assert!(poll < 10_000_000, "it ends");
+            between(tactics, poll);
+        }
+        assert_eq!(sliced.load_kept(), whole.load_kept(), "in polls of {budget:?}");
+        assert_eq!(load.counts().polls, poll + 1);
+        load.counts().clone()
+    }
+
+    /// [sliced load] Everything the load's three parts keep, whole, for the tests: the ways in (with their fields and version),
+    /// the use stands, the entries.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn load_kept(
+        &self,
+    ) -> (
+        Vec<(LoadWay, Option<std::sync::Arc<Vec<mapdata::NodeId>>>, Vec<crate::v026g::bots::live_zones::WorldField>, u64)>,
+        Option<UseStands>,
+        Vec<(EntryKey, Option<std::sync::Arc<Vec<mapdata::NodeId>>>)>,
+    ) {
+        let ways = self.zone_ways.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut kept: Vec<_> = ways.kept.iter().map(|(k, w)| (*k, w.way.clone(), w.fields.clone(), w.checked)).collect();
+        kept.sort_by_key(|k| k.0);
+        let mut entries = self.entries.all();
+        entries.sort_by_cached_key(|e| format!("{:?}", e.0));
+        (kept, self.stands.get().cloned(), entries)
     }
 }
 

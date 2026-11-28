@@ -760,12 +760,13 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     bots.poll_budgets();
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
+    bots.load_poll(now, &mut notes);
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     bots.tracker.held_sounds(now, bots.match_wide_tuning().sense.sprint_body_mps);
     // What each bot's kit can throw (its frags, its smoke's key), as `Bots::poll` does.
     bots.tell_kit();
     bots.tracker.launch_grenades(now, world.as_deref());
-    if let Some(tactics) = bots.tactics.as_mut() {
+    if let Some(tactics) = bots.clocked_tactics() {
         tactics.hazards.advance(now);
     }
     let view = bots
@@ -1273,7 +1274,7 @@ pub(crate) fn real_bot_cost() {
                     let tactics = Tactics::new(world.clone(), super::hazards::Marking::of(&bots.tunings.match_wide().hazard));
                     (format!("the map held to {late_ms} ms"), Some((late_ms, tactics)))
                 }
-                None => (bots.map_ready(world.clone()), None),
+                None => (bots.map_ready_in_polls(world.clone(), 5), None),
             };
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
             let ready_mb = memory_mb().map(|(now, _)| now);

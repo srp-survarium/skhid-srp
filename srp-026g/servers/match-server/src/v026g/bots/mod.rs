@@ -1177,6 +1177,12 @@ thread_local! {
 }
 
 /// A match's bots.
+/// [sliced load] A map's tactics and their load under way.
+struct Loading {
+    tactics: Tactics,
+    work: plays::memo::MapLoad,
+}
+
 pub struct Bots {
     level: u8,
     mode: Mode,
@@ -1223,6 +1229,9 @@ pub struct Bots {
     pub client_tests: Option<client_tests::Link>,
     polls: polls::PollStats,
     tactics: Option<Tactics>,
+    /// [sliced load] The map's tactics while its load runs in the polls (`plays::memo::MapLoad`), before they are the bots'
+    /// ([`Self::tactics`] is none until then, so nothing asks a memo half made); the clock and the worlds still reach them.
+    loading: Option<Box<Loading>>,
     /// [item 4] The map's team bases with their protection ([`protection::Base`]), from the map at `tactics_ready`.
     bases: Vec<protection::Base>,
     /// [item 4] The base rule's entries so far: added to a bot's list, and spawn-rule ends it moved later.
@@ -1233,7 +1242,7 @@ pub struct Bots {
     /// anew with them.
     memo: plays::memo::Memo,
     /// [crossing prewarm] Each place's kits' armours against zones ([`Self::set_kit_armours`]): what its crossings can be
-    /// asked with all match, made at map load ([`Self::prewarm_crossings`]).
+    /// asked with all match, made at map load ([`Self::crossing_asks`]).
     kit_armours: Vec<Vec<std::sync::Arc<zone_cost::ZoneArmour>>>,
     teams: [TeamState; 2],
     bots: Vec<Option<Bot>>,
@@ -1324,6 +1333,7 @@ impl Bots {
             client_tests: None,
             polls: Default::default(),
             tactics: None,
+            loading: None,
             bases: Vec::new(),
             base_counts: (0, 0),
             shot_ends: 0,
@@ -1542,7 +1552,10 @@ impl Bots {
     /// ([`Self::tactics_ready`]). Returns a line for the log.
     pub fn map_ready(&mut self, world: Arc<World>) -> String {
         let tactics = Tactics::new(world, hazards::Marking::of(&self.tunings.match_wide().hazard));
-        self.tactics_ready(tactics)
+        let line = self.tactics_ready(tactics);
+        // [sliced load] Made at once, as the map's load was: the bots have their map now.
+        let parts = self.finish_load_now();
+        format!("{line}{parts}")
     }
 
     /// [`Self::map_ready`] with the tactics built ([`Tactics::new`] with
@@ -1618,39 +1631,69 @@ impl Bots {
             late += usize::from(bot.side_from_first_life(&tactics));
         }
         let summary = if late > 0 { format!("{summary}; {late} bots spawned before the map, sides read now") } else { summary };
-        self.tactics = Some(tactics);
         self.memo = Default::default();
-        // [core ways] The energy cores' battery spawners' ways in, both sides, made now, before any live field.
-        let summary = match self.tactics.as_ref().map(|tactics| self.memo.prewarm_zone_ways(tactics)) {
-            Some((asked, ms)) if asked > 0 => format!("{summary}; core ways in prewarmed: {asked} stands and sides in {ms:.1} ms"),
-            _ => summary,
-        };
-        let summary = match self.prewarm_use_stands() {
-            Some((ms, containers, zones)) => format!("{summary}; use stands prewarmed in {ms:.1} ms ({containers} containers, {zones} zones)"),
-            None => summary,
-        };
-        match self.prewarm_crossings() {
-            Some(made) if made.stands > 0 => format!(
-                "{summary}; crossing entries made at load: {} searches ({} ways) for {} stands, {} sides, {} armour and rule pairs in {:.1} ms",
-                made.searches, made.found, made.stands, made.sides, made.asks, made.ms
-            ),
-            _ => summary,
-        }
+        // [sliced load] The load's work for the memo (the energy cores' ways in, both sides, before any live field; the use
+        // stands; the routed crossings' entries), run by the polls before the bots enter. The use stands are made at the
+        // match-wide tuning's eye and ray, which every poll sets before the bots run (the tunings are fixed from `Bots::new`),
+        // so they are those of the first ask; the flags are set here too, as the load did.
+        let (live_eye, ray_m) = (self.tunings.match_wide().aim.combat.live_eye, self.tunings.match_wide().sense.use_ray_m);
+        view::set_live_eye(live_eye);
+        view::set_use_ray_m(ray_m);
+        let asks = self.crossing_asks(&tactics);
+        let work = plays::memo::MapLoad::begin(&tactics, asks, plays::memo::stand_eyes(live_eye), ray_m);
+        self.loading = Some(Box::new(Loading { tactics, work }));
+        format!("{summary}; the map's load runs in the polls before the bots enter")
     }
 
-    /// [use stands prewarm] The map's use stands ([`plays::memo::Memo::use_stands`]) worked out at map load, not at the first
-    /// put-in, theft or holder's look (116.5 ms in one bot's think on batt-m6-s18, the match's first put-in). The build reads
-    /// the world, [`view::live_eye`] and [`view::use_ray_m`] alone; both are set here from the match-wide tuning as every poll
-    /// sets them before the bots run, and the tunings are fixed from [`Bots::new`], so the stands are those of the first ask.
-    /// Its time and the containers and zones it covers, for the load line; None without the tactics.
-    fn prewarm_use_stands(&self) -> Option<(f32, usize, usize)> {
-        let tactics = self.tactics.as_ref()?;
-        view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
-        view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
-        let started = std::time::Instant::now();
-        self.memo.use_stands(tactics);
-        let map = &tactics.world.map;
-        Some((started.elapsed().as_secs_f32() * 1000.0, map.containers.len(), map.zones.len()))
+    /// [sliced load] The map's load run to its end now (the map made at once: the tests' and the bench's [`Self::map_ready`]),
+    /// the tactics the bots': the parts of its line.
+    pub fn finish_load_now(&mut self) -> String {
+        let Some(mut loading) = self.loading.take() else {
+            return String::new();
+        };
+        loading.work.run(&self.memo, &mut loading.tactics, None, 0);
+        let parts = loading.work.parts_line(&loading.tactics);
+        self.tactics = Some(loading.tactics);
+        parts
+    }
+
+    /// [sliced load] A poll's part of the map's load, with a poll's budgets (`plays::memo::MapLoad::run`); once it ends the
+    /// tactics are the bots' (from this poll on) and its line is a note. At the start of every poll (`poll`, and the bench's
+    /// `timed_poll`).
+    pub(super) fn load_poll(&mut self, now: u32, notes: &mut Vec<Note>) {
+        let Some(loading) = self.loading.as_mut() else {
+            return;
+        };
+        if !loading.work.run(&self.memo, &mut loading.tactics, Some(plays::memo::LoadBudget::POLL), now) {
+            return;
+        }
+        let Some(loading) = self.loading.take() else {
+            return;
+        };
+        let text = loading.work.done_line(&loading.tactics);
+        self.tactics = Some(loading.tactics);
+        notes.push(Note { place: usize::MAX, time: now, text });
+    }
+
+    /// [sliced load] The map's load as the server runs it: [`Self::tactics_ready`] and then polls `poll_ms` apart that run the
+    /// load alone, from the clock's 0, until it ends (the bench, before its match begins). The two lines.
+    #[cfg(test)]
+    pub(crate) fn map_ready_in_polls(&mut self, world: Arc<World>, poll_ms: u32) -> String {
+        let tactics = Tactics::new(world, hazards::Marking::of(&self.tunings.match_wide().hazard));
+        let line = self.tactics_ready(tactics);
+        let (mut notes, mut clock) = (Vec::new(), 0);
+        while self.loading.is_some() {
+            clock += poll_ms;
+            self.load_poll(clock, &mut notes);
+        }
+        let done: Vec<&str> = notes.iter().map(|n| n.text.as_str()).collect();
+        format!("{line}; {}", done.join("; "))
+    }
+
+    /// [sliced load] The map's load's counts, while it runs or once it ran in the polls (none for a load made at once).
+    #[cfg(test)]
+    pub(crate) fn loading(&self) -> bool {
+        self.loading.is_some()
     }
 
     /// [crossing prewarm] Every armour a place's kits wear against zones (the profile's kits, in order): a bot changes kit only
@@ -1662,11 +1705,10 @@ impl Bots {
         self.kit_armours[place] = armours.into_iter().map(std::sync::Arc::new).collect();
     }
 
-    /// [crossing prewarm] The routed crossings' entry searches made at map load ([`plays::memo::Memo::prewarm_entries`]) for each
-    /// (armour, rule) this match's bots can ask: each bot's present armour and its kits', under its team's rule; the armour none
-    /// where its team's `hazard.zone_pools` is raw (`Ctx::zone_armour`). None without the tactics.
-    fn prewarm_crossings(&self) -> Option<plays::memo::EntryPrewarm> {
-        let tactics = self.tactics.as_ref()?;
+    /// [crossing prewarm] The (armour, rule) pairs the routed crossings' entries are made at map load for
+    /// ([`plays::memo::MapLoad`]): each bot's present armour and its kits', under its team's rule; the armour none where its
+    /// team's `hazard.zone_pools` is raw (`Ctx::zone_armour`).
+    fn crossing_asks(&self, tactics: &Tactics) -> Vec<(Option<std::sync::Arc<zone_cost::ZoneArmour>>, plays::memo::RoutedRule)> {
         let radius = tactics.world.grid.body().radius;
         let mut asks: Vec<(Option<std::sync::Arc<zone_cost::ZoneArmour>>, plays::memo::RoutedRule)> = Vec::new();
         let mut keys: Vec<(u64, plays::memo::RoutedRule)> = Vec::new();
@@ -1687,7 +1729,7 @@ impl Bots {
                 }
             }
         }
-        Some(self.memo.prewarm_entries(tactics, &asks))
+        asks
     }
 
     /// The human routes of the match's map and mode (play 17), from
@@ -3054,17 +3096,22 @@ impl Bots {
         }
     }
 
+    /// [sliced load] The tactics the clock and the worlds reach: the bots', or the map's while its load runs.
+    pub(crate) fn clocked_tactics(&mut self) -> Option<&mut Tactics> {
+        self.tactics.as_mut().or(self.loading.as_mut().map(|l| &mut l.tactics))
+    }
+
     /// A trusted world's objects section: the anomalies' states put right.
     /// Returns (cores read, cores missed).
     pub fn anomalies_from_world(&mut self, objects: &[u8], time: u32) -> (usize, usize) {
         // What the simulation said of the cores' artefacts, to count against the world
         // (`artefact_know`; none while it is off).
         let predicted = self.features.artefacts.as_ref().and_then(|_| {
-            let anomalies = self.tactics.as_ref()?.hazards.anomalies()?;
+            let anomalies = self.tactics.as_ref().or(self.loading.as_ref().map(|l| &l.tactics))?.hazards.anomalies()?;
             Some(artefact_know::ArtefactKnow::predicted(anomalies))
         });
         let mut synced: Vec<usize> = Vec::new();
-        let read = self.tactics.as_mut().map_or((0, 0), |tactics| {
+        let read = self.clocked_tactics().map_or((0, 0), |tactics| {
             let report = tactics.hazards.sync_from_world(objects, time);
             synced = report.synced.iter().map(|s| s.core).collect();
             (report.synced.len(), report.missed.len())
@@ -3072,7 +3119,7 @@ impl Bots {
         if let (Some(predicted), Some(know), Some(anomalies)) = (
             predicted,
             self.features.artefacts.as_mut(),
-            self.tactics.as_ref().and_then(|t| t.hazards.anomalies()),
+            self.tactics.as_ref().or(self.loading.as_ref().map(|l| &l.tactics)).and_then(|t| t.hazards.anomalies()),
         ) {
             know.observe(&predicted, anomalies, &synced, time);
         }
@@ -3094,7 +3141,7 @@ impl Bots {
         if !self.tunings.match_wide().hazard.live_zones {
             return 0;
         }
-        self.tactics.as_mut().map_or(0, |tactics| {
+        self.clocked_tactics().map_or(0, |tactics| {
             let fields = tactics
                 .hazards
                 .anomalies()
@@ -3112,7 +3159,7 @@ impl Bots {
         if !self.tunings.match_wide().hazard.live_zones {
             return 0;
         }
-        self.tactics.as_mut().map_or(0, |tactics| {
+        self.clocked_tactics().map_or(0, |tactics| {
             tactics.hazards.set_fields(fields, &tactics.world.grid, time);
             tactics.hazards.live.fields().len()
         })
@@ -3500,6 +3547,7 @@ impl Bots {
         self.poll_budgets();
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
+        self.load_poll(now, &mut notes);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         self.tracker.held_sounds(now, self.tunings.match_wide().sense.sprint_body_mps);
         // The live list's notes are written while one of its switches is on (the match-wide tuning's: the list is one for all).
@@ -3507,7 +3555,7 @@ impl Bots {
         self.tracker.note_listings(avoid.bot_pockets || avoid.kit_in_use);
         self.tell_kit();
         self.tracker.launch_grenades(now, world.as_deref());
-        if let Some(tactics) = self.tactics.as_mut() {
+        if let Some(tactics) = self.clocked_tactics() {
             tactics.hazards.advance(now);
         }
         let view = self
