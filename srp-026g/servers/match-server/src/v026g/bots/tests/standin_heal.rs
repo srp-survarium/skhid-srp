@@ -18,13 +18,15 @@
 //!   pain over the 3 s ([`MEDKIT_PAIN_TOTAL`]); the bandages of revision 32
 //!   (`origin/main:srp-026g/scripts/content-edit/bandages-1.json`) 1 s then
 //!   1 s, 1.0 on hands and legs, 0.35 on the body, 0.14 on the head, 0.35 on
-//!   the pain; the antitoxin 1 s then 10 s, 0.5 in all on the infection (0.05
-//!   a second), and a toxic hit on the infection pool is halved while it is
+//!   the pain; the antitoxin 1 s then 15 s (`scripts/content-edit/medicines.tsv`;
+//!   10 s before revision 69), 0.5 in all on the infection (1/30 a second), and a toxic hit on the infection pool is halved while it is
 //!   active (PROVEN: `reduce_damage` 0x33DB30 with `drugs/antitoxin.options`
 //!   infection, `toxic`, 0.5; s4-effects `notes-effects.md`);
 //! - a use is not cancelled by its player; a death ends it, and since
 //!   revision 40 so does a ranged hit that took health (patch 84,
-//!   `origin/main:srp-026g/docs/notes/drug-interrupt.md`): in its delay it
+//!   `origin/main:srp-026g/docs/notes/drug-interrupt.md`), save for the
+//!   antitoxin since revision 69 (`drug_interrupt.rs`: only a drug that heals a
+//!   pool other than the infection stops): in its delay it
 //!   heals nothing, in its active time what it healed stays, the unit stays
 //!   used, and the slot takes its next press at once ([`stop_on_bullet`]);
 //! - a spawn fills a slot from the item's storage (the slot's count, at
@@ -262,7 +264,7 @@ pub(crate) const MODELS: [Model; 4] = [
     Model {
         drug: Drug::Antitoxin,
         delay_s: 1.0,
-        active_s: 10.0,
+        active_s: 15.0,
         totals: &[(Group::Infection, 0.5)],
         since_rev40: &[],
         toxic: 0.5,
@@ -483,16 +485,18 @@ impl Heal {
         Pressed::Used(slot.drug)
     }
 
-    /// [A217] Patch 84: a bullet that took health at `tick` stops every drug in use (all three heal a pool); the
-    /// units stay used, and a slot is free for its next press at once. What each stopped drug was doing.
+    /// [A217] Patch 84: a bullet that took health at `tick` stops every drug in use that heals a pool other than the
+    /// infection (`drug_interrupt.rs`, `Effect::Heals`: the medkits and the bandages); the antitoxin goes on. A
+    /// stopped drug's unit stays used, and its slot is free for its next press at once. What each stopped drug was doing.
     pub(crate) fn shot(&mut self, tick: u32) -> Vec<(Drug, Stopped)> {
+        let stops = |u: &Use| model_of(u.drug).totals.iter().any(|&(group, _)| group != Group::Infection);
         let stopped = self
             .uses
             .iter()
-            .filter(|u| !over(u, tick))
+            .filter(|u| !over(u, tick) && stops(u))
             .map(|u| (u.drug, if active(u, tick) { Stopped::Active } else { Stopped::InDelay }))
             .collect();
-        self.uses.clear();
+        self.uses.retain(|u| !stops(u));
         stopped
     }
 
@@ -868,14 +872,38 @@ mod tests {
         assert_eq!(heal2.press(2, 0), Pressed::Used(Drug::Antitoxin));
         assert_eq!(heal2.toxic_factor(500), 1.0, "not yet");
         assert_eq!(heal2.toxic_factor(5_000), 0.5, "halved while active");
-        assert_eq!(heal2.toxic_factor(11_500), 1.0, "over after 11 s");
-        // [A306] Its 0.5 spread over the 10 s: 0.05 a second; 3 s of it after the 1 s delay (the passes 1 000 .. 3 950,
+        assert_eq!(heal2.toxic_factor(11_500), 0.5, "still active at 11 s (15 s since revision 69)");
+        assert_eq!(heal2.toxic_factor(16_500), 1.0, "over after 16 s");
+        // [A306] Its 0.5 spread over the 15 s: 1/30 a second; 3 s of it after the 1 s delay (the passes 1 000 .. 3 950,
         // [`active`]), then the whole course.
         run(&mut heal2, &mut pools, 0, 3_950);
-        assert!((pools.infection - 0.45).abs() < 1e-3, "{}", pools.infection);
-        run(&mut heal2, &mut pools, 3_950, 8_000);
+        assert!((pools.infection - 0.4).abs() < 1e-3, "{}", pools.infection);
+        run(&mut heal2, &mut pools, 3_950, 13_000);
         assert!((pools.infection - 0.8).abs() < 1e-3, "{}", pools.infection);
         assert_eq!(pools.body, 0.4);
+    }
+
+    /// Patch 84 since revision 69 (`drug_interrupt.rs`, `Effect::Heals` only): a ranged hit leaves an antitoxin in use
+    /// (its cure and its toxic halving go on to their end) and stops a medkit used beside it.
+    #[test]
+    fn a_bullet_leaves_the_antitoxin_running() {
+        let mut heal = spawned();
+        heal.kits[0].push(Slot {
+            drug: Drug::Antitoxin,
+            quick: 2,
+            count: 1,
+            store: 0,
+            hand: 1,
+        });
+        let mut pools = hurt();
+        assert_eq!(heal.press(2, 0), Pressed::Used(Drug::Antitoxin));
+        assert_eq!(heal.press(0, 0), Pressed::Used(Drug::Medkit));
+        run(&mut heal, &mut pools, 0, 4_000);
+        assert_eq!(heal.shot(4_000), vec![(Drug::Medkit, Stopped::Active)], "only the medkit stops");
+        assert_eq!(heal.toxic_factor(10_000), 0.5, "the antitoxin still halves a toxic hit");
+        let before = pools.infection;
+        run(&mut heal, &mut pools, 4_000, 13_000);
+        assert!((pools.infection - 0.8).abs() < 1e-3 && pools.infection > before, "{before} -> {}", pools.infection);
     }
 
     #[test]
@@ -985,14 +1013,14 @@ mod tests {
     }
 
     /// [A306] The game spreads a drug's amount over its active time: the medkit's body gains a third a second (a course a
-    /// hit stops 1 s in has healed a third), the antitoxin's infection 0.05 a second, the bandages' hands 1 in their 1 s.
+    /// hit stops 1 s in has healed a third), the antitoxin's infection 1/30 a second, the bandages' hands 1 in their 1 s.
     #[test]
     fn the_game_spreads_a_drugs_total_over_its_active_time() {
         let rate = |drug: Drug, group: Group| {
             model_of(drug).rates_now().filter(|&(g, _)| g == group).map(|(_, r)| r).sum::<f32>()
         };
         assert!((rate(Drug::Medkit, Group::Body) - 1.0 / 3.0).abs() < 1e-6);
-        assert!((rate(Drug::Antitoxin, Group::Infection) - 0.05).abs() < 1e-6);
+        assert!((rate(Drug::Antitoxin, Group::Infection) - 0.5 / 15.0).abs() < 1e-6);
         assert!((rate(Drug::Bandages, Group::Hands) - 1.0).abs() < 1e-6);
         let medkit = model_of(Drug::Medkit);
         assert!((rate(Drug::Medkit, Group::Body) * medkit.active_s - medkit.total(Pool::Body)).abs() < 1e-6);
@@ -1010,7 +1038,7 @@ mod tests {
         let bandages = model_of(Drug::Bandages);
         assert_eq!((bandages.delay_s, bandages.active_s), (1.0, 1.0));
         let antitoxin = model_of(Drug::Antitoxin);
-        assert_eq!((antitoxin.delay_s, antitoxin.active_s), (1.0, 10.0));
+        assert_eq!((antitoxin.delay_s, antitoxin.active_s), (1.0, 15.0));
         for item in &ITEMS {
             let model = model_of(item.drug);
             assert_eq!(

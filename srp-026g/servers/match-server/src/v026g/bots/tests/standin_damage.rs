@@ -574,9 +574,9 @@ pub(crate) fn pierce_of(model: &Model, gun: &Gun) -> Option<Pierce> {
     Pierce::new(weapon.bullet_pierce * ammo_of(model, gun).k_arp)
 }
 
-/// What a bullet of `gun` carries `metres` from the muzzle if nothing took any of it: the damage and the pierce
-/// that fall by one factor with the bullet's speed (`bullet_at`, PROVEN: `update_bullet_position` sets both), for
-/// [`mapdata::RayTree::fly`]. `None` for a gun the data does not know.
+/// What a bullet of `gun` carries `metres` from the muzzle if nothing took any of it: the damage that falls with the
+/// bullet's speed and the muzzle's pierce (`bullet_at`, PROVEN: `update_bullet_position` sets the damage; client patch
+/// 173 keeps the pierce), for [`mapdata::RayTree::fly`]. `None` for a gun the data does not know.
 pub(crate) fn flight_of(model: &Model, gun: &Gun) -> Option<impl Fn(f32) -> Load> {
     let weapon = weapons::weapon_named(gun.item)?;
     let ammo = ammo_of(model, gun);
@@ -587,7 +587,7 @@ pub(crate) fn flight_of(model: &Model, gun: &Gun) -> Option<impl Fn(f32) -> Load
 }
 
 /// The bullets or pellets of one shot of `shooter_gun` that landed on `target`, each with the hit box the shot
-/// ray met and what the bullet carried when it got there: its damage and its pierce after the distance and the
+/// ray met and what the bullet carried when it got there: its damage after the distance, its pierce, and both after the
 /// surfaces it crossed ([`mapdata::RayTree::fly`]; the shapes of [`super::standin_hitbox`] say the box; nothing is
 /// drawn). The pools and the death rule are [`hit`]'s.
 pub(crate) fn hit_boxes(
