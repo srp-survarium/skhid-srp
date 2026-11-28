@@ -684,13 +684,15 @@ group, and an idle map can be unloaded for another one.
 
 | Memory for the server | Worst case: every map of the largest kind | Usual PvP maps (measured sizes) |
 |---|---|---|
-| 2 GB | `max_zygotes = 1` | `max_zygotes = 1` |
+| 2 GB | `max_zygotes = 1` | `max_zygotes = 3` with `max_matches = 2` (or 1 map with 4) |
 | 4 GB | `max_zygotes = 3` | `max_zygotes = 5` |
 | 8 GB | `max_zygotes = 7` | `max_zygotes = 12` |
 | 16 GB | `max_zygotes = 15` | `max_zygotes = 25` |
 
 `srp setup` prints both numbers for the memory it finds (`this memory fits N map(s) in the worst case ... or about M
-usual PvP maps`). Worst case: 0.35 GB + `max_zygotes` x (0.35 GB + `max_matches` x 0.165 GB), safe whatever the
+usual PvP maps`); when fewer than 3 usual PvP maps fit, it also prints the usual fit with `max_matches = 2` (`; with
+max_matches = 2 about K usual PvP maps`): on a small machine the same memory then holds more maps with fewer matches
+each, so the queue has more variety. Worst case: 0.35 GB + `max_zygotes` x (0.35 GB + `max_matches` x 0.165 GB), safe whatever the
 players choose. Usual PvP maps: 0.35 GB + `max_zygotes` x (0.085 GB + `max_matches` x 0.13 GB), PvP maps of the
 measured size once their lists' common part is in the base process, with matches filled with AI players (11 AI
 players in 12 slots: 0.13-0.14 GB). A value between the two is a reasonable start; the
