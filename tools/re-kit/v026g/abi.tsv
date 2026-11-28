@@ -2867,3 +2867,6 @@ va	name	source	ret_cleanup	result
 0x00172bf0	vostok::render::stage_shadow_direct::is_cached_caster	manual	4	AL 1: a static caster the cascade cache keeps; 0 a dynamic one (model +115h, material kind 8/10h/20h/40h, material +5 in cascade 0)
 0x00173f10	vostok::render::stage_shadow_direct::cascade_needs_static_draw	manual	0	AL 1: the cascade was flushed (+80C7Ch) or its scroll offset moved 0.001 or more in an axis
 0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	manual	0	EAX 1 unless r_csm_intermittent_update skips the cascade this frame
+0x000f2bc0	vostok::math::cuboid::test_inexact	manual	4	EAX: 1 inside, 2 outside, 3 intersect
+0x001073b0	vostok::math::aabb_plane::test	manual	0	EAX: 1 inside, 2 outside, 3 intersect
+0x001072e0	vostok::math::aabb_plane::normalize [descriptive]	manual	0	none; the normal and d divided by the normal's length, +10h the corner bits: far | (far ^ 7) << 3, far's bit k set where the normal's k sign bit is clear

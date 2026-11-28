@@ -3194,6 +3194,10 @@ INSTALLS[0x298664] = (CALLEE, "correct_fingers' set_weapon_model 0x390620 (stdca
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
+# Patch 220 (the Rust patch frustum_test's code hook, frustum_test_026g.asm)
+INSTALLS[0xF2BC0] = (ENTRY, "cuboid::test_inexact: frustum_test_inexact, four planes at a time, the same verdicts",
+                     None, None)
+
 # Distance detail: native bounded integer command owns Apply/Cancel/save.
 # Maximum also selects LOD0. Of textures it touches only the requests of records that are not
 # streamed (no mip cut for them); streaming itself stays on in the game (client_patch.md,

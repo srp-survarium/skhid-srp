@@ -1,0 +1,11 @@
+# Patch 220: the render's frustum test of a box, four planes at a time, the
+# same verdicts (frustum_test_026g.asm). Only the decision: the site and the code.
+name = "frustum_test"
+patch = 220
+
+# cuboid::test_inexact 0xF2BC0, whole
+[[hook]]
+site = "cuboid.test_inexact"
+source = "frustum_test_026g.asm"
+symbol = "frustum_test_inexact"
+limit = 768
