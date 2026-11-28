@@ -6878,3 +6878,5 @@ va	name	location	role	basis
 0x00173f10	vostok::render::stage_shadow_direct::cascade_needs_static_draw	ESI	shadow stage receiver	observed
 0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	ECX	shadow stage receiver	observed
 0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	EAX	cascade index	observed
+0x000f1fd0	vostok::math::aabb::modify	EAX	the box, min then max (6 floats), read and written (select_lod 0x16EF55)	observed
+0x000f1fd0	vostok::math::aabb::modify	ECX	the 4x4 transform (rows i, j, k, c; c at +30h)	observed
