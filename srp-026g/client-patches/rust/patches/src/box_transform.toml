@@ -1,0 +1,11 @@
+# Patch 221: a box moved by a transform without a branch per term, the same
+# floats (box_transform_026g.asm). Only the decision: the site and the code.
+name = "box_transform"
+patch = 221
+
+# aabb::modify 0xF1FD0, whole
+[[hook]]
+site = "aabb.modify"
+source = "box_transform_026g.asm"
+symbol = "box_transform_modify"
+limit = 512

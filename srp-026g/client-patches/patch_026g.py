@@ -3194,6 +3194,10 @@ INSTALLS[0x298664] = (CALLEE, "correct_fingers' set_weapon_model 0x390620 (stdca
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
+# Patch 221 (the Rust patch box_transform's code hook, box_transform_026g.asm)
+INSTALLS[0xF1FD0] = (ENTRY, "aabb::modify: box_transform_modify, the same floats without a branch per term",
+                     None, None)
+
 # Distance detail: native bounded integer command owns Apply/Cancel/save.
 # Maximum also selects LOD0. Of textures it touches only the requests of records that are not
 # streamed (no mip cut for them); streaming itself stays on in the game (client_patch.md,
