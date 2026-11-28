@@ -71,7 +71,7 @@ use weapon_pickup::{Drop as DropState, Handedness, Hands, Held, Lying, Ms, Pendi
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
 use crate::vostok::breadcrumbs::{self, Crumb, Pickup, Reading};
-use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Installed, Mode, NameKey, Registered,
+use crate::vostok::pickup::{self as native, Failure, GunBox, GunPose, Installed, Mode, NameKey, Registered,
                             RegistryId, Role, Select, Site};
 use crate::vostok::world::{GameWorld, ItemId, MatchId, Player, PlayerId, WorldKey};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread, WorldLoad};
@@ -465,11 +465,6 @@ fn cancel(player: &Player<'_>, thread: &Thread, why: Cancel) {
     log_pick(Pickup::Cancelled, player, pending.slot, pending.pick, why.text());
 }
 
-/// Whether the cook `id`'s gun was ever installed on this client.
-fn used(thread: &Thread, id: CookId) -> bool {
-    CACHE.with(thread, |cache| cache.iter().flatten().any(|e| e.gun.id() == id && matches!(e.history, History::Used { .. })))
-}
-
 /// The cook `id`'s gun is `holder`'s now: registered, or (`installed`) in
 /// its hands. Kept until `holder` is destroyed.
 fn mark_held(thread: &Thread, id: CookId, holder: PlayerId, installed: bool, slot: WeaponSlot, pick: Pick) {
@@ -599,14 +594,12 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
         let outcome = (|| {
             let (id, from) = gun_for(player, thread, slot, pick)?;
             let at = RegistryId::reserved(Place::new(player.place()).ok_or(Why::NoPlace)?, Role::Picked(slot));
-            let fresh = if used(thread, id) { Fresh::No } else { Fresh::Yes };
-            let installed = native::install(player, slot, id, pick.recipe.slot, at, Mode::Load(fresh))
+            let installed = native::install(player, slot, id, pick.recipe.slot, at, Mode::Load)
                 .map_err(|f| Why::Install(f.refusal()))?;
             move_to(thread, id, |_| At::Held { picker: player.id(), slot, pick, installed, from });
             mark_held(thread, id, player.id(), true, slot, pick);
             log_gun(player, "a loaded record re-installed", installed.gun(), Some(installed.id()), slot,
-                    if fresh == Fresh::No { "no weapon call (the reader set_users and activates it)" }
-                    else { "fresh: set_user + initialize" });
+                    "no weapon call (the reader set_users it if held)");
             Ok::<_, Why>(())
         })();
         match outcome {
