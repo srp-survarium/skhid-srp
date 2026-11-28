@@ -151,9 +151,61 @@ package
          checkSquads();
          checkSoldier();
          checkInSquad();
+         checkPistols();
          checkFit();
          checkBigPool();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // FFA: Pistols (lobby mode 18, docs/notes/ffa-pistols.md; the fourth card of tellRoom plays
+      // it): its card named by the dictionary's st_srp_mode_pistols in every language, in a colour
+      // of its own, and the loading screen's icon its own frame (SrvGameModeIcons.forTwist: frame
+      // 11, the bitmap GameModeIconPistols) for Free for All's, no other mode's.
+      private function checkPistols() : void
+      {
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+         var Loc:Object = domain.getDefinition("survarium.data.LocalizationData");
+         var Text:Object = domain.getDefinition("survarium.rooms.RoomsText");
+         var Look:Object = domain.getDefinition("survarium.rooms.RoomsLook");
+         var Icons:Object = domain.getDefinition("SrvGameModeIcons");
+         var frames:String = [Icons.forTwist(5, 18), Icons.forTwist(5, 14), Icons.forTwist(2, 18)].join();
+         if(frames != "10,9,2")
+            failures.push("pistols: the loading screen's frames " + frames + ", not 10,9,2");
+         var icon:* = new (Icons as Class)();
+         icon.gotoAndStop(11);
+         var art:String = "none";
+         for(var i:int = 0; i < icon.numChildren; i++)
+            if(icon.getChildAt(i) is Bitmap && icon.getChildAt(i).visible)
+               art = getQualifiedClassName(Bitmap(icon.getChildAt(i)).bitmapData);
+         if(art != "GameModeIconPistols")
+            failures.push("pistols: frame 11 shows " + art);
+         if(Look.modeColour(18) == Look.modeColour(0) || Look.modeColour(18) == Look.modeColour(8))
+            failures.push("pistols: no colour of its own");
+         var named:int = 0;
+         for each(var language:String in HarnessText.LANGUAGES)
+         {
+            var say:Object = HarnessText.DATA[language];
+            Loc.setData(say);
+            if(Text.modeName(18) != say.st_srp_mode_pistols)
+               failures.push(language + ": mode 18 named " + Text.modeName(18));
+            // The pool the cards name (checkFit's), then a room voting on them.
+            tell(["S1;M;7;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+               "5;12;7;1;8;0","6;300;1;1;13;0"]);
+            tellRoom(1003, false, false, 3, null, 0, []);
+            var texts:Array = [];
+            walk(win,[],texts,0,0,[]);
+            var card:Boolean = false;
+            for each(var t:Object in texts)
+               if(t.text == String(say.st_srp_mode_pistols).toUpperCase())
+                  card = true;
+            if(card)
+               named++;
+            else
+               failures.push(language + ": no vote card named " + say.st_srp_mode_pistols);
+         }
+         Loc.setData(HarnessText.DATA.english);
+         trace("ROOMS FFA: Pistols' card named in " + named + " of " + HarnessText.LANGUAGES.length
+            + " languages, its icon " + art + ", its frames " + frames);
       }
 
       // A pool of 256 entries at most (every playable map: 219 in the live data): a create's one
@@ -429,7 +481,7 @@ package
       {
          var size:int = 10;
          var names:Array = [["S1","R",key,15,pin ? 0 : 15,size,30,phase,754,owner ? 1 : 0,5,5,key,pin ? 1 : 0,63,pin ? 1 : 2,0].join(";")];
-         names = names.concat(cards != null ? cards : ["C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","C;3;184;0;0"]);
+         names = names.concat(cards != null ? cards : ["C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","C;3;184;0;0;18"]);
          for(var i:int = 0; i < WHO.length; i++)
          {
             var me:Boolean = owner ? i == 0 : i == 1;

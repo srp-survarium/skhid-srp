@@ -2767,6 +2767,7 @@ st_level_13_name	Radarska stanica Vostok (v0.11)
 st_level_14_name	Rudnja (v0.69)
 st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovski fort (v0.21)
+st_level_28_name	Radarska stanica Vostok (v0.69)
 st_level_29_name	Rudnja (v0.21)
 st_level_31_name	Hemijska fabrika (v0.21)
 st_level_32_name	London (v0.42)
@@ -4135,6 +4136,7 @@ st_srp_map_vector	Laboratorija Vektor
 st_srp_map_vostok	Radarska stanica Vostok
 st_srp_map_vostok_v011	Radarska stanica Vostok (v0.11)
 st_srp_map_vostok_v021	Radarska stanica Vostok (v0.21)
+st_srp_map_vostok_v069	Radarska stanica Vostok (v0.69)
 st_srp_matches_another_joining	Drugi igrač se pridružuje
 st_srp_matches_balanced	Meč je već uravnotežen
 st_srp_matches_cannot_join	Trenutno ne možeš da se pridružiš
@@ -4208,6 +4210,7 @@ st_srp_mode_cowboy	FFA: Salun
 st_srp_mode_cowboy_winchester	FFA: Salun (Winchester)
 st_srp_mode_free_for_all	Svako protiv svakoga
 st_srp_mode_freeze_tag	Zamrzavanje
+st_srp_mode_pistols	FFA: Pištolji
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_racket	FFA: Galama
 st_srp_mode_research	Istraživanje

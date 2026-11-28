@@ -756,7 +756,7 @@
     const note = el('p', {className: 'stats-note stats-trend-note'}, data
       ? `${TEXT.trend}: ${TEXT[STEP_NOTE[data.step]]}, ${stepName(data.step, steps[0])} – ${stepName(data.step, steps[steps.length - 1])}` : BLANK);
     const modes = table(modeColumns, data && data.modes, 8, '', row => row.mode_url || null);
-    // Every free-for-all is one mode: its versions under it (the Racket, the Saloon, the Roulette),
+    // Every free-for-all is one mode: its versions under it (the Racket, the Saloon, the Roulette, the Pistols),
     // each with its own numbers, closed until its button opens them.
     if (data) data.modes.forEach((mode, i) => {
       if (!mode.versions) return;

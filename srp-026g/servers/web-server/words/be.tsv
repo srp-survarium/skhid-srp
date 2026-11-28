@@ -513,9 +513,14 @@ Level bands: {0}.	Дыяпазоны ўзроўняў: {0}.
 A room draws bands up to its level.	Пакой атрымлівае дыяпазоны да свайго ўзроўню.
 Each kit a gun of another class, with random bonuses and attachments.	У кожным камплекце зброя іншага класа з выпадковымі бонусамі і абвесам.
 {0} % of deals: pistols only.	{0} % раздач: толькі пісталеты.
-Plain FFA: {0} % of FFA cards.	Звычайны FFA: {0} % картак FFA.
+Everyone plays his own kits.	Кожны гуляе сваімі камплектамі.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Усе гуляюць тымі ж {0} выпадковымі камплектамі, у кожным адзін пісталет; трэці камплект пусты.
+Pistols of levels {0}: {1}.	Пісталеты ўзроўняў {0}: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	Пакой атрымлівае дыяпазоны да свайго ўзроўню; пакой вышэй за 10 узровень гуляе 0–5 або 6–10.
+Two different pistols of the band, with random armour, bonuses and attachments.	Два розныя пісталеты дыяпазону, з выпадковай бранёй, бонусамі і абвесам.
 {0} % of FFA cards.	{0} % картак FFA.
 FFA: Roulette	FFA: Рулетка
+FFA: Pistols	FFA: Пісталеты
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Пошук зброі

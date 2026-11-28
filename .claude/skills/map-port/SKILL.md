@@ -113,7 +113,9 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     manifest and a new version of that pack in the same skhid PR;
   - materials: gloss by the two builds' GGX alpha, Fresnel 0.04, a metalness map as the
     surface's own diffuse and Fresnel maps made texel by texel (never the metalness map as
-    0.26g's Fresnel map: a dark pipe mirrored the sky); every category's template must draw
+    0.26g's Fresnel map: a dark pipe mirrored the sky); a constant metalness above 0.1 with no
+    map is a metal surface too, its maps made with that value (Vostok's barbed wire, 0.7);
+    every category's template must draw
     a gloss map (`use_troughness`) where the donor binds a smoothness map: without one the
     donor's unused constant was drawn (Rudnya's rusty roofs "greasy" at gloss 0.62; the build
     now stops on such a template);
@@ -157,6 +159,10 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     `<rig>/../poses-sweep.json`: interiors from the probe and light volumes,
     roofs, the fog, the horizon (the backdrop), terrain overlay edges, every mode object,
     spawns; cameras inside geometry or buried are skipped (`geoq` ray-casts the collision).
+  - The port's shots: `srp-026g/scripts/capture/capture.py` (exe patch 176, `capture.md`:
+    straight into the map from a replay with nobody in it, no server or input; at most 64
+    poses a run). The camera-hook rigs refuse an exe with patch 176 ("apply_camera bytes
+    differ"). Vostok (v0.69)'s run of it over the kept poses: `vostok-069d.md`.
   - `sweep.py run --build <name> --content <content dir> [--fresh]`, then
     `<rig>/../report-<name>/index.html`, worst first, with black / dark /
     hole / cast / gap flags on an 8 x 6 tile grid. `sweep.py compare --build <name>` redoes

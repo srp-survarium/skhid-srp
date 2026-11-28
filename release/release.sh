@@ -4,7 +4,7 @@
 #                           [--minutes <n> | --no-maintenance]
 #                           [--now | --end-bot-and-private-matches]
 #                           [--match-wait <minutes>] [--label <word>]
-#                           [--ref <branch>] [--no-bot-data] [--worlds <folder>]
+#                           [--ref <branch>] [--no-bot-data]
 #                           [--no-selftest] [--dry-run] [--yes --i-know]
 #
 # A whole release of origin/main in one run, and its record. Its revision
@@ -79,14 +79,20 @@
 #      writes the number in; with one, the server code must be built (and
 #      also when the target's tree still has one: its server would take
 #      this release's revision for it); with none, a note when the exe's
-#      patches changed since the last tag; the world check's tool
-#      (srp-world-check) built, and the worlds it checks: the target's
-#      newest 3 kept match recordings (SRP_RECORD_DIR, read under nice and
-#      ionice into the run's folder), or --worlds <folder>'s;
+#      patches changed since the last tag. From the moment the
+#      commit to build is known: the exe patches' self-test of it, in the
+#      background, in a worktree of its own
+#      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
+#      $SKHID_GAME's survarium.exe, about 5 min; release/test.sh:
+#      $SKHID_SELFTEST_BIN; --no-selftest: none, said loudly; the dry run
+#      too, waiting for its result at the end of step 2): watched between
+#      the steps from then on, a failed check stops the run when it comes
+#      (the dry run: a problem);
 #   2. takes the release lock, then, nothing players see:
 #      release/upload-patch (with --resources: publishes it and adds its row
 #      to the list; no server offers it before the swap),
-#      release/build-server-db (of the list); the maps' built grids, sight
+#      release/build-server-db (of the list; the URLs the preflight checked
+#      are not asked again: --urls-checked); the maps' built grids, sight
 #      trees and tactics (mapdata/built, keyed by this checkout's rules, the
 #      map file and that server data's fastest bot): each offered map's three
 #      files, as srp-build-maps --files names them with that data
@@ -99,16 +105,7 @@
 #      start: patch 49), then release/build-torrent over that ZIP's files
 #      (skhid-rev<n>.torrent of the whole game folder, which goes into the
 #      ZIP as game/torrent/skhid.torrent:
-#      srp-026g/docs/notes/torrent-downloads.md); the world check: every upload of those recordings
-#      checked as the new server checks an upload before it relays it, with
-#      the new server data (srp-world-check): one refused, or none checked,
-#      stops the release here, before the go; then the exe patches' self-test
-#      of that commit started in the background
-#      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
-#      $SKHID_GAME's survarium.exe, about 5 min; release/test.sh:
-#      $SKHID_SELFTEST_BIN; --no-selftest: none, said loudly; the exe's
-#      arena, `.srpx`, must be the one it linked), while the
-#      rest of this step runs; checks the two
+#      srp-026g/docs/notes/torrent-downloads.md); checks the two
 #      files as release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
 #      tool failing on it stops here, before the go); makes the release
@@ -120,7 +117,9 @@
 #      the source and the image (sha256 checked there), tags the running
 #      image (by its ID) srp-026g:before-rev<rev>-<stamp> and docker loads
 #      the new one, which srp-026g:latest then names; last, the self-test's
-#      result (a failed check stops the release). A failure here stops
+#      result, waited for if it still runs (a failed check stops the
+#      release; the exe's arena, `.srpx`, must be the one it linked). A
+#      failure here stops
 #      before the go: the staged files removed, the image tag put back,
 #      nothing planned (a stop also kills the self-test still running);
 #   3. waits for the go: the owner's word that players may feel the release
@@ -206,6 +205,17 @@
 # offered: a run with the same --resources takes it as it is, one with
 # other bytes replaces it, never listed and never offered).
 #
+# No world check (the owner, 2026-11-27): the release does not run the new
+# server's world check (srp-world-check) over the live host's recordings any
+# more. Those are today's games' worlds, never what the new exe will send,
+# and old ones blocked a release (rev74) for nothing. Worlds are checked at
+# the PR: tools/check world-check and world-drift over the private corpus
+# (live recordings and local test matches), and a PR that changes what games
+# write plays a local test match first (AGENTS.md, "The world format and its
+# check"). The planned replacement is a release smoke match: a headless
+# local match against bots with the release's own exe and server, every
+# world it uploads checked (not built yet).
+#
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
 #                       (made by release/build-content <rev> --full)
 #   --revision <n>      the release's revision instead of the target exe's + 1;
@@ -254,17 +264,14 @@
 #                       plan says so). Without it a release stops when
 #                       $SKHID_BOT_DATA is not set, or lacks a listed file, or
 #                       has one of another sha256
-#   --worlds <folder>   the match recordings (*.srprec) the world check reads
-#                       instead of the target's newest: a release that
-#                       changes what games write (an exe patch) is checked
-#                       with worlds of its own games (a match on the test
-#                       environment after release.sh --test; one against
-#                       bots is kept), as the live games' are refused then
-#   --no-selftest       skips the exe patches' self-test (step 2): for a
+#   --worlds <folder>   deprecated, ignored with a warning: the release runs
+#                       no world check any more (above)
+#   --no-selftest       skips the exe patches' self-test (steps 1-2): for a
 #                       quick fix release only (the default runs it); said
 #                       as a WARNING in the preflight, the plan, the summary,
 #                       and written in the tag and the record's commit
-#   --dry-run           runs the read-only checks of step 1, prints every
+#   --dry-run           runs the read-only checks of step 1 (the self-test
+#                       too, in a worktree removed after it), prints every
 #                       other command; plans no maintenance, writes nothing
 #   --yes --i-know      answer the y/N before the swap yes (both flags or
 #                       neither); never the go
@@ -286,7 +293,7 @@ STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
 LAUNCHER_SHA=${SKHID_TEST_LAUNCHER_SHA256:-$(sed -n 's/^EXE_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$ROOT/srp-026g/client-patches/launcher/patch_launcher_026g.py")}
 
 ref=main resources='' revision_arg='' test_server=0 server_code=auto minutes='' label='' yes=0 i_know=0
-no_maint=0 match_wait='' now=0 normal_only=0 no_bot_data=0 worlds_arg='' no_selftest=0
+no_maint=0 match_wait='' now=0 normal_only=0 no_bot_data=0 no_selftest=0 worlds_ignored=''
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -300,7 +307,8 @@ while (($#)); do
     --end-bot-and-private-matches) normal_only=1; shift ;;
     --no-bot-data) no_bot_data=1; shift ;;
     --no-selftest) no_selftest=1; shift ;;
-    --worlds) (($# >= 2)) || usage 1; worlds_arg=$2; shift 2 ;;
+    # Deprecated (2026-11-27): taken, and said in the preflight, not used.
+    --worlds) (($# >= 2)) || usage 1; worlds_ignored=$2; shift 2 ;;
     --match-wait) (($# >= 2)) || usage 1; match_wait=$2; shift 2 ;;
     --label) (($# >= 2)) || usage 1; label=$2; shift 2 ;;
     --ref) (($# >= 2)) || usage 1; ref=$2; shift 2 ;;
@@ -435,8 +443,72 @@ nap() {
     NAP_PID=''
 }
 pause() { nap "$(awk -v m="$MINUTE" -v f="$1" 'BEGIN { print m * f }')"; }
-# The exe patches' self-test, while it runs in the background (step 2).
-SELFTEST_PID=''
+# The exe patches' self-test of the commit to build (selftest_026g.py, its
+# Linux part), in the background from the moment the preflight knows that
+# commit, in a worktree of it of its own ($work/selftest-src). SELFTEST:
+# none (not started: --no-selftest, or no commit), running (SELFTEST_PID,
+# the leader of its process group: a stop kills all of it, on_exit),
+# passed, failed. selftest_poll, between the steps: a result that came is
+# taken, and a failure stops the run at once, as any failure (a dry run: a
+# problem, said, and it goes on); selftest_wait: the result, waited for.
+SELFTEST=none SELFTEST_PID=''
+selftest_start() { # <commit>
+    local exe=$SKHID_GAME/binaries/x86/survarium.exe
+    [[ -f $exe ]] || exe=$SKHID_GAME/game/binaries/x86/survarium.exe
+    if [[ ! -f $exe ]]; then
+        problem "SKHID_GAME: no binaries/x86/survarium.exe in $SKHID_GAME or its game folder (the exe patches' self-test runs on the original)"
+        return
+    fi
+    # Its own process group (set -m), so a stop kills all of it (on_exit),
+    # and a Ctrl-C reaches only this script. The worktree made there too (a
+    # checkout of the whole tree: seconds the preflight does not wait for).
+    # Its status into a file when it ends (`worktree`: none could be made):
+    # what selftest_poll looks for.
+    set -m
+    {
+        if ! git -C "$REPO" worktree add --quiet --detach "$work/selftest-src" "$1" >"$work/selftest.log" 2>&1; then
+            echo worktree >"$work/selftest.status"
+            exit 0
+        fi
+        status=0
+        run_selftest "$work/selftest-src" "$exe" "$work/selftest.log" "$work/selftest" || status=$?
+        echo "$status" >"$work/selftest.status"
+    } </dev/null &
+    SELFTEST_PID=$! SELFTEST=running
+    set +m
+    say "  ...      the exe patches' self-test of ${1:0:7} started in the background (selftest_026g.py, about 5 min; log: $work/selftest.log): watched between the steps, a failure stops the run"
+}
+# Its result (waited for, when it still runs): passed, or a stop (a dry
+# run: a problem).
+selftest_take() {
+    local status why
+    wait "$SELFTEST_PID" 2>/dev/null || true
+    SELFTEST_PID=''
+    status=$(cat "$work/selftest.status" 2>/dev/null || echo none)
+    git -C "$REPO" worktree remove --force "$work/selftest-src" 2>/dev/null || true
+    rm -rf "$work/selftest"
+    if [[ $status == 0 ]]; then
+        SELFTEST=passed
+        say "  ok       the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
+        return
+    fi
+    SELFTEST=failed
+    if [[ $status == worktree ]]; then
+        why="the exe patches' self-test: no worktree of the commit to run it in: $(tr '\n' ' ' <"$work/selftest.log")"
+    else
+        why="the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
+    fi
+    if ((DRY_RUN)); then problem "$why"; else die "$why"; fi
+}
+selftest_poll() {
+    if [[ $SELFTEST == running && -e $work/selftest.status ]]; then selftest_take; fi
+}
+selftest_wait() {
+    if [[ $SELFTEST == running ]]; then
+        progress "2. waiting for the exe patches' self-test (log: $work/selftest.log)"
+        selftest_take
+    fi
+}
 
 # The admin page's path and token, from the target's .env, into ADMIN_PATH
 # and ADMIN_TOKEN; never printed. The command shown in `ps` is a grep.
@@ -1024,8 +1096,8 @@ on_exit() {
     trap '' PIPE
     if [[ -n $LOG_PID ]] && ! kill -0 "$LOG_PID" 2>/dev/null; then exec 1>&8 2>&9; fi
     if [[ -n $NAP_PID ]]; then kill "$NAP_PID" 2>/dev/null; fi
-    # The self-test still running (step 2): its whole process group (nix,
-    # python and its workers), before its worktree goes.
+    # The self-test still running: its whole process group (nix, python
+    # and its workers), before its worktree goes.
     if [[ -n $SELFTEST_PID ]]; then
         kill -- "-$SELFTEST_PID" 2>/dev/null
         wait "$SELFTEST_PID" 2>/dev/null
@@ -1064,6 +1136,11 @@ on_exit() {
     planned | swapping | finished) save_release_log "$work/release.log" ;;
     esac
     lock_drop
+    # (killed while it was being made: gone by hand, and pruned)
+    if [[ -d $work/selftest-src ]] && ! git -C "$REPO" worktree remove --force "$work/selftest-src" 2>/dev/null; then
+        rm -rf "$work/selftest-src"
+        git -C "$REPO" worktree prune 2>/dev/null
+    fi
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src" 2>/dev/null; fi
     if [[ -d $work/record ]]; then git -C "$REPO" worktree remove --force "$work/record" 2>/dev/null; fi
     if [[ -d $work/site ]]; then git -C "$REPO" worktree remove --force "$work/site" 2>/dev/null; fi
@@ -1139,6 +1216,8 @@ if bin=$(game_data_bin 2>"$work/game-data-build.log"); then okay "srp-game-data:
 main_rev='' main_commit='' live_rev=unknown rev='' SERVED_ZIPS=''
 if git -C "$REPO" fetch --quiet origin "$ref:refs/remotes/origin/$ref" 2>"$work/fetch.log"; then
     main_commit=$(git -C "$REPO" rev-parse "origin/$ref")
+    # The exe patches' self-test of it from now on, beside the rest.
+    ((no_selftest)) || selftest_start "$main_commit"
     main_rev=$(revision_at "$REPO" "$main_commit")
     # The commit's public key is the one its updater is built with: the
     # signing key must be its pair, or every player refuses the torrent.
@@ -1221,7 +1300,12 @@ if ((!test_server)) && [[ -n $rev && -n $main_commit ]]; then
 fi
 
 # The offered patches: the list, each on the patches server and at every
-# URL of its row.
+# URL of its row. Each URL that gives its file is written down
+# (URLS_CHECKED_LOG, lib.sh check_file_urls): step 2's build-server-db
+# does not ask those again (--urls-checked), only the new patch's.
+selftest_poll
+URLS_CHECKED=$work/urls-checked URLS_CHECKED_LOG=$work/urls-checked
+: >"$URLS_CHECKED_LOG"
 published=''
 listed=$(grep -c . <<<"$LIST" || true)
 if ((patches_ok && listed)); then
@@ -1258,6 +1342,8 @@ if ((patches_ok)) && [[ -n $GAME_ROW ]]; then
         problem "$GAME_LIST: $name: $URL_PROBLEM"
     fi
 fi
+URLS_CHECKED_LOG=''
+selftest_poll
 if [[ -n $rev ]] && ((LIST_TOP > rev)); then
     problem "$PATCH_LIST offers resources.db.patch_$LIST_TOP, above this release's revision $rev"
 fi
@@ -1427,6 +1513,9 @@ bd_dir=${SKHID_BOT_DATA:-} bd_ok=0 bd_bytes=0 bd_line=''
 if ((no_selftest)); then
     say "  WARNING  --no-selftest: the exe patches' self-test is NOT run (a quick fix release): the exe ships unchecked against its general rules; the tag and the record say so"
 fi
+if [[ -n $worlds_ignored ]]; then
+    say "  WARNING  --worlds $worlds_ignored: ignored, the release runs no world check any more (the owner, 2026-11-27); worlds are checked at the PR (tools/check world-check and world-drift; a local test match for a change of what games write)"
+fi
 if ((no_bot_data)); then
     say "  WARNING  --no-bot-data: the bots' data files (release/bot-data.tsv) are neither checked nor put in the volume: the bots run on what the volume holds now"
     bd_line="NOT TOUCHED (--no-bot-data): the bots run on what the volume holds now"
@@ -1525,8 +1614,18 @@ fi
 OLD_PATCHES=$(served_patches)
 say "  now      /patches: ${OLD_PATCHES:-(no list: a server from before patches)}"
 
+# The item tables' tool (a live release's): step 2 runs it on the server
+# data before anything is staged, the record writes the tables of it
+# (srp-026g/docs/data/, only where an item changed). --test has no record.
+ITEM_TABLES='' ITEM_TABLES_REPORT=''
+if ((!test_server)) && ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"); then
+    problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
+fi
+
 # The site's pages rebuilt (about 2 min), last in the preflight so far, and
-# only when nothing of it failed: a real run with a problem stops anyway.
+# only when nothing of it failed (the self-test, when it ended, too): a
+# real run with a problem stops anyway.
+selftest_poll
 if ((site_stale)); then
     build_site=("$BUILD_SITE" --tree "$work/site")
     if [[ -n $resources ]]; then build_site+=(--with "$resources"); fi
@@ -1554,48 +1653,6 @@ if ((site_stale)); then
                 okay "the Maps tab and the calculator: rebuilt from the patches this release offers ($(span $(($(date +%s) - site_start)))); the server's source carries them, the record commits them"
             fi
         fi
-    fi
-fi
-
-# The item tables' tool (a live release's): step 2 runs it on the server
-# data before anything is staged, the record writes the tables of it
-# (srp-026g/docs/data/, only where an item changed). --test has no record.
-ITEM_TABLES='' ITEM_TABLES_REPORT=''
-if ((!test_server)) && ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"); then
-    problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
-fi
-
-# The world check (step 2): its tool, and the worlds it reads. The
-# target's newest kept recordings are its games' worlds, of the target's
-# revision: what this release's games write too, unless it changes that
-# (then --worlds names recordings of its own games). Copied off the host
-# at the lowest priority: it is small and runs the matches.
-WORLD_CHECK='' WORLDS=$work/worlds WORLDS_SAID=''
-WORLD_RECORDINGS=3
-if ! WORLD_CHECK=$(world_check_bin 2>"$work/world-check-build.log"); then
-    problem "the world check's tool (srp-world-check) did not build: $(tail -n 3 "$work/world-check-build.log" | tr '\n' ' ')"
-fi
-if [[ -n $worlds_arg ]]; then
-    given=$(find "$worlds_arg" -maxdepth 1 -name '*.srprec' 2>/dev/null | wc -l)
-    if ((given > 0)); then
-        WORLDS=$worlds_arg WORLDS_SAID="$given recording(s) of --worlds $worlds_arg"
-        okay "the world check: will read $WORLDS_SAID"
-    else
-        problem "--worlds $worlds_arg: no match recording (*.srprec) in it"
-    fi
-elif ((target_ok)) && [[ -n ${RUN_VOLUME_DIR:-} ]]; then
-    rec_dir=$RUN_VOLUME_DIR/recordings
-    mkdir -p "$WORLDS"
-    mapfile -t newest < <(on_target "ls -t $(q "$rec_dir") 2>/dev/null | grep -E '^rec026g_[0-9-]+_[0-9a-f]{8}\.srprec\$' | head -n $WORLD_RECORDINGS" || true)
-    for name in "${newest[@]}"; do
-        on_target "nice -n 19 ionice -c 3 cat $(q "$rec_dir/$name")" >"$WORLDS/$name" ||
-            problem "the world check: $rec_dir/$name on the $TARGET could not be read"
-    done
-    if ((${#newest[@]})); then
-        WORLDS_SAID="the newest ${#newest[@]} recording(s) on the $TARGET host ($(du -sm "$WORLDS" | cut -f1) MB: ${newest[*]})"
-        okay "the world check: will read $WORLDS_SAID"
-    else
-        problem "the world check: no kept match recording on the $TARGET ($rec_dir) to check worlds with: give --worlds <folder>"
     fi
 fi
 
@@ -1696,6 +1753,7 @@ if [[ -n $main_commit ]]; then
     fi
 fi
 
+selftest_poll
 if ((${#problems[@]})); then
     say
     say "preflight: ${#problems[@]} problem(s), nothing was done:"
@@ -1721,8 +1779,10 @@ say "  the bots' data (release/bot-data.tsv): ${bd_line:-not checked (the prefli
 if ((${#BD_TODO[@]})); then printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
 if ((no_selftest)); then
     say "  the exe patches' self-test: NOT RUN (--no-selftest)"
+elif [[ $SELFTEST == running ]]; then
+    say "  the exe patches' self-test: running since the preflight, beside the rest; a failure stops the run when it comes, its result before the go"
 else
-    say "  the exe patches' self-test: in step 2, beside the rest; its result before the go"
+    say "  the exe patches' self-test: $SELFTEST (above)"
 fi
 if [[ -n $built_note ]]; then say "  ${built_note#WARNING }"; fi
 if [[ -n $site_tree ]]; then
@@ -1765,6 +1825,7 @@ if ((DRY_RUN)); then
     say
     say "[dry run] 2. take the release lock on the jump host ($(lock_path)); then, nothing players see:"
 else
+    selftest_poll
     lock_take
     phase=planned
     # Its writes change nothing players feel; the go comes before the first
@@ -1773,6 +1834,7 @@ else
 fi
 dry=()
 ((DRY_RUN)) && dry=(--dry-run)
+selftest_poll
 if [[ -n $resources ]]; then
     progress "2. publishing ${resources##*/} on $PATCHES_LABEL"
     if ((REPLACE_UNOFFERED)); then
@@ -1796,16 +1858,13 @@ zip=$work/zip/$ZIP_NAME
 image=$work/image.tar.zst
 build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
-    say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
-    say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
+    say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --urls-checked $URLS_CHECKED --out $data (the URLs the preflight checked are not asked again)"
     if [[ -n $BUILD_MAPS ]]; then say "[dry run]    then the built maps with it: SRP_GAME_DATA=$data srp-build-maps --files $bd_dir/mapdata <the offered maps> (a file the list lacks stops the release)"; fi
     say "[dry run]    and: ${build_zip[*]}"
     say "[dry run]    and: $BUILD_TORRENT${step_flags[*]:+ ${step_flags[*]}} --patches $PATCH_LIST --zip $zip --out $work/skhid-rev$rev.torrent --zip-out <the ZIP with it> --revision $rev --public-key <the commit's $signing_pub>$(git -C "$REPO" cat-file -e "$main_commit:$BOOTSTRAP_TORRENT" 2>/dev/null && printf ' --bootstrap <the commit'"'"'s %s> --bootstrap-list <its %s>' "$BOOTSTRAP_TORRENT" "$BOOTSTRAP_LIST"), which replaces the ZIP"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
     if ((no_selftest)); then
         say "[dry run]    WARNING no exe patches' self-test (--no-selftest)"
-    else
-        say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe started in the background, beside the rest of step 2"
     fi
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
@@ -1814,8 +1873,10 @@ if ((DRY_RUN)); then
     stage_upload "$zip" "$ZIP_NAME" "<its sha256>"
     stage_bot_data "$bd_dir"
 else
+    selftest_poll
     progress "2. building the server data (release/build-server-db)"
-    "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
+    "$here/build-server-db" "${step_flags[@]}" --urls-checked "$URLS_CHECKED" --out "$data" </dev/null || die "build-server-db failed"
+    selftest_poll
     # The built maps by the keys a server with this data computes (lib.sh
     # bot_maps_built_check): a map without its files would be built in the
     # first match on it, on the host's one core, while its bots stand.
@@ -1828,18 +1889,11 @@ else
             while IFS= read -r line; do say "  the built maps: $line"; done <<<"$built_out"
             die "the built maps: a file is not in the list (above; log $work/build-maps-files.log): run release/build-bot-maps (it builds the offered maps with the server data the release ships and lists their files), commit release/bot-data.tsv, release again"
         fi
+        selftest_poll
     fi
-    # Every recorded upload checked as the new server will check an upload
-    # before it relays it, with the new data: a release that would refuse
-    # the worlds games write stops here, before players feel it.
-    progress "2. the world check: $WORLDS_SAID, with the new server data (srp-world-check)"
-    if ! "$WORLD_CHECK" --data "$data" --save "$work/worlds-refused" "$WORLDS" </dev/null >"$work/world-check.log" 2>&1; then
-        grep -E '^  REFUSED |: UNREAD|not checked|^FAILED' "$work/world-check.log" | head -n 12 | sed 's/^/  /'
-        die "the world check: the new server would refuse (or could not check) worlds its games wrote ($work/world-check.log, the refused ones in $work/worlds-refused): a change of the check, of the server data, or of what games write (then check worlds of this release's games: --worlds <folder>)"
-    fi
-    say "the world check: $(tail -n 2 "$work/world-check.log" | head -n 1)"
     progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
     "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
+    selftest_poll
     # The torrent of the whole game folder over that ZIP's files (the
     # original game's, the ZIP's, the list's patches), then the ZIP with it
     # in: what players get (srp-026g/docs/notes/torrent-downloads.md).
@@ -1862,22 +1916,8 @@ else
     TORRENT_SHA=$(sed -n 's/^btmh 1220\([0-9a-f]\{64\}\)$/\1/p' "$work/build-torrent.log")
     [[ -n $TORRENT_SHA && -s $torrent && -s $zip.torrent ]] || die "build-torrent made no torrent, or said no info hash ($work/build-torrent.log)"
     mv "$zip.torrent" "$zip"
-    # The exe patches' self-test of the commit built (build-zip's worktree)
-    # on the original exe, in the background while the rest is checked,
-    # built and staged; its result is waited for before the go (below). Its
-    # own process group (set -m), so a stop kills all of it (on_exit), and a
-    # Ctrl-C reaches only this script.
-    original_exe=$SKHID_GAME/binaries/x86/survarium.exe
-    [[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
-    if ((no_selftest)); then
-        say "WARNING the exe patches' self-test: NOT RUN (--no-selftest)"
-    else
-        progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") started, beside the rest (selftest_026g.py, about 5 min; log: $work/selftest.log)"
-        set -m
-        run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null &
-        SELFTEST_PID=$!
-        set +m
-    fi
+    selftest_poll
+    if ((no_selftest)); then say "WARNING the exe patches' self-test: NOT RUN (--no-selftest)"; fi
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
@@ -1892,6 +1932,7 @@ else
             die "revision $rev went out before with another ZIP (sha256 ${sha:-unknown}, $folder): its number never names other files: --revision $((rev + 1))"
     done <<<"$SERVED_ZIPS"
     if ((build_code)); then
+        selftest_poll
         progress "2. building the server's image here from main's source (podman)"
         build_image "$work/src" "$image" >"$work/build-image.log" 2>&1 ||
             die "the server's image did not build: $(tail -n 3 "$work/build-image.log" | tr '\n' ' ')"
@@ -1908,6 +1949,7 @@ else
     fi
     say "ZIP: $ZIP_SIZE bytes, sha256 $ZIP_SHA, revision $rev; server data: sha256 $DATA_SHA; /patches will offer:"
     say_offered
+    selftest_poll
     progress "2. staging in the release folder $TARGET_DIR/$REL (not in place yet)"
     {
         say "release $REL: origin/$ref $(git -C "$REPO" log -1 --format='%h %s' "$main_commit"), revision $live_rev -> $rev"
@@ -1929,6 +1971,7 @@ else
     stage_upload "$zip" "$ZIP_NAME" "$ZIP_SHA"
     stage_bot_data "$bd_dir"
 fi
+selftest_poll
 if ((build_code)); then
     progress "2. the server code: main's source and its image to the host, the image loaded"
     for f in "$src_tar" "$image"; do
@@ -1942,31 +1985,28 @@ if ((build_code)); then
     ((DRY_RUN)) || image_tagged=1
     write_on live "cd $REL_DIR && zstd -dc image.tar.zst | docker load -q && rm image.tar.zst"
 fi
-# The self-test's result, before the go: a failed check stops the release
-# here, as any failure of step 2 (the staged files removed, the image tag put
-# back, the new patch's row out of the list again).
+# The self-test's result, before the go (waited for, if it still runs): a
+# failed check stops the release here, as any failure of step 2 (the staged
+# files removed, the image tag put back, the new patch's row out of the list
+# again). The dry run reports it (a failure: a problem).
+if ((!no_selftest)); then selftest_wait; fi
 if ((!DRY_RUN && !no_selftest)); then
-    progress "2. waiting for the exe patches' self-test (log: $work/selftest.log)"
-    selftest_ok=1
-    wait "$SELFTEST_PID" || selftest_ok=0
-    SELFTEST_PID=''
-    if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
-    rm -rf "$work/selftest"
-    ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
+    [[ $SELFTEST == passed ]] || die "the exe patches' self-test did not run ($SELFTEST, log: $work/selftest.log)"
     # The arena the self-test ran on is the one the exe ships.
     tested_arena=$(sed -n 's/^arena sha256 \([0-9a-f]\{64\}\)$/\1/p' "$work/selftest.log")
     shipped_arena=$(awk '$2 == "arena" { print $1 }' "$work/zip/exe.sha256")
     [[ -n $tested_arena && $tested_arena == "$shipped_arena" ]] ||
         die "the exe's arena (.srpx, sha256 ${shipped_arena:-unknown}) is not the one the self-test ran on (${tested_arena:-none in $work/selftest.log})"
     say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
-elif [[ -d $work/zip/src ]]; then
-    git -C "$REPO" worktree remove --force "$work/zip/src"
 fi
+if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
 
 
 # 3. The go, then at once 4. the maintenance.
 if ((DRY_RUN)); then
-    ((no_selftest)) || say "[dry run]    then the self-test's result (a failed check stops here, before the go)"
+    if ((!no_selftest)); then
+        say "[dry run]    the exe patches' self-test: $SELFTEST$([[ $SELFTEST == passed ]] && printf ' (%s); a real run checks here, before the go, that its arena is the one build-zip shipped (exe.sha256)' "$(tail -n 1 "$work/selftest.log")")"
+    fi
     say "[dry run] 3. then wait for the go (y at the prompt, or touch $GO_DIR/go-$REL; --yes does not give it). Then at once: $after_go"
     if ((!no_maint)); then
         maintenance_minutes

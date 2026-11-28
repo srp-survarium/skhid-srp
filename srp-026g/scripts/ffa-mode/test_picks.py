@@ -142,7 +142,8 @@ class Picks(unittest.TestCase):
                 for i, team in enumerate([0, 2, 2])]
             source.write_bytes(config({'server_objects': {'respawn_points': entries}}))
             old = m.base.tree(source.read_bytes())
-            for wrong in (rows(moved={1: ([100., 7., 50.], 0.5)}, added={3: ([200., 7., 50.], 1.)}),
+            # No solo spawn removed, none moved but a solo spawn, the new ones after the last.
+            for wrong in (rows(moved={0: ([100., 7., 50.], 0.5)}, added={3: ([200., 7., 50.], 1.)}),
                           rows(removed={2: None}), rows(added={4: ([200., 7., 50.], 1.)})):
                 with self.subTest(wrong=wrong), self.assertRaises(ValueError), \
                         patch.object(m, 'picks', return_value={path: wrong}):
@@ -156,6 +157,15 @@ class Picks(unittest.TestCase):
             self.assertEqual([(p['point_id'], p['team'], p['ally_check_radius'], p['enemy_check_radius'])
                               for p in got[3:]], [(3, 2, 1, 20.), (4, 2, 1, 20.)])
             self.assertEqual([p['position'] for p in got[3:]], [[200., 7., 50.], [230., 7., 50.]])
+            # Past the respawn's 128 (Station's, picks --cap): a pick in a solo spawn's place, the
+            # other solo spawn as it is.
+            capped = rows(moved={2: ([130., 7., 50.], -1.)}, added={3: ([200., 7., 50.], 1.)})
+            with patch.object(m, 'picks', return_value={path: capped}):
+                recipe = m.edits(adds, root / 'live')
+            got = self.apply(root, path, recipe)['server_objects']['respawn_points']
+            self.assertEqual(got[:2], old['server_objects']['respawn_points'][:2])
+            self.assertEqual((got[2]['name'], got[2]['position'], got[2]['rotation']), ('p2', [130., 7., 50.], [0., -1., 0.]))
+            self.assertEqual([(p['point_id'], p['position']) for p in got[3:]], [(3, [200., 7., 50.])])
 
 
 if __name__ == '__main__':

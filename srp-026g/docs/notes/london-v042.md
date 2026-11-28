@@ -95,7 +95,7 @@ One pass over the donor's projects, by rule (the pack's `report.json` has every 
 
 The owner, 2026-11-27: 20 `where` places on `v044a_level_09/day_4` (map 292,
 `private/spawn-examples/london-v044-2026-11-27.tsv`, from his `srp_patches` log). London (v0.42) had no Free
-for All; `ffa-london-v042-1.json` (`scripts/ffa-mode/make_london_v042_edits.py`, from
+for All; `ffa-london-v042-1.json` (`scripts/ffa-mode/make_port_ffa_edits.py london-v042`, from
 `scripts/ffa-mode/london-v042-ffa-picks.tsv`) gives it one as every Free for All map has it (`ffa.md`, "Rules"):
 
 | maps_dict id | config | project |

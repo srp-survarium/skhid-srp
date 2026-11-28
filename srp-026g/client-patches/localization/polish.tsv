@@ -2767,6 +2767,7 @@ st_level_13_name	Stacja Radarowa "Vostok" (v0.11)
 st_level_14_name	Rudnia (v0.69)
 st_level_25_name	Szkoła (v0.21)
 st_level_26_name	Fort Tarakanów (v0.21)
+st_level_28_name	Stacja Radarowa "Vostok" (v0.69)
 st_level_29_name	Rudnia (v0.21)
 st_level_31_name	Zakłady chemiczne (v0.21)
 st_level_32_name	Londyn (v0.42)
@@ -4135,6 +4136,7 @@ st_srp_map_vector	Laboratorium "Wektor"
 st_srp_map_vostok	Stacja Radarowa "Vostok"
 st_srp_map_vostok_v011	Stacja Radarowa "Vostok" (v0.11)
 st_srp_map_vostok_v021	Stacja Radarowa "Vostok" (v0.21)
+st_srp_map_vostok_v069	Stacja Radarowa "Vostok" (v0.69)
 st_srp_matches_another_joining	Inny gracz właśnie dołącza
 st_srp_matches_balanced	Rozgrywka jest już wyrównana
 st_srp_matches_cannot_join	Nie możesz teraz dołączyć
@@ -4208,6 +4210,7 @@ st_srp_mode_cowboy	FFA: Saloon
 st_srp_mode_cowboy_winchester	FFA: Saloon (Winchester)
 st_srp_mode_free_for_all	Każdy na każdego
 st_srp_mode_freeze_tag	Zamrażanie
+st_srp_mode_pistols	FFA: Pistolety
 st_srp_mode_protective_device	Urządzenie ochronne
 st_srp_mode_racket	FFA: Raban
 st_srp_mode_research	Badania

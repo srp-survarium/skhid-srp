@@ -179,8 +179,9 @@ release/release.sh --dry-run         [--resources ...]
 release/release.sh                   [--resources ...]
 ```
 
-Show the owner each dry run's output (every read-only check runs; every
-other command is printed; nothing is planned or written). Then the same
+Show the owner each dry run's output (every read-only check runs, the
+exe patches' self-test too; every other command is printed; nothing is
+planned or written). Then the same
 without `--dry-run`: after its preflight it prepares and stages
 everything (nothing players see), then waits for **the go**, and the
 go is the owner's to give (below); before the swap it asks one y/N
@@ -258,7 +259,11 @@ not a web page, the row's size when the answer gives the whole file's
 size, the archive's `little-endian` header, or a 7z archive's start). A mirror whose file was
 replaced since by one of the same size is not seen so (the updater's
 sha256 check still refuses it, and moves on to the next URL). Delete a
-line, or the file, to have a URL downloaded whole again.
+line, or the file, to have a URL downloaded whole again. Within one
+release the URLs are asked once: the URLs release.sh's preflight checked
+are written to its work folder (`urls-checked`), and step 2's
+build-server-db (`--urls-checked`) asks none of them again, only the new
+patch's.
 
 ## The bots' data files: release/bot-data.tsv
 
@@ -320,11 +325,25 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--minutes <n> | --no-maintenance]
                    [--now | --end-bot-and-private-matches]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
-                   [--no-bot-data] [--worlds <folder>] [--no-selftest]
+                   [--no-bot-data] [--no-selftest]
                    [--dry-run] [--yes --i-know]
 ```
 
-`--no-selftest` skips the exe patches' self-test (step 2), for a **quick fix
+**No world check at the release** (the owner, 2026-11-27). The release does
+not run the new server's world check (`srp-world-check`) over the live host's
+newest recordings any more: those are today's games' worlds, checked against
+the new validator, and never what the new exe will send; and old, irrelevant
+recordings blocked a release (rev74). Worlds are checked at the PR:
+`tools/check`'s `world-check` and `world-drift` run over the private corpus
+(live recordings and local test matches), and a PR that changes what games
+write needs a local test match before it is merged (AGENTS.md, "The world
+format and its check"). The intended replacement is a **release smoke
+match**, not built yet: a headless local match against bots with the
+release's own exe and server, every world it uploads checked. `--worlds
+<folder>` is still taken, for old command lines, and ignored with a WARNING
+in the preflight.
+
+`--no-selftest` skips the exe patches' self-test (steps 1-2), for a **quick fix
 release** only (an urgent fix that cannot wait for it); the default runs it.
 It is said as a WARNING in the preflight, the plan, the step-2 output and the
 summary, and written in the tag's message and the record's commit ("Shipped
@@ -371,7 +390,8 @@ The order, as it runs:
    patches than the list (and the `--resources` file), it rebuilds both
    with `release/build-site` in a worktree of the commit (about 2 min; the
    patches cached in `~/.cache/skhid-release/patches/`, FFDec 26.0.0
-   downloaded there, dbgrab built there from the commit's `tools/re-kit` with the
+   downloaded there, dbgrab built there from the commit's `tools/re-kit` (its copy
+   kept by the tree hash of `tools/re-kit/common/dbgrab`: built again only when that changes) with the
    unpacker checked out as `tools/vostok-resources-db` in the main checkout,
    or `$SKHID_DBGRAB`). Nobody rebuilds them by hand before a release. The
    rebuild comes after the other checks and is skipped when one of them
@@ -383,27 +403,30 @@ The order, as it runs:
    only: their values take effect at the recreate), and whether main
    changes what a match computes (a `next` row of `simulation_changes.tsv`,
    above: then the image must be built; with none, a note when the exe's
-   patches changed since the last tag). Last, the world check's tool
-   (`srp-world-check`) is built and the target's newest 3 kept match
-   recordings are copied off it (`nice -n 19 ionice -c 3 cat`), or
-   `--worlds <folder>`'s recordings are taken instead.
+   patches changed since the last tag). No world check (above).
+
+   **The exe patches' self-test** starts in the preflight, as soon as the
+   commit to build is known (`origin/main`, fetched), in the background, in
+   a worktree of that commit of its own (`$work/selftest-src`):
+   `srp-026g/client-patches/selftest_026g.py`, its Linux part, on
+   `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
+   Python unicorn, its builds on every core, about 5 min, ~0.4 GB; log
+   `selftest.log` in the run's work folder. It is watched between the steps
+   from then on: a failed check stops the run when it comes (in the
+   preflight: nothing done; after the lock: like any failure of step 2,
+   below), so a stale check is seen minutes in, not after the ZIP, the
+   image and the staging. The dry run runs it too and waits for its result
+   at the end of step 2 (a failure is one of its problems). The patch's fix
+   is a PR, then a new run; `--no-selftest`: none, see above. It is the
+   release's check of the exe's general rules (no byte changed undeclared,
+   no relocation or branch into a rewritten byte, every hooked function's
+   ABI, every branch target known), and the `selftest` check of
+   `tools/check` (`tools/checks/selftest.sh`, the same `run_selftest`) runs
+   it for a PR that changes its inputs, so a PR that breaks it fails there.
 2. **The lock, then everything prepared and staged**, nothing players
    see: `upload-patch` (with `--resources`; it adds the row; no server
    offers the patch before the swap), `build-server-db` (of the list),
-   then **the world check**: every upload of those recordings checked as
-   the new server checks an upload before it relays it, with the new
-   server data (`srp-world-check --data <it> <recordings>`, the match
-   server's own `world_validation::check`): one world refused, or none
-   checked, stops the release here, before the go, and prints the
-   refusals (section and offset; the refused worlds kept in the run's
-   `worlds-refused/`). A refusal is a check, a server data or a game's
-   writing that changed: never ship over it. A release that changes what
-   games write (an exe patch) refuses the live games' worlds by design;
-   check it with worlds of its own games instead: after `release.sh
-   --test`, play a match on the test environment (one against bots is
-   kept), copy its recording from the test volume's `recordings/`, and
-   give `--worlds <folder>`. Then
-   `build-zip` (of the commit checked in step 1), `build-torrent` (the
+   then `build-zip` (of the commit checked in step 1), `build-torrent` (the
    torrent of the whole game folder, `skhid-rev<n>.torrent`, signed with the
    release's key, `private/release/torrent-signing.pem`, and put into the ZIP
    as `game/torrent/skhid.torrent`: `srp-026g/docs/notes/torrent-downloads.md`;
@@ -413,20 +436,8 @@ The order, as it runs:
    environment's own pair, `torrent-signing-test.pem` and
    `release/signing-test.pub`, `make-signing-key --test`, so a test torrent is
    never a player's; a revision srp came up on once, then rolled back,
-   must build the same ZIP again or it stops: `--revision` the next); then the **exe patches'
-   self-test** of that commit started in the background
-   (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
-   `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
-   Python unicorn, its builds on every core, about 5 min, ~0.4 GB; log
-   `selftest.log` in the run's work folder), while the rest of this step
-   runs; its result is waited for last, before the go: a failed check stops
-   the release there like any failure of this step (the patch's fix is a
-   PR, then a new run; `--no-selftest`: none, see above), and so does an exe whose arena (`.srpx`) is not the
-   one the self-test linked (its `arena sha256` line against build-zip's `exe.sha256`; the record keeps that
-   hash beside the exe's). It is the release's check of the exe's general rules (no byte
-   changed undeclared, no relocation or branch into a rewritten byte, every
-   hooked function's ABI, every branch target known): nobody runs it by hand
-   before a release, and it is not a check of each PR. The checks of `deploy`
+   must build the same ZIP again or it stops: `--revision` the next). The
+   checks of `deploy`
    on both files; then the **release folder** on the target (below) with
    both files staged in it (sha256 checked there, `chmod 644`) and
    `changed.txt`. With server code: the image built **here** from main's
@@ -436,7 +447,11 @@ The order, as it runs:
    source's `src.tar`, sha256 checked there; the running image tagged
    `srp-026g:before-rev<rev>-<stamp>` by its ID, then `docker load` makes
    the new one `srp-026g:latest` (the running container is not touched).
-   Then the self-test's result (`waiting for the exe patches' self-test`).
+   Then the self-test's result, waited for when it still runs (`waiting for
+   the exe patches' self-test`): passed, and an exe whose arena (`.srpx`) is
+   the one the self-test linked (its `arena sha256` line against
+   build-zip's `exe.sha256`; the record keeps that hash beside the exe's),
+   else a stop.
    The local builds run at nice 10. A failure here (a stop too: it kills
    the self-test still running) stops before the go: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
@@ -700,9 +715,13 @@ preflight: look at its `release.log`, finish or roll it back, then write
 ### What to watch
 
 - The preflight: every line `ok`.
-- Before the go: the builds and the staging (`2. ...`), the self-test
-  beside them, its result last (`the exe patches' self-test: all checks
-  passed`), then `3. waiting for the go`.
+- The self-test's start in the preflight (`the exe patches' self-test of
+  <commit> started in the background`); its result comes when it ends,
+  whatever step runs then (`ok       the exe patches' self-test: all
+  checks passed`, or the stop).
+- Before the go: the builds and the staging (`2. ...`), the self-test's
+  result last (`the exe patches' self-test: all checks passed`, after its
+  arena check), then `3. waiting for the go`.
 - After the go: the plan's line at once, with its minutes and where they
   come from (`/api/stats`, the launcher page, or a whole match), and the
   launcher countdown (none with `--no-maintenance` or `--now`); then `5.
@@ -771,7 +790,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] [--first \| --at <n>] [--dry-run] <file> <url>`, `--remove <file> <url>` | another URL of a listed patch or the game's archive, at once: downloaded as the updater does, not a web page, the row's size and sha256, then a row of srp's `mirrors.tsv` (above); a bootstrap file's URL goes into its row of `release/bootstrap.tsv` instead, and the script is made again | the target's `mirrors.tsv` (a bootstrap file: the checkout), the URL cache |
-| `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
+| `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes; `--urls-checked <file>`: not those release.sh's preflight checked), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/build-torrent --zip <zip> --out <file> --zip-out <zip> --revision <n> [--public-key] [--test] [--patches <list>]` | the signed torrent of the whole game folder (`srp-026g/docs/notes/torrent-downloads.md`): the original game's files (`$SKHID_GAME`, `$SKHID_STOCK_DB`, each by its pinned sha256), the ZIP's files over them, the list's patches (the patch cache); and the ZIP with it in; prints its info hashes; the same inputs, the same bytes | local files, the patch cache |

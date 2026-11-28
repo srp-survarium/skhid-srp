@@ -21,6 +21,7 @@ pub mod modifications;
 pub mod new_account;
 pub mod prices;
 pub mod quests;
+pub mod pistols;
 pub mod racket;
 pub mod roulette;
 pub mod scopes;

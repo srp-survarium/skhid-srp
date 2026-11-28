@@ -590,16 +590,33 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 | v011e_level_03 Vostok Radar Station | day | 22 authored |
 | v069d_level_01 Rudnya | day | 22 authored (60 of native Rudnya's since ffa-rudnya-v069-picks-1) |
 | v044a_level_09 London (v0.42) | day, rain, evening | the owner's 20 picks (ffa-london-v042-1) |
+| v021d_level_01 Rudnya (v0.21) | day, rain, evening | the owner's 40 picks (ffa-rudnya-v021-1) |
+| v021d_level_04 Chemical Plant (v0.21) | day, rain, evening | the owner's 41 picks (ffa-chemical-plant-v021-1) |
 
 - `maps_dict` ids 46-60 and 154-163 retain their meanings; the five ports use
   164, 165, 167, 168 and 169 in table order. IDs 166/175 already belong to ports.
 - `ffa-ported-1.json` follows `ffa-1.json`, cloning each port's final day TDM config
   and adding only team-2 points. These ports have no other TDM weather variant.
 - The FFA projects are new files (33, one per FFA config's map); TDM's are unchanged.
-- London (v0.42) (2026-11-27, `ffa-london-v042-1`, `make_london_v042_edits.py`; `london-v042.md`,
+- London (v0.42) (2026-11-27, `ffa-london-v042-1`, `make_port_ffa_edits.py london-v042`; `london-v042.md`,
   "Free for All"): maps_dict 503-505 (day, rain, evening), its configs and `<weather>_8` copies made
   by its own list as `ffa-stalker-3` makes Station's (mode 8, rules 93, 91, 94, 30 kills, icon 5, no
   ammo crates), the manifest's last row on its files; the owner's 20 picks as its points.
+- Rudnya (v0.21) and Chemical Plant (v0.21) (2026-11-27, `ffa-rudnya-v021-1`, `ffa-chemical-plant-v021-1`,
+  `make_port_ffa_edits.py rudnya-v021` and `chemical-plant-v021`), as London (v0.42): maps_dict 506-508
+  and 509-511 (day, rain, evening), the next past London's, in no dictionary, list or `ids.tsv`.
+  - His places: 40 on Rudnya's `evening_4` (map 265), 41 on Chemical Plant's `evening_2` (map 270).
+    `picks --add --shift 1` on the three `<weather>_4` projects each gives the same rows in every
+    weather, and Chemical Plant's `evening_2` the same as its `_4`s: one ground, one frame.
+  - The new points copy the first team point without its base zones (the v0.21 ports' team points
+    have them; each zone shape is taken out of the copy, as `ffa-ported-1` does).
+  - Rudnya: each on its ground (0 to 49 cm: 1 0.49 m, where he stood over the floor; 16, 19, 30, 36
+    lowered less), 17 and 29 0.25 m off his places (17: the walk grid does not reach it; 29: the
+    ground 1.62 m under it), body clear, 2 m from harmful zones; 28 hold the spawn rule, 10, 26 and 40
+    have no cover, 9 stand in the perimeter band, all kept. 5 and 6 are 1.42 m apart, both kept.
+  - Chemical Plant: each on its ground (28 lowered 9 cm), body clear, 2 m from harmful zones; 19 hold
+    the spawn rule, 2, 12 and 38 have no cover, 19 stand in the perimeter band, all kept; the nearest
+    two 3.7 m apart.
 
 London also has six additional central spawns requested on 2026-11-12, recorded
 in `scripts/ffa-mode/london-center.tsv`. The `central` authoring binary checks
@@ -727,10 +744,13 @@ rules, spawns, pay and results, every kit's guns changed by the server.
 - **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
   vote (any card; all three in a pool of free-for-alls alone) draws its twist after its map,
   by its share (`twist::SHARES`, `twist::draw`, armed for the room):
-  - plain Free for all 30 % (the owner, 2026-11-22: plain 30, Racket 30, Roulette 30; 50 and 40
-    before Roulette), **Racket** 30 %;
-  - **Roulette** 30 % (`ffa-roulette.md`): a level band the room allows and one hand of three kits
-    of it, every player's;
+  - plain Free for all 25 % (the owner, 2026-11-27, of Pistols: "take 5% from roulette and 5% from
+    FFA normal"; 30 from 2026-11-22, 50 and 40 before Roulette), **Racket** 30 %;
+  - **Roulette** 25 % (`ffa-roulette.md`; 30 from 2026-11-22): a level band the room allows and one
+    hand of three kits of it, every player's;
+  - **Pistols** 10 % since 2026-11-27 (`ffa-pistols.md`; the owner: "it should be 10% of FFA
+    cards"): a band of 0-5 or 6-10 (an 11-15 room plays one of them), two kits of it, a pistol each, every player's, the third
+    kit not loaded;
   - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
@@ -752,16 +772,27 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   which the server reads as `maps::MapMode::twists_only` (refused on a config of another mode); the
   game does not read it. Another map takes it by the same key.
   - A card draws its map first, as any (`rooms.md`, "Each card is drawn from pools"), then its
-    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 42.9 %,
-    Roulette 42.9 % (its band one the room allows), each Saloon 7.1 % (`twist::draw`; Racket 80 % and
-    each Saloon 10 % before Roulette). My pick of the two orders: the map comes as often as any
+    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 40 %,
+    Roulette 33.3 %, Pistols 13.3 % (their band one the room allows), each Saloon 6.7 %
+    (`twist::draw`; Racket 42.9 %, Roulette 42.9 %, each Saloon 7.1 % before Pistols; Racket 80 %
+    and each Saloon 10 % before Roulette). My pick of the two orders: the map comes as often as any
     free-for-all map, always twisted; drawing the twist first would have left it out of half the
     free-for-all cards (the plain ones), and every other map's twist shares stay as they are. Of
-    all free-for-all cards, plain falls from 30 % to about 29.1 % (one map in 33).
+    all free-for-all cards, plain falls from 25 % to about 24.2 % (one map in 33).
   - A private room's free-for-all is plain (below), and it holds such a map as any other and plays
     it plain (the owner, 2026-11-27: "this is because we removed FFA from them, which is fine for
     pub lobbies, not for private ones"; from 2026-11-22 to then the create window did not list it
     and a private room's pool left it out). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
+- **Station: Racket only** (the owner, 2026-11-27: "make it racket only"). The same key with a twist's
+  name: `mode.srp_twists_only = "racket"` in its Free for All config (`ffa/v010b_soc_ug_station_day_8.options`,
+  maps_dict 31; `content-edit/ffa-station-racket-1.json`). The server reads the key as
+  `twist::OpenPlay` (`maps::MapMode::open_play`): absent or `false` `Any` (plain or any twist, by the
+  shares), `true` `Twisted` (any twist: Military Warehouses), a name `Only` that twist (`"racket"`,
+  `"saloon"`; not `"roulette"` nor `"pistols"`, which a room that allows no band could not deal).
+  - An open room's card on it is always FFA: Racket (its gun the room's, `racket::Gun::of_room`): the
+    draw keeps Racket's share alone. A private room plays it plain, as every free-for-all there.
+  - The vote shows it as any card: the pool the movie is sent lists every entry (#2756), and its
+    picture is Station's (`MapRenders.tsv` ONE 19, `Level_soc_ug_station`).
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
   Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
   present in private room creations"): a private room's free-for-all card is always plain Free for
@@ -779,9 +810,10 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
   item's and its ammunition's).
   `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette, the band not shown (Рулетка in ru, uk,
-  be; `ffa-roulette.md` has every language).
-  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester) and 14,
-  15, 16 Roulette by its band
+  be; `ffa-roulette.md` has every language). `st_srp_mode_pistols` FFA: Pistols, the game's own word
+  of the shop's pistols filter (`st_filter_pistol`) in each language (`ffa-pistols.md`).
+  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester), 14,
+  15, 16 Roulette by its band and 18 Pistols (17 is the unmerged Instagib branch's)
   (`Armed::lobby_number`: the twist as it arms; 7 is Scarcity's; the two Saloons' tags one
   colour): a card's tag and colour, the room's banner of its match (`lobby.md`, rooms' `C` and `L`
   rows), the log's "mode". The game's own screens (loading, results, the HUD) say Free for all:
@@ -793,7 +825,8 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   the room's match plays one (the room state's `L` row in the match's phase, its lobby mode), the
   loading screen shows its own frame for Free for All's (`SrvGameModeIcons.forTwist`): 7 Racket
   (crossed AK-12s), 8 Saloon (a cowboy hat), 9 Saloon (Winchester) (the hat over a Winchester), 10
-  Roulette (two dice). The bitmaps are `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
+  Roulette (two dice), 11 Pistols (two TT-33s crossed, `ffa-pistols.md`). The bitmaps are
+  `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
   - From the loading screen's first frame (the owner, 2026-11-22: never the skull first): when a
     room's match is made the lobby server marks the room in it and sends each of its players the
     room's state, its `L` row this match's mode, before it sends them to the match

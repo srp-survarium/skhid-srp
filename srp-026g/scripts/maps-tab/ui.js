@@ -176,7 +176,7 @@
     const s = svgEl("svg", { viewBox: "-11 -11 22 22", "aria-hidden": "true" });
     if (key === "respawn" && solo(mo)) s.append(hud("player", 0, 0, 16, 1, "solo"));
     else if (key === "respawn") s.append(hud("player", -3, -3, 14, 1, "t0"), hud("player", 3, 3, 14, 1, "t1"));
-    if (key === "spawners") s.append(hud("battery", 0, 0, 14, 1));
+    if (key === "spawners") s.append(hud("battery", 0, 0, 18, 1));
     if (key === "stations") s.append(hud("charger", 0, 0, 22, 1));
     if (key === "containers") s.append(hud("base", -4, -2, 16, 1, "t0"), hud("base", 4, 2, 16, 1, "t1"));
     if (key === "resupply") s.append(hud("resupply", -4, -2, 16, 1, "t0"), hud("resupply", 4, 2, 16, 1, "t1"));
@@ -340,7 +340,7 @@
     if (state.on.containers) for (const [x, z, , t] of mo.containers)
       kids.push(svgEl("g", { class: "mk" }, hud("base", x, -z, MAPS.hud.base.h, u, tintOf(t)), tip(`${T("Container")}, ${teamName(t)}`)));
     if (state.on.spawners) for (const [x, z] of mo.spawners)
-      kids.push(svgEl("g", { class: "mk" }, hud("battery", x, -z, 20, u), tip(T("Battery spawn"))));
+      kids.push(svgEl("g", { class: "mk" }, hud("battery", x, -z, 24, u), tip(T("Battery spawn"))));
     if (state.on.stations) for (const [x, z] of mo.stations)
       kids.push(svgEl("g", { class: "mk" }, hud("charger", x, -z, MAPS.hud.charger.h, u), tip(T("Charger"))));
     // Each container's artefacts; pointing at one shows its anomaly's card (`data-a`: its anomalies).
