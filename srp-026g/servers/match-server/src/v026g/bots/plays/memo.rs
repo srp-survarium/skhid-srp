@@ -434,6 +434,12 @@ impl Memo {
         })
     }
 
+    /// Whether the use stands are worked out ([`Self::use_stands`] asked once): the load's prewarm test.
+    #[cfg(test)]
+    pub fn use_stands_built(&self) -> bool {
+        self.stands.get().is_some()
+    }
+
     /// Crossings kept.
     pub fn crossings_kept(&self) -> usize {
         self.crossings.kept()

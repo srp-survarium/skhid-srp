@@ -1608,6 +1608,10 @@ impl Bots {
         let summary = if late > 0 { format!("{summary}; {late} bots spawned before the map, sides read now") } else { summary };
         self.tactics = Some(tactics);
         self.memo = Default::default();
+        let summary = match self.prewarm_use_stands() {
+            Some((ms, containers, zones)) => format!("{summary}; use stands prewarmed in {ms:.1} ms ({containers} containers, {zones} zones)"),
+            None => summary,
+        };
         match self.prewarm_crossings() {
             Some(made) if made.stands > 0 => format!(
                 "{summary}; crossing entries made at load: {} searches ({} ways) for {} stands, {} sides, {} armour and rule pairs in {:.1} ms",
@@ -1615,6 +1619,21 @@ impl Bots {
             ),
             _ => summary,
         }
+    }
+
+    /// [use stands prewarm] The map's use stands ([`plays::memo::Memo::use_stands`]) worked out at map load, not at the first
+    /// put-in, theft or holder's look (116.5 ms in one bot's think on batt-m6-s18, the match's first put-in). The build reads
+    /// the world, [`view::live_eye`] and [`view::use_ray_m`] alone; both are set here from the match-wide tuning as every poll
+    /// sets them before the bots run, and the tunings are fixed from [`Bots::new`], so the stands are those of the first ask.
+    /// Its time and the containers and zones it covers, for the load line; None without the tactics.
+    fn prewarm_use_stands(&self) -> Option<(f32, usize, usize)> {
+        let tactics = self.tactics.as_ref()?;
+        view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
+        view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
+        let started = std::time::Instant::now();
+        self.memo.use_stands(tactics);
+        let map = &tactics.world.map;
+        Some((started.elapsed().as_secs_f32() * 1000.0, map.containers.len(), map.zones.len()))
     }
 
     /// [crossing prewarm] Every armour a place's kits wear against zones (the profile's kits, in order): a bot changes kit only
