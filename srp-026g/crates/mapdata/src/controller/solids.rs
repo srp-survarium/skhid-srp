@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use super::exe_cast::{self, CastEnd};
 use super::exe_gjk::{self, Axis, Transform, WorldShape};
 use super::exe_ray::{self, ClosestRayCallback, ConvexRay, ConvexShape, NormalSpace, RayFlags, TriangleRay};
-use super::{BULLET_TOLERANCE_M, Contact, Face, Shape, SmallRound, SolidId, Surface, Way, exe_cast_of};
+use super::{BULLET_TOLERANCE_M, Bound, Contact, Face, Place, Shape, SmallRound, SolidId, Surface, Way, exe_cast_of};
 use crate::bullet::{self, ConvexKind};
 use crate::math::Vec3;
 use crate::{CollisionFilter, MapData, WalkerBehaviour};
@@ -765,11 +765,12 @@ impl Solids {
     /// Every part's first contact with `shape` moved by `by` (both in the map frame), as `objectQuerySingle` 0xA14E0
     /// reports it to a callback that takes every hit (the sweep's allowed penetration 0, `convexSweepTest` 0xA34E8).
     ///
-    /// [bot CPU] `each` answers each contact with the fraction past which no later contact matters to it (the closest one it
-    /// keeps so far; 1 for every one), and the later casts give up there ([`exe_cast::cast_triangle_within`]): the contacts
-    /// at or under the bound are the full sweep's, in its order; none over it is handed on.
-    pub(super) fn sweep_within(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact) -> f32) {
-        let mut upto = 1.0f32;
+    /// [bot CPU] `each` answers each contact with the [`Bound`] past which no later contact matters to it (the closest one it
+    /// keeps so far; [`Bound::ALL`] for every one), and the later casts give up there ([`exe_cast::cast_triangle_within`]):
+    /// the contacts at or under the bound are the full sweep's, in its order (inside one mesh, its triangles last-offered
+    /// first); none over it is handed on, nor one at a kept 0 that could not replace the kept one ([`Bound::may_matter`]).
+    pub(super) fn sweep_within(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact) -> Bound) {
+        let mut bound = Bound::ALL;
         let by = way.by(shape);
         let mut cast = exe_cast_of(shape, by);
         cast.from = flip(cast.from);
@@ -823,11 +824,17 @@ impl Solids {
                 rank,
                 child: leaf.child,
             };
+            let place = |rank: Option<u32>| Place { object, part: Some(i as u32), rank, child: leaf.child };
             match leaf.part {
                 Part::Primitive { shape: id, on } => {
+                    // [bot CPU] Under a kept contact at 0 that this one could not replace, the cast cannot matter ([`Bound::may_matter`]).
+                    if !bound.may_matter(&place(None)) {
+                        super::count_zero_tie_skip(true);
+                        return;
+                    }
                     let primitive = &self.primitives[id as usize];
-                    match exe_cast::cast_convex_within(&cast, &primitive.shape, primitive.margin, &leaf.transform, 0.0, 1.0, upto) {
-                        CastEnd::Hit { fraction, normal, point } => upto = each(out(fraction, normal, point, on, None)),
+                    match exe_cast::cast_convex_within(&cast, &primitive.shape, primitive.margin, &leaf.transform, 0.0, 1.0, bound.t()) {
+                        CastEnd::Hit { fraction, normal, point } => bound = each(out(fraction, normal, point, on, None)),
                         CastEnd::Miss => {}
                     }
                 }
@@ -835,6 +842,7 @@ impl Solids {
                     let mesh = &self.meshes[id as usize];
                     let query = local_box(&leaf.transform, &swept);
                     let near_local = grown(&query, CLEAR_M);
+                    let mut offered: Vec<usize> = Vec::new();
                     mesh.tree.each_in(&query, |k| {
                         let triangle = &mesh.triangles[k];
                         let Some(corners) = in_reach(&leaf.transform, triangle, &near, &near_local) else {
@@ -844,16 +852,31 @@ impl Solids {
                         if round.is_some_and(|round| round.clear_of(&corners)) {
                             return;
                         }
+                        offered.push(k);
+                    });
+                    // [bot CPU] The mesh's triangles last-offered first (the exe's tree's order, backwards): of the contacts at one
+                    // fraction the later offered is kept ([`Contact::replaces`]), so once one at 0 is kept no earlier one can replace
+                    // it, and their casts do not run ([`Bound::may_matter`]). Inside one mesh the callbacks' answers do not depend on
+                    // the order contacts come in: of two at different fractions the nearer is kept, at one fraction the later rank.
+                    if let Some(rank) = &mesh.rank {
+                        offered.sort_unstable_by_key(|&k| std::cmp::Reverse(rank[k]));
+                    }
+                    for k in offered {
+                        let rank = mesh.rank.as_ref().map(|r| r[k]);
+                        if !bound.may_matter(&place(rank)) {
+                            super::count_zero_tie_skip(false);
+                            continue;
+                        }
+                        let triangle = &mesh.triangles[k];
                         // A mesh's margin is 0 (the game's `btBvhTriangleMeshShape`), the callback's fraction 1.
-                        match exe_cast::cast_triangle_within(&cast, &exe_gjk::Triangle(triangle.v), 0.0, &leaf.transform, 0.0, 1.0, upto) {
+                        match exe_cast::cast_triangle_within(&cast, &exe_gjk::Triangle(triangle.v), 0.0, &leaf.transform, 0.0, 1.0, bound.t()) {
                             CastEnd::Hit { fraction, normal, point } => {
                                 let face = placed(&leaf.transform, triangle);
-                                let rank = mesh.rank.as_ref().map(|r| r[k]);
-                                upto = each(out(fraction, normal, point, Surface::Face { walker: face.walker, normal: face.normal }, rank));
+                                bound = each(out(fraction, normal, point, Surface::Face { walker: face.walker, normal: face.normal }, rank));
                             }
                             CastEnd::Miss => {}
                         }
-                    });
+                    }
                 }
             }
         });
@@ -1302,5 +1325,92 @@ mod tests {
         }
         assert!(kept > 200, "{kept} kept");
         assert!(bounded < full, "the bound left no cast out: {bounded} of {full}");
+    }
+
+    /// [bot CPU] Under a kept contact at fraction 0, the casts whose contact could not replace it do not run
+    /// ([`Bound::may_matter`]), and the mesh's triangles come last-offered first: the closest accepted contact is still the
+    /// one the full sweep's contacts give, to the bit and the rank, on a mesh with an offering order where the shape starts
+    /// inside many triangles (the ties at 0 of a dense mesh). The same for the down sweep's way of keeping (every hit
+    /// handed on at or under the nearest taken one, then the chain of `replaces` over them sorted by fraction).
+    #[test]
+    fn a_sweep_under_a_kept_contact_at_zero_keeps_the_full_sweeps_tie() {
+        let mut dice = Dice(41);
+        let triangles: Vec<MeshTriangle> = (0..600)
+            .map(|_| {
+                let about = dice.point(1.5);
+                let v = [0, 1, 2].map(|_| {
+                    let p = dice.point(0.6);
+                    [about[0] + p[0], about[1] + p[1], about[2] + p[2]]
+                });
+                MeshTriangle::new(v, WalkerBehaviour::Walk).expect("finite corners")
+            })
+            .collect();
+        // An offering order unlike the tree's: a fixed shuffle.
+        let mut rank: Vec<u32> = (0..triangles.len() as u32).collect();
+        for k in (1..rank.len()).rev() {
+            let j = (dice.roll() * (k + 1) as f32) as usize % (k + 1);
+            rank.swap(k, j);
+        }
+        let mut builder = Builder::default();
+        let mesh = builder.mesh(triangles, Some(rank));
+        builder.object();
+        builder.place_mesh(IDENTITY, IDENTITY, mesh, None);
+        let shapes = world(builder.finish());
+
+        let key = |c: &Contact| (c.t.to_bits(), c.point.to_array().map(f32::to_bits), c.normal.to_array().map(f32::to_bits), c.part, c.rank);
+        let (mut at_zero, mut ties_at_zero, mut cases) = (0usize, 0usize, 0usize);
+        for round in 0..600 {
+            let centre = Vec3::from_array(dice.point(1.8));
+            let by = Vec3::from_array(dice.point(if round % 3 == 0 { 1.5 } else { 0.3 }));
+            let shape = match round % 4 {
+                0 => Shape::Sphere { centre, radius: 0.3 },
+                1 => Shape::Cylinder { centre, half: 0.5, radius: 0.3, margin: 0.04 },
+                _ => Shape::CapsuleAt { centre, radius: 0.38, half_height: 0.52 },
+            };
+            let to = crate::controller::cast_origin(shape) + by;
+            let filters: [&dyn Fn(&Contact) -> bool; 3] = [&|_| true, &|c| c.normal.y > 0.0, &|c| c.rank.is_some_and(|r| r % 3 != 0)];
+            for accept in filters {
+                cases += 1;
+                let mut every: Option<Contact> = None;
+                let mut all: Vec<Contact> = Vec::new();
+                shapes.sweep_each_to(shape, to, |c| {
+                    all.push(c);
+                    if accept(&c) && every.is_none_or(|b| c.replaces(&b)) {
+                        every = Some(c);
+                    }
+                });
+                // A tie at 0: two accepted contacts or more there, one of them kept by its rank.
+                ties_at_zero += usize::from(all.iter().filter(|c| c.t == 0.0 && accept(c)).count() >= 2);
+                // One mesh, one part: the rule in no order at all, the nearest and of those the last offered.
+                let unordered = all.iter().filter(|c| accept(c)).min_by(|a, b| a.t.total_cmp(&b.t).then(b.rank.cmp(&a.rank)));
+                assert_eq!(unordered.map(key), every.as_ref().map(key), "the full sweep's chain: {shape:?} to {to:?}");
+                at_zero += usize::from(every.is_some_and(|c| c.t == 0.0));
+                let closest = shapes.sweep_closest_to(shape, to, accept);
+                assert_eq!(closest.as_ref().map(key), every.as_ref().map(key), "closest: {shape:?} to {to:?}");
+                // The down sweep's way: the hits, the kept one handed back as the bound, then the chain over them sorted.
+                let mut hits: Vec<Contact> = Vec::new();
+                let mut best: Option<Contact> = None;
+                shapes.sweep_each_to_within(shape, to, |c| {
+                    if accept(&c) && best.is_none_or(|b| c.replaces(&b)) {
+                        best = Some(c);
+                    }
+                    hits.push(c);
+                    best.as_ref().map_or(Bound::ALL, Bound::kept)
+                });
+                hits.sort_by(|a, b| a.t.total_cmp(&b.t));
+                let mut kept: Option<Contact> = None;
+                for c in hits {
+                    match kept {
+                        Some(k) if c.t > k.t => break,
+                        _ if !accept(&c) => {}
+                        Some(k) if !c.replaces(&k) => {}
+                        _ => kept = Some(c),
+                    }
+                }
+                assert_eq!(kept.as_ref().map(key), every.as_ref().map(key), "down sweep's way: {shape:?} to {to:?}");
+            }
+        }
+        assert!(at_zero > cases / 4, "{at_zero} of {cases} kept at 0");
+        assert!(ties_at_zero > 100, "{ties_at_zero} sweeps with a tie at 0");
     }
 }

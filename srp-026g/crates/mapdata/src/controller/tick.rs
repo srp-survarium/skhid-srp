@@ -18,7 +18,7 @@
 //! 0x88CB0) and their callbacks (0x869D0; 0x88C90, the stock closest callback with no filter) are read whole.
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
-use super::{Collision, Contact, Shape, SmallRound, SolidId, Surface};
+use super::{Bound, Collision, Contact, Shape, SmallRound, SolidId, Surface};
 use crate::WalkerBehaviour;
 use crate::math::Vec3;
 
@@ -1005,15 +1005,17 @@ impl Controller {
             hx * hx + hz * hz < r * r - 1e-5 || !(c.normal.y.abs() < 0.001)
         };
         // [bot CPU] Every hit at or under the nearest taken one so far: the walk below stops at the first hit past the nearest
-        // taken one (`c.t > k.t`), so a hit past a taken one is never read and its cast may give up there.
+        // taken one (`c.t > k.t`), so a hit past a taken one is never read and its cast may give up there. The walk keeps, of
+        // the taken hits at the nearest fraction, the chain of `replaces` in the order they came: the one kept so far here
+        // (`best`, the same chain), so a hit at its fraction that could not replace it is never kept either ([`Bound`]).
         let mut hits: Vec<Contact> = Vec::new();
-        let mut upto = 1.0f32;
+        let mut best: Option<Contact> = None;
         world.sweep_each_to_within(self.capsule_at(from), end, |c| {
-            if c.t < upto && taken(&c) {
-                upto = c.t;
+            if taken(&c) && best.is_none_or(|b| c.replaces(&b)) {
+                best = Some(c);
             }
             hits.push(c);
-            upto
+            best.as_ref().map_or(Bound::ALL, Bound::kept)
         });
         hits.sort_by(|a, b| a.t.total_cmp(&b.t));
         // The nearest hit the callback takes; [L36] at its fraction a later triangle of the same mesh query instead
