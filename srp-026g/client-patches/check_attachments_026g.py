@@ -94,10 +94,16 @@ BARREL, SCOPE, AIM, FRAME, HAND_RECORDS, FINGER_SETS = 0x6E0, 0x744, 0x7A8, 0x66
 
 VIEW_CAMERA, VIEW_NO_GUN, VIEW_SUBMIT, VIEW_BEGIN, VIEW_END, FOREGROUND = 0x1F3505, 0x1F3579, 0x1F8F7, 0x1F796, 0x1F7BA, 0x13E0C2
 VIEW_ENDS = (VIEW_CAMERA + 6, VIEW_NO_GUN + 6, VIEW_SUBMIT + 6, VIEW_BEGIN + 8, VIEW_END + 6, FOREGROUND + 7)
+# game::tick's start (the game.tick site), its frame's milliseconds (EDI the clock's step, 0x1ECA40) past its
+# choice of the world's tick (0x1ECB77; the call 0x1ECBE1), and that tick's start (game_world::tick, the
+# site after its prologue)
+GAME_TICK, GAME_STEP, GAME_STEPPED, WORLD_TICK = 0x1EC8EC, 0x1ECA2D, 0x1ECBFF, 0x1F77EC
+FRAME_ENDS = (GAME_TICK + 6, GAME_STEPPED, WORLD_TICK + 6)
+QPC_SLOT, QPF_SLOT = 0x870158, 0x870150                   # kernel32's, read by game.tick's other handlers
 CONFIGS_START, CONFIGS_START_END = 0x1EA210, 0x1EA216     # on_configs_loaded's start, after its replayed prologue
 ALIGN, ALIGNED = 0x295AA5, 0x295AB8                       # process_hands_ik before calculate_aim_alignment; after
 LIST_HEAD = 0x1F1D66C                                     # the console's list of variables
-ENDS = VIEW_ENDS + (CONFIGS_START_END, ALIGNED, DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
+ENDS = VIEW_ENDS + FRAME_ENDS + (CONFIGS_START_END, ALIGNED, DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
         HIDDEN_END, HANDS_END, FINGERS_VIEW_END, SHELLS_END, RELEASE_END, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED)
 
 AK_ID = 3        # the sample's AK-74M
@@ -698,10 +704,74 @@ def weapon_projection(exe, patched, report):
            f"the constructor leaves +14h ({r.u32(made + 0x14):#x} after the submit), on_defer_execution is handed the "
            f"command itself, execute its payload at +98h (patched={patched})")
 
-    for command, angle, what in [(aimed + 0x98, 32.5, "aimed"), (other_view + 0x98, None, "another view"),
-                                 (moving + 0x98, 48.75, "half aimed"), (own_optic + 0x98, None, "its own optic"),
-                                 (unknown + 0x98, 65.0, "a gun with no profile"), (no_gun + 0x98, 65.0, "no gun"),
-                                 (payload, 32.5, "the deferred one")]:
+    # Frames as game::tick runs them: its start (the game.tick site, every patch's handlers there), then
+    # its own code from the frame's game clock (integer milliseconds of QueryPerformanceCounter,
+    # 0x1EEA90) on: the world's tick, whose players' draw puts the gun in the scene and samples the
+    # camera, only when the clock moved a millisecond or more since the last frame (or while paused);
+    # the scene drawn on every frame (0x1ECD57). Above 1000 frames a second, or in a burst of quick
+    # frames, a frame skips the world's tick and draws the scene as the last tick left it.
+    for slot, at, code in ((QPC_SLOT, STOP + 0x920, "8b442404c70000000000c7400400000000"),
+                           (QPF_SLOT, STOP + 0x940, "8b442404c70080969800c7400400000000")):
+        r.u32(slot, at)
+        r.emu.mem_write(at, bytes.fromhex(code + "b801000000c20400"))   # (out) -> TRUE, ret 4
+    game, world_object, sp = r.block(0x5900), r.block(0x10), STACK - 0x900
+    world_tick, step_vfn = STOP + 0x900, STOP + 0x910
+    r.u32(game + 0x539C, world_object)
+    r.u32(world_object, r.block(0x10))
+    r.u32(r.u32(world_object) + 8, world_tick)            # game_world vtable+8
+    r.u32(game + 0x5358, r.block(0x10))
+    r.u32(r.u32(game + 0x5358), r.block(0x10))
+    r.u32(r.u32(r.u32(game + 0x5358)), step_vfn)
+    r.emu.mem_write(step_vfn, bytes.fromhex("c20400"))    # its one argument, the frame's time
+    r.u32(game + 0x5854, 0xFFFFFFFF)                      # no frame yet: the first one steps 0 ms
+    ticks = []
+
+    def leave(pops, value=0):
+        sp_ = r.emu.reg_read(UC_X86_REG_ESP)
+        r.emu.reg_write(UC_X86_REG_EAX, value)
+        r.emu.reg_write(UC_X86_REG_EIP, r.u32(sp_))
+        r.emu.reg_write(UC_X86_REG_ESP, sp_ + 4 + pops)
+
+    def on_world_tick(emu, *_):
+        sp_ = emu.reg_read(UC_X86_REG_ESP)
+        ticks.append((r.u32(sp_ + 4), r.u32(sp_ + 8)))   # the step, the time
+        leave(12)
+
+    r.emu.hook_add(UC_HOOK_CODE, on_world_tick, begin=world_tick, end=world_tick)
+    r.emu.hook_add(UC_HOOK_CODE, lambda *_: leave(0), begin=0xDDE70, end=0xDDE70)   # no stats here
+
+    def frame(now, camera=None):
+        """One frame at `now` ms: whether the game ticked its world; the scene's draw command."""
+        ticked = len(ticks)
+        stopped = r.run(GAME_TICK, (GAME_TICK + 6,), sp, ebx=game)
+        assert stopped == GAME_TICK + 6, hex(stopped)
+        r.u32(sp + 0x10, now)
+        stopped = r.run(GAME_STEP, (GAME_STEPPED,), sp, ebx=game)
+        assert stopped == GAME_STEPPED, hex(stopped)
+        r.u32(game + 0x5854, now)                         # the frame's end (0x1ECC47)
+        ticked = len(ticks) > ticked
+        if ticked:
+            r.run(WORLD_TICK, FRAME_ENDS, sp - 0x100, ecx=world, ebp=sp)
+            if camera is not None:
+                sample(camera)
+        return ticked, submit(view)
+
+    sequence = [(1000, None, False), (1004, 1.0, True), (1004, None, False), (1004, None, False),
+                (1005, 1.0, True), (1005, None, False), (1009, None, True), (1009, None, False)]
+    made = [frame(now, camera) for now, camera, _ in sequence]
+    report([ticked for ticked, _ in made] == [want for *_, want in sequence],
+           f"game::tick ticks its world on the frames whose game clock moved and on no other "
+           f"({[ticked for ticked, _ in made]}, patched={patched})")
+    names = ["4 ms after the last, aimed", "under a millisecond after it, no world tick",
+             "again under a millisecond after it", "the next millisecond, aimed", "under a millisecond after it",
+             "4 ms on, the world ticked without a first-person camera", "under a millisecond after that"]
+    lenses = [32.5, 32.5, 32.5, 32.5, 32.5, None, None]
+    frames = [(command + 0x98, angle, f"a frame {what}") for (_, command), angle, what in zip(made[1:], lenses, names)]
+    cases = [(aimed + 0x98, 32.5, "aimed"), (other_view + 0x98, None, "another view"),
+             (moving + 0x98, 48.75, "half aimed"), (own_optic + 0x98, None, "its own optic"),
+             (unknown + 0x98, 65.0, "a gun with no profile"), (no_gun + 0x98, 65.0, "no gun"),
+             (payload, 32.5, "the deferred one")] + frames
+    for command, angle, what in cases:
         got, after = drawn(command)
         want = f"{angle} degrees" if patched and angle else "the world's"
         report(close(got, lens(angle)) and close(after, world_projection),

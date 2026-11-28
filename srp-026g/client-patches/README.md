@@ -7230,3 +7230,20 @@ The look only: the camera, the shot, the recoil, the spread and what a world hol
 no `simulation_changes.tsv` row. Checked with Unicorn (`check_attachments_026g.py`,
 `check_weapon_view_options_026g.py`) and Ruffle (`../scripts/hud-options/check.sh`); not run in a
 game. The reasoning: `../docs/notes/weapon-view-settings.md`, `../docs/notes/client_patch.md` 3.115.
+
+## The weapon's lens on a frame the world does not tick (patch 161, unreleased)
+
+The owner, 2026-11-28: since revision 74, at a high frame rate the held gun is drawn for single frames
+at another angle and place. It stops at a lower frame rate. game::tick runs the world's tick only on a
+frame whose game clock moved a millisecond (0x1ECB77), but draws the scene on every frame. Patch 161's
+lens was cleared at the start of each frame (`game.tick`) and set by the camera in the world's tick.
+So a frame under a millisecond after the last drew the gun, still where the last tick put it, at the
+world's projection: revision 73's angle for one frame.
+
+The lens is now cleared at the world tick's start (new site `weapon_view.world_tick`, 0x1F77EC, before
+its players are drawn), so every frame until the next tick draws that tick's lens. The look only:
+nothing a match computes changes, no `simulation_changes.tsv` row. Checked with Unicorn
+(`check_attachments_026g.py`, `tools/check attachments`): frames run through the `game.tick` site and
+game::tick's own choice of the world's tick, at 1 to 4 ms and under a millisecond. The three frames
+under a millisecond fail with the hook back at `game.tick`. Not run in a game. The reasoning:
+`../docs/notes/client_patch.md` 3.116.
