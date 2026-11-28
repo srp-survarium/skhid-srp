@@ -2820,6 +2820,18 @@ impl Bots {
             "{}crossing entry searches since the last match end (every match on this server): on kept steps {steps_reused}, steps made {steps_made}",
             nav_log::PREFIX
         ));
+        // [bot CPU] The lip guard forecasts' sweeps remembered (`body::stays_up`; the table emptied here, with the match).
+        let memo = mapdata::controller::sweep_memo::take_counts();
+        lines.push(format!(
+            "{}sweep memo since the last match end (every match on this server): asked {}, remembered {}, generations turned {}, most entries {} ({:.1} MB at {} bytes an entry)",
+            nav_log::PREFIX,
+            memo.asked,
+            memo.remembered,
+            memo.turned,
+            memo.most,
+            memo.most as f64 * mapdata::controller::sweep_memo::entry_bytes() as f64 * 8.0 / 7.0 / 1e6,
+            mapdata::controller::sweep_memo::entry_bytes()
+        ));
         // [bot CPU] The sweeps' casts not run under a kept contact at fraction 0 their contact could not replace.
         let (tri_skips, prim_skips) = mapdata::controller::take_zero_tie_skips();
         lines.push(format!(

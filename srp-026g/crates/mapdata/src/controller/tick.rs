@@ -18,6 +18,7 @@
 //! 0x88CB0) and their callbacks (0x869D0; 0x88C90, the stock closest callback with no filter) are read whole.
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
+use super::sweep_memo::{self, Key, Site};
 use super::{Bound, Collision, Contact, Shape, SmallRound, SolidId, Surface};
 use crate::WalkerBehaviour;
 use crate::math::Vec3;
@@ -736,15 +737,21 @@ impl Controller {
         let end = from + by;
         let by = end - from;
         let r = self.dims.0;
-        let best = world.sweep_closest_to(self.capsule_at(from), end, |c| {
-            if axis {
-                let at = from + by * c.t;
-                let (hx, hz) = (c.point.x - at.x, c.point.z - at.z);
-                if !(hx * hx + hz * hz < r * r - 1e-5) && c.normal.y.abs() < 0.001 {
-                    return false;
+        // [bot CPU] The callback reads `axis`, `from`, `by` (the end less `from`) and `r`; the sweep its shape (`from` and the
+        // dims) and `end` ([`sweep_memo`]).
+        let shape = self.capsule_at(from);
+        let key = || Key::of(world, Site::Air).shape(&shape).v3(end).v3(from).f(r).f(if axis { 1.0 } else { 0.0 });
+        let best = sweep_memo::closest(key, || {
+            world.sweep_closest_to(shape, end, |c| {
+                if axis {
+                    let at = from + by * c.t;
+                    let (hx, hz) = (c.point.x - at.x, c.point.z - at.z);
+                    if !(hx * hx + hz * hz < r * r - 1e-5) && c.normal.y.abs() < 0.001 {
+                        return false;
+                    }
                 }
-            }
-            true
+                true
+            })
         });
         best.map(|c| (c.t, c.normal))
     }
@@ -874,15 +881,20 @@ impl Controller {
             (dir.z * q.z + dir.y * q.y) + q.x * dir.x > 0.0
         };
         let callback = |shape: Shape, own: Vec3, end: Vec3| -> Option<(f32, Vec3, Vec3)> {
-            let best = world.sweep_closest_to(shape, end, |c| {
-                if c.t == 0.0 {
-                    let kept = ahead(c.point, from);
-                    if own != from && kept != ahead(c.point, own) {
-                        super::count_top_check_parting(super::TopCheckParting::FractionZero);
+            // [bot CPU] The callback reads `from` (the main start), `own` and `dir`; the sweep `shape` and `end` ([`sweep_memo`]).
+            // A remembered answer counts no top-check parting: a log's count only.
+            let key = || Key::of(world, Site::Move).shape(&shape).v3(end).v3(from).v3(own).v3(dir);
+            let best = sweep_memo::closest(key, || {
+                world.sweep_closest_to(shape, end, |c| {
+                    if c.t == 0.0 {
+                        let kept = ahead(c.point, from);
+                        if own != from && kept != ahead(c.point, own) {
+                            super::count_top_check_parting(super::TopCheckParting::FractionZero);
+                        }
+                        return kept;
                     }
-                    return kept;
-                }
-                true
+                    true
+                })
             });
             let c = best?;
             let k = (UP.z * c.normal.z + UP.y * c.normal.y) + UP.x * c.normal.x;
@@ -1008,27 +1020,34 @@ impl Controller {
         // taken one (`c.t > k.t`), so a hit past a taken one is never read and its cast may give up there. The walk keeps, of
         // the taken hits at the nearest fraction, the chain of `replaces` in the order they came: the one kept so far here
         // (`best`, the same chain), so a hit at its fraction that could not replace it is never kept either ([`Bound`]).
-        let mut hits: Vec<Contact> = Vec::new();
-        let mut best: Option<Contact> = None;
-        world.sweep_each_to_within(self.capsule_at(from), end, |c| {
-            if taken(&c) && best.is_none_or(|b| c.replaces(&b)) {
-                best = Some(c);
+        // [bot CPU] `taken` reads `from`, `by` (the end less `from`), `floor` and `r`; the sweep its shape (`from` and the dims)
+        // and `end` ([`sweep_memo`]).
+        let shape = self.capsule_at(from);
+        let key = || Key::of(world, Site::Down).shape(&shape).v3(end).v3(from).f(floor).f(r);
+        let kept = sweep_memo::closest(key, || {
+            let mut hits: Vec<Contact> = Vec::new();
+            let mut best: Option<Contact> = None;
+            world.sweep_each_to_within(shape, end, |c| {
+                if taken(&c) && best.is_none_or(|b| c.replaces(&b)) {
+                    best = Some(c);
+                }
+                hits.push(c);
+                best.as_ref().map_or(Bound::ALL, Bound::kept)
+            });
+            hits.sort_by(|a, b| a.t.total_cmp(&b.t));
+            // The nearest hit the callback takes; [L36] at its fraction a later triangle of the same mesh query instead
+            // ([`Contact::replaces`]).
+            let mut kept: Option<Contact> = None;
+            for c in hits {
+                match kept {
+                    Some(k) if c.t > k.t => break,
+                    _ if !taken(&c) => {}
+                    Some(k) if !c.replaces(&k) => {}
+                    _ => kept = Some(c),
+                }
             }
-            hits.push(c);
-            best.as_ref().map_or(Bound::ALL, Bound::kept)
+            kept
         });
-        hits.sort_by(|a, b| a.t.total_cmp(&b.t));
-        // The nearest hit the callback takes; [L36] at its fraction a later triangle of the same mesh query instead
-        // ([`Contact::replaces`]).
-        let mut kept: Option<Contact> = None;
-        for c in hits {
-            match kept {
-                Some(k) if c.t > k.t => break,
-                _ if !taken(&c) => {}
-                Some(k) if !c.replaces(&k) => {}
-                _ => kept = Some(c),
-            }
-        }
         if let Some(c) = kept {
             notes.kept_over_lowered_floor |= (UP.y * c.point.y + UP.z * c.point.z) + UP.x * c.point.x > floor + by.y * c.t;
             let n = match c.on.walker() {
@@ -1165,14 +1184,19 @@ impl Controller {
         let end = from + UP * rise;
         // With up = (0, 1, 0) both wrappers' sums give these bits: the other terms are signed zeros.
         let floor = from.y + hh;
-        let best = world.sweep_closest_to(self.capsule_at(from), end, |c| {
-            if floor > c.point.y {
-                return false;
-            }
-            // The point less the start, less its part along up: (dz² + dy²) + dx² with dy a zero.
-            let (hx, hz) = (c.point.x - from.x, c.point.z - from.z);
-            let s = (hz * hz + hx * hx).sqrt();
-            !(TINY > (s - r).abs() || !(r > s))
+        // [bot CPU] The callback reads `floor`, `from` and `r`; the sweep its shape (`from` and the dims) and `end` ([`sweep_memo`]).
+        let shape = self.capsule_at(from);
+        let key = || Key::of(world, Site::Up).shape(&shape).v3(end).v3(from).f(floor).f(r);
+        let best = sweep_memo::closest(key, || {
+            world.sweep_closest_to(shape, end, |c| {
+                if floor > c.point.y {
+                    return false;
+                }
+                // The point less the start, less its part along up: (dz² + dy²) + dx² with dy a zero.
+                let (hx, hz) = (c.point.x - from.x, c.point.z - from.z);
+                let s = (hz * hz + hx * hx).sqrt();
+                !(TINY > (s - r).abs() || !(r > s))
+            })
         });
         best.map(|c| c.normal)
     }
@@ -1244,7 +1268,10 @@ impl Controller {
         let e = (n.z * dn.z + n.y * dn.y) + n.x * dn.x;
         let g = normalized_safe(Vec3::new(dn.x - n.x * e, dn.y - n.y * e, dn.z - n.z * e), dn);
         let de = Vec3::new(g.x * l + bs.x, g.y * l + bs.y, g.z * l + bs.z);
-        let Some(c2) = world.sweep_shape_to(self.capsule_at(bs), de, |_| true) else { return false };
+        // [bot CPU] The callback takes every contact; the sweep reads its shape (`bs` and the dims) and `de` ([`sweep_memo`]).
+        let shape = self.capsule_at(bs);
+        let key = || Key::of(world, Site::SlideDown).shape(&shape).v3(de);
+        let Some(c2) = sweep_memo::closest(key, || world.sweep_shape_to(shape, de, |_| true)) else { return false };
         let n2 = c2.normal;
         if self.impassable(n2, sb, s) {
             return false;
@@ -1489,6 +1516,50 @@ mod tests {
     }
 
     /// On flat ground the body walks at its speed and stays on the ground.
+    /// [bot CPU] Walks with the sweep memo on (a first time and again: the second from the table) end in the bits of the walks
+    /// with it off, on a world of steps and walls; and a second world's walks under the same keys are its own, not the first's.
+    #[test]
+    fn walks_with_the_sweep_memo_are_the_walks_without_it() {
+        let world_of = |rise: f32, wall_z: f32| {
+            let mut tris = Vec::new();
+            ground(0.0, -10.0, 2.0, &mut tris);
+            ground(rise, 2.0, 10.0, &mut tris);
+            quad(Vec3::new(2.0, 0.0, -10.0), Vec3::new(2.0, rise, -10.0), Vec3::new(2.0, rise, 10.0), Vec3::new(2.0, 0.0, 10.0), &mut tris);
+            quad(Vec3::new(-10.0, -1.0, wall_z), Vec3::new(10.0, -1.0, wall_z), Vec3::new(10.0, 3.0, wall_z), Vec3::new(-10.0, 3.0, wall_z), &mut tris);
+            Collision::build(&tris)
+        };
+        let walks = |world: &Collision| -> Vec<String> {
+            let mut out = Vec::new();
+            for start in [Vec3::ZERO, Vec3::new(1.2, 0.0, 0.3), Vec3::new(-0.7, 0.0, -0.4)] {
+                let mut c = Controller::standing_at(start);
+                for k in 0..60 {
+                    let side = if k % 20 < 10 { 0.6 } else { -0.6 };
+                    c.walk = Vec3::new(3.5 * 0.05, 0.0, side * 0.05);
+                    c.step(world, 0.05, &Settings::LIVE);
+                    out.push(format!("{c:?}"));
+                }
+            }
+            out
+        };
+        let (a, b) = (world_of(0.4, 0.9), world_of(0.25, 0.7));
+        let (off_a, off_b) = (walks(&a), walks(&b));
+        let _ = sweep_memo::take_counts();
+        {
+            let _on = sweep_memo::On::new();
+            assert_eq!(walks(&a), off_a, "the first walks with the memo");
+            let first = sweep_memo::counts();
+            assert_eq!(walks(&a), off_a, "the walks again, from the table");
+            let again = sweep_memo::counts();
+            assert!(first.asked > 0, "{first:?}");
+            assert_eq!(again.asked - first.asked, again.remembered - first.remembered, "every sweep of the walks again remembered");
+            assert_eq!(walks(&b), off_b, "another world under the same keys");
+        }
+        let counts = sweep_memo::take_counts();
+        assert!(counts.asked > 0, "{counts:?}");
+        assert_eq!(walks(&a), off_a, "off again");
+        assert_eq!(sweep_memo::take_counts().asked, 0, "nothing asked with the memo off");
+    }
+
     #[test]
     fn a_body_walks_on_flat_ground() {
         let mut tris = Vec::new();

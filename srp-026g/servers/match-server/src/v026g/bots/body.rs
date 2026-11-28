@@ -836,6 +836,9 @@ pub struct Stop<'a> {
 /// the floor it stands on. A body does not stop at once (the blend of [`Kinematics::blend_ticks`]): a key
 /// pressed at a rim carries it a stride on, so the check plays the stop, not the step.
 pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
+    // [bot CPU] The forecast's walk ticks remember their sweeps (`mapdata::controller::sweep_memo`, exact: each key holds every
+    // bit its callback reads): a lip guard's bodies stand where the last poll's stood, and their sweeps come again bit for bit.
+    let _sweep_memo = mapdata::controller::sweep_memo::On::new();
     let Stop { kin, level, grid, planned, hold, margin: margin_m } = *stop;
     let mut at = at.landed(grid);
     let top = at.feet.y;
