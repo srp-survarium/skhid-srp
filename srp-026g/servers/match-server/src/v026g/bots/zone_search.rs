@@ -125,10 +125,107 @@ pub fn cheapest_entry(
     damage_per_s: impl Fn(NodeId) -> f32,
     within_m: f32,
 ) -> Option<Vec<NodeId>> {
-    if !entry_walkable(tactics, goal, side) {
+    cheapest_entry_on(tactics, &mut EntrySteps::new(spawn, goal, side, within_m), damage_per_s)
+}
+
+/// [entry steps] [`cheapest_entry`] over `steps`' kept sources and steps (made by the searches before it, else now): the
+/// same answer as a fresh search's under the same zones ([`EntrySteps`]).
+pub fn cheapest_entry_on(tactics: &Tactics, steps: &mut EntrySteps, damage_per_s: impl Fn(NodeId) -> f32) -> Option<Vec<NodeId>> {
+    if !entry_walkable(tactics, steps.goal, steps.side) {
         return None;
     }
-    searched_entry(tactics, spawn, goal, side, damage_per_s, within_m)
+    searched_entry_on(tactics, steps, damage_per_s)
+}
+
+/// [entry steps] Everything [`cheapest_entry`]'s search reads but the price, for one spawn floor, goal, side and box: the
+/// sources (the box's dry floors by a marked one that the side reaches, in the box's order) and each floor's steps (its links
+/// onto a floor inside the box that [`entry_walkable`] lets through, with a finite walk: the floor, the length term
+/// `walk.max(metres)` and the metres), a floor's made the first time a search expands it. Most of a search's time went to these
+/// tests, the same for every price (a battery off its spawner on batt m1 s7: 4 armours, 4 searches of 42-65 ms in one commander
+/// pass, each 111 thousand floors expanded over 597 thousand links, alike to the floor). A search for another price over the
+/// kept steps adds the same terms in the same order onto the same floors, so it finds the way a fresh search finds, bit for
+/// bit, while the zones, the live fields and the spawn areas are what they were when the steps were made: their keeper keeps
+/// them for one [`super::hazards::Hazards::version`] and zones' stamp (`plays::memo::Memo::entry`).
+pub struct EntrySteps {
+    spawn: NodeId,
+    goal: NodeId,
+    side: Option<i32>,
+    within_m: f32,
+    sources: Option<Vec<NodeId>>,
+    /// Each expanded floor's steps: their start in `steps` and how many.
+    of: Option<ByFloor<(u32, u32)>>,
+    steps: Vec<Step>,
+}
+
+/// [entry steps] A step of [`cheapest_entry`]'s search: onto `to`, the walk's length term `walk.max(metres)`, the metres.
+#[derive(Clone, Copy)]
+struct Step {
+    to: NodeId,
+    walk: f32,
+    metres: f32,
+}
+
+impl EntrySteps {
+    /// None made yet, for the search from spawn floor `spawn` to `goal` for side `side` within `within_m` across of it.
+    pub fn new(spawn: NodeId, goal: NodeId, side: Option<i32>, within_m: f32) -> Self {
+        Self { spawn, goal, side, within_m, sources: None, of: None, steps: Vec::new() }
+    }
+
+    /// Whether these are the steps of that search.
+    pub fn of_search(&self, spawn: NodeId, goal: NodeId, side: Option<i32>, within_m: f32) -> bool {
+        (self.spawn, self.goal, self.side, self.within_m.to_bits()) == (spawn, goal, side, within_m.to_bits())
+    }
+
+    /// The floors kept and the steps, for the keeper's bound on what it holds.
+    pub fn kept(&self) -> usize {
+        self.steps.len()
+    }
+
+    /// The sources, made at the first ask.
+    fn sources(&mut self, tactics: &Tactics) -> &[NodeId] {
+        let (grid, hazards) = (&tactics.world.grid, &tactics.hazards);
+        let (spawn, side, within_m, at) = (self.spawn, self.side, self.within_m, grid.position(self.goal));
+        self.sources.get_or_insert_with(|| {
+            let area = [at.x - within_m, at.z - within_m, at.x + within_m, at.z + within_m];
+            grid.floors_in(area)
+                .filter(|&node| {
+                    // Only a dry floor by a marked one can be an entry: the others' dry neighbours are sources at the same price.
+                    hazards.hazard_free(node)
+                        && grid.links(node).any(|(b, _)| !hazards.hazard_free(b))
+                        && tactics.past_fixed_zones(node)
+                        && tactics.spawn_ok(node, side, false)
+                        && grid.may_reach(spawn, node)
+                })
+                .collect()
+        })
+    }
+
+    /// Floor `a`'s steps (their range in `steps`), made at the first ask.
+    fn steps_from(&mut self, tactics: &Tactics, a: NodeId) -> std::ops::Range<usize> {
+        let grid = &tactics.world.grid;
+        let of = self.of.get_or_insert_with(|| ByFloor::new(grid.len()));
+        if let Some((start, n)) = of.get(a) {
+            return start as usize..(start + n) as usize;
+        }
+        let start = self.steps.len();
+        let from = grid.position(a);
+        for (b, kind) in grid.links(a) {
+            let to = grid.position(b);
+            let at = grid.position(self.goal);
+            if !((to.x - at.x).abs() <= self.within_m && (to.z - at.z).abs() <= self.within_m) || !entry_walkable(tactics, b, self.side) {
+                continue;
+            }
+            let walk = grid.link_cost(a, b, kind);
+            if !walk.is_finite() {
+                continue;
+            }
+            let metres = (to - from).length();
+            self.steps.push(Step { to: b, walk: walk.max(metres), metres });
+        }
+        let end = self.steps.len();
+        self.of.as_mut().expect("made above").set(a, (start as u32, (end - start) as u32));
+        start..end
+    }
 }
 
 /// The floors [`cheapest_entry`]'s search steps onto: a dry one or one only zones on all match mark, not of another side's
@@ -139,6 +236,7 @@ fn entry_walkable(tactics: &Tactics, b: NodeId, side: Option<i32>) -> bool {
 }
 
 /// [`cheapest_entry`]'s search itself, whatever the goal.
+#[cfg(test)]
 fn searched_entry(
     tactics: &Tactics,
     spawn: NodeId,
@@ -147,12 +245,13 @@ fn searched_entry(
     damage_per_s: impl Fn(NodeId) -> f32,
     within_m: f32,
 ) -> Option<Vec<NodeId>> {
+    searched_entry_on(tactics, &mut EntrySteps::new(spawn, goal, side, within_m), damage_per_s)
+}
+
+/// [`cheapest_entry_on`]'s search itself, whatever the goal.
+fn searched_entry_on(tactics: &Tactics, steps: &mut EntrySteps, damage_per_s: impl Fn(NodeId) -> f32) -> Option<Vec<NodeId>> {
     let grid = &tactics.world.grid;
-    let hazards = &tactics.hazards;
-    let at = grid.position(goal);
-    let area = [at.x - within_m, at.z - within_m, at.x + within_m, at.z + within_m];
-    let inside = |p: mapdata::Vec3| (p.x - at.x).abs() <= within_m && (p.z - at.z).abs() <= within_m;
-    let walkable = |b: NodeId| entry_walkable(tactics, b, side);
+    let goal = steps.goal;
     // [CPU] By floor, not in maps (a box holds 180-240 thousand floors on Chemical Plant's batteries, and the maps'
     // hashing was a tenth of a search), and the price of a floor stepped onto worked out once, not at every link into it.
     let floors = grid.len();
@@ -168,17 +267,9 @@ fn searched_entry(
         }
     };
     let mut heap = BinaryHeap::new();
-    for node in grid.floors_in(area) {
-        // Only a dry floor by a marked one can be an entry: the others' dry neighbours are sources at the same price.
-        if hazards.hazard_free(node)
-            && grid.links(node).any(|(b, _)| !hazards.hazard_free(b))
-            && tactics.past_fixed_zones(node)
-            && tactics.spawn_ok(node, side, false)
-            && grid.may_reach(spawn, node)
-        {
-            price.set(node, 0.0);
-            heap.push((Reverse(0.0f32.to_bits()), node));
-        }
+    for &node in steps.sources(tactics) {
+        price.set(node, 0.0);
+        heap.push((Reverse(0.0f32.to_bits()), node));
     }
     while let Some((Reverse(bits), a)) = heap.pop() {
         let here = f32::from_bits(bits);
@@ -195,19 +286,10 @@ fn searched_entry(
             path.reverse();
             return Some(path);
         }
-        let from = grid.position(a);
-        for (b, kind) in grid.links(a) {
-            let to = grid.position(b);
-            if !inside(to) || !walkable(b) {
-                continue;
-            }
-            let walk = grid.link_cost(a, b, kind);
-            if !walk.is_finite() {
-                continue;
-            }
-            let metres = (to - from).length();
+        for k in steps.steps_from(tactics, a) {
+            let Step { to: b, walk, metres } = steps.steps[k];
             let damage = floor_price(b) * metres / CROSS_MPS;
-            let through = here + walk.max(metres) + damage * DAMAGE_M;
+            let through = here + walk + damage * DAMAGE_M;
             if price.get(b).is_none_or(|p| through < p) {
                 price.set(b, through);
                 prev.set(b, a);
@@ -405,5 +487,51 @@ mod tests {
             found += usize::from(by_floor.is_some());
         }
         assert!(found > 10, "{found} ways found");
+    }
+
+    /// [entry steps] Searches for three prices over one kept set of steps (the first search makes them, the others walk them)
+    /// find the ways fresh searches find, floor for floor, and the kept steps are the first search's: on the field with a zone on
+    /// all match, for the floors round the zone and all over.
+    #[test]
+    fn searches_for_other_prices_on_kept_steps_find_the_fresh_searches_ways() {
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "slab".into(),
+                team: -1,
+                position: Vec3::new(30.0, -1.27, 30.0),
+                protection: None,
+                damage_type: "radiation".into(),
+                damage: Some(mapdata::Damage { max_hit: 0.1, interval_ms: 1000, parts: 2, ..mapdata::Damage::default() }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: Vec3::new(30.0, -1.27, 30.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(4.0, 1.0, 4.0),
+                }],
+            });
+        });
+        let tactics = Tactics::new(world, 1.0);
+        let grid = &tactics.world.grid;
+        let spawn = grid.locate(Vec3::new(5.0, 0.0, 10.0), 1.0).unwrap();
+        // Three prices by floor that order the ways differently: the zone's hit, more toward the north, more toward the east.
+        let hit = |b: NodeId| tactics.hazards.hit_per_s(b);
+        let north = |b: NodeId| tactics.hazards.hit_per_s(b) + grid.position(b).z * 1e-4;
+        let east = |b: NodeId| tactics.hazards.hit_per_s(b) * 2.0 + grid.position(b).x * 3e-4;
+        let (mut found, mut kept_reused) = (0, 0);
+        for goal in grid.floors_in([24.0, 24.0, 36.0, 36.0]).step_by(5).chain((0..grid.len() as NodeId).step_by(3001)) {
+            let mut steps = EntrySteps::new(spawn, goal, Some(0), 20.0);
+            let first = cheapest_entry_on(&tactics, &mut steps, hit);
+            assert_eq!(first, cheapest_entry(&tactics, spawn, goal, Some(0), hit, 20.0), "goal {goal}, the first price");
+            let made = steps.kept();
+            for (name, price) in [("north", &north as &dyn Fn(NodeId) -> f32), ("east", &east)] {
+                let on_kept = cheapest_entry_on(&tactics, &mut steps, price);
+                assert_eq!(on_kept, searched_entry_by_maps(&tactics, spawn, goal, Some(0), price, 20.0), "goal {goal}, {name}");
+            }
+            kept_reused += usize::from(made > 0);
+            found += usize::from(first.is_some());
+            assert!(steps.of_search(spawn, goal, Some(0), 20.0) && !steps.of_search(spawn, goal, Some(1), 20.0));
+        }
+        assert!(found > 10 && kept_reused > 10, "{found} ways found, {kept_reused} searches walked kept steps");
     }
 }

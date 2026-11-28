@@ -160,6 +160,10 @@ pub struct Memo {
     /// [crossing prewarm] A routed crossing's entry search ([`Memo::entry`]): made at map load for the battery spawners'
     /// stands ([`Memo::prewarm_entries`]), else at the first ask.
     entries: QueryMemo<EntryKey, Option<std::sync::Arc<Vec<mapdata::NodeId>>>>,
+    /// [entry steps] The last searches' sources and steps (`zone_search::EntrySteps`), each with the hazards' version and the
+    /// zones' stamp it was made under: another armour's search for the same spawn floor, stand and side walks them again
+    /// (the 4 kits' armours of a team ask in one commander pass), the same answers.
+    entry_steps: Mutex<Vec<KeptSteps>>,
     /// [crossing prewarm] [`Memo::entry`]'s asks in play, and of them the searches made then (not kept from the load).
     entry_asks: std::sync::atomic::AtomicU32,
     entry_searches: std::sync::atomic::AtomicU32,
@@ -169,6 +173,40 @@ pub struct Memo {
 /// the stand's floor, the side, the armour's key (`ZoneArmour::key`; 0: none) and the hurt rule. Everything its price reads but
 /// the zones, which the stamp holds.
 type EntryKey = (mapdata::NodeId, mapdata::NodeId, i32, u64, HurtTest);
+
+/// [entry steps] A search's kept sources and steps and what it read the zones as: the hazards' version
+/// (`Hazards::version`: the zones' activities and the live fields) and the zones' stamp ([`zones_stamp`]).
+struct KeptSteps {
+    version: u64,
+    made_for: Vec<u64>,
+    steps: crate::v026g::bots::zone_search::EntrySteps,
+}
+
+/// [entry steps] The routed entry searches made on another armour's kept steps, and the steps made anew, on this server (every
+/// match), for the match-end nav line: decision-neutral.
+pub(crate) mod entry_steps_counts {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static REUSED: AtomicU64 = AtomicU64::new(0);
+    static MADE: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn reused() {
+        REUSED.fetch_add(1, Relaxed);
+    }
+
+    pub(crate) fn made() {
+        MADE.fetch_add(1, Relaxed);
+    }
+
+    /// (searched on kept steps, steps made) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64) {
+        (REUSED.swap(0, Relaxed), MADE.swap(0, Relaxed))
+    }
+}
+
+/// [entry steps] How many searches' steps are kept: the searches of one stand by both sides (about 600 thousand steps each
+/// on batt m1's stand at (-23.7, -2.1)).
+const ENTRY_STEPS_KEPT: usize = 2;
 
 /// [crossing prewarm] What [`Memo::prewarm_entries`] made, for the map's log line.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -220,10 +258,44 @@ impl Memo {
             searched();
             let grid = &tactics.world.grid;
             let leg_per_s = |node| tactics.hazards.leg_cost_per_s(grid, node, armour, hurt).most();
-            crate::v026g::bots::zone_search::cheapest_entry(tactics, from, goal, Some(side), leg_per_s, super::collect::ENTRY_WITHIN_M)
-                .map(std::sync::Arc::new)
+            self.with_entry_steps(tactics, from, goal, side, |steps| {
+                crate::v026g::bots::zone_search::cheapest_entry_on(tactics, steps, leg_per_s)
+            })
+            .map(std::sync::Arc::new)
         });
         (answer, ran.get())
+    }
+
+    /// [entry steps] `search` on the kept steps of the entry search from `from` to `goal` for side `side` made under the zones
+    /// as they are now, else on new ones, kept after (the oldest let go past [`ENTRY_STEPS_KEPT`]).
+    fn with_entry_steps<R>(
+        &self,
+        tactics: &Tactics,
+        from: mapdata::NodeId,
+        goal: mapdata::NodeId,
+        side: i32,
+        search: impl FnOnce(&mut crate::v026g::bots::zone_search::EntrySteps) -> R,
+    ) -> R {
+        use crate::v026g::bots::zone_search::EntrySteps;
+        let within_m = super::collect::ENTRY_WITHIN_M;
+        let version = tactics.hazards.version();
+        let mut kept = self.entry_steps.lock().unwrap_or_else(PoisonError::into_inner);
+        kept.retain(|k| k.version == version && k.made_for.iter().copied().eq(zones_stamp(&tactics.hazards)));
+        let at = match kept.iter().position(|k| k.steps.of_search(from, goal, Some(side), within_m)) {
+            Some(at) => {
+                entry_steps_counts::reused();
+                at
+            }
+            None => {
+                entry_steps_counts::made();
+                if kept.len() >= ENTRY_STEPS_KEPT {
+                    kept.remove(0);
+                }
+                kept.push(KeptSteps { version, made_for: zones_stamp(&tactics.hazards).collect(), steps: EntrySteps::new(from, goal, Some(side), within_m) });
+                kept.len() - 1
+            }
+        };
+        search(&mut kept[at].steps)
     }
 
     /// [crossing prewarm] [`Self::entry`]'s asks in play and the searches made then (the rest were kept from the load).

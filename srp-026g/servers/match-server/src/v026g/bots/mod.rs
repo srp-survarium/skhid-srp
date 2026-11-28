@@ -2787,6 +2787,12 @@ impl Bots {
             "{}crossing entries this match: asked in play {entry_asks}, searched then {entry_searches} (the rest made at map load)",
             nav_log::PREFIX
         ));
+        // [entry steps] The entry searches (at load and in play) walked on another armour's kept steps, and the steps made anew.
+        let (steps_reused, steps_made) = plays::memo::entry_steps_counts::take();
+        lines.push(format!(
+            "{}crossing entry searches since the last match end (every match on this server): on kept steps {steps_reused}, steps made {steps_made}",
+            nav_log::PREFIX
+        ));
         // [A388 (e) gap 16] The reckoning's steps the client's legs crouched (both broken, the key up).
         lines.push(format!(
             "{}kept controller steps crouched by both legs broken with the crouch key up since the last match end (every match on this server): {}",
