@@ -244,6 +244,23 @@ impl FieldBoard {
         }
     }
 
+    /// [core ways] The fields with a floor inside `area` (min x, min z, max x, max z), as the world said them, in id order:
+    /// everything a search confined to that box reads of the board (a floor's live set and cost are its fields', and a field
+    /// the world still says the same keeps its floors).
+    pub fn fields_in(&self, grid: &WalkGrid, area: [f32; 4]) -> Vec<WorldField> {
+        let [x0, z0, x1, z1] = area;
+        self.fields
+            .iter()
+            .filter(|f| {
+                f.floors.iter().any(|&n| {
+                    let p = grid.position(n);
+                    p.x >= x0 && p.x <= x1 && p.z >= z0 && p.z <= z1
+                })
+            })
+            .map(|f| f.field.clone())
+            .collect()
+    }
+
     /// The floors some field covers (a floor under two counts once).
     pub fn floors_covered(&self) -> usize {
         self.floor_set.iter().filter(|&&set| set != 0).count()
