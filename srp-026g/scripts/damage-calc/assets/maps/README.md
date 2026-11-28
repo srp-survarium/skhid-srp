@@ -25,6 +25,7 @@ elevation grid for every map.
 | v011e_level_03 | Vostok Radar Station (v0.11) | 0.1302 | 208, 209 (ported, patch 22) |
 | v011e_level_04 | Chemical Plant (v0.11) | 0.1823 | 206, 207 (ported, patch 22) |
 | v069d_level_01 | Rudnya (v0.69) | 0.1693 | 204, 216, 217 (ported, patch 40) |
+| v069d_level_03 | Vostok Radar Station (v0.69) | 0.1302 | 258, 259 (ported, pack vostok-069d@6, patch 75) |
 | v010b_cs_mp_bath | Experimental Pool | 0.0952 | 42 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
@@ -178,6 +179,10 @@ Always use `python3 -I`.
     # their raw client_projects (day_2/3/4 as the patches give them) go to $W/db like the stock ones
     # Rudnya (v0.69), from its pack (rudnya-069d) over the db; native Rudnya's frame, minimap and play area
     python3 -I extract_level.py $DBGRAB $DB v069d_level_01/day_2 $W/lv/v069d_level_01 <packs>/rudnya-069d-3/files
+    # Vostok Radar Station (v0.69), released in patch 75: every listed patch over the db; native Vostok's
+    # frame, minimap and play area; its day_2 and day_4 client_projects (the pack's) go to $W/db; then
+    # build_all.py --only, make_json.py --only and play_area.py on it alone, merged into maps.json
+    python3 -I extract_level.py $DBGRAB $DB v069d_level_03/day_2 $W/lv/v069d_level_03 $ALL
     # the STALKER ports played in Free for All (patch 57): that mode's own project, every patch of
     # release/patches.tsv over the db; day_8's raw client_project of each goes to $W/db
     ALL=$(grep -v '^#' <skhid-srp>/release/patches.tsv | cut -f1 | while read n; do printf ' --patch %s' <patches>/$n; done)

@@ -164,7 +164,7 @@ fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
             modes::PATH,
             lang.t("Modes"),
             lang.t("Every mode: its rules, numbers and maps."),
-            Picture::Image(icons::url(IconSet::Mode, "7")),
+            Picture::Image(icons::url(IconSet::Mode, "1")),
         ),
         (
             maps::PATH,

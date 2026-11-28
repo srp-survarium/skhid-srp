@@ -105,6 +105,12 @@ PATCHED = {
                            origin='0.69d port, pack rudnya-069d@3 (patch 40)', name='Rudnya (v0.69)',
                            name_key='st_level_14_name', project_name='level_01', modes=(2, 3, 4),
                            map_ids={216: 2, 217: 3, 204: 4}),
+    # 0.69d's Vostok Radar Station (pack vostok-069d@6, patch 75): project_name level_03, so the HUD
+    # draws native Vostok's minimap in its frame; the layout is the same (docs/notes/vostok-069d.md).
+    'v069d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap='976_minimap_base_minimap_base.png',
+                           origin='0.69d port, pack vostok-069d@6 (patch 75)', name='Vostok Radar Station (v0.69)',
+                           name_key='st_level_28_name', project_name='level_03', modes=(2, 4),
+                           map_ids={258: 2, 259: 4}),
     # The STALKER ports played in Free for All (pack stalker-maps@6, patch 57; docs/notes/stalker-ffa.md):
     # their own minimaps and frames in hud.swf, by project_name. Rendered from Free for All's own
     # project (day_8), the one played.
