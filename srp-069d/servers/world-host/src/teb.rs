@@ -60,8 +60,30 @@ pub fn peb() -> usize {
     })
 }
 
+thread_local! {
+    /// This thread's kernel thread id, read once ([`gettid`]); 0 = not read yet. A thread keeps its id for life; only
+    /// the thread that calls fork() continues in the child under a new one ([`forget_tid`]).
+    static TID: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// This thread's kernel thread id (one syscall per thread, then the cached value: the critical-section and thread-id
+/// stand-ins ask for it on every call).
 pub fn gettid() -> u64 {
-    unsafe { libc::syscall(libc::SYS_gettid) as u64 }
+    TID.with(|t| {
+        let v = t.get();
+        if v != 0 {
+            return v;
+        }
+        let v = unsafe { libc::syscall(libc::SYS_gettid) as u64 };
+        t.set(v);
+        v
+    })
+}
+
+/// In a fork()ed child, on the thread that called fork() (the only thread the child has): drop the parent's cached id
+/// so that [`gettid`] reads the child's own.
+pub fn forget_tid() {
+    TID.with(|t| t.set(0));
 }
 
 /// Bounds of the current pthread's stack (low, high).

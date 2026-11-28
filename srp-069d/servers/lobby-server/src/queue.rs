@@ -26,7 +26,9 @@
 //! bit 0..6, and the three bits 7..9 that have no check box and are always set). [`modes_of_mask`] turns it into mode ids,
 //! [`PvpQueue::group_for_kinds`] forms a group whose tickets share at least one playable mode, [`PvpQueue::choose`] gives
 //! its mode (ticked; ranked: the 10-minute slot) and map (rotation, CHOICE) among the pool's rows the match server serves,
-//! and [`PvpQueue::pick`] draws the variation and weather among that map's rows.
+//! and [`PvpQueue::pick`] draws the variation and weather among that map's rows. Under the world host's limits
+//! ([`crate::host_room`]) [`PvpQueue::pick_in`] keeps the same rotation over the rows the host has room for: every served
+//! row while a new map can load, else the loaded maps that take one more match, else none (the group stays queued).
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -34,6 +36,7 @@ use accounts::AccountId;
 use protocol::s2c::*;
 
 use crate::dispatch::Ctx;
+use crate::host_room::Scope;
 use crate::peer::{Cross, Peer};
 
 /// How far back the arrival rate looks.
@@ -176,6 +179,18 @@ impl Pick {
     }
 }
 
+/// What the waiting searches form ([`PvpQueue::group_in`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Forms {
+    /// a group and the mode mask its tickets share
+    Group(Vec<Ticket>, u32),
+    /// nobody can play together yet: keep searching
+    Wait,
+    /// a group would form on the served rows, but the world host has room for none of its rows now: it stays queued
+    /// (its shared mask, the key of the hold's log line)
+    Held(u32),
+}
+
 #[derive(Debug, Default)]
 pub struct PvpQueue {
     next_order: u32,
@@ -188,6 +203,8 @@ pub struct PvpQueue {
     seq: u64,
     mode_seq: BTreeMap<u32, u64>,
     map_seq: BTreeMap<u32, u64>,
+    /// the same per row (the variant drawn among loaded maps: [`pick_in`](Self::pick_in))
+    row_seq: BTreeMap<Pick, u64>,
     /// the ranked mode slot ([`RANKED_SLOT_SECS`]) [`ranked_slot_changed`](Self::ranked_slot_changed) saw last
     ranked_slot: i64,
 }
@@ -382,6 +399,86 @@ impl PvpQueue {
         self.seq += 1;
         self.mode_seq.insert(pick.mode, self.seq);
         self.map_seq.insert(pick.map, self.seq);
+        self.row_seq.insert(pick, self.seq);
+    }
+
+    /// The sequence number of the last queue match on `pick`'s map and on the row itself (0 = never), for the log.
+    pub fn last_start(&self, pick: &Pick) -> (u64, u64) {
+        (self.map_seq.get(&pick.map).copied().unwrap_or(0), self.row_seq.get(pick).copied().unwrap_or(0))
+    }
+
+    /// [`choose_with`](Self::choose_with) within the world host's room ([`Scope`]):
+    /// * [`Scope::Rotation`]: the rotation over its rows, unchanged; the idle maps the next load evicts (`avoid`) only
+    ///   when no other row fits the group;
+    /// * [`Scope::Loaded`]: the same rotation over the loaded rows only (the mode, then the map whose last queue match is
+    ///   the oldest, a never started one first): round robin over them, never the same one twice while another waits.
+    ///   The `avoid` rows (idle maps, the drained map) are left out while another row fits the group, and taken when none
+    ///   does;
+    /// * [`Scope::Held`] gives none.
+    ///
+    /// Ranked takes its slot mode from every served row as always (the fall-through to the next slot's mode only when
+    /// the slot's mode has no served row at all) and then only the scope's rows of that mode: when every map of the slot
+    /// mode is full or not loaded, none (the group is held, it does not move to another mode).
+    pub fn choose_in(&self, mask: u32, rated: bool, scope: &Scope, now_unix: i64, mut tie: impl FnMut(u32) -> u32) -> Option<(u32, u32)> {
+        let over = |served: &[Pick], rows: &[Pick], tie: &mut dyn FnMut(u32) -> u32| -> Option<(u32, u32)> {
+            if !rated {
+                return self.choose_with(mask, false, rows, now_unix, tie);
+            }
+            let (mode, _) = self.choose_with(mask, true, served, now_unix, |_| 0)?;
+            let of_mode: Vec<Pick> = rows.iter().filter(|r| r.mode == mode).copied().collect();
+            self.choose_with(mask, true, &of_mode, now_unix, tie)
+        };
+        let (served, rows, avoid) = match scope {
+            Scope::Rotation { served, rows, avoid } => (served, rows, avoid),
+            Scope::Loaded { served, open, avoid } => (served, open, avoid),
+            Scope::Held => return None,
+        };
+        if avoid.is_empty() {
+            return over(served, rows, &mut tie);
+        }
+        let others: Vec<Pick> = rows.iter().filter(|r| !avoid.contains(r)).copied().collect();
+        over(served, &others, &mut tie).or_else(|| over(served, rows, &mut tie))
+    }
+
+    /// The match of a group within the world host's room: [`choose_in`](Self::choose_in)'s mode and map, then of their
+    /// rows the ones not avoided when there are any, and of those [`Scope::Rotation`]: one drawn by `draw`, as
+    /// [`pick_random`](Self::pick_random) always did; [`Scope::Loaded`]: the one started the longest ago (ties drawn by
+    /// `draw`), so the loaded variants take turns too.
+    pub fn pick_in(&self, mask: u32, rated: bool, scope: &Scope, now_unix: i64, mut draw: impl FnMut(u32) -> u32) -> Option<Pick> {
+        let (mode, map) = self.choose_in(mask, rated, scope, now_unix, &mut draw)?;
+        let preferred = |rows: &[Pick], avoid: &[Pick]| -> Vec<Pick> {
+            let all: Vec<Pick> = rows.iter().filter(|r| r.mode == mode && r.map == map && r.in_pool(rated)).copied().collect();
+            let not_avoided: Vec<Pick> = all.iter().filter(|r| !avoid.contains(r)).copied().collect();
+            if not_avoided.is_empty() { all } else { not_avoided }
+        };
+        let mut cands = match scope {
+            Scope::Rotation { rows, avoid, .. } => return self.pick_row(mode, map, rated, &preferred(rows, avoid), draw),
+            Scope::Loaded { open, avoid, .. } => preferred(open, avoid),
+            Scope::Held => return None,
+        };
+        let seq = |r: &Pick| self.row_seq.get(r).copied().unwrap_or(0);
+        let min = cands.iter().map(seq).min()?;
+        cands.retain(|r| seq(r) == min);
+        cands.sort_unstable();
+        cands.dedup();
+        let i = draw(cands.len() as u32) as usize;
+        cands.get(i.min(cands.len() - 1)).copied()
+    }
+
+    /// What the waiting searches form within the world host's room ([`Scope`]): a group (as
+    /// [`group_for_kinds`](Self::group_for_kinds) / [`group_for_unrated`](Self::group_for_unrated) with
+    /// [`choose_in`](Self::choose_in) as the playable test); else, when the scope left rows out and a group would form on
+    /// every `served` row, [`Forms::Held`] (the room holds it); else [`Forms::Wait`] (nobody can play together yet).
+    pub fn group_in(&self, needed: u32, unrated_only: bool, served: &[Pick], scope: &Scope, now_unix: i64) -> Forms {
+        let group = |playable: &dyn Fn(u32, bool) -> bool| if unrated_only { self.group_for_unrated(needed, |m| playable(m, false)) } else { self.group_for_kinds(needed, playable) };
+        if let Some((g, mask)) = group(&|m: u32, rated: bool| self.choose_in(m, rated, scope, now_unix, |_| 0).is_some()) {
+            return Forms::Group(g, mask);
+        }
+        let narrowed = scope.candidates().len() < served.len();
+        match group(&|m: u32, rated: bool| self.choose(m, rated, served, now_unix).is_some()) {
+            Some((_, mask)) if narrowed => Forms::Held(mask),
+            _ => Forms::Wait,
+        }
     }
 
     /// A match was started for these tickets (the hook of the match server): their waiting time feeds the estimate.
@@ -777,6 +874,183 @@ mod tests {
         let no_sad: Vec<Pick> = rows.iter().filter(|p| p.mode != 5).copied().collect();
         assert_eq!(q.choose(0, true, &no_sad, 1800), Some((0, 3)));
         assert_eq!(q.choose(0x020, false, &no_sad, 1800), None, "an S&D-only unrated search has no row");
+    }
+
+    /// The world host's room for the narrowing tests: no new map can load, these projects loaded, busy and with room, no
+    /// drain named.
+    fn loaded_scope(rows: &[(Pick, String)], open: &[&str]) -> Scope {
+        use crate::host_room::{tests::{map_aged, room}, MatchRoom, NewMaps};
+        let maps: Vec<_> = open.iter().map(|p| map_aged(p, 3, MatchRoom::Within, 100)).collect();
+        crate::host_room::scope(rows, Some(&room(NewMaps::NoRoom, maps)))
+    }
+
+    fn named(rows: &[Pick]) -> Vec<(Pick, String)> {
+        rows.iter().map(|r| (*r, format!("m{}_{}_v{}", r.map, r.mode, r.variation))).collect()
+    }
+
+    #[test]
+    fn narrowed_picks_take_turns_a_fresh_map_once() {
+        let r = |map, mode| Pick { map, mode, variation: 0, weather: 1 };
+        // tdm on A (map 1), B (map 2), C (map 3) and D (map 4, not loaded)
+        let rows = [r(1, 1), r(2, 1), r(3, 1), r(4, 1)];
+        let named = named(&rows);
+        let mut q = PvpQueue::default();
+        // A started six times, B five, interleaved, A last; C just loaded, never started
+        for _ in 0..5 {
+            q.note_pick(r(1, 1));
+            q.note_pick(r(2, 1));
+        }
+        q.note_pick(r(1, 1));
+        let scope = loaded_scope(&named, &["m1_1_v0", "m2_1_v0", "m3_1_v0"]);
+        let mut seen = vec![];
+        for _ in 0..6 {
+            let p = q.pick_in(0x382, false, &scope, 0, |_| 0).unwrap();
+            q.note_pick(p);
+            seen.push(p.map);
+        }
+        // C once, then the older of A / B (B: A was started last), then the other; then round again; never D
+        assert_eq!(seen, [3, 2, 1, 3, 2, 1]);
+        assert!(seen.windows(2).all(|w| w[0] != w[1]), "never the same map twice in a row");
+    }
+
+    #[test]
+    fn narrowed_picks_spread_over_loaded_modes_and_variants() {
+        let r = |map, mode, variation| Pick { map, mode, variation, weather: 1 };
+        // loaded: tdm on map 1 (variants 0 and 1), ctp on map 2; served too: tdm on map 3, ctp on map 4
+        let rows = [r(1, 1, 0), r(1, 1, 1), r(2, 2, 0), r(3, 1, 0), r(4, 2, 0)];
+        let named = named(&rows);
+        let scope = loaded_scope(&named, &["m1_1_v0", "m1_1_v1", "m2_2_v0"]);
+        let mut q = PvpQueue::default();
+        let mut seen = vec![];
+        for _ in 0..6 {
+            let p = q.pick_in(0x386, false, &scope, 0, |_| 0).unwrap();
+            q.note_pick(p);
+            seen.push(p);
+        }
+        // the modes alternate (tdm and ctp ticked), tdm's two loaded variants take turns, maps 3 and 4 never
+        assert_eq!(seen, [r(1, 1, 0), r(2, 2, 0), r(1, 1, 1), r(2, 2, 0), r(1, 1, 0), r(2, 2, 0)]);
+        // a group that ticked tdm only stays on tdm's loaded map; one that ticked only S&D has nothing loaded
+        assert_eq!(q.pick_in(0x382, false, &scope, 0, |_| 0).map(|p| p.map), Some(1));
+        assert_eq!(q.pick_in(0x3A0, false, &scope, 0, |_| 0), None);
+        // room comes back: the next pick is the rotation's next map over every served row (map 3, never started)
+        let free = crate::host_room::scope(&named, Some(&crate::host_room::tests::room(crate::host_room::tests::can_load(1), vec![])));
+        assert_eq!(q.pick_in(0x382, false, &free, 0, |_| 0), Some(r(3, 1, 0)));
+        assert_eq!(q.pick_in(0x382, false, &crate::host_room::scope(&named, None), 0, |_| 0), Some(r(3, 1, 0)), "no status: the same");
+    }
+
+    #[test]
+    fn the_oldest_loaded_map_drains_until_it_idles_then_the_rotation_moves_on() {
+        use crate::host_room::tests::{evicting, map_aged, room, room_draining};
+        use crate::host_room::{MatchRoom, NewMaps};
+        let r = |map| Pick { map, mode: 1, variation: 0, weather: 1 };
+        // tdm on A (map 1, loaded the longest), B, C (loaded later) and D (not loaded)
+        let rows = [r(1), r(2), r(3), r(4)];
+        let named = named(&rows);
+        let busy = |a: MatchRoom, b: MatchRoom, c: MatchRoom| vec![map_aged("m1_1_v0", 2, a, 900), map_aged("m2_1_v0", 2, b, 500), map_aged("m3_1_v0", 2, c, 100)];
+        let w = MatchRoom::Within;
+        // no map can load; the world host drains A
+        let scope = crate::host_room::scope(&named, Some(&room_draining(NewMaps::NoRoom, busy(w, w, w), "m1_1_v0")));
+        assert_eq!(scope, Scope::Loaded { served: rows.to_vec(), open: rows[..3].to_vec(), avoid: vec![r(1)] });
+        let mut q = PvpQueue::default();
+        let mut seen = vec![];
+        for _ in 0..4 {
+            let p = q.pick_in(0x382, false, &scope, 0, |_| 0).unwrap();
+            q.note_pick(p);
+            seen.push(p.map);
+        }
+        assert_eq!(seen, [2, 3, 2, 3], "A gets no new match while B or C fits");
+        // B and C full: A takes the group (a group is never held for the drain)
+        let only_a = crate::host_room::scope(&named, Some(&room_draining(NewMaps::NoRoom, busy(w, MatchRoom::Full, MatchRoom::Full), "m1_1_v0")));
+        assert_eq!(q.pick_in(0x382, false, &only_a, 0, |_| 0), Some(r(1)));
+        // A's matches ended: it is idle and the world host can load a new map by evicting it. A is still a row (idle with
+        // room) and its map was never started by the queue, like D's: the rotation would tie them and take A, the lower
+        // id, and A would never go. A is avoided: the rotation's next map is D, whose load evicts A
+        let idle_a = vec![map_aged("m1_1_v0", 0, w, 900), map_aged("m2_1_v0", 2, w, 500), map_aged("m3_1_v0", 2, w, 100)];
+        let back = crate::host_room::scope(&named, Some(&room(evicting(1), idle_a)));
+        assert_eq!(back, Scope::Rotation { served: rows.to_vec(), rows: rows.to_vec(), avoid: vec![r(1)] });
+        assert_eq!(q.pick_in(0x382, false, &back, 0, |_| 0), Some(r(4)));
+        let unavoided = Scope::Rotation { served: rows.to_vec(), rows: rows.to_vec(), avoid: vec![] };
+        assert_eq!(q.pick_in(0x382, false, &unavoided, 0, |_| 0), Some(r(1)), "what the rotation alone would pick");
+    }
+
+    #[test]
+    fn the_idle_map_a_load_evicts_is_taken_only_when_nothing_else_fits() {
+        use crate::host_room::tests::{evicting, map, room};
+        use crate::host_room::MatchRoom;
+        let r = |map, mode| Pick { map, mode, variation: 0, weather: 1 };
+        // X: tdm on map 1, loaded and idle (the next load evicts it); Y: tdm on map 2, not loaded; Z: ctp on map 2, loaded
+        // and busy
+        let (x, y, z) = (r(1, 1), r(2, 1), r(2, 2));
+        let named = named(&[x, y, z]);
+        let mut q = PvpQueue::default();
+        // X's map was started long ago, map 2 recently (in ctp)
+        q.note_pick(x);
+        q.note_pick(z);
+        let st = room(evicting(1), vec![map("m1_1_v0", 0, MatchRoom::Within), map("m2_2_v0", 2, MatchRoom::Within)]);
+        let scope = crate::host_room::scope(&named, Some(&st));
+        assert_eq!(scope, Scope::Rotation { served: vec![x, y, z], rows: vec![x, y, z], avoid: vec![x] });
+        // a tdm group: Y (it loads, X is evicted for it), although X's map was started longer ago
+        assert_eq!(q.pick_in(0x382, false, &scope, 0, |_| 0), Some(y));
+        // without a status the rotation's oldest map is X's
+        assert_eq!(q.pick_in(0x382, false, &crate::host_room::scope(&named, None), 0, |_| 0), Some(x));
+        // a tdm group with only X to play (Y not served): X, never held
+        let only_x = crate::host_room::scope(&self::named(&[x, z]), Some(&st));
+        assert_eq!(q.pick_in(0x382, false, &only_x, 0, |_| 0), Some(x));
+    }
+
+    #[test]
+    fn narrowed_ranked_keeps_its_slot_mode() {
+        let r = |map, mode| Pick { map, mode, variation: 0, weather: 1 };
+        // ranked rows: br on Tarakanovsky Fort (5), tdm on School (2) and Vostok (3)
+        let rows = [r(5, 0), r(2, 1), r(3, 1)];
+        let named = named(&rows);
+        let q = PvpQueue::default();
+        // 00:10 = the tdm slot: only Vostok's tdm is loaded -> Vostok
+        let scope = loaded_scope(&named, &["m3_1_v0", "m5_0_v0"]);
+        assert_eq!(q.pick_in(0x381, true, &scope, 600, |_| 0), Some(r(3, 1)));
+        // only the battery map loaded: the tdm slot does not fall through to it, the group waits
+        let scope = loaded_scope(&named, &["m5_0_v0"]);
+        assert_eq!(q.choose_in(0x381, true, &scope, 600, |_| 0), None);
+        assert_eq!(q.pick_in(0x381, true, &scope, 0, |_| 0), Some(r(5, 0)), "00:00, the battery slot: the loaded map");
+        assert_eq!(q.pick_in(0x381, true, &Scope::Held, 0, |_| 0), None);
+        // a map can load, but both tdm maps are loaded and full: the tdm slot holds, it does not move to battery
+        use crate::host_room::tests::{can_load, map, room};
+        use crate::host_room::MatchRoom;
+        let st = room(can_load(1), vec![map("m2_1_v0", 8, MatchRoom::Full), map("m3_1_v0", 8, MatchRoom::Full)]);
+        let rot = crate::host_room::scope(&named, Some(&st));
+        assert_eq!(rot, Scope::Rotation { served: rows.to_vec(), rows: vec![r(5, 0)], avoid: vec![] });
+        assert_eq!(q.choose_in(0x381, true, &rot, 600, |_| 0), None);
+        // ... only when the slot's mode has no served row at all does it fall through (as without a status)
+        let no_tdm = [r(5, 0)];
+        assert_eq!(q.choose_in(0x381, true, &crate::host_room::scope(&self::named(&no_tdm), Some(&st)), 600, |_| 0), Some((0, 5)));
+    }
+
+    #[test]
+    fn a_group_is_held_only_when_the_room_left_its_rows_out() {
+        let r = |map, mode| Pick { map, mode, variation: 0, weather: 1 };
+        // tdm on maps 1 and 2, ctp on map 3
+        let rows = [r(1, 1), r(2, 1), r(3, 2)];
+        let named = named(&rows);
+        let mut q = PvpQueue::default();
+        q.enqueue(vec![1], 0x382, false, 10).unwrap(); // tdm
+        q.enqueue(vec![2], 0x382, false, 11).unwrap();
+        // only ctp loaded with room: the tdm pair would form on every row, the room holds it (key: its mask)
+        let ctp_only = loaded_scope(&named, &["m3_2_v0"]);
+        assert_eq!(q.group_in(2, false, &rows, &ctp_only, 0), Forms::Held(0x382));
+        // a tdm map loaded with room: the group forms
+        let tdm = loaded_scope(&named, &["m2_1_v0"]);
+        assert!(matches!(q.group_in(2, false, &rows, &tdm, 0), Forms::Group(g, 0x382) if g.len() == 2));
+        // too few players: wait, whatever the room
+        assert_eq!(q.group_in(3, false, &rows, &ctp_only, 0), Forms::Wait);
+        // nothing left out (no status): never held
+        assert!(matches!(q.group_in(2, false, &rows, &crate::host_room::scope(&named, None), 0), Forms::Group(..)));
+        assert_eq!(q.group_in(2, false, &rows, &Scope::Held, 0), Forms::Held(0x382));
+        // the bot fill's unrated-only grouping, one player enough
+        assert_eq!(q.group_in(1, true, &rows, &ctp_only, 0), Forms::Held(0x382));
+        // players who share no served mode wait (ctp is loaded, they ticked S&D)
+        let mut s = PvpQueue::default();
+        s.enqueue(vec![3], 0x3A0, false, 10).unwrap();
+        assert_eq!(s.group_in(1, false, &rows, &ctp_only, 0), Forms::Wait);
     }
 
     #[test]

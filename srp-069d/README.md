@@ -23,9 +23,11 @@ prices, quests, maps) from that install's files, so the server computer needs th
 * A computer with **Linux** (64-bit), or **Windows 10 / 11 with WSL 2** (the Linux built into Windows).
 * **Survarium 0.69d** installed on that computer: the last Steam build, unmodified. Other builds are refused with a
   message.
-* **Memory:** about 25 MB idle; each map in use about 0.35-0.56 GB, shared by all matches on it; each running match
-  about 60-150 MB more. About 1.5 GB covers two maps and several matches; the default allows up to eight maps loaded at
-  once (up to about 5 GB; set `max_zygotes` lower on a small machine). A few GB of disk for the database and logs.
+* **Memory:** about 0.2-0.25 GB idle (the server and the game code's start-up, shared by every map); each map in use
+  about 0.06-0.35 GB more, shared by all matches on it; each running match about 40-140 MB more. About 1.5 GB covers
+  two maps and several matches; the default allows up to eight maps loaded at once with four matches each (usually
+  2-4 GB, at most about 8.5 GB; `srp setup` prints what fits, set `max_zygotes` lower on a small machine). A few GB of
+  disk for the database and logs.
 * A release package for Linux x86-64 (glibc 2.34 or newer: Ubuntu 22.04, Debian 12 or newer, WSL's Ubuntu), or the
   source to build yourself (about 10 minutes). The server guide shows both.
 

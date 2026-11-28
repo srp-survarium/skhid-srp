@@ -20,6 +20,11 @@ static VERBOSE_STUBS: AtomicBool = AtomicBool::new(true);
 static VERBOSE_FILES: AtomicBool = AtomicBool::new(true);
 static VERBOSE_MEM: AtomicBool = AtomicBool::new(false);
 static OUT: OnceLock<PathBuf> = OnceLock::new();
+/// A zygote forked from the base process: its own output folder (`OUT` keeps the base's), set once right after the
+/// fork; read first by [`out_dir`] and [`write_stub_report`].
+static OUT_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+/// When this process (or the process it was forked from) started: the base's uptime in a zygote's first lines.
+static START_AT: OnceLock<std::time::Instant> = OnceLock::new();
 /// Imports (DLL!name or name) at which a guarded exe call is left (see k32::escape).
 static ESCAPE_AT: OnceLock<Vec<String>> = OnceLock::new();
 /// Exe thread names (":sound", ":network") ended at their naming call.
@@ -36,6 +41,12 @@ pub fn is_end_at(dll: &str, name: &str) -> bool {
 
 pub fn is_ended_thread(name: &str) -> bool {
     END_THREADS.get().map(|v| v.iter().any(|x| x == name)).unwrap_or(false)
+}
+
+/// The `--escape-at` and `--end-at` lists are set (once, before any exe code runs): an import's match against them no
+/// longer changes, so the thunks decide it once per slot.
+pub fn hook_lists_ready() -> bool {
+    ESCAPE_AT.get().is_some() && END_AT.get().is_some()
 }
 
 pub fn is_escape_point(dll: &str, name: &str) -> bool {
@@ -61,9 +72,24 @@ pub fn write_stub_report() {
     for (dll, name, n, imp, first) in &rep {
         s.push_str(&format!("{dll}!{name}\tcalls={n}\t{}\tfirst_from={first:#x}\n", if *imp { "host" } else { "TRAP" }));
     }
-    if let Some(o) = OUT.get() {
+    if let Some(o) = out_path() {
         let _ = std::fs::write(o.join("stubs.txt"), &s);
     }
+}
+
+/// The output folder: the zygote's own when set, else `--out`.
+fn out_path() -> Option<PathBuf> {
+    OUT_OVERRIDE.get().or(OUT.get()).cloned()
+}
+
+/// A zygote forked from the base: its own output folder (once; false when set already).
+pub fn set_out_override(p: PathBuf) -> bool {
+    OUT_OVERRIDE.set(p).is_ok()
+}
+
+/// Seconds since this process started (in a forked process: since the process it was forked from started).
+pub fn uptime_s() -> f64 {
+    START_AT.get().map_or(0.0, |t| t.elapsed().as_secs_f64())
 }
 
 pub fn abort_run(code: i32) -> ! {
@@ -93,6 +119,13 @@ pub fn mem_snapshot(label: &str) {
             .collect();
         hlog!("MEM [{label}] smaps_rollup: {}", v.join(", "));
     }
+    hlog!("MEM [{label}] savings: {}", mem::savings_summary());
+}
+
+/// The memory lines of the diagnosis switches (`HOST_PAGEMAP`, `HOST_NULL_RES_GUARD`); nothing without them.
+pub fn diag_memory(label: &str) {
+    crate::pagemap::report(label);
+    crate::nullcook::guard_report(label);
 }
 
 /// Where the private dirty memory is: per-region totals from /proc/self/smaps, plus the resident
@@ -267,6 +300,7 @@ pub fn load(path: &str) -> Result<Loaded, String> {
     if p as usize != base {
         return Err(format!("cannot map image at {base:#x}"));
     }
+    mem::mergeable(base, size);
     unsafe {
         std::ptr::copy_nonoverlapping(file.as_ptr(), base as *mut u8, pe.size_of_headers as usize);
         for s in &pe.sections {
@@ -469,6 +503,7 @@ pub const MT_BYTES: [(&str, u64); 9] = [
 ];
 pub const FMA3_FLAG: u64 = 0x200C2CCA4;
 
+#[derive(Clone)]
 pub struct Opts {
     pub exe: String,
     pub exe_win: String,
@@ -479,6 +514,8 @@ pub struct Opts {
     pub cmdline_extra: String,
     pub linger_ms: Option<u64>,
     pub pump_ms: u64,
+    /// `--base-fd N`: run as the daemon's base process (daemon::base_loop) on that control socket
+    pub base_fd: Option<i32>,
 }
 
 fn step1(l: &Loaded, o: &Opts) -> Result<(), String> {
@@ -564,7 +601,33 @@ fn step1(l: &Loaded, o: &Opts) -> Result<(), String> {
     hlog!("0x200088B30 (command line, version check, build line, engine_world ctor) returned");
     mem_snapshot("after engine_world ctor");
     mem_breakdown("after engine_world ctor");
+    // still the only thread that runs exe code: give back the all-zero pages of .data/BSS (the 27 job-slot arrays the
+    // static ctors filled with zeros), before step 2 starts threads and long before the zygote forks
+    mem::drop_startup_zero_pages();
+    mem_snapshot("after the zero-page drop (step 1)");
     Ok(())
+}
+
+/// Pumping after the last volume's signature check, for the callbacks the mount queues after it. In the recorded zygote
+/// starts the last volume opens 1.28 s into the 3 s pump (76 volumes, the last opened at 2.51 s, the pump started at
+/// 1.23 s and ended at 4.23 s) and nothing else is logged until the pump ends: stopping 250 ms after the last check
+/// saves about 1.45 s. If the config check after it fails, step 2 pumps the rest of the budget and checks again.
+const PUMP_AFTER_MOUNT: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// The resource volumes of the game folder: `resources.<digits>.db` (the files the volume mount opens one by one;
+/// `resources.db` without a number is not one).
+pub fn count_volumes(game: &std::path::Path) -> u32 {
+    let Ok(rd) = std::fs::read_dir(game) else { return 0 };
+    rd.filter_map(|e| e.ok())
+        .filter(|e| is_volume_name(&e.file_name().to_string_lossy()))
+        .count() as u32
+}
+
+fn is_volume_name(n: &str) -> bool {
+    let n = n.to_ascii_lowercase();
+    n.strip_prefix("resources.")
+        .and_then(|r| r.strip_suffix(".db"))
+        .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// Step 2: the client's own engine init 0x2000F5210(engine_world, on_initialized functor), run under a
@@ -582,21 +645,57 @@ fn step2(_l: &Loaded, o: &Opts) -> Result<(), String> {
     }
     mem_snapshot("after engine init (step 2)");
     // The client's main loop delivers queued callbacks (among them the volume mount 0x2000F3DE0, which
-    // enumerates resources.??.db): pump the dispatch 0x2000BCF60(&resources_manager, 0) on this thread.
+    // enumerates resources.??.db): pump the dispatch 0x2000BCF60(&resources_manager, 0) on this thread, until every
+    // volume of the game folder has had its FAT signature checked (one CryptVerifySignatureA per volume) and
+    // PUMP_AFTER_MOUNT more, at most `pump_ms` (`--pump-ms`, the old fixed pump when the folder's volumes are unknown).
+    // the volumes lie in the game folder: <game>/binaries/x64/survarium.exe
+    let volumes = std::path::Path::new(&o.exe).ancestors().nth(3).map(count_volumes).unwrap_or(0);
     let t0 = std::time::Instant::now();
     let mut n = 0u64;
+    let mut mounted: Option<std::time::Instant> = None;
     while t0.elapsed() < std::time::Duration::from_millis(o.pump_ms) {
         unsafe { call2(0x2000BCF60, 0x200C70FE0, 0) };
         n += 1;
+        if volumes > 0 && mounted.is_none() {
+            let (ok, bad) = crate::crypt::verify_counts();
+            if ok + bad >= volumes {
+                mounted = Some(std::time::Instant::now());
+            }
+        }
+        if mounted.is_some_and(|m| m.elapsed() >= PUMP_AFTER_MOUNT) {
+            break;
+        }
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
-    hlog!("pumped the callback dispatch {n} times ({} ms)", o.pump_ms);
+    match mounted {
+        Some(m) => hlog!(
+            "pumped the callback dispatch {n} times ({} ms): all {volumes} volumes checked after {} ms, then {} ms more",
+            t0.elapsed().as_millis(),
+            m.duration_since(t0).as_millis(),
+            PUMP_AFTER_MOUNT.as_millis()
+        ),
+        None => hlog!("pumped the callback dispatch {n} times ({} ms; volumes in the game folder: {volumes})", o.pump_ms),
+    }
     let (ok, bad) = crate::crypt::verify_counts();
     hlog!("volume FAT signatures (SHA-1 + RSA, key from the exe's certificate): {ok} valid, {bad} invalid");
     // one config query through the exe: resources/gameplay/fines/inactivity_fine.options (string 0x200987770)
-    let r = query_config(0x200987770);
-    let ok = r.iter().any(|l| l.contains("first_warning_time_seconds") && l.ends_with("value 180"))
-        && r.iter().any(|l| l.contains("give_fine_time_seconds") && l.ends_with("value 300"));
+    let check = || {
+        let r = query_config(0x200987770);
+        r.iter().any(|l| l.contains("first_warning_time_seconds") && l.ends_with("value 180"))
+            && r.iter().any(|l| l.contains("give_fine_time_seconds") && l.ends_with("value 300"))
+    };
+    let mut ok = check();
+    if !ok && mounted.is_some() {
+        // the pump stopped early: deliver what may still be queued (the rest of the budget) and check once more
+        let rest = std::time::Duration::from_millis(o.pump_ms).saturating_sub(t0.elapsed());
+        let t1 = std::time::Instant::now();
+        while t1.elapsed() < rest {
+            unsafe { call2(0x2000BCF60, 0x200C70FE0, 0) };
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        ok = check();
+        hlog!("check: config query FAILED after the early pump stop; pumped {} ms more and queried again", rest.as_millis());
+    }
     hlog!("check: config query returned the db values 180 / 300: {}", if ok { "PASS" } else { "FAIL" });
     mem_snapshot("after config query (step 2)");
     mem_breakdown("after config query (step 2)");
@@ -832,8 +931,109 @@ pub fn query_one(path: &str, class: u64, user_data: u64) -> (u64, u64) {
     }
     (ONE_RESULT.load(Ordering::Relaxed), ONE_FLAGS.load(Ordering::Relaxed))
 }
-/// Step 3 experiment: the project resource (class 0x40, name as the match cook passes it, 0x2002E6710).
+/// Step 3: the project resource (class 0x40, name as the match cook passes it, 0x2002E6710). Split at the cut: the
+/// level-independent part ([`step3_base`], which the base process runs once for every zygote) and the rest
+/// ([`step3_level`]), called back to back here. HOST_FORK_AT_CUT=1 (diagnosis) forks between them ([`fork_at_cut`]).
 fn step3(o: &Opts) -> Result<(), String> {
+    step3_base()?;
+    if std::env::var("HOST_FORK_AT_CUT").is_ok_and(|v| v == "1") {
+        return fork_at_cut(o);
+    }
+    step3_level(o)
+}
+
+/// When a zygote was forked at the cut (from the base process or by HOST_FORK_AT_CUT): its level-load time.
+static FORKED_AT: OnceLock<std::time::Instant> = OnceLock::new();
+
+/// HOST_FORK_AT_CUT=1 (diagnosis): a one-shot run forks once at the cut, as the base process does for a zygote. The
+/// child (log and output in `<out>/zygote`) runs the rest of step 3 (the level, the match, the replay); the parent waits
+/// and ends with the child's result. Compares a level loaded after the fork with a cold load without a daemon.
+fn fork_at_cut(o: &Opts) -> Result<(), String> {
+    let out = o.out.join("zygote");
+    std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let mut args = crate::cmdline::args();
+    crate::cmdline::set_value(&mut args, "--out", &out.to_string_lossy());
+    // the level as resolved (`--level auto` became the project's level in main)
+    crate::cmdline::set_value(&mut args, "--level", &o.level);
+    hlog!("HOST_FORK_AT_CUT: forking at the cut; the child logs to {}", out.join("host.log").display());
+    crate::log::flush();
+    let pid = fork_world(ForkKind::Zygote, Some(&out.join("host.log"))).map_err(|e| format!("fork at the cut refused: {e}"))?;
+    if pid == 0 {
+        zygote_child(o, args, &format!("pid {} (HOST_FORK_AT_CUT, log {}/host.log)", unsafe { libc::getppid() }, o.out.display()));
+    }
+    if pid < 0 {
+        return Err(format!("fork at the cut: {}", std::io::Error::last_os_error()));
+    }
+    let mut st = 0;
+    unsafe { libc::waitpid(pid, &mut st, 0) };
+    hlog!("HOST_FORK_AT_CUT: child {pid} ended, status {st:#x}");
+    if libc::WIFEXITED(st) && libc::WEXITSTATUS(st) == 0 { Ok(()) } else { Err(format!("the child forked at the cut ended with status {st:#x}")) }
+}
+
+/// A zygote forked at the cut, on its only thread (its log already open, `fork_world`): set it up
+/// ([`zygote_child_setup`]), run the rest of step 3 and end the process (there is no main thread to end it).
+pub(crate) fn zygote_child(base: &Opts, args: Vec<String>, from: &str) -> ! {
+    let o = zygote_child_setup(base, args, from);
+    // a front that gave up on the base's answer has closed this zygote's control socket: then nothing will ever use
+    // this zygote, so it ends before its level load instead of after it (non-blocking look)
+    if let Some(fd) = crate::cmdline::value("--zygote-fd").and_then(|v| v.parse::<i32>().ok()) {
+        let mut p = libc::pollfd { fd, events: libc::POLLIN | libc::POLLRDHUP, revents: 0 };
+        let r = unsafe { libc::poll(&mut p, 1, 0) };
+        if peer_gone(r, p.revents) {
+            hlog!("zygote: the front closed the control socket before the level load (revents {:#x}): exiting", p.revents);
+            write_stub_report();
+            hlog!("world-host exit 0");
+            crate::log::flush();
+            unsafe { libc::_exit(0) }
+        }
+    }
+    let code = match step3_level(&o) {
+        Ok(()) => {
+            hlog!("=== step 3 finished");
+            0
+        }
+        Err(e) => {
+            hlog!("STEP 3 FAILED: {e}");
+            30
+        }
+    };
+    write_stub_report();
+    hlog!("world-host exit {code}");
+    crate::log::flush();
+    unsafe { libc::_exit(code) }
+}
+
+/// A non-blocking poll of a zygote's control socket (`r` = poll's result) says the front's end is closed: hang-up, peer
+/// shut down, or an error. Data alone (a hand-over already queued) is not.
+pub fn peer_gone(r: i32, revents: i16) -> bool {
+    r > 0 && revents & (libc::POLLHUP | libc::POLLRDHUP | libc::POLLERR) != 0
+}
+
+/// The zygote's own command line (`args`, the list a cold zygote would get; read through `cmdline`), output folder
+/// (its `--out`) and process name; the lines that say where it comes from. Returns its options: the parent's with the
+/// level and the output folder of `args`.
+fn zygote_child_setup(base: &Opts, args: Vec<String>, from: &str) -> Opts {
+    let out = crate::cmdline::value_in(&args, "--out").map(PathBuf::from).unwrap_or_else(|| base.out.clone());
+    let level = crate::cmdline::value_in(&args, "--level").unwrap_or_else(|| base.level.clone());
+    let _ = FORKED_AT.set(std::time::Instant::now());
+    hlog!("zygote {level}: forked from {from} at its uptime {:.1} s (the exe's clock runs on from there)", uptime_s());
+    hlog!("zygote: arguments: {}", args.join(" "));
+    hlog!("zygote: stubs.txt counts include the parent's import calls");
+    let _ = set_out_override(out.clone());
+    let _ = crate::cmdline::set_override(args);
+    // the name in ps / top: "z:" and the level, 15 bytes at most
+    let name: String = format!("z:{}", level.replace('/', "_")).chars().take(15).collect();
+    if let Ok(c) = std::ffi::CString::new(name) {
+        unsafe { libc::prctl(libc::PR_SET_NAME, c.as_ptr()) };
+    }
+    mem_snapshot("zygote: right after fork");
+    Opts { out, level, ..base.clone() }
+}
+
+/// Step 3 up to the cut, level-independent: the world thread's FPU set-up, the render worlds and the null render
+/// init, the game object, the cook registrations and null cooks, the items dictionary and startup.cfg. Every query in it
+/// has finished when it returns.
+pub(crate) fn step3_base() -> Result<(), String> {
     // The world thread's FPU state. Every engine thread runs the exe's FPU setup 0x2000B0930 (denormals flushed,
     // flush-to-zero; skipped when the cvar 0x200AAF188 is 1). The host's world thread is a Rust thread (Linux default
     // MXCSR 0x1F80), so the same setup runs here; HOST_MXCSR=<hex> overrides the result (float drift diagnosis).
@@ -865,7 +1065,7 @@ fn step3(o: &Opts) -> Result<(), String> {
     // The game object (which registers the game cooks, among them 0x40 project and 0x68 pvp_match_resource) comes
     // from the game factory 0x200107CA0(engine, render world, sound world, network world), as in the client.
     let ew = unsafe { rd64(0x200AB16B0) };
-    if std::env::args().any(|a| a == "--render-world") {
+    if crate::cmdline::has("--render-world") {
         // the client's two render-world objects (ctor 0x2005FD550 on their static storage) without any device;
         // engine_world+0xDD8 points at the first
         unsafe {
@@ -875,7 +1075,7 @@ fn step3(o: &Opts) -> Result<(), String> {
             *((ew + 0xDD8) as *mut u64) = 0x2034C3D90;
         }
         hlog!("render world objects built (0x2034C3D90, 0x2034C3E60), no device");
-        if std::env::args().any(|a| a == "--null-render") {
+        if crate::cmdline::has("--null-render") {
             null_render_init(ew)?;
         }
     }
@@ -893,7 +1093,7 @@ fn step3(o: &Opts) -> Result<(), String> {
     // creates the game on a separate thread that then parks without ever pumping, so that callback never runs.
     let (tx, rx) = std::sync::mpsc::channel();
     let world_tid = teb::gettid();
-    let on_world = std::env::args().any(|a| a == "--game-on-world");
+    let on_world = crate::cmdline::has("--game-on-world");
     if !on_world { mem::spawn_low(
         32 << 20,
         Box::new(move || {
@@ -945,7 +1145,7 @@ fn step3(o: &Opts) -> Result<(), String> {
     install_null_cooks()?;
     // The level's objects look items up in the game's items dictionary (game+0x10FE20, "items_dictionary", class
     // 0x42), which the client loads in its start-up chain. The host loads just that resource the same way.
-    if !std::env::args().any(|a| a == "--game-on-world") {
+    if !crate::cmdline::has("--game-on-world") {
         let (dict, fl) = query_one("items_dictionary", 0x42, 0);
         hlog!("items_dictionary (class 0x42) -> {dict:#x} (entry flags {fl:#x})");
         if dict == 0 {
@@ -954,8 +1154,22 @@ fn step3(o: &Opts) -> Result<(), String> {
         unsafe { *((GAME.load(Ordering::Relaxed) + 0x10FE20) as *mut u64) = dict };
     }
     apply_startup_cfg();
+    // the daemon's base process: the base pre-warm set, before the cut (nothing without --base-prewarm)
+    crate::baseset::base_prewarm_from_args();
+    Ok(())
+}
+
+/// Step 3 from the cut on: the first line that names the level, then everything as before (Bullet hooks, the
+/// localization holder, whose load is still running when its call returns, the level project, and the zygote or the
+/// one-shot match). A zygote forked from the base process starts here.
+pub(crate) fn step3_level(o: &Opts) -> Result<(), String> {
     hlog!("=== step 3: level project '{}' (class 0x40) through query_resource_and_wait", o.level);
     arm_debug("project");
+    // a zygote of a base with a pre-warm set: every cache entry its level load finds is checked against the set's
+    // (until its own pre-warm, `baseset::check_end`)
+    if crate::daemon::ZygoteOpts::from_args().is_some() {
+        crate::baseset::check_start();
+    }
     // Bullet's global aligned-alloc hooks (0x200AA36C0 / 0x200AA36C8): in the client the lobby's physics world points
     // them at the physics allocator long before any level loads. The host has no lobby, so it sets them itself;
     // otherwise level objects allocated by the CRT malloc are freed into the physics arena and abort.
@@ -985,8 +1199,15 @@ fn step3(o: &Opts) -> Result<(), String> {
             }
         }
     }
-    if std::env::args().any(|a| a == "--trace3") {
+    if crate::cmdline::has("--trace3") {
         crate::thunks::TRACE.store(true, Ordering::Relaxed);
+    }
+    // HOST_PRELEVEL_LIST=FILE (diagnosis only): a pre-warm list queried before the level project instead of after it,
+    // to compare a level load that meets resources already in the cache with a plain one (start world, static geometry,
+    // memory); unset, nothing changes
+    if let Ok(path) = std::env::var("HOST_PRELEVEL_LIST") {
+        hlog!("diagnosis: HOST_PRELEVEL_LIST={path}: the list is queried before the level project query");
+        prewarm(&path)?;
     }
     unsafe {
         let vt = mem::heap_alloc(16, true) as u64;
@@ -1008,25 +1229,38 @@ fn step3(o: &Opts) -> Result<(), String> {
         return Err("project did not load".into());
     }
     let get = |k: &str| {
-        let a: Vec<String> = std::env::args().collect();
+        let a = crate::cmdline::args();
         a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).cloned()
     };
     if let Some(z) = crate::daemon::ZygoteOpts::from_args() {
         // daemon zygote: pre-warm, then fork one child per handed-over match (the children never return here)
         arm_debug("match");
         crate::world::MatchWorld::prepare_process()?;
-        if let Some(p) = get("--prewarm") {
-            prewarm(&p)?;
-        }
-        // the level load queued its render commands (about 7000 on pve_01, of the pool's 8192): retire them once here,
-        // so every child starts with an empty render pool instead of retiring (and copying) them itself
+        // the base set's check: returns only when the level load found none of the set's cache entries
+        crate::baseset::check_end();
+        crate::daemon::zygote_prewarm()?;
+        // the level load and the pre-warm queued render commands (with the exe's own pool capacity): retire them once
+        // here, so every child starts with an empty render pool instead of retiring (and copying) them itself; then
+        // the pool goes down to RENDER_POOL_CAP for the matches and its unused pages are given back
         let (n, marked) = crate::world::retire_render_commands();
-        hlog!("zygote: {n} render commands of the level load retired ({marked} with keep marks); render pool in use {}", unsafe { *((0x2034C3F40u64 + 0x40) as *const u32) });
+        hlog!("zygote: {n} render commands of the level load retired ({marked} with keep marks); render pool in use {}", crate::world::render_pool_in_use());
+        crate::world::compact_render_pool();
+        if let Some(t) = FORKED_AT.get() {
+            let proj = PROJECT.load(Ordering::Relaxed);
+            let geometry = if proj != 0 { unsafe { *((proj + 0x50) as *const u32) } } else { 0 };
+            hlog!(
+                "zygote: level {} loaded after the fork in {} ms (static geometry {geometry}, pre-warm {}, render commands retired {})",
+                o.level,
+                t.elapsed().as_millis(),
+                crate::daemon::prewarm_note(),
+                n
+            );
+        }
         return crate::daemon::zygote_loop(&z);
     }
     if let Some(mm) = get("--match") {
-        let (map, mode) = mm.split_once(',').ok_or("--match MAP,MODE")?;
-        step3_match(GAME.load(Ordering::Relaxed), map.parse().map_err(|_| "map")?, mode.parse().map_err(|_| "mode")?)?;
+        let (map, mode, variation) = parse_match(&mm)?;
+        step3_match(GAME.load(Ordering::Relaxed), map, mode, variation)?;
     }
     Ok(())
 }
@@ -1134,13 +1368,13 @@ fn install_null_cooks() -> Result<(), String> {
         // {+0 vtable, +8 0, +0xC class, +0x14 -1, +0x18 -4 (thread resolved lazily), +0x1C 8, +0x20 0}, then
         // register_cook 0x2000B7200. Their instances hold the render model at +0x208 and the skeleton (class 0x2C) at
         // +0x210.
-        if std::env::args().any(|a| a == "--model-cooks") {
+        if crate::cmdline::has("--model-cooks") {
             let mut list = vec![
                 (0x213D9C950u64, 0x2009B69F8u64, 0xEu64), // static_model_instance_cook
                 (0x213D9CA50, 0x2009B7FC8, 0xF),          // skeleton_model_instance_cook
                 (0x213D9CAE8, 0x2009B8270, 0x10),         // skeleton_combined_model_instance_cook
             ];
-            if std::env::args().any(|a| a == "--render-model-cooks") {
+            if crate::cmdline::has("--render-model-cooks") {
                 // experiment: the render-side model cooks too
                 list.extend([
                     (0x213D9CA80, 0x2009B81F8, 0x14), // skeleton_render_model_instance_cook
@@ -1161,14 +1395,15 @@ fn install_null_cooks() -> Result<(), String> {
             }
         }
         // the classes listed after --null-cooks (or every class without a cook: "empty")
-        let args: Vec<String> = std::env::args().collect();
+        let args = crate::cmdline::args();
         if let Some(list) = args.iter().position(|a| a == "--null-cooks").and_then(|i| args.get(i + 1)) {
             // "render": the drawing/sound-only classes a world host can answer empty:
             // shaders 0xA, effects 0xB, geometry 0x96 / shadow proxy 0x97, render models 0x11 / 0x12, render model
             // instances 0x13 / 0x14 / 0x18, grass 0x19 / 0x79, particles 0x3A / 0x3B / 0x3D, texture options 0x34,
             // raw texture data 0xC2, sounds 0x27 / 0x28 / 0x29 / 0x100 / 0x101 / 0x102. Kept on purpose: 0x15
             // skeleton_combined_render_model_instance and 0x16 skeleton_combined_model (the players' bind poses come
-            // from them) and 0xE static_model_instance (the level load fails without it).
+            // from them) and 0xE static_model_instance (a null 0xE breaks the match creation: game code writes a flag
+            // at +0x219 of the 0x13 object behind 0xE+0x208, 0x200241A4D).
             const RENDER: &str = "a,b,96,97,11,12,13,14,18,19,79,3a,3b,3d,34,c2,27,28,29,100,101,102";
             let list = list.replace("render", RENDER);
             for c in list.split(',') {
@@ -1213,15 +1448,89 @@ pub fn set_options_match_id(blob: &mut [u8], id: u32) -> Result<(), String> {
     Ok(())
 }
 
+/// `--match MAP,MODE[,VARIATION]`: the map, the mode and the variation when given.
+pub fn parse_match(s: &str) -> Result<(u32, u32, Option<u32>), String> {
+    let mut it = s.split(',').map(str::trim);
+    let num = |x: Option<&str>, what: &str| x.and_then(|v| v.parse::<u32>().ok()).ok_or(format!("--match MAP,MODE[,VARIATION]: {what} in '{s}'"));
+    let (map, mode) = (num(it.next(), "map")?, num(it.next(), "mode")?);
+    let variation = match it.next() {
+        Some(v) => Some(num(Some(v), "variation")?),
+        None => None,
+    };
+    if it.next().is_some() {
+        return Err(format!("--match MAP,MODE[,VARIATION]: too many fields in '{s}'"));
+    }
+    Ok((map, mode, variation))
+}
+
+/// The variation of (map, mode) a one-shot run plays: the one asked for (it must have its own row), else variation 0,
+/// else the first variation that has a row (map 5 slaughter has no variation 0).
+fn pick_variation(gd: &game_data::GameData, map: u32, mode: u32, want: Option<u32>) -> Result<u32, String> {
+    match want {
+        Some(v) if gd.matches.resolve_map(map, mode, v).is_some_and(|r| r.variation == v) => Ok(v),
+        Some(v) => Err(format!("map {map} mode {mode} has no row of variation {v}")),
+        None => (0..16u32).find(|&v| gd.matches.resolve_map(map, mode, v).is_some_and(|r| v == 0 || r.variation == v)).ok_or_else(|| "no mode row".to_string()),
+    }
+}
+
+/// How a one-shot run loads a project of the game data and creates its match: PvP `--match MAP,MODE,VARIATION`, PvE
+/// `HOST_PVE=DIFFICULTY:MAZE`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OneShot {
+    Pvp(u32, u32, u32),
+    Pve(u8, u8),
+}
+
+/// The one-shot arguments of `project` (a row of [`game_data::GameData::host_projects`]): a PvE maze, or a PvP mode row
+/// whose (map, mode, variation) the options writer resolves back to this project. None when no such row exists.
+pub fn one_shot_of(gd: &game_data::GameData, project: &str) -> Option<OneShot> {
+    for d in 0..3u8 {
+        for m in 1..=9u8 {
+            if gd.pve.project(d, m).as_deref() == Some(project) {
+                return Some(OneShot::Pve(d, m));
+            }
+        }
+    }
+    gd.matches.modes().iter().filter(|r| r.project == project).find_map(|r| {
+        let v = pick_variation(gd, r.map, r.mode, Some(r.variation)).ok()?;
+        (gd.matches.resolve_map(r.map, r.mode, v)?.project == project).then_some(OneShot::Pvp(r.map, r.mode, v))
+    })
+}
+
+/// `world-host projects` (HOST_DATA_DIR = the game tables): every project a daemon serves from the data, one line each:
+/// `project<TAB>level<TAB>pvp<TAB>MAP,MODE,VARIATION` or `...<TAB>pve<TAB>DIFFICULTY:MAZE` (`none<TAB>-` when no
+/// one-shot run reaches it; exit 1 then): the list a script runs one-shot pairs over.
+fn projects_main() -> i32 {
+    let gd = match game_tables() {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("{e}");
+            return 2;
+        }
+    };
+    let mut missing = 0;
+    for (p, level) in gd.host_projects() {
+        match one_shot_of(&gd, &p) {
+            Some(OneShot::Pvp(map, mode, v)) => println!("{p}\t{level}\tpvp\t{map},{mode},{v}"),
+            Some(OneShot::Pve(d, m)) => println!("{p}\t{level}\tpve\t{d}:{m}"),
+            None => {
+                missing += 1;
+                println!("{p}\t{level}\tnone\t-");
+            }
+        }
+    }
+    i32::from(missing > 0)
+}
+
 /// The match options blob exactly as our server sends it in DD (`local_match::online_options`, one human).
-fn match_options_blob(map: u32, mode: u32, match_id: u32) -> Result<Vec<u8>, String> {
+fn match_options_blob(map: u32, mode: u32, variation: Option<u32>, match_id: u32) -> Result<Vec<u8>, String> {
     let gd = crate::run::game_tables()?;
     let pve = std::env::var("HOST_PVE").ok().and_then(|v| v.split_once(':').and_then(|(d, m)| Some((d.parse::<u8>().ok()?, m.parse::<u8>().ok()?))));
-    // the row of (map, mode): variation 0, else the first variation that has one (map 5 slaughter has no variation 0)
+    // the row of (map, mode): the variation asked for, else variation 0, else the first variation that has one
     let (row, variation) = if pve.is_some() {
         (None, 0)
     } else {
-        let v = (0..16u32).find(|&v| gd.matches.resolve_map(map, mode, v).is_some_and(|r| v == 0 || r.variation == v)).ok_or("no mode row")?;
+        let v = pick_variation(&gd, map, mode, variation)?;
         (gd.matches.resolve_map(map, mode, v), v)
     };
     if let Some(row) = row {
@@ -1248,7 +1557,7 @@ fn match_options_blob(map: u32, mode: u32, match_id: u32) -> Result<Vec<u8>, Str
         None => local_match::online_options(&gd, &p, &players).map_err(|e| format!("options: {e}"))?,
     };
     hlog!("built options: {} bytes, {n} human(s){}", blob.len(), std::env::var("HOST_PVE").map(|v| format!(", PvE {v}")).unwrap_or_default());
-    let Some(row) = row.filter(|_| std::env::args().any(|a| a == "--no-players")) else {
+    let Some(row) = row.filter(|_| crate::cmdline::has("--no-players")) else {
         return Ok(blob);
     };
     // --no-players: the same blob with an empty roster: n_players (byte 5) = 0 and the player record removed. Layout
@@ -1269,17 +1578,17 @@ fn match_options_blob(map: u32, mode: u32, match_id: u32) -> Result<Vec<u8>, Str
 }
 
 /// Step 3 by the client's own match chain, through [`crate::world::MatchWorld`]: the options
-/// blob (`--options-file`, a recording's DD body, or a built one for `--match MAP,MODE`) and the first world
+/// blob (`--options-file`, a recording's DD body, or a built one for `--match MAP,MODE[,VARIATION]`) and the first world
 /// (`--de-file`; without it the first history item is made by 0x2002F04F0, the bind-pose check), then optionally the
 /// replay of a recording (`--replay`). `--fork-match N` (zygote test): the parent pre-warms (`HOST_PREWARM_LIST`) and
 /// forks N children, each of which creates the match and replays it.
-fn step3_match(_game: u64, map: u32, mode: u32) -> Result<(), String> {
+fn step3_match(_game: u64, map: u32, mode: u32, variation: Option<u32>) -> Result<(), String> {
     let match_id = 1795386319u32; // a fixed default match id (the world's seed); --match-id replaces it
-    let a: Vec<String> = std::env::args().collect();
+    let a = crate::cmdline::args();
     let arg = |k: &str| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).cloned();
     let mut blob = match arg("--options-file") {
         Some(p) => std::fs::read(&p).map_err(|e| format!("{p}: {e}"))?,
-        None => match_options_blob(map, mode, match_id)?,
+        None => match_options_blob(map, mode, variation, match_id)?,
     };
     // --match-id N: the options' match id (header bytes 6..10 = opts+0x1074, the world's seed) replaced
     if let Some(id) = arg("--match-id").and_then(|x| parse_u32(&x)) {
@@ -1295,13 +1604,15 @@ fn step3_match(_game: u64, map: u32, mode: u32) -> Result<(), String> {
         return crate::bots::synth_pvp(map, mode, &out);
     }
     if let Some(n) = arg("--fork-match").and_then(|x| x.parse::<u32>().ok()) {
-        // as the daemon's zygote: the process objects, the pre-warm list, the level load's render commands retired
+        // as the daemon's zygote: the process objects, the pre-warm list, the level load's render commands retired,
+        // the render pool down to RENDER_POOL_CAP for the children
         crate::world::MatchWorld::prepare_process()?;
         if let Ok(path) = std::env::var("HOST_PREWARM_LIST") {
             prewarm(&path)?;
         }
         let (r, _) = crate::world::retire_render_commands();
         hlog!("parent: {r} render commands of the level load retired; render pool in use {}", crate::world::render_pool_in_use());
+        crate::world::compact_render_pool();
         if fork_children(n) {
             return Ok(());
         }
@@ -1324,11 +1635,12 @@ fn step3_match(_game: u64, map: u32, mode: u32) -> Result<(), String> {
     } else {
         crate::world::MatchWorld::create(&blob, de.as_deref())?
     };
-    hlog!("MATCH CREATED in {} ms; render pool in use {} of 8192", t_create.elapsed().as_millis(), crate::world::render_pool_in_use());
+    hlog!("MATCH CREATED in {} ms; render pool in use {} of {}", t_create.elapsed().as_millis(), crate::world::render_pool_in_use(), crate::world::render_pool_cap());
     let k = FORK_CHILD.load(Ordering::Relaxed);
     if k != 0 {
         mem_snapshot(&format!("child {k}: match created"));
         mem_breakdown(&format!("child {k}: match created"));
+        diag_memory(&format!("child {k}: match created"));
     }
     mem_snapshot("after match resource (step 3)");
     if let Some(rec) = arg("--replay") {
@@ -1342,15 +1654,18 @@ fn step3_match(_game: u64, map: u32, mode: u32) -> Result<(), String> {
             mem_snapshot(&format!("child {k}: bots started"));
         }
         replay(&mut mw, &rec, &out, bots.as_mut())?;
+        hlog!("{}", mw.history_pool_report());
     }
     if k != 0 {
         mem_snapshot(&format!("child {k}: end"));
+        diag_memory(&format!("child {k}: end"));
         hlog!("[child {k}] done");
         crate::log::flush();
         unsafe { libc::_exit(0) };
     }
     mem_snapshot("after level load (step 3)");
     mem_breakdown("after level load (step 3)");
+    diag_memory("after level load (step 3)");
     Ok(())
 }
 
@@ -1358,22 +1673,47 @@ fn step3_match(_game: u64, map: u32, mode: u32) -> Result<(), String> {
 /// the zygote queries these shareable sub-resources of a match and keeps one reference each, so a child's match
 /// creation finds them loaded. Returns (kept, empty).
 pub fn prewarm(path: &str) -> Result<(u32, u32), String> {
+    prewarm_read(path).map(|(ok, none, _)| (ok, none))
+}
+
+/// [`prewarm`], also returning the list text it read and queried (a zygote's top-up skips those entries).
+pub fn prewarm_read(path: &str) -> Result<(u32, u32, String), String> {
+    prewarm_read_skipping(path, &std::collections::HashSet::new()).map(|(ok, none, _, text)| (ok, none, text))
+}
+
+/// [`prewarm_read`] without the entries of `skip` (a zygote: the base pre-warm set, which its base queried already).
+/// Returns (kept, empty, skipped, the list text).
+pub fn prewarm_read_skipping(path: &str, skip: &std::collections::HashSet<(u64, String)>) -> Result<(u32, u32, usize, String), String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
     let t0 = std::time::Instant::now();
+    let (todo, skipped) = crate::daemon::prewarm_plan(&text, skip);
     let (mut ok, mut none) = (0, 0);
-    for l in text.lines() {
-        let Some((c, n)) = l.split_once('\t') else { continue };
-        let Ok(c) = u64::from_str_radix(c.trim_start_matches("0x"), 16) else { continue };
-        let (r, _) = query_one(n, c, 0);
-        if r != 0 || ONE_RAW.load(Ordering::Relaxed) != 0 {
+    for (c, n) in &todo {
+        if query_kept(n, *c) {
             ok += 1;
         } else {
             none += 1;
         }
     }
-    hlog!("prewarm list {path}: {ok} resources kept, {none} empty, in {} ms", t0.elapsed().as_millis());
+    let base = if skipped > 0 { format!(" ({skipped} more in the base pre-warm set, not queried here)") } else { String::new() };
+    hlog!("prewarm list {path}: {ok} resources kept, {none} empty, in {} ms{base}", t0.elapsed().as_millis());
     mem_snapshot("after the prewarm list");
-    Ok((ok, none))
+    Ok((ok, none, skipped, text))
+}
+
+/// One pre-warm entry through the start's query (`query_one`, one reference kept): true when it came back with a
+/// resource.
+pub fn query_kept(name: &str, class: u64) -> bool {
+    let (r, _) = query_one(name, class, 0);
+    r != 0 || ONE_RAW.load(Ordering::Relaxed) != 0
+}
+
+/// A zygote's top-up (`daemon`): `entries` in their order through the same exe query and callback as [`prewarm`]
+/// (one reference kept each), until `budget` has passed (checked after each entry, so at least one is queried).
+/// Returns (kept, empty, queried).
+pub fn prewarm_entries(entries: &[(u64, String)], budget: std::time::Duration) -> (u32, u32, usize) {
+    let t0 = std::time::Instant::now();
+    crate::daemon::prewarm_within(entries, budget, || t0.elapsed(), |c, n| query_kept(n, c))
 }
 
 /// The game tables for the one-shot runs: `HOST_DATA_DIR` (the folder `srp setup` writes them to).
@@ -1387,7 +1727,7 @@ const DEFAULT_OUT: &str = "world-host-out";
 
 /// The host's output directory (`--out`).
 pub fn out_dir() -> String {
-    OUT.get().map(|p| p.display().to_string()).unwrap_or_else(|| DEFAULT_OUT.into())
+    out_path().map(|p| p.display().to_string()).unwrap_or_else(|| DEFAULT_OUT.into())
 }
 
 /// One tick's E0 data as the client's E0 producer computes it: the exe's writer + hasher 0x2002FC5A0 on the newest
@@ -1581,7 +1921,7 @@ fn replay(mw: &mut crate::world::MatchWorld, path: &str, out: &str, mut bots: Op
         let l = u32::from_le_bytes(d[p..p + 4].try_into().map_err(|_| "header")?) as usize;
         p += 4 + l;
     }
-    let a: Vec<String> = std::env::args().collect();
+    let a = crate::cmdline::args();
     let mut until: u32 = a.iter().position(|x| x == "--replay-until").and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(u32::MAX);
     // stop at the last normal DF: the relay's 4 closing DFs (every recipient's leave bit) never reach a live host
     {
@@ -1771,7 +2111,7 @@ fn replay(mw: &mut crate::world::MatchWorld, path: &str, out: &str, mut bots: Op
         "replay: {} DFs stepped (last {}); inserted enter {}, leave {}, player list1 {}, list2 {}, profile {}, ping {}, ai {}; change_input non-zero returns {}, inputs at or before present {}; ticks with non-zero hash bytes {nonzero}",
         mw.steps, mw.last_t, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], mw.rejected, mw.rolled_back
     );
-    hlog!("replay: render commands retired {} ({} with the consumer's keep marks), render pool peak {} of 8192", mw.render_retired, mw.render_marked, mw.render_pool_peak);
+    hlog!("replay: render commands retired {} ({} with the consumer's keep marks), render pool peak {} of {}", mw.render_retired, mw.render_marked, mw.render_pool_peak, crate::world::render_pool_cap());
     Ok(())
 }
 
@@ -1803,7 +2143,7 @@ pub fn render_channel_report(label: &str) {
 /// `--bp-log A,B` (logged exec breakpoints) and `--watch A,B` (8-byte write watchpoints), armed on every thread when
 /// step 3 reaches `--debug-at` (project | match, default match). Addresses in hex.
 fn arm_debug(stage: &str) {
-    let a: Vec<String> = std::env::args().collect();
+    let a = crate::cmdline::args();
     let get = |k: &str| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).cloned();
     if get("--debug-at").as_deref().unwrap_or("match") != stage {
         return;
@@ -1899,7 +2239,8 @@ fn fork_children(n: u32) -> bool {
     crate::log::flush();
     let mut pids = Vec::new();
     for k in 1..=n {
-        let pid = fork_world();
+        // a match fork is never refused (Err only for a zygote)
+        let pid = fork_world(ForkKind::Match, None).unwrap_or(-1);
         if pid == 0 {
             FORK_CHILD.store(k as u64, Ordering::Relaxed);
             mem_snapshot(&format!("child {k}: right after fork"));
@@ -1938,19 +2279,87 @@ fn fork_children(n: u32) -> bool {
 /// cooks' +0x18 thread ids and the exe's thread registrations hold it), the crash handler's thread list holds only this
 /// thread, and the exe threads in HOST_FORK_RESTART (default ":hdd,:resources manager") are started again with their
 /// worker-slot jobs (table 0x200AB1A00, 0x40 bytes each: +0 boost::function, +0x30 thread id, +0x38 posted flag)
-/// posted again.
-pub fn fork_world() -> i32 {
+/// posted again. The fork gate (k32::fork_gate_close) parks the engine's worker pollers in Sleep across the fork(); the
+/// child turns it off before it starts its threads again.
+///
+/// Only this thread is copied: a lock another thread holds at the fork instant would stay locked in the child for
+/// good. So this thread holds, across fork(), the locks the other threads take while the zygote waits and the child
+/// takes first: the handle table (every wait stand-in takes it at each wake, the `:hdd` and `:resources manager` timer
+/// loops many times a second; the child's first CreateWaitableTimerA and its match creation need it), the exe thread
+/// list and the crash handler's thread ids (every thread start takes them; the child takes both first, to restart its
+/// threads), the host allocator's page pool, heap and region locks (mem::hold), stderr and the log (every log line).
+/// Order: gate, handle table, thread list, thread ids, allocator, stderr, log (a holder of the thread list may log;
+/// nothing takes an earlier one of these holding a later one).
+///
+/// Before it takes the handle table for the fork, the fork census waits (at most FORK_CENSUS_WAIT) until every exe
+/// timer-loop thread seen so far is inside its idle wait (k32::TIMER_IDLE_WAIT_RET): such a thread needs the handle
+/// table to leave that wait, so with the table held across fork() none of them runs exe code at the fork instant.
+///
+/// `kind`: [`ForkKind::Match`] turns the fork gate off in the child for good (a match child never forks) and forks
+/// also after a gate or census TIMEOUT (logged; at worst that one match is lost); [`ForkKind::Zygote`] keeps the gate
+/// usable (a zygote forked from the base process forks its match children) and does not fork at all after a TIMEOUT:
+/// Err, the caller refuses the request for now (a zygote lives for hours and is the parent of every match of its map).
+/// `child_log`: the child's own log file, opened first thing in the child (else the child logs on into the parent's
+/// file until it opens its own).
+pub fn fork_world(kind: ForkKind, child_log: Option<&std::path::Path>) -> Result<i32, String> {
     let world_tid = crate::k32::GetCurrentThreadIdPub();
-    let pid = unsafe { libc::fork() };
-    if pid != 0 {
-        return pid;
+    let gate = crate::k32::fork_gate_close();
+    // a zygote is the parent of every match of its map for hours: it is forked only when both waits completed
+    if kind == ForkKind::Zygote && !gate.complete {
+        gate.reopen();
+        hlog!("fork refused: not every worker poller parked (gate TIMEOUT); a zygote is not forked now");
+        return Err("fork gate timeout: a worker poller did not park".into());
     }
+    let (mut handles, quiet) = fork_census();
+    if kind == ForkKind::Zygote && !quiet {
+        drop(handles);
+        gate.reopen();
+        hlog!("fork refused: a timer thread stayed outside its idle wait (census TIMEOUT); a zygote is not forked now");
+        return Err("fork census timeout: a timer thread was not in its idle wait".into());
+    }
+    let threads = crate::k32::EXE_THREADS.lock().unwrap_or_else(|e| e.into_inner());
+    let tids = crate::crash::TIDS.lock().unwrap_or_else(|e| e.into_inner());
+    let memory = crate::mem::hold();
+    let stderr = std::io::stderr().lock();
+    let log = crate::log::hold();
+    let pid = unsafe { libc::fork() };
+    drop(log);
+    drop(stderr);
+    drop(memory);
+    drop(tids);
+    drop(threads);
+    if pid == 0 {
+        // the census marks belong to the parent's threads, none of which exists here
+        if let Some(s) = handles.as_mut() {
+            s.idle_waiters.clear();
+        }
+    }
+    drop(handles);
+    if pid != 0 {
+        gate.reopen();
+        return Ok(pid);
+    }
+    if let Some(p) = child_log {
+        crate::log::open(p.to_str().unwrap_or("host.log"));
+    }
+    // the child's only thread continues under a new kernel thread id
+    crate::teb::forget_tid();
+    let stale = match kind {
+        ForkKind::Match => {
+            gate.child();
+            None
+        }
+        ForkKind::Zygote => Some(gate.child_keep()),
+    };
     crate::k32::FORCED_TID.with(|t| t.set(world_tid));
     if let Ok(mut v) = crate::crash::TIDS.lock() {
         v.clear();
         v.push(crate::teb::gettid() as i32);
     }
     hlog!("child pid {} after fork; reporting world thread id {world_tid}", unsafe { libc::getpid() });
+    if let Some(n) = stale {
+        hlog!("fork gate: kept on in the zygote; {n} stale poller record(s) of the parent cleared");
+    }
     let list = std::env::var("HOST_FORK_RESTART").unwrap_or(":hdd,:resources manager".into());
     for name in list.split(',').filter(|x| !x.is_empty()) {
         if let Some(old) = crate::k32::restart_exe_thread(name) {
@@ -1966,7 +2375,39 @@ pub fn fork_world() -> i32 {
             }
         }
     }
-    0
+    Ok(0)
+}
+
+/// What a fork() makes: a match child or a zygote that forks again (see [`fork_world`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ForkKind {
+    Match,
+    Zygote,
+}
+
+/// How long a fork waits at most for the exe timer-loop threads to be in their idle wait (they leave it about once a
+/// second for a few microseconds, and while they run a job); then it forks as before, with a TIMEOUT line.
+const FORK_CENSUS_WAIT: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// The handle table's lock, taken once every known timer-loop thread is in its idle wait (or after
+/// FORK_CENSUS_WAIT); logs the census. Returns the lock and whether every known one was in its idle wait.
+fn fork_census() -> (std::sync::MutexGuard<'static, Option<crate::handles::State>>, bool) {
+    let t0 = std::time::Instant::now();
+    loop {
+        let g = crate::handles::lock();
+        let (k, n) = crate::handles::timer_census(g.as_ref().map(|s| s.idle_waiters.values().copied().collect::<Vec<_>>()).unwrap_or_default());
+        let done = k >= n;
+        if done || t0.elapsed() >= FORK_CENSUS_WAIT {
+            hlog!(
+                "fork census: {k} of {n} timer thread(s) in their idle wait after {} us{}",
+                t0.elapsed().as_micros(),
+                if done { "" } else { ": TIMEOUT, a timer thread outside its idle wait" }
+            );
+            return (g, done);
+        }
+        drop(g);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
 }
 
 /// This thread's CPU time in ns (CLOCK_THREAD_CPUTIME_ID).
@@ -2030,6 +2471,14 @@ fn world_thread(o: Opts) -> i32 {
         return 20;
     }
     hlog!("=== step 2 finished");
+    if let Some(fd) = o.base_fd {
+        // the daemon's base process: step 3 up to the cut, then one forked zygote per request
+        if let Err(e) = step3_base() {
+            hlog!("STEP 3 (up to the cut) FAILED: {e}");
+            return 30;
+        }
+        return crate::daemon::base_loop(&o, fd);
+    }
     if o.steps >= 3 {
         if let Err(e) = step3(&o) {
             hlog!("STEP 3 FAILED: {e}");
@@ -2049,9 +2498,9 @@ fn auto_level(m: Option<String>) -> Result<String, String> {
     let project = match std::env::var("HOST_PVE").ok().and_then(|v| v.split_once(':').and_then(|(d, m)| Some((d.parse::<u8>().ok()?, m.parse::<u8>().ok()?)))) {
         Some((d, mz)) => gd.pve.project(d, mz).ok_or("no PvE project")?.to_string(),
         None => {
-            let (map, mode) = m.as_deref().and_then(|s| s.split_once(',')).ok_or("--match MAP,MODE needed")?;
-            let (map, mode) = (map.parse().map_err(|_| "map")?, mode.parse().map_err(|_| "mode")?);
-            (0..16u32).filter_map(|v| gd.matches.resolve_map(map, mode, v).filter(|r| v == 0 || r.variation == v)).next().ok_or("no mode row")?.project.clone()
+            let (map, mode, variation) = parse_match(m.as_deref().ok_or("--match MAP,MODE needed")?)?;
+            let v = pick_variation(&gd, map, mode, variation)?;
+            gd.matches.resolve_map(map, mode, v).ok_or("no mode row")?.project.clone()
         }
     };
     let i = project.match_indices('_').nth(1).map(|(i, _)| i).ok_or(format!("project '{project}' has no second '_'"))?;
@@ -2059,6 +2508,7 @@ fn auto_level(m: Option<String>) -> Result<String, String> {
 }
 
 pub fn main() -> i32 {
+    let _ = START_AT.set(std::time::Instant::now());
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("daemon") {
         return crate::daemon::front_main(&args[2..]);
@@ -2068,6 +2518,12 @@ pub fn main() -> i32 {
     }
     if args.get(1).map(String::as_str) == Some("prewarm-list") {
         return crate::daemon::prewarm_list_main(&args[2..]);
+    }
+    if args.get(1).map(String::as_str) == Some("projects") {
+        return projects_main();
+    }
+    if args.get(1).map(String::as_str) == Some("room-status") {
+        return crate::daemon::room_status_main(&args[2..]);
     }
     // `world-host perf-probe`: can this process arm hardware breakpoints (the kill log needs them)? srp selftest asks
     if args.get(1).map(String::as_str) == Some("perf-probe") {
@@ -2082,6 +2538,9 @@ pub fn main() -> i32 {
             }
         };
     }
+    // before the first large mapping (the image, the exe's arena); a base's zygotes and every match child inherit it
+    let thp_off = mem::disable_huge_pages();
+    let merge = mem::enable_memory_merge();
     let get =|k: &str| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).cloned();
     // the exe's path here and as the game sees it, e.g. /path/to/game/binaries/x64/survarium.exe and
     // C:\Games\Survarium\binaries\x64\survarium.exe
@@ -2122,6 +2581,28 @@ pub fn main() -> i32 {
         crate::log::set_quiet_dbg(true);
     }
     hlog!("world-host: exe {exe}, out {}", out.display());
+    hlog!(
+        "transparent huge pages: {} for this process (system mode: {})",
+        if thp_off { "off" } else { "NOT switched off (prctl refused)" },
+        mem::thp_mode()
+    );
+    hlog!(
+        "memory merging (KSM): {}; system switch /sys/kernel/mm/ksm/run = {}{}",
+        match merge {
+            mem::MemoryMerge::Process => "every mapping of this process and its forks (PR_SET_MEMORY_MERGE)".to_string(),
+            mem::MemoryMerge::PerMapping(e) => format!("the exe's mappings (MADV_MERGEABLE; PR_SET_MEMORY_MERGE refused, errno {e}: kernel before 6.4)"),
+        },
+        mem::ksm_run(),
+        if mem::ksm_run() == "1" { "" } else { " (the kernel merges nothing until it is 1: docs/guide-server.md)" }
+    );
+    // diagnosis switches, before the first low mapping (inherited by the base's zygotes and every match child)
+    crate::pagemap::init_from_env();
+    if crate::pagemap::on() {
+        hlog!("diagnosis: HOST_PAGEMAP=1: PAGEMAP lines (private pages per region) at the base's cut, at zygote ready, at a match's Ready and end");
+    }
+    if let Some(note) = crate::nullcook::guard_init_from_env() {
+        hlog!("diagnosis: {note}");
+    }
     let cwd_win = exe_win.rsplit_once('\\').map(|(d, _)| d.to_string()).unwrap();
     let game = crate::files::game_mapping(std::path::Path::new(&exe), &exe_win);
     if let Some((w, u)) = &game {
@@ -2132,7 +2613,8 @@ pub fn main() -> i32 {
     crate::crash::install();
     let linger_ms = get("--linger").and_then(|s| s.parse().ok());
     let pump_ms = get("--pump-ms").and_then(|s| s.parse().ok()).unwrap_or(3000);
-    let o = Opts { exe, exe_win, out, steps, fma, level, cmdline_extra, linger_ms, pump_ms };
+    let base_fd = get("--base-fd").and_then(|s| s.parse().ok());
+    let o = Opts { exe, exe_win, out, steps, fma, level, cmdline_extra, linger_ms, pump_ms, base_fd };
     // the world thread runs exe code: its stack must be below 2^44 as well
     let (tx, rx) = std::sync::mpsc::channel();
     let t = mem::spawn_low(256 << 20, Box::new(move || {
@@ -2145,4 +2627,69 @@ pub fn main() -> i32 {
     crate::log::flush();
     // exe threads may still run: leave without destructors
     unsafe { libc::_exit(code) }
+}
+
+#[cfg(test)]
+mod match_arg_tests {
+    use super::*;
+
+    #[test]
+    fn the_match_argument_takes_an_optional_variation() {
+        assert_eq!(parse_match("1,0"), Ok((1, 0, None)));
+        assert_eq!(parse_match("2,3,4"), Ok((2, 3, Some(4))));
+        assert_eq!(parse_match(" 5, 1 ,0"), Ok((5, 1, Some(0))));
+        assert!(parse_match("1").is_err());
+        assert!(parse_match("1,x").is_err());
+        assert!(parse_match("1,0,").is_err());
+        assert!(parse_match("1,0,2,3").is_err());
+    }
+
+    #[test]
+    fn every_project_of_the_data_has_one_shot_arguments_that_reach_it() {
+        game_data::require_tables!();
+        let gd = game_data::testing::tables();
+        let projects = gd.host_projects();
+        assert!(!projects.is_empty());
+        for (p, _) in &projects {
+            match one_shot_of(&gd, p) {
+                Some(OneShot::Pvp(map, mode, v)) => {
+                    // the options writer's path: the variation asked for, then its row
+                    assert_eq!(pick_variation(&gd, map, mode, Some(v)), Ok(v));
+                    assert_eq!(gd.matches.resolve_map(map, mode, v).map(|r| r.project.as_str()), Some(p.as_str()));
+                }
+                Some(OneShot::Pve(d, m)) => assert_eq!(gd.pve.project(d, m).as_deref(), Some(p.as_str())),
+                None => panic!("{p}: no one-shot run reaches it"),
+            }
+        }
+        // a variation without its own row is refused, not replaced by another one
+        let r = &gd.matches.modes()[0];
+        assert!(pick_variation(&gd, r.map, r.mode, Some(99)).is_err());
+    }
+}
+
+#[cfg(test)]
+mod pump_tests {
+    use super::{is_volume_name, peer_gone};
+
+    #[test]
+    fn a_zygote_sees_the_front_gone_only_on_hang_up_or_error() {
+        assert!(!peer_gone(0, 0), "nothing happened");
+        assert!(!peer_gone(1, libc::POLLIN), "a hand-over queued: the front is there");
+        assert!(peer_gone(1, libc::POLLIN | libc::POLLRDHUP), "closed after queuing: gone");
+        assert!(peer_gone(1, libc::POLLHUP));
+        assert!(peer_gone(1, libc::POLLERR));
+        assert!(!peer_gone(-1, libc::POLLHUP), "a poll error: no answer, the level load goes on");
+    }
+
+    #[test]
+    fn only_numbered_resource_files_are_volumes() {
+        assert!(is_volume_name("resources.00.db"));
+        assert!(is_volume_name("resources.75.db"));
+        assert!(is_volume_name("RESOURCES.07.DB"), "Windows names compare without case");
+        assert!(!is_volume_name("resources.db"), "the unnumbered file is not a volume");
+        assert!(!is_volume_name("resources..db"));
+        assert!(!is_volume_name("resources.0a.db"));
+        assert!(!is_volume_name("resources.00.db.bak"));
+        assert!(!is_volume_name("survarium.exe"));
+    }
 }

@@ -26,7 +26,9 @@
 //!   - when the final check at the match start finds a payer short, that squad leaves the queue with code 4.
 //! * **Queue of 3** (CHOICE; the exe has no queue rule, the script starts a match when 2 or 3 humans entered): tickets of
 //!   the same mission and difficulty are joined, oldest first, while the players fit the smallest `want` (3 minus the
-//!   squad's locked slots); the match starts when the players fill `want`. Squads stay together.
+//!   squad's locked slots); the match starts when the players fill `want`. Squads stay together. The maze is drawn
+//!   while the world host can load a map; else a loaded maze with room is taken, and with neither the complete group
+//!   stays queued, uncharged, and is tried again every second ([`crate::host_room::pve_maze`]).
 //! * **Keys** (inventory items 1384 / 1617, PROVEN data): the daily rule "2 free keys for the first two wins of a day" is
 //!   implemented ([`win_key`]; LIKELY 0.69d: the client has the text `st_pve_tokens_resupply_info`, the number comes from the
 //!   0.50 release notes, a UTC day is a CHOICE); the one-time "5 keys at the first login after 0.50" was a release gift for
@@ -193,6 +195,11 @@ pub struct Ticket {
 pub struct PveQueue {
     next_order: u32,
     tickets: Vec<Ticket>,
+    /// a complete group the world host's room held: tried again from the online tick
+    pub held: crate::host_room::Held,
+    /// the sequence number of the last match started on a maze project (the loaded mazes take turns)
+    seq: u64,
+    maze_seq: BTreeMap<String, u64>,
 }
 
 impl PveQueue {
@@ -227,10 +234,15 @@ impl PveQueue {
     /// The tickets of the first complete match, oldest leader first: tickets of the same mission and difficulty are added
     /// while the players fit the smallest `want`; complete = the players fill it. Empty when no match is complete.
     pub fn next_group(&self) -> Vec<Ticket> {
-        for lead in &self.tickets {
+        self.next_group_without(&[])
+    }
+
+    /// [`next_group`](Self::next_group) without the tickets `skip` (the orders of groups held this pass).
+    pub fn next_group_without(&self, skip: &[u32]) -> Vec<Ticket> {
+        for lead in self.tickets.iter().filter(|t| !skip.contains(&t.order)) {
             let mut group = vec![lead.clone()];
             let (mut total, mut cap) = (lead.accounts.len(), lead.want as usize);
-            for o in self.tickets.iter().filter(|o| o.order != lead.order && o.map == lead.map && o.difficulty == lead.difficulty) {
+            for o in self.tickets.iter().filter(|o| o.order != lead.order && o.map == lead.map && o.difficulty == lead.difficulty && !skip.contains(&o.order)) {
                 let ncap = cap.min(o.want as usize);
                 if total + o.accounts.len() <= ncap {
                     total += o.accounts.len();
@@ -246,6 +258,17 @@ impl PveQueue {
             }
         }
         vec![]
+    }
+
+    /// The last start on a maze project (0 = never).
+    pub fn maze_last(&self, project: &str) -> u64 {
+        self.maze_seq.get(project).copied().unwrap_or(0)
+    }
+
+    /// A match started on a maze project.
+    pub fn note_maze(&mut self, project: &str) {
+        self.seq += 1;
+        self.maze_seq.insert(project.to_string(), self.seq);
     }
 }
 
@@ -343,8 +366,10 @@ fn play(cx: &mut Ctx, peer: &mut Peer, map: u32, difficulty: u32) {
 
 /// Start every complete match of the queue.
 pub fn start_full(cx: &mut Ctx) {
+    // the tickets of groups the world host's room held in this pass
+    let mut held: Vec<u32> = vec![];
     loop {
-        let group = cx.registry.pve.next_group();
+        let group = cx.registry.pve.next_group_without(&held);
         if group.is_empty() {
             return;
         }
@@ -365,23 +390,86 @@ pub fn start_full(cx: &mut Ctx) {
         if dropped {
             continue;
         }
-        if !start_group(cx, &group) {
-            // the match could not be created: nothing was charged; the group is refused
-            for t in &group {
-                cx.registry.pve.remove_account(t.accounts[0]);
-                for a in &t.accounts {
-                    cx.fx.push(Cross { to: *a, msg: PveDenied { code: deny::NO_MATCH_SERVER }.message() });
-                    cx.fx.push(Cross { to: *a, msg: idle() });
+        match start_group(cx, &group) {
+            GroupStart::Started => {}
+            // the world host has no room for either maze now: the group stays queued (tried again from the online
+            // tick); the groups behind it may still fit
+            GroupStart::Held => held.extend(group.iter().map(|t| t.order)),
+            GroupStart::Failed => {
+                // the match could not be created: nothing was charged; the group is refused
+                for t in &group {
+                    cx.registry.pve.remove_account(t.accounts[0]);
+                    for a in &t.accounts {
+                        cx.fx.push(Cross { to: *a, msg: PveDenied { code: deny::NO_MATCH_SERVER }.message() });
+                        cx.fx.push(Cross { to: *a, msg: idle() });
+                    }
                 }
             }
         }
     }
 }
 
-/// Charge, create the match, and tell the payers. False = nothing started and nothing is charged.
-fn start_group(cx: &mut Ctx, group: &[Ticket]) -> bool {
+/// What became of a complete group.
+enum GroupStart {
+    Started,
+    /// the world host's room holds it ([`crate::host_room::pve_maze`]): nothing charged, still queued
+    Held,
+    /// not started, nothing charged: the group is refused
+    Failed,
+}
+
+/// The maze of a group's match ([`crate::host_room::pve_maze`]): the lobby's draw while it fits the world host's room
+/// (loaded with room, or a map can load), else the other maze when it fits; while no map can load, a loaded maze with
+/// room (not an idle or the drained one when the other fits); None = held (logged once per difficulty and kind, tried again every
+/// second).
+fn maze_of(cx: &mut Ctx, difficulty: u8) -> Option<u8> {
+    use crate::host_room::Maze;
+    let projects = [1u8, 2].map(|m| cx.lobby.data.pve.project(difficulty, m));
+    let drawn = cx.lobby.roll(|r| r.below(2)) as u8 + 1;
+    let room = cx.lobby.online.as_ref().and_then(|h| h.host_room());
+    let names = [projects[0].as_deref(), projects[1].as_deref()];
+    let last = |k: usize| {
+        names[k].map_or("not in the data".to_string(), |p| match cx.registry.pve.maze_last(p) {
+            0 => format!("{p}: never started"),
+            s => format!("{p}: last started #{s}"),
+        })
+    };
+    match crate::host_room::pve_maze(names, room.as_ref(), drawn, |p| cx.registry.pve.maze_last(p)) {
+        Maze::Drawn(m) => Some(m),
+        Maze::Other(m) => {
+            if let Some(r) = &room {
+                log::info!("PvE queue: the drawn maze {drawn} of difficulty {difficulty} is loaded and takes no more match, or is the idle map the next load evicts: maze {m} instead ({})", r.describe());
+            }
+            Some(m)
+        }
+        Maze::Loaded(m) => {
+            if let Some(r) = &room {
+                let drained = crate::host_room::drain_map(&r.status).map_or(String::new(), |d| format!("; the world host drains {} (loaded {} s)", d.project, d.loaded_secs));
+                log::info!(
+                    "PvE queue: no new map can load: maze {m} of difficulty {difficulty} is loaded with room ({}; {}; {}{drained}); of two, the busy one not drained, else the one started the longest ago",
+                    last(0),
+                    last(1),
+                    r.describe()
+                );
+            }
+            Some(m)
+        }
+        Maze::Held => {
+            // pve_maze holds only with a status
+            if let Some(r) = &room {
+                cx.registry.pve.held.hold(cx.now, "PvE queue", u32::from(difficulty), crate::host_room::HoldKind::of(r), r);
+            }
+            None
+        }
+    }
+}
+
+/// Charge, create the match, and tell the payers ([`GroupStart`]).
+fn start_group(cx: &mut Ctx, group: &[Ticket]) -> GroupStart {
     let gd = cx.lobby.data.clone();
     let (map, difficulty) = (group[0].map, group[0].difficulty);
+    // the maze first: a held group is not charged
+    let Some(maze) = maze_of(cx, difficulty) else { return GroupStart::Held };
     let mut costs: BTreeMap<AccountId, Vec<Cost>> = BTreeMap::new();
     for c in group.iter().flat_map(|t| t.charges.iter()) {
         costs.entry(c.payer).or_default().push(c.cost);
@@ -414,15 +502,18 @@ fn start_group(cx: &mut Ctx, group: &[Ticket]) -> bool {
     if !ok {
         log::warn!("PvE start: a charge failed, refunding {} accounts", receipts.len());
         refund(cx, &receipts);
-        return false;
+        return GroupStart::Failed;
     }
     // 2. the match: one team of humans (team 0), the bots are the script's
     let players: Vec<AccountId> = group.iter().flat_map(|t| t.accounts.iter().copied()).collect();
-    let maze = cx.lobby.roll(|r| r.below(2)) as u8 + 1;
     let started = crate::online::start_kind(cx, map, gd.pve.mode, gd.pve.weather, MatchKind::Pve { difficulty, maze }, [players.clone(), vec![]]);
     match started {
         Ok(id) => {
-            log::info!("PvE match {id:#x} started: mission {map} difficulty {difficulty}, players {players:?}");
+            log::info!("PvE match {id:#x} started: mission {map} difficulty {difficulty} maze {maze}, players {players:?}");
+            if let Some(project) = gd.pve.project(difficulty, maze) {
+                cx.registry.pve.note_maze(&project);
+            }
+            cx.registry.pve.held.started();
             keep_receipts(cx, id, receipts.clone());
             for t in group {
                 cx.registry.pve.remove_account(t.accounts[0]);
@@ -445,12 +536,12 @@ fn start_group(cx: &mut Ctx, group: &[Ticket]) -> bool {
                     }
                 }
             }
-            true
+            GroupStart::Started
         }
         Err(e) => {
             log::warn!("PvE match not started: {e}; the charge is given back");
             refund(cx, &receipts);
-            false
+            GroupStart::Failed
         }
     }
 }
@@ -735,6 +826,30 @@ mod tests {
         assert_eq!(g.iter().flat_map(|t| t.accounts.clone()).collect::<Vec<_>>(), vec![1, 3, 4]);
         assert_eq!(q.remove_account(3).unwrap().accounts, vec![3]);
         assert!(q.next_group().is_empty());
+    }
+
+    #[test]
+    fn a_held_group_lets_the_groups_behind_it_start() {
+        let mut q = PveQueue::default();
+        // difficulty 0: 1, 2, 3 (complete); difficulty 1: 4, 5, 6 (complete), joined later
+        for (a, d, t) in [(1, 0, 10), (2, 0, 11), (3, 0, 12), (4, 1, 13), (5, 1, 14), (6, 1, 15)] {
+            q.enqueue(vec![a], 15, d, 3, charges(a), t).unwrap();
+        }
+        let first = q.next_group();
+        assert_eq!(first.iter().map(|t| t.accounts[0]).collect::<Vec<_>>(), vec![1, 2, 3]);
+        // the first group is held (its mazes have no room): skipping its tickets, the next complete group comes
+        let held: Vec<u32> = first.iter().map(|t| t.order).collect();
+        assert_eq!(q.next_group_without(&held).iter().map(|t| t.accounts[0]).collect::<Vec<_>>(), vec![4, 5, 6]);
+        // a held ticket is not taken into another group either; with both held nothing is left
+        let all: Vec<u32> = (1..=6).collect();
+        assert!(q.next_group_without(&all).is_empty());
+        assert_eq!(q.next_group_without(&[]), first, "without skips it is next_group");
+        assert_eq!(q.len(), 6, "nothing leaves the queue by being skipped");
+        // the loaded mazes take turns: the last start of each project
+        assert_eq!(q.maze_last("pve_01_v1_maze1"), 0);
+        q.note_maze("pve_01_v1_maze1");
+        q.note_maze("pve_01_v1_maze2");
+        assert!(q.maze_last("pve_01_v1_maze2") > q.maze_last("pve_01_v1_maze1"));
     }
 
     #[test]

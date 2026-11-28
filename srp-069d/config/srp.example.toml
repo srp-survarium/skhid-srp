@@ -75,23 +75,39 @@ exe_win = ""
 # The world host binary. "" = `world-host` next to the srp binary.
 bin = ""
 # Folder of the pre-warm lists (<project>.tsv: resources a zygote loads ahead, so each match starts faster and shares
-# them). The world host writes a project's list after its first match. "" = `prewarm` in the data_dir folder.
+# them). Every match adds what it loaded to its project's list, and before a map loads its list takes in the largest
+# list of its variants (the same map and mode); a map with neither starts from the entries common to the other maps'
+# lists. The entries common to several lists are loaded once for all maps (base-exclude.tsv here lists the few a map's
+# own load needs and that therefore stay with each map; the world host writes it). "" = `prewarm` in the data_dir
+# folder.
 prewarm_dir = ""
-# Matches at once per map ("level project").
+# Matches at once per map ("level project"); more, up to twice as many, only while the machine has 1.2 GB available
+# (plus 160 MB for each match started in the last 5 s).
 max_matches = 4
-# Maps loaded at once ("zygotes", about 0.35-0.56 GB of memory each) at most; starting one more retires the least recently used
-# (never a prestart one). 0 = no cap.
+# Maps loaded at once ("zygotes", about 0.06-0.35 GB of memory each: a PvP map about 0.06-0.15 GB, a PvE mission
+# 0.2-0.26 GB, the largest map 0.35 GB; every map, mode and variant is one) at most, counting a map that is still
+# unloading.
+# A match for another map unloads the least recently used map without matches (prestart maps last); while every loaded
+# map runs matches, one more map loads over the limit if the machine has 1.4 GB available, else the match waits up to
+# 20 s for one to finish, then is refused. 0 = no cap. On a small server: the maps that fit in its memory (`srp setup`
+# prints the number).
 max_zygotes = 8
 # A loaded map without matches for this many seconds exits (it is loaded again when needed).
 idle_secs = 600
-# Maps loaded at start (a map that is not loaded needs about 8 s before its first match).
-prestart = ["pve_01_v1_maze2"]
+# Maps loaded at start (each holds its memory while loaded; a map that is not loaded needs a few seconds before its
+# first match: on a test PC about 1 s for a PvP map, 3 s for a PvE mission). [] = none: maps load when a match needs
+# them.
+prestart = []
 
 [matches]
 # Players a queue group needs to start an online match.
 min_players = 2
 # Seconds a queue search waits before AI players fill its match. 0 = never.
 bot_wait_secs = 30
+# Players per team of a match the AI players fill (and the most AI players a custom room offers per team), 1..8.
+# Never more than half the map's match size (6 on a 12-player map) or the map's AI paths per team (8). More = more
+# memory and CPU per match: the measured sizes are for 11 AI players in a 12-player match (up to 0.14 GB).
+bots_per_team = 6
 # Seconds to wait for the players' win / loss reports after a match ended before paying.
 report_grace_secs = 20
 # Silver a match costs by the player's equipment level 0..5 (the official patch 0.55 repair prices). [] = the game

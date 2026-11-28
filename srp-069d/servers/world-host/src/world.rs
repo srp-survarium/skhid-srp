@@ -197,7 +197,7 @@ pub struct MatchWorld {
     /// consumer's "keep" marks (+0x28 set, or +0x6C past the channel's frame +0xC8)
     pub render_retired: u64,
     pub render_marked: u64,
-    /// the most render-pool records in use (scene 0x2034C3F40 +0x40, capacity +0x48 = 8192) seen before a retire
+    /// the most render-pool records in use (scene 0x2034C3F40 +0x40, capacity +0x48: RENDER_POOL_CAP) seen before a retire
     pub render_pool_peak: u32,
     /// the players' ammo and pocket stacks before the first DF (no one spawned yet): the start of [`MatchWorld::used`]
     start_stacks: Option<Vec<PlayerStacks>>,
@@ -205,10 +205,69 @@ pub struct MatchWorld {
     spawned: [u16; 20],
     /// steps with a late input in which a human's storage moved (see `step_df`)
     pub late_stack_steps: u32,
+    /// the history item pool ([`cap_history_pool`]; 0 = not found)
+    hist_pool: u64,
+}
+
+/// History items a match keeps: the exe's own server mode keeps 22 (pool size 0x16874F0 / 0x106268 at 0x2002E61AF),
+/// and server mode (22) and client mode (47) gave equal ticks and captures on the recorded matches. What reads old
+/// items, at a 50 ms tick:
+/// * the host's resync DE: srp's `WantDe` is answered with the newest final tick T = the newest stepped DF - 300 ms
+///   (session.rs:173-174 `final_tick`, `final_lag_ms` 300 at session.rs:90, the request at session.rs:257), and
+///   `run::de_with_tail` writes the items of exact times from T - 500 ms (options +0x107A, run.rs:1807-1813) to T:
+///   back to the newest - 800 ms, 17 items. A missing item would be written as a zero "no animation" byte instead;
+/// * the exe: a late input (the relay drops those over 255 ms late) restarts from the newest item at or before its
+///   time, older inputs are re-timed at the 500 ms horizon, and the load backfill and lag compensation stay inside
+///   the same 500 ms: at most 12 items.
+///
+/// 22 covers the 17 with 5 to spare (checked at 22: a resync DE byte-equal to one at 47, the late-input recording's
+/// captures equal, the regression recordings equal to golden). The capacity [pool+0x40] is read only by
+/// `new_game_state_history_item` 0x2002F0D4C (the one reader of the pool field W+0x7DE8 that reads +0x40): when
+/// `used` [pool+0x38] reaches it, the oldest item is recycled before the next is taken, so items 23..47 are never
+/// touched (only the pool's free-list link in each). Saving: 25 items of 0.17-0.29 MB, about 4-7 MB per match.
+pub const HISTORY_ITEMS: u64 = 22;
+/// Items kept beyond the ones the resync DE reads ([`history_capacity`]).
+const HISTORY_SPARE: u64 = 5;
+
+/// The history pool capacity for a match: [`HISTORY_ITEMS`], more when the resync DE of this tick, final lag and
+/// horizon reads more items than 22 minus the spare (items from the newest - final lag - horizon to the newest), never
+/// above the exe's own capacity. Returns (capacity, items the DE reads).
+pub fn history_capacity(exe: u64, tick_ms: u32, max_delay_ms: u32, final_lag_ms: u32) -> (u64, u64) {
+    let de = u64::from((final_lag_ms + max_delay_ms) / tick_ms.max(1)) + 1;
+    (HISTORY_ITEMS.max(de + HISTORY_SPARE).min(exe), de)
+}
+
+/// Lower the match's history pool capacity ([`history_capacity`]) right after `pvp_match_resource` and before any
+/// item exists. Diagnosis: `HOST_HISTORY_POOL=exe` keeps the exe's 47 (A/B runs). Returns the pool (0 when not
+/// found), logged.
+unsafe fn cap_history_pool(core: u64, opts: u64) -> u64 {
+    unsafe {
+        let pool = rd64(core + 0x230 + 0x7DE8);
+        if pool == 0 {
+            hlog!("history pool: not found ([W+0x7DE8] = 0): the exe's capacity stays");
+            return 0;
+        }
+        let cap = pool + 0x40;
+        let exe = *(cap as *const u64);
+        let used = *((pool + 0x38) as *const u32);
+        let tick = (rd8(opts + 0x1083) as u32).max(1);
+        let horizon = *((opts + 0x107A) as *const u16) as u32;
+        let lag = crate::session::SessionConfig::default().final_lag_ms;
+        let (n, de) = history_capacity(exe, tick, horizon, lag);
+        if std::env::var("HOST_HISTORY_POOL").is_ok_and(|v| v == "exe") {
+            hlog!("history pool: capacity {exe} items, the exe's (diagnosis HOST_HISTORY_POOL=exe); {used} in use");
+        } else if used != 0 {
+            hlog!("history pool: capacity {exe} items, the exe's: {used} already in use at the creation");
+        } else {
+            *(cap as *mut u64) = n;
+            hlog!("history pool: capacity {n} items (the exe's {exe}); the resync DE reads {de} (tick {tick} ms, final lag {lag} ms, horizon {horizon} ms)");
+        }
+        pool
+    }
 }
 
 fn arg_set(k: &str) -> bool {
-    std::env::args().any(|a| a == k)
+    crate::cmdline::has(k)
 }
 
 impl MatchWorld {
@@ -344,16 +403,22 @@ impl MatchWorld {
         }
         // the :render thread's part during the creation: a consumer that retires the channel's commands while
         // on_match_ready / the first world push them (the producer's full callback frees them, as in the client)
-        // diagnosis: HOST_POOL_CAP=n lowers the pool's capacity [scene+0x48] (a data write) so that a creation overflows
-        // it; HOST_NO_CREATE_DRAIN=1 leaves the creation without the consumer (the stall the drain prevents)
+        // diagnosis: HOST_POOL_CAP=n lowers the pool's capacity [scene+0x48] further (a data write; never above
+        // RENDER_POOL_CAP: the records past it may be cut off, compact_render_pool) so that a creation overflows it;
+        // HOST_NO_CREATE_DRAIN=1 leaves the creation without the consumer (the stall the drain prevents)
         if let Some(cap) = std::env::var("HOST_POOL_CAP").ok().and_then(|v| v.parse::<u64>().ok()) {
-            unsafe { *((0x2034C3F40u64 + 0x48) as *mut u64) = cap.clamp(64, 0x2000) };
-            hlog!("diagnosis: render pool capacity set to {}", cap.clamp(64, 0x2000));
+            let cap = cap.clamp(64, RENDER_POOL_CAP);
+            unsafe { *((RENDER_POOL + 0x48) as *mut u64) = cap };
+            hlog!("diagnosis: render pool capacity set to {cap}");
         }
         let drain = (std::env::var("HOST_NO_CREATE_DRAIN").is_err()).then(RenderDrain::start);
         let r = Self::create_inner(game, options, start);
-        let (retired, peak) = drain.map(RenderDrain::stop).unwrap_or((0, 0));
-        hlog!("creation: the render drain retired {retired} commands; pool peak {peak} of 8192 during the creation, {} in use now", render_pool_in_use());
+        let (retired, peak) = drain.map(end_drain).unwrap_or((0, 0));
+        hlog!(
+            "creation: the render drain retired {retired} commands; pool peak {peak} of {} during the creation, {} in use now",
+            render_pool_cap(),
+            render_pool_in_use()
+        );
         r
     }
 
@@ -409,18 +474,24 @@ impl MatchWorld {
             if arg_set("--bind-bp") {
                 crate::bp::arm(&[crate::bp::BIND_CALL, crate::bp::BIND_AFTER]);
             }
+            // with --record-prewarm the creation's resource requests grow the project's pre-warm list (bp.rs)
+            crate::bp::record_start();
             let (core, fl) = crate::run::query_one("pvp_match_resource", 0x68, var);
             if std::env::var("HOST_QUERY_LOG").is_ok() {
                 crate::bp::query_report(&crate::run::out_dir());
             }
+            crate::bp::record_prewarm(core != 0);
+            // a match child's late-load trace: the name cache as the creation left it (registry.rs; reads only)
             if core != 0 {
-                crate::bp::record_prewarm();
+                crate::registry::creation_query_done();
             }
             hlog!("pvp_match_resource -> core {core:#x} (entry flags {fl:#x}); null-cook answers: {}", crate::nullcook::summary());
             hlog!("render pool in use after the match resource: {}", render_pool_in_use());
             if core == 0 {
                 return Err("pvp_match_resource did not load".into());
             }
+            // before the first history item: the pool keeps HISTORY_ITEMS items instead of the exe's 47
+            let hist_pool = cap_history_pool(core, opts);
             // the network client's match binding (online match ready 0x2001F0ACE): nc+0x7A68D0 = the
             // core (+1 reference), nc+0x7A68D8 = 0xFF (no local player)
             (*((core + 0x1B0) as *const AtomicU32)).fetch_add(1, Ordering::SeqCst);
@@ -533,7 +604,7 @@ impl MatchWorld {
                     start_item = Some(item);
                 }
             }
-            hlog!("render pool in use after the first world: {} of 8192", render_pool_in_use());
+            hlog!("render pool in use after the first world: {} of {}", render_pool_in_use(), render_pool_cap());
             let s = mem::heap_alloc(S_SIZE, true) as u64;
             for (off, store, cap) in LISTS {
                 *((s + off) as *mut u64) = s + store;
@@ -561,7 +632,22 @@ impl MatchWorld {
                 start_stacks: None,
                 spawned: [0; 20],
                 late_stack_steps: 0,
+                hist_pool,
             }, start_item))
+        }
+    }
+
+    /// The history pool line for the match's end: items in use of the capacity (once full, the use stays at it).
+    pub fn history_pool_report(&self) -> String {
+        if self.hist_pool == 0 {
+            return "history pool: not found".to_string();
+        }
+        unsafe {
+            let used = *((self.hist_pool + 0x38) as *const u32);
+            let cap = *((self.hist_pool + 0x40) as *const u64);
+            let oldest = rd64(self.w + 0x7DD0);
+            let t0 = if oldest != 0 { *((oldest + 0x106238) as *const u32) } else { 0 };
+            format!("history pool: {used} of {cap} items in use at the end, the oldest of time {t0}, the present {}", self.present())
         }
     }
 
@@ -1123,9 +1209,16 @@ impl Drop for RenderDrain {
     }
 }
 
-/// One consumer step on the channel 0x2034C3D90 (B = q+8: head [B], tail [B+0x40], node link +0x10 (44-bit pointer);
-/// processed list tail [q+0x90], link +0x18): false when the queue is empty or its next node is not linked yet.
+/// One consumer step under the consumer lock (the drain thread's).
 unsafe fn consume_one() -> bool {
+    let _g = CONSUMER.lock().unwrap_or_else(|e| e.into_inner());
+    unsafe { consume_one_unlocked() }
+}
+
+/// One consumer step on the channel 0x2034C3D90 (B = q+8: head [B], tail [B+0x40], node link +0x10 (44-bit pointer);
+/// processed list tail [q+0x90], link +0x18): false when the queue is empty or its next node is not linked yet. The
+/// caller holds CONSUMER.
+unsafe fn consume_one_unlocked() -> bool {
     use std::sync::atomic::AtomicU64;
     const Q: u64 = 0x2034C3D90;
     unsafe {
@@ -1148,16 +1241,145 @@ unsafe fn consume_one() -> bool {
     }
 }
 
-/// Records of the render scene's command pool in use (scene 0x2034C3F40 +0x40; capacity +0x48 = 8192).
+/// Records of the render scene's command pool in use (scene 0x2034C3F40 +0x40; capacity +0x48).
 pub fn render_pool_in_use() -> u32 {
-    unsafe { *((0x2034C3F40u64 + 0x40) as *const u32) }
+    unsafe { *((RENDER_POOL + 0x40) as *const u32) }
+}
+
+/// The render scene's command pool: `single_size_buffer_allocator<0x628, multi_threading_policy>` at scene
+/// 0x2034C3F40 (`note-pool-limit-check-v1.md`, PROVEN from 0x2005FD980 / 0x2005FEC30 / 0x200600160): +0x30 the free
+/// list head (low 48 bits the record, high 16 an ABA tag), +0x40 records in use, +0x48 capacity, +0x58 the 0x2000
+/// records, linked in ascending order by their first 8 bytes.
+pub const RENDER_POOL: u64 = 0x2034C3F40;
+const RENDER_POOL_FIRST: u64 = RENDER_POOL + 0x58;
+const RENDER_POOL_RECORDS: u64 = 0x2000;
+const RENDER_POOL_RECORD: u64 = 0x628;
+/// The end of the pool's last record.
+pub const RENDER_POOL_END: u64 = RENDER_POOL_FIRST + RENDER_POOL_RECORDS * RENDER_POOL_RECORD;
+/// The capacity the world host gives the pool (the exe's own is 0x2000). Its commands are never run here: they are
+/// retired as soon as they are queued (the creation and level-load drains, the per-step retire), so the pool never needs
+/// to hold more than a burst. A producer at the capacity waits in the exe's full callback 0x2005FEC90 until the drain
+/// or the retire frees records.
+pub const RENDER_POOL_CAP: u64 = 1024;
+/// Records kept past the capacity: the allocate 0x2005FEC30 checks the count, pops, then counts, so threads that
+/// allocate at the same instant can each take one record past the capacity (never more). 64 covers every thread the
+/// exe has (about 40).
+pub const RENDER_POOL_MARGIN: u64 = 64;
+
+/// The pool's tail cut for a capacity `cap` and `margin` (pure arithmetic, tested): records 0..keep stay, record
+/// keep - 1's link is cut (no record past it can be popped), and the whole pages in [lo, hi) after it are given back.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PoolTail {
+    pub keep: u64,
+    pub cut_at: u64,
+    pub lo: u64,
+    pub hi: u64,
+}
+
+pub fn render_pool_tail(first: u64, records: u64, size: u64, cap: u64, margin: u64) -> PoolTail {
+    let keep = (cap + margin).min(records);
+    let page = crate::mem::PAGE as u64;
+    let lo = (first + keep * size).div_ceil(page) * page;
+    let hi = ((first + records * size) / page * page).max(lo);
+    PoolTail { keep, cut_at: first + (keep - 1) * size, lo, hi }
+}
+
+/// M6 + d3, in a zygote that has loaded its level and pre-warm and retired their commands (nothing of the pool in use,
+/// no exe code running on the world thread): every record is free, so the free list is rebuilt over records
+/// 0..RENDER_POOL_CAP + RENDER_POOL_MARGIN in ascending order (the last one ends it), the capacity goes down to
+/// RENDER_POOL_CAP and the pages after the kept records are given back (up to about 10.7 MiB: the pages the level load
+/// wrote). The level load and the pre-warm run with the exe's own capacity 0x2000 (their peak, about 7200 on PvE, stays
+/// under it): at a lower capacity the exe's full callback 0x2005FEC90 would free commands there, and its free
+/// 0x2000FA0D0 takes no lock, so two producer threads at a full pool would run it at once. The matches (fork children)
+/// run with RENDER_POOL_CAP. Skipped (logged) unless the pool is quiet with the exe's capacity; the head is swapped
+/// only if nothing moved it during the rebuild.
+pub fn compact_render_pool() {
+    let t = render_pool_tail(RENDER_POOL_FIRST, RENDER_POOL_RECORDS, RENDER_POOL_RECORD, RENDER_POOL_CAP, RENDER_POOL_MARGIN);
+    unsafe {
+        let in_use = *((RENDER_POOL + 0x40) as *const i32);
+        let cap = rd64(RENDER_POOL + 0x48);
+        if cap != RENDER_POOL_RECORDS || in_use != 0 {
+            hlog!("render pool: not rebuilt (capacity {cap}, in use {in_use}; needs {RENDER_POOL_RECORDS} and 0)");
+            return;
+        }
+        let head_a = &*((RENDER_POOL + 0x30) as *const std::sync::atomic::AtomicU64);
+        let before = head_a.load(Ordering::SeqCst);
+        for i in 0..t.keep {
+            let r = RENDER_POOL_FIRST + i * RENDER_POOL_RECORD;
+            *(r as *mut u64) = if i + 1 < t.keep { r + RENDER_POOL_RECORD } else { 0 };
+        }
+        let tag = ((before >> 48) + 1) & 0xFFFF;
+        if head_a.compare_exchange(before, (tag << 48) | RENDER_POOL_FIRST, Ordering::SeqCst, Ordering::SeqCst).is_err()
+            || *((RENDER_POOL + 0x40) as *const i32) != 0
+        {
+            hlog!("render pool: WARNING: used during the rebuild (head {before:#x}): capacity and pages left as they are");
+            return;
+        }
+        *((RENDER_POOL + 0x48) as *mut u64) = RENDER_POOL_CAP;
+        match crate::mem::drop_range(t.lo as usize, t.hi as usize) {
+            Ok(pages) => hlog!(
+                "render pool: free list rebuilt over records 0..{} ({:#x} ends it); capacity {RENDER_POOL_CAP} of {RENDER_POOL_RECORDS}; {pages} pages after it given back ({} kB)",
+                t.keep - 1,
+                t.cut_at,
+                pages * crate::mem::PAGE / 1024
+            ),
+            Err(e) => hlog!("render pool: free list rebuilt over records 0..{}; capacity {RENDER_POOL_CAP} of {RENDER_POOL_RECORDS}; pages kept: {e}", t.keep - 1),
+        }
+    }
+}
+
+/// Return addresses of the full callback's yields: 0x2005FEC90 loops `while in_use >= capacity { free processed
+/// (0x2000FA0D0); SwitchToThread(); if it returned 0: Sleep(0) }` (calls at 0x2005FECC0 / 0x2005FECCC, imports
+/// 0x2008A6078 / 0x2008A6070, PROVEN).
+pub const POOL_FULL_SWITCH_RET: u64 = 0x2005FECC6;
+pub const POOL_FULL_SLEEP_RET: u64 = 0x2005FECD2;
+
+/// One consumer at a time on the render channel: the drain thread, the per-step retire and [`retire_at_capacity`].
+static CONSUMER: std::sync::Mutex<()> = std::sync::Mutex::new(());
+/// Commands retired by producers waiting at the capacity (logged at the first one).
+static AT_CAPACITY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Called from the SwitchToThread / Sleep(0) stand-ins when the exe's full callback yields: the producer waits for
+/// records, and the host has no render thread to free them, so it retires the queued commands itself (the consumer's
+/// part, as the drain does); the callback's next turn frees them with 0x2000FA0D0. Without it, a step that queues more
+/// commands than the capacity while no drain runs would wait for good. Skipped while another consumer runs (it frees
+/// them then).
+pub fn retire_at_capacity() {
+    let Ok(_g) = CONSUMER.try_lock() else { return };
+    let mut n = 0u64;
+    while unsafe { consume_one_unlocked() } {
+        n += 1;
+    }
+    if n != 0 && AT_CAPACITY.fetch_add(n, Ordering::Relaxed) == 0 {
+        hlog!("render pool: a producer at the capacity {} retired {n} queued commands itself (first time)", render_pool_cap());
+    }
+}
+
+/// Stop a render drain on the producer's thread (the world thread) and free what it retired: the consumer only moves
+/// commands to the processed list; freeing them is the producer's part (0x2000FA0D0, which the exe's full callback
+/// 0x2005FEC90 also calls on every turn, with or without processed commands). Returns (retired, pool peak).
+pub fn end_drain(d: RenderDrain) -> (u64, u32) {
+    let r = d.stop();
+    unsafe {
+        let q = 0x2034C3D90u64;
+        if rd64(q + 8) != 0 && rd64(q + 0x90) != 0 {
+            let free: extern "win64" fn(u64) = std::mem::transmute(0x2000FA0D0u64);
+            free(q + 8);
+        }
+    }
+    r
+}
+
+/// The pool's capacity now.
+pub fn render_pool_cap() -> u64 {
+    unsafe { rd64(RENDER_POOL + 0x48) }
 }
 
 /// The render channel (`one_way_render_channel` at 0x2034C3D90, made in the null render init): game code allocates
 /// each render command from the render scene's pool (`single_size_fixed_allocator<0x628, 0x2000>` at scene
 /// 0x2034C3F40) and pushes it (0x200600380). In the client the :render thread consumes and runs the commands
 /// (0x2000F7220) and the producer frees the processed nodes (0x2000FA0D0). The host has no :render thread, so without
-/// this the pool fills (8192 commands, about 0.4 per tick) and the pool's full callback 0x2005FEC90 waits forever.
+/// this the pool fills (its capacity, about 0.4 commands per tick) and the pool's full callback 0x2005FEC90 waits forever.
 /// Here the world thread (the producer) pops every queued command and retires it the consumer's way WITHOUT running it
 /// (no drawing, no render-side copies: the commands only feed the render thread), then frees the processed nodes with
 /// the exe's 0x2000FA0D0. Returns (retired, marked): `marked` counts nodes the client's consumer would have kept back
@@ -1171,6 +1393,7 @@ pub fn retire_render_commands() -> (u64, u64) {
         let pop: extern "win64" fn(u64, *mut u64) -> u64 = std::mem::transmute(0x2000FA890u64);
         let frame = *((Q + 0xC8) as *const u32);
         let (mut n, mut marked) = (0u64, 0u64);
+        let consumer = CONSUMER.lock().unwrap_or_else(|e| e.into_inner());
         loop {
             let mut old = 0u64;
             if pop(Q + 8, &mut old) == 0 || old == 0 {
@@ -1185,6 +1408,7 @@ pub fn retire_render_commands() -> (u64, u64) {
             *((Q + 0x90) as *mut u64) = old;
             n += 1;
         }
+        drop(consumer);
         if n != 0 {
             let free: extern "win64" fn(u64) = std::mem::transmute(0x2000FA0D0u64);
             free(Q + 8);
@@ -1354,6 +1578,33 @@ unsafe fn build_input_world(game: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_history_pool_keeps_22_items_and_never_fewer_than_the_resync_de_reads() {
+        // online: tick 50, horizon 500 ms (max_delay_ms), the session's final lag 300 ms: the DE reads 17 items
+        let lag = crate::session::SessionConfig::default().final_lag_ms;
+        assert_eq!(lag, 300);
+        assert_eq!(history_capacity(47, 50, u32::from(local_match::options::max_delay_ms(50)), lag), (22, 17));
+        // a shorter tick reads more items: the spare stays, never above the exe's own capacity
+        assert_eq!(history_capacity(47, 25, 375, lag), (33, 28));
+        assert_eq!(history_capacity(47, 10, 150, lag), (47, 46));
+        assert_eq!(history_capacity(20, 50, 500, lag), (20, 17), "never above the exe's value");
+    }
+
+    #[test]
+    fn the_render_pool_keeps_its_capacity_and_margin_and_gives_back_whole_pages_after_them() {
+        let t = render_pool_tail(RENDER_POOL_FIRST, RENDER_POOL_RECORDS, RENDER_POOL_RECORD, RENDER_POOL_CAP, RENDER_POOL_MARGIN);
+        assert_eq!(t.keep, 1088);
+        assert_eq!(t.cut_at, 0x203666370, "record 1087 of the records from 0x2034C3F98");
+        assert_eq!(t.lo, 0x203667000, "the first whole page after record 1087's end 0x203666998");
+        assert_eq!(t.hi, 0x204113000, "the last whole page before the records' end 0x204113F98");
+        assert_eq!(t.hi - t.lo, 0xAAC000, "10.67 MiB given back");
+        // nothing past the records' end and nothing of a kept record is given back
+        assert!(t.lo >= t.cut_at + RENDER_POOL_RECORD && t.hi <= RENDER_POOL_FIRST + RENDER_POOL_RECORDS * RENDER_POOL_RECORD);
+        // a capacity at the pool's size keeps every record and gives back nothing
+        let all = render_pool_tail(RENDER_POOL_FIRST, RENDER_POOL_RECORDS, RENDER_POOL_RECORD, RENDER_POOL_RECORDS, RENDER_POOL_MARGIN);
+        assert_eq!((all.keep, all.hi - all.lo), (RENDER_POOL_RECORDS, 0));
+    }
 
     /// used = start storage - end storage - end carried; bots, unchanged and refilled-above-start stacks are not listed.
     #[test]

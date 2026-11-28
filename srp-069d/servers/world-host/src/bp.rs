@@ -7,7 +7,7 @@
 //! and the destination block (after it) into static buffers. `report` writes them out later.
 
 use crate::hlog;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 pub const BIND_CALL: u64 = 0x200227883;
 pub const BIND_AFTER: u64 = 0x200227887;
@@ -109,10 +109,21 @@ pub fn arm_watch(addrs: &[u64]) {
 }
 
 fn arm_kind(addrs: &[u64], bp_type: u32, what: &str) {
+    for fd in open_kind(addrs, bp_type, what) {
+        let i = NFDS.fetch_add(1, Ordering::SeqCst);
+        if i < 256 {
+            unsafe { FDS[i] = fd };
+        }
+    }
+}
+
+/// The breakpoints of [`arm_kind`] on every current thread; returns their descriptors. Closing a descriptor removes its
+/// breakpoint, with the copies the thread's later threads inherited, and frees the debug register.
+fn open_kind(addrs: &[u64], bp_type: u32, what: &str) -> Vec<i32> {
     let tids: Vec<i32> = std::fs::read_dir("/proc/self/task")
         .map(|d| d.filter_map(|e| e.ok()?.file_name().to_str()?.parse().ok()).collect())
         .unwrap_or_default();
-    let mut ok = 0;
+    let mut fds = Vec::new();
     let mut err = String::new();
     for &tid in &tids {
         for &a in addrs {
@@ -122,14 +133,11 @@ fn arm_kind(addrs: &[u64], bp_type: u32, what: &str) {
                 err = format!("{}", std::io::Error::last_os_error());
                 continue;
             }
-            let i = NFDS.fetch_add(1, Ordering::SeqCst);
-            if i < 256 {
-                unsafe { FDS[i] = fd };
-            }
-            ok += 1;
+            fds.push(fd);
         }
     }
-    hlog!("{what}: {ok} armed ({} thread(s) x {:x?}){}", tids.len(), addrs, if err.is_empty() { String::new() } else { format!("; last error {err}") });
+    hlog!("{what}: {} armed ({} thread(s) x {:x?}){}", fds.len(), tids.len(), addrs, if err.is_empty() { String::new() } else { format!("; last error {err}") });
+    fds
 }
 
 static mut WATCH_T: (u32, u32) = (0, 0);
@@ -229,9 +237,14 @@ pub fn memcpy_report(out: &str) {
 /// as queries.tsv (zygote pre-warm: which resources a match creation asks for).
 const QUERY: u64 = 0x2000BC810;
 static mut QL_TAB: Option<Vec<([u8; 120], u32, u32, u64)>> = None;
+/// Taken by `query_hit` around its pushes: two exe threads (the world thread, :resources manager) can create queries at
+/// the same moment.
+static QL_LOCK: AtomicBool = AtomicBool::new(false);
 
+/// HOST_QUERY_LOG=1 (diagnosis): the query log for the whole run, from `--debug-at` on. Pre-warm recording arms its own
+/// breakpoint per match creation ([`record_start`]).
 pub fn arm_query_log() {
-    if std::env::var("HOST_QUERY_LOG").is_err() && record_prewarm_path().is_none() {
+    if std::env::var("HOST_QUERY_LOG").is_err() {
         return;
     }
     unsafe { QL_TAB = Some(Vec::with_capacity(60_000)) };
@@ -244,8 +257,25 @@ unsafe fn query_hit(g: &[libc::greg_t], rip: u64, tid: u32) -> bool {
     }
     let p = g[libc::REG_RDX as usize] as u64;
     let ret = *(g[libc::REG_RSP as usize] as u64 as *const u64);
-    if let Some(v) = (*std::ptr::addr_of_mut!(QL_TAB)).as_mut() {
-        if p > 0x10000 {
+    // bounded: a holder that never returns (a fault in the handler) costs this query's entries, never a hang
+    for _ in 0..10_000 {
+        if QL_LOCK.compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed).is_ok() {
+            unsafe { query_push(p, ret, tid) };
+            QL_LOCK.store(false, Ordering::Release);
+            return true;
+        }
+        unsafe { libc::sched_yield() };
+    }
+    true
+}
+
+/// One query's requests into the table (signal context, under `QL_LOCK`; the table never grows past its capacity).
+unsafe fn query_push(p: u64, ret: u64, tid: u32) {
+    // edition 2024: every unsafe operation of an unsafe fn needs its own block (unsafe_op_in_unsafe_fn)
+    unsafe {
+        if let Some(v) = (*std::ptr::addr_of_mut!(QL_TAB)).as_mut()
+            && p > 0x10000
+        {
             let reqs = *(p as *const u64);
             let n = (*((p + 0x10) as *const u32)).min(4096);
             for i in 0..n as u64 {
@@ -268,51 +298,170 @@ unsafe fn query_hit(g: &[libc::greg_t], rip: u64, tid: u32) -> bool {
             }
         }
     }
-    true
 }
 
-/// The query table as queries.tsv text (header, then class, name, thread, caller per request).
-fn query_text() -> Option<(String, usize)> {
+/// The query table from entry `from` on as queries.tsv text (header, then class, name, thread, caller per request), and
+/// the number of requests in it.
+fn query_text(from: usize) -> Option<(String, usize)> {
     let v = unsafe { (*std::ptr::addr_of!(QL_TAB)).as_ref() }?;
     let mut s = String::from("class\tname\ttid\tcaller\n");
-    for (b, c, t, r) in v {
-        let n = b.iter().position(|&x| x == 0).unwrap_or(b.len());
-        s.push_str(&format!("{c:#x}\t{}\t{t}\t{r:#x}\n", String::from_utf8_lossy(&b[..n])));
+    let mut n = 0;
+    for (b, c, t, r) in v.iter().skip(from) {
+        let k = b.iter().position(|&x| x == 0).unwrap_or(b.len());
+        s.push_str(&format!("{c:#x}\t{}\t{t}\t{r:#x}\n", String::from_utf8_lossy(&b[..k])));
+        n += 1;
     }
-    Some((s, v.len()))
+    Some((s, n))
 }
 
 pub fn query_report(out: &str) {
-    if let Some((s, n)) = query_text() {
+    if let Some((s, n)) = query_text(0) {
         let _ = std::fs::write(format!("{out}/queries.tsv"), s);
         hlog!("query log: {n} request(s) -> {out}/queries.tsv");
     }
 }
 
-/// `--record-prewarm PATH` (the daemon passes it to a zygote whose project has no pre-warm list yet).
+/// `--record-prewarm PATH`: the project's own pre-warm list, which every match creation grows (the daemon passes it to
+/// every zygote of a project with a `prewarm_dir` list, whether that list exists yet or not).
 pub fn record_prewarm_path() -> Option<String> {
-    let a: Vec<String> = std::env::args().collect();
-    a.iter().position(|x| x == "--record-prewarm").and_then(|i| a.get(i + 1)).cloned()
+    crate::cmdline::value("--record-prewarm")
 }
 
-/// After a match creation: write the project's pre-warm list (the shareable resources it asked for, daemon
-/// [`crate::daemon::prewarm_list`]) to the `--record-prewarm` path unless it exists (written to a temporary name and
-/// renamed, so the zygotes that start later read a whole list or none).
-pub fn record_prewarm() {
-    let Some(path) = record_prewarm_path() else { return };
-    if std::path::Path::new(&path).exists() {
+/// The current match creation's recording: the descriptors of its query breakpoints (closed by [`record_prewarm`]) and
+/// the table entry its requests start at.
+static REC: std::sync::Mutex<(Vec<i32>, usize)> = std::sync::Mutex::new((Vec::new(), 0));
+
+/// With `--record-prewarm`, just before a match creation's `pvp_match_resource` query: log the creation's resource
+/// requests. The breakpoint at the query creation is armed here, in the match's own process, and closed again by
+/// [`record_prewarm`] right after the query, so it holds a debug register (x86-64 has four per thread) only during
+/// the query and never competes with the kill log, the bots' scene and assert breakpoints armed later. The handler only
+/// reads registers and exe memory and writes the host's own table (`query_hit`): no exe byte changes.
+pub fn record_start() {
+    if record_prewarm_path().is_none() {
         return;
     }
-    let Some((text, n)) = query_text() else { return };
+    let have = unsafe { (*std::ptr::addr_of!(QL_TAB)).as_ref().map(|v| v.len()) };
+    if let Some(len) = have {
+        // HOST_QUERY_LOG armed the breakpoint for the whole run: record only this creation's part of the table
+        REC.lock().unwrap().1 = len;
+        return;
+    }
+    unsafe { QL_TAB = Some(Vec::with_capacity(60_000)) };
+    let fds = open_kind(&[QUERY], 4, "pre-warm recording breakpoints");
+    *REC.lock().unwrap() = (fds, 0);
+}
+
+/// After a match creation's `pvp_match_resource` query (`created` = it returned the core): close the recording's
+/// breakpoints, then grow the project's pre-warm list at the `--record-prewarm` path by the shareable resources the
+/// creation asked for ([`crate::daemon::prewarm_list`], [`crate::daemon::grow_prewarm_list`]: the union, written
+/// through a temporary name and a rename under a lock, so zygotes that start later read a whole list).
+pub fn record_prewarm(created: bool) {
+    let Some(path) = record_prewarm_path() else { return };
+    let (fds, from) = std::mem::take(&mut *REC.lock().unwrap());
+    for &fd in &fds {
+        unsafe { libc::close(fd) };
+    }
+    let ours = !fds.is_empty();
+    // under the handler's lock: a handler already under way on another thread finishes first
+    let table = under_query_lock(|| {
+        let t = if created { query_text(from) } else { None };
+        if ours {
+            // the table was this recording's own (not HOST_QUERY_LOG's): freed, so the match does not keep its pages
+            unsafe { QL_TAB = None };
+        }
+        t
+    })
+    .flatten();
+    if ours {
+        hlog!("pre-warm recording breakpoints: {} closed", fds.len());
+    }
+    let Some((text, n)) = table else { return };
     let list = crate::daemon::prewarm_list(&text, &crate::daemon::PREWARM_CLASSES);
-    let tmp = format!("{path}.{}.tmp", std::process::id());
-    match std::fs::write(&tmp, &list).and_then(|_| std::fs::rename(&tmp, &path)) {
-        Ok(()) => hlog!("pre-warm list recorded: {path} ({} resources of {n} requests)", list.lines().count()),
-        Err(e) => {
-            let _ = std::fs::remove_file(&tmp);
-            hlog!("pre-warm list {path} not written: {e}");
+    let mine = list.lines().count();
+    // the base pre-warm set's entries were found cached: what their cooks ask for joins as a cold creation records it
+    let list = crate::baseset::with_closure(&list);
+    let closure = list.lines().count() - mine;
+    if closure > 0 {
+        hlog!("pre-warm list {path}: {closure} entries the base set's cooks asked for join this creation's {mine}");
+    }
+    match crate::daemon::grow_prewarm_list(std::path::Path::new(&path), &list) {
+        Ok((entries, 0)) => hlog!("pre-warm list {path}: nothing new ({entries} entries; this creation {mine} resources of {n} requests)"),
+        Ok((entries, added)) => hlog!("pre-warm list recorded: {path}: {entries} entries, {added} new (this creation {mine} resources of {n} requests)"),
+        Err(e) => hlog!("pre-warm list {path} not written: {e}"),
+    }
+}
+
+/// Run `f` under `QL_LOCK` (a bounded wait, as the handler's), so no handler pushes meanwhile; None when the lock never
+/// came free.
+fn under_query_lock<T>(f: impl FnOnce() -> T) -> Option<T> {
+    for _ in 0..10_000 {
+        if QL_LOCK.compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed).is_ok() {
+            let r = f();
+            QL_LOCK.store(false, Ordering::Release);
+            return Some(r);
+        }
+        unsafe { libc::sched_yield() };
+    }
+    None
+}
+
+/// The base pre-warm set's level-load check (`baseset`): the exe's cache lookup 0x2000CAF70 runs its find 0x2000C2A10
+/// and, when the find returned a node, branches to this address (its only jump here, 0x2000CB003), where the found node
+/// is still in the register the find's result was loaded into. From here the lookup either attaches the request to
+/// the node's request in flight or hands out the node's finished resource: every found entry passes here, a missed one
+/// never. The other two calls of the find (0x2000C1ED8 before an erase, 0x2000CABF7 in the completion path) serve no
+/// request.
+pub const FOUND_AT: u64 = 0x2000CB03D;
+static FOUND_SET: std::sync::atomic::AtomicPtr<u64> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+static FOUND_LEN: AtomicUsize = AtomicUsize::new(0);
+static FOUND_N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static FOUND_HITS: AtomicUsize = AtomicUsize::new(0);
+/// The first found nodes of the set (the count goes on in FOUND_HITS).
+const FOUND_KEEP: usize = 32;
+static FOUND_HIT_NODES: [std::sync::atomic::AtomicU64; FOUND_KEEP] = [const { std::sync::atomic::AtomicU64::new(0) }; FOUND_KEEP];
+
+/// Arm the check: an execution breakpoint at [`FOUND_AT`] on every thread; a found node that is one of `nodes`
+/// (ascending) is counted and kept. Returns the breakpoints' descriptors and the number of threads they were meant for.
+pub fn arm_found_check(nodes: &'static [u64]) -> (Vec<i32>, usize) {
+    FOUND_N.store(0, Ordering::SeqCst);
+    FOUND_HITS.store(0, Ordering::SeqCst);
+    FOUND_LEN.store(nodes.len(), Ordering::SeqCst);
+    FOUND_SET.store(nodes.as_ptr() as *mut u64, Ordering::SeqCst);
+    let threads = std::fs::read_dir("/proc/self/task").map(|d| d.count()).unwrap_or(0);
+    (open_kind(&[FOUND_AT], 4, "level-load check breakpoints (base pre-warm set)"), threads)
+}
+
+/// Close the check's breakpoints. Returns (found entries, the first found nodes of the set, found nodes of the set).
+pub fn end_found_check(fds: Vec<i32>) -> (u64, Vec<u64>, usize) {
+    for fd in fds {
+        unsafe { libc::close(fd) };
+    }
+    FOUND_SET.store(std::ptr::null_mut(), Ordering::SeqCst);
+    let hits = FOUND_HITS.load(Ordering::SeqCst);
+    let kept = (0..hits.min(FOUND_KEEP)).map(|i| FOUND_HIT_NODES[i].load(Ordering::SeqCst)).collect();
+    (FOUND_N.load(Ordering::SeqCst), kept, hits)
+}
+
+/// The check's handler (signal context): reads one register and the host's own sorted set, writes host atomics only.
+unsafe fn found_hit(g: &[libc::greg_t], rip: u64) -> bool {
+    if rip != FOUND_AT {
+        return false;
+    }
+    let p = FOUND_SET.load(Ordering::SeqCst);
+    if p.is_null() {
+        return true;
+    }
+    FOUND_N.fetch_add(1, Ordering::SeqCst);
+    let node = g[libc::REG_RDX as usize] as u64;
+    // SAFETY: the set is the base's, inherited and never changed or freed ('static), FOUND_LEN long
+    let set = unsafe { std::slice::from_raw_parts(p as *const u64, FOUND_LEN.load(Ordering::SeqCst)) };
+    if set.binary_search(&node).is_ok() {
+        let i = FOUND_HITS.fetch_add(1, Ordering::SeqCst);
+        if i < FOUND_KEEP {
+            FOUND_HIT_NODES[i].store(node, Ordering::SeqCst);
         }
     }
+    true
 }
 
 /// HOST_ARMW=addr,reg,off,from: an exec breakpoint at `addr`; its first hit at world time >= `from` arms an 8-byte write
@@ -414,6 +563,9 @@ pub unsafe fn on_trap(g: &[libc::greg_t], data: u64, uc: *const libc::ucontext_t
         return;
     }
     if memcpy_hit(g, rip) {
+        return;
+    }
+    if unsafe { found_hit(g, rip) } {
         return;
     }
     if query_hit(g, rip, tid) {

@@ -24,6 +24,13 @@ extern "C" fn handler(sig: libc::c_int, info: *mut libc::siginfo_t, ctx: *mut li
             return;
         }
         let addr = (*info).si_addr() as usize;
+        // HOST_NULL_RES_GUARD=right (diagnosis): an access to the page after a guarded empty resource names its class
+        if sig == libc::SIGSEGV
+            && let Some(n) = crate::nullcook::guard_fault_note(addr, g[libc::REG_RIP as usize] as usize)
+        {
+            crate::log::raw(format!("{n}\n").as_bytes());
+            crate::log::line(&n);
+        }
         let s = describe(&format!("FAULT: signal {sig} at rip {:#x} (fault address {addr:#x})", g[libc::REG_RIP as usize] as usize), g, 24);
         crate::log::raw(s.as_bytes());
         // best effort: also into the log file

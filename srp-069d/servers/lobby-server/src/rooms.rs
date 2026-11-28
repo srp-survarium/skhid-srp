@@ -22,9 +22,9 @@
 //!   `st_custom_match_match_started_without_you` ("The match started when you were in reserve", a server-only text).
 //! * **Bots** (training rooms only: the client hides the bot settings of a clan room and when `max_ai_count` is 0,
 //!   PROVEN CustomMatchWindow.setData): offered when the match server's world host drives bots, at most
-//!   [`BOT_TEAM_MAX`] per team and never more than the team's free match slots; the Start passes them as the room's
-//!   AI players (the queue's bot fill path, `online.rs`). The room's "bots ignore players" goes with them
-//!   ([`BotFill::ignore_players`]): the world host sets the exe's own harmless-bots byte 0x20F43FE53, which the AI's
+//!   [`crate::online::bot_team_cap`] per team (the `bots_per_team` setting) and never more than the team's free
+//!   match slots; the Start passes them as the room's AI players (the queue's bot fill path, `online.rs`). The room's
+//!   "bots ignore players" goes with them ([`BotFill::ignore_players`]): the world host sets the exe's own harmless-bots byte 0x20F43FE53, which the AI's
 //!   vision and sound filters read (PROVEN 0x20032CA70 / 0x200368B50: they skip every record with `ai_id == -1`).
 //! * **Clan battle**: the host needs a clan and the clan rank permission "battle commander" (LIKELY); only members of
 //!   the host's clan and of ONE other clan may join (the game's own refusal texts); team A is the host's clan side, team
@@ -43,7 +43,7 @@ use protocol::s2c::*;
 use protocol::Encode;
 
 use crate::dispatch::Ctx;
-use crate::online::{BotFill, MatchKind, BOT_TEAM_MAX};
+use crate::online::{BotFill, MatchKind};
 
 /// Player (and bot) slots per team of a room on `row`: half the match size, 1..=9 (the 98 count fields take ONE digit,
 /// so 10 would break the client's "min-max" character range).
@@ -209,15 +209,17 @@ fn push_to(cx: &mut Ctx, peer: &mut Peer, to: AccountId, msg: S2c) {
 }
 
 /// AI players a team of this room may get: none in a clan room or without a match server whose world host drives bots
-/// (the client then hides the bot settings: `max_ai_count` 0); else the team's slots, at most [`BOT_TEAM_MAX`] (the
-/// team limit of a bot-filled match). None in a mode the AI cannot play
-/// ([`crate::online::NO_BOT_MODES`]: Search and Destroy).
+/// (the client then hides the bot settings: `max_ai_count` 0); else the team's slots, at most
+/// [`crate::online::bot_team_cap`] (the team limit of a bot-filled match: `bots_per_team`, the hard cap, the
+/// patrol graphs per team). None in a mode the AI cannot play ([`crate::online::NO_BOT_MODES`]: Search and Destroy).
 fn bot_cap(cx: &Ctx, room: &Room) -> u8 {
     let bots = cx.lobby.online.as_ref().is_some_and(|h| h.bots_available());
     if room.kind != 0 || !bots || !crate::online::bots_play(u32::from(room.mode)) {
         return 0;
     }
-    team_cap(room.row(cx)).min(BOT_TEAM_MAX as u8)
+    let row = room.row(cx);
+    let (cap, _) = crate::online::bot_team_cap(cx.lobby.cfg.bots_per_team, row.map(crate::online::match_size).unwrap_or(20));
+    team_cap(row).min(u8::try_from(cap).unwrap_or(u8::MAX))
 }
 
 /// The 98 for one room (None = the empty "not in a room" record; only for a client that never had a room: leaving is A0).

@@ -167,8 +167,22 @@ impl HostConfig {
 /// daemon takes them from the game data or its config's `[project]` sections). A daemon that does not know the query
 /// answers `Fault` (an error here); no answer within `timeout` is an error too.
 pub fn query_projects(h: &HostConfig, timeout: Duration) -> io::Result<Vec<String>> {
+    let f = query(h, proto::ty::LIST_PROJECTS, proto::ty::PROJECTS, "project list", timeout)?;
+    Ok(proto::decode_projects(&f)?)
+}
+
+/// Ask the world host for its room status (`LIST_STATUS` -> `Status` on a connection of its own): the loaded maps with
+/// their matches and room, and whether a new map can load ([`proto::status::HostStatus`]). A daemon that does not know
+/// the query answers `Fault` (an error here); no answer within `timeout` is an error too.
+pub fn query_status(h: &HostConfig, timeout: Duration) -> io::Result<proto::status::HostStatus> {
+    let f = query(h, proto::ty::LIST_STATUS, proto::ty::STATUS, "room status", timeout)?;
+    Ok(proto::status::HostStatus::decode(&f)?)
+}
+
+/// One query on a connection of its own: `ask` (no payload), then one frame of type `answer` within `timeout`.
+fn query(h: &HostConfig, ask: u8, answer: u8, what: &str, timeout: Duration) -> io::Result<proto::Frame> {
     let mut s = (h.connector)()?;
-    proto::write_frame(&mut *s, proto::ty::LIST_PROJECTS, &[])?;
+    proto::write_frame(&mut *s, ask, &[])?;
     let mut rd = s.try_clone_stream()?;
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -177,14 +191,14 @@ pub fn query_projects(h: &HostConfig, timeout: Duration) -> io::Result<Vec<Strin
     let got = rx.recv_timeout(timeout);
     s.shutdown_both();
     match got {
-        Ok(Ok(Some(f))) if f.ty == proto::ty::PROJECTS => Ok(proto::decode_projects(&f)?),
+        Ok(Ok(Some(f))) if f.ty == answer => Ok(f),
         Ok(Ok(Some(f))) => match proto::FromHost::decode(&f) {
-            Ok(proto::FromHost::Fault { reason }) => Err(io::Error::other(format!("the world host refused the project list: {reason}"))),
-            _ => Err(io::Error::other(format!("the world host answered the project list with frame {:#04x}", f.ty))),
+            Ok(proto::FromHost::Fault { reason }) => Err(io::Error::other(format!("the world host refused the {what}: {reason}"))),
+            _ => Err(io::Error::other(format!("the world host answered the {what} with frame {:#04x}", f.ty))),
         },
-        Ok(Ok(None)) => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "the world host closed without a project list")),
+        Ok(Ok(None)) => Err(io::Error::new(io::ErrorKind::UnexpectedEof, format!("the world host closed without a {what}"))),
         Ok(Err(e)) => Err(e),
-        Err(_) => Err(io::Error::new(io::ErrorKind::TimedOut, "the world host did not answer the project list")),
+        Err(_) => Err(io::Error::new(io::ErrorKind::TimedOut, format!("the world host did not answer the {what}"))),
     }
 }
 

@@ -11,6 +11,7 @@
 //! * [`world_host`]: the world host daemon srp starts itself (config generated from the data and the settings).
 //! * [`update`]: the Steam launcher's update check ("latest version"), so the Steam Play button reaches the game.
 
+pub mod host_room;
 pub mod matches;
 pub mod online;
 pub mod settings;
@@ -530,6 +531,13 @@ pub fn run(c: &Config, parts: Parts, matches: Arc<dyn LocalMatches>, stop: &Atom
     {
         let (online, socket) = (online.clone(), c.world_host.socket.clone());
         std::thread::spawn(move || world_host::fetch_projects(&socket, &online));
+    }
+    // the world host's room (loaded maps, their matches, whether a new map loads) about every 0.5 s: the queues start
+    // only matches the host can take now
+    #[cfg(unix)]
+    {
+        let (online, socket) = (online.clone(), c.world_host.socket.clone());
+        std::thread::spawn(move || world_host::watch_room(&socket, &online));
     }
     let ms = online.start_server(o.bind)?;
     log::info!("match server on udp {} (clients are told {})", ms.local_addr(), o.public_host);

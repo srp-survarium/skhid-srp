@@ -17,6 +17,8 @@
 //! **Project list** (its own connection, outside the match frames): `ListProjects` 0x05 (no payload) is answered with
 //! one `Projects` 0x8B ([`projects_payload`] / [`decode_projects`]) and the connection is closed: the lobby asks the
 //! daemon which level projects it serves instead of reading the daemon's config itself.
+//! **Room status** (its own connection too): `ListStatus` 0x06 (no payload) is answered with one `Status` 0x8C
+//! ([`status::HostStatus`]): the loaded maps with their matches and room, and whether a new map can load.
 //! **Host -> relay** ([`FromHost`]): `Ready` 0x81, `Tick` 0x82 (phase 2; phase 1 writes them to a file per match),
 //! `Outcome` 0x83, `Stats` 0x84, `De` 0x85 (phase 2), `Final` 0x86, `Diverged` 0x87, `Kills` 0x89 (version 3),
 //! `Used` 0x8A (version 6), `Fault` 0x8F.
@@ -33,6 +35,8 @@ use std::io::{self, Read, Write};
 
 /// Version 5: the host's per-tick bot entries ([`FromHost::Bots`]).
 pub mod bots;
+/// The room status query ([`status::HostStatus`]).
+pub mod status;
 
 /// Version carried by `Create`. A host that does not speak it answers `Fault`.
 /// 2: `PlayerStats` has `keys_spent` / `gold_spent` (PvE paid respawns).
@@ -74,6 +78,8 @@ pub mod ty {
     pub const CLOSE: u8 = 0x04;
     /// the project-list query (its own connection, no payload)
     pub const LIST_PROJECTS: u8 = 0x05;
+    /// the room status query (its own connection, no payload)
+    pub const LIST_STATUS: u8 = 0x06;
     pub const READY: u8 = 0x81;
     pub const TICK: u8 = 0x82;
     pub const OUTCOME: u8 = 0x83;
@@ -86,6 +92,8 @@ pub mod ty {
     pub const USED: u8 = 0x8A;
     /// the answer to `LIST_PROJECTS`: `u16 n`, n x `str` (the level project names)
     pub const PROJECTS: u8 = 0x8B;
+    /// the answer to `LIST_STATUS` ([`crate::status::HostStatus`])
+    pub const STATUS: u8 = 0x8C;
     pub const FAULT: u8 = 0x8F;
 }
 

@@ -36,10 +36,14 @@ pub struct LobbyConfig {
     /// higher). Both teams need at least one player either way.
     pub online_min_players: u32,
     /// PvP bots (CHOICE): a queue search that waited this long without a full group starts a match
-    /// with the humans found (at least one) and AI players up to [`crate::online::BOT_TEAM_MAX`] per team. Only when the
-    /// match server says it can drive bots ([`crate::OnlineMatches::bots_available`]: a world host with bots). Default
-    /// 30 s; None = never.
+    /// with the humans found (at least one) and AI players up to [`crate::online::bot_team_cap`] per team. Only when
+    /// the match server says it can drive bots ([`crate::OnlineMatches::bots_available`]: a world host with bots).
+    /// Default 30 s; None = never.
     pub online_bot_wait: Option<Duration>,
+    /// Players per team of a bot-filled PvP match (queue bot fill) and the most AI players a custom room offers per
+    /// team (CHOICE: 6). Never more than [`crate::online::BOT_TEAM_MAX`], half the row's match size or the patrol
+    /// graphs per team ([`crate::online::bot_team_cap`]). srp: `matches.bots_per_team`, 1..=8.
+    pub bots_per_team: usize,
     /// TEST ONLY. Hero of the day (A6 at sign-in, `48 2B` / `48 2C`, the 24 h status and its bonus; hero.rs). Default
     /// true; tests that count messages turn it off.
     pub hero_of_the_day: bool,
@@ -128,6 +132,7 @@ impl Default for LobbyConfig {
             online_report_grace: Duration::from_secs(20),
             online_min_players: 2,
             online_bot_wait: Some(Duration::from_secs(30)),
+            bots_per_team: 6,
             hero_of_the_day: true,
             store_tabs: crate::actions::default_tabs(),
             store_offers: crate::actions::default_offers(),

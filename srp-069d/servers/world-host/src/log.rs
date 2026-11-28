@@ -21,6 +21,11 @@ pub fn set_quiet_dbg(q: bool) {
     QUIET.store(q, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// The log's locks, held across fork() (run::fork_world): no other thread is then in the middle of a log line.
+pub fn hold() -> (std::sync::MutexGuard<'static, Option<Instant>>, std::sync::MutexGuard<'static, Option<File>>) {
+    (START.lock().unwrap_or_else(|e| e.into_inner()), SINK.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
 fn stamp() -> f64 {
     START.lock().unwrap().map(|s| s.elapsed().as_secs_f64()).unwrap_or(0.0)
 }
