@@ -39,8 +39,10 @@ Writes <out>/maps.html ({{LANG}} and <!--SITE-HEADER--> for the server),
 <out>/files.rs (those files, for the server's include) and
 <out>/built-from.tsv (the patches it was built from: release/release.sh
 rebuilds the page, through release/build-site, when it offers others; --with
-<a patch> previews one not listed yet). Needs pillow, java on PATH and the
-icons the damage calculator's build exports (assets/tools/build_icons.py).
+<a patch> previews one not listed yet). Needs pillow, java on PATH, the
+icons the damage calculator's build exports (assets/tools/build_icons.py) and
+the wiki's mode icons it makes (servers/web-server/wiki/icons/modes/, by
+scripts/wiki/build_icons.py): release/build-site builds the calculator first.
 """
 import argparse
 import hashlib
@@ -63,8 +65,6 @@ from released import LIST, die, extract, offered, revision as revision_of, write
 from game_maps import ARTEFACT_HINT, BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
 sys.path.insert(0, str(SRP / "scripts" / "site-texts"))
 from texts import CODES, DICTIONARIES, WORDS, Texts  # noqa: E402
-sys.path.insert(0, str(SRP / "scripts" / "kill-feed-icons"))
-import make_battery_icon  # noqa: E402
 
 TYPES = {"js": "text/javascript; charset=utf-8", "webp": "image/webp", "svg": "image/svg+xml"}
 # The rule classes (a mode config's `rules`) that use the battery objects
@@ -82,6 +82,10 @@ RESEARCH = 480
 HUNT = 481
 SITE = "/maps"
 RENDERS = SRP / "servers" / "web-server" / "damage" / "maps"
+# Maps released before their top-down render is made: the tab shows their minimap
+# only, said in the build's output (the owner, 2026-11-27: rev75 ships Vostok (v0.69)
+# without one). Take a map out once its render is in.
+RENDER_PENDING = {"v069d_level_03"}
 RENDER_TABLE = SRP / "scripts" / "damage-calc" / "assets" / "maps" / "maps.json"
 
 
@@ -91,9 +95,13 @@ def version(blob):
 
 # The HUD's own icons, frame 1 of each class: the minimap's (Minimap._icons).
 HUD_ICONS = {"player": "PlayerBlue", "base": "Base", "charger": "SpawnIcon", "resupply": "ResupplyIcon"}
-# The battery's: the kill feed's battery (its mesh in three-quarter view, no
-# burst; scripts/kill-feed-icons/make_battery_icon.py), as a vector SVG.
-BATTERY_MESH = "models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model"
+# The battery's: the Protective device mode's own icon (mode 2; the owner,
+# 2026-11-27: "for batteries let's use 'protective device' mode icon on wiki"),
+# the lobby's loading-screen frame `ui.icon` + 1 of SrvGameModeIcons as the
+# wiki's modes page shows it, the very file (/wiki/icons/modes/, its bitmap
+# 61x55 in the movie, written 64 square by scripts/wiki/build_icons.py).
+PROTECTIVE_DEVICE = 2
+MODE_ICONS = SRP / "servers" / "web-server" / "wiki" / "icons" / "modes"
 
 
 def lightness(svg):
@@ -138,16 +146,25 @@ def hud_icons(args, raw, work, out):
         light, opaque = lightness(svg)
         icons[name] = {"src": f"{SITE}/icons/hud_{name}.svg?v={version(svg.encode())}",
                        "w": width, "h": height, "ax": ax, "ay": ay, "light": light, "opaque": opaque}
-    mesh = raw / BATTERY_MESH.replace("/", "__")
-    if not mesh.is_file() or hashlib.sha256(mesh.read_bytes()).hexdigest() != make_battery_icon.MODEL_SHA256:
-        die(f"{BATTERY_MESH}: missing, or not the mesh make_battery_icon.py draws")
-    svg = make_battery_icon.marker(mesh.read_bytes())
-    (out / "icons" / "battery.svg").write_text(svg)
-    width = float(re.search(r'<svg[^>]*\swidth="([\d.]+)', svg).group(1))
-    height = float(re.search(r'<svg[^>]*\sheight="([\d.]+)', svg).group(1))
-    icons["battery"] = {"src": f"{SITE}/icons/battery.svg?v={version(svg.encode())}",
-                        "w": width, "h": height, "ax": width / 2, "ay": height / 2, "light": 1.0, "opaque": 1.0}
     return icons
+
+
+def battery_icon(raw, maps):
+    """The battery's marker: the Protective device's mode icon, the frame its configs' `ui.icon`
+    gives (one for all of them), at its /wiki/icons/ address with the version the server gives it
+    (src/icons.rs: the same sha256's first 12 hex digits)."""
+    frames = {load(raw, "gameplay/game_modes/" + c["config"])["mode"]["ui"]["icon"] + 1
+              for m in maps.values() for (mode, _), mm in m["modes"].items() if mode == PROTECTIVE_DEVICE
+              for c in mm["configs"]}
+    if len(frames) != 1:
+        die(f"the Protective device's configs show mode icons {sorted(frames)}, not one")
+    path = MODE_ICONS / f"{frames.pop()}.webp"
+    if not path.is_file():
+        die(f"{path}: no such mode icon (scripts/wiki/build_icons.py makes it)")
+    blob = path.read_bytes()
+    width, height = Image.open(path).size
+    return {"src": f"/wiki/icons/modes/{path.name}?v={version(blob)}",
+            "w": width, "h": height, "ax": width / 2, "ay": height / 2, "light": 1.0, "opaque": 1.0}
 
 
 def localization(raw):
@@ -442,7 +459,7 @@ def main():
         raw = tmp / "raw"
         if not (args.work and raw.is_dir()):
             raw.mkdir(parents=True, exist_ok=True)
-            extract(args.dbgrab, args.stock, rows, args.patches, WANTED + [BATTERY_MESH], raw)
+            extract(args.dbgrab, args.stock, rows, args.patches, WANTED, raw)
         texts = localization(raw)
         text = lambda key: {code: texts[code].get(key) or texts["en"].get(key, key) for code in CODES}
         dictionary = load(raw, "gameplay/db_static_dictionaries")
@@ -456,6 +473,7 @@ def main():
         for sub in ("minimap", "icons"):
             shutil.rmtree(out / sub, ignore_errors=True)
         hud = hud_icons(args, raw, tmp, out)
+        hud["battery"] = battery_icon(raw, maps)
         renders = json.loads(RENDER_TABLE.read_text())["maps"]
         out.mkdir(parents=True, exist_ok=True)
         data_maps, missing = [], []
@@ -535,6 +553,10 @@ def main():
             else:
                 missing.append(folder)
             data_maps.append(entry)
+        pending = [folder for folder in missing if folder in RENDER_PENDING]
+        if pending:
+            print("note: no top-down render of " + ", ".join(pending) + " yet: its minimap only (RENDER_PENDING)")
+        missing = [folder for folder in missing if folder not in RENDER_PENDING]
         if missing and not args.allow_missing_renders:
             die("no top-down render of " + ", ".join(missing)
                 + " (srp-026g/scripts/damage-calc/assets/maps/README.md; then the site's copy in servers/web-server/damage/maps/)")

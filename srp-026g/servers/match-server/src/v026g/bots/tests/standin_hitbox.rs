@@ -1204,8 +1204,8 @@ mod game_tests {
         assert_eq!(game.bodies[1].health, 1.0);
     }
 
-    /// The game's penetration in the stand-in: a bullet goes through a crate of wood (armor 0.1) at full damage and is
-    /// counted as one that crossed cover; a stone wall (0.7) stops it; brick (0.2) lets an SMG's bullet through with less.
+    /// The game's penetration in the stand-in (client patch 175, `k = 1 - (A / P)^2`): a bullet goes through a crate of
+    /// wood (armor 0.1) with `k` of its damage; a stone wall (0.7) stops it; a wall at 0.7 of its pierce keeps 0.51.
     #[test]
     fn a_bullet_crosses_cover_by_its_pierce_and_the_materials() {
         use mapdata::{Armor, FaceArmor, RayTree, World};
@@ -1236,18 +1236,21 @@ mod game_tests {
         };
         let (open_hit, open_damage, open_cover) = shot(None, "ak_74u");
         assert!(open_hit && open_damage > 0.0 && open_cover == 0, "{open_hit} {open_damage} {open_cover}");
-        // Wood: all of the damage (the share is 1, so it is not counted as a hit through cover).
-        let (hit, damage, _) = shot(Some(0.1), "ak_74u");
-        assert!(hit && (damage - open_damage).abs() < 1e-6, "{hit} {damage} {open_damage}");
+        let probe = Game::new(soak_world_with(&[]), &[0, 1], 1, None, None);
+        let pierce = super::super::standin_damage::pierce_of(&probe.damage, gun("ak_74u").unwrap()).expect("its pierce");
+        // Wood: the bullet keeps `k = 1 - (0.1 / P)^2` of its damage and its pierce at the wall (the stock rule let it
+        // through whole from P = 0.2 on), so less than the open shot reaches the body (what the body's armour then takes
+        // depends on the pierce kept too, so the share is not `k` itself).
+        let (hit, wood, _) = shot(Some(0.1), "ak_74u");
+        let k = 1.0 - (0.1 / pierce.value()).powi(2);
+        assert!(hit && k < 1.0 && wood > 0.0 && wood < open_damage, "{hit} {wood} {open_damage} {k}");
         // Stone stops it.
         let (hit, damage, cover) = shot(Some(0.7), "ak_74u");
         assert!(!hit && damage == 0.0 && cover == 0, "{hit} {damage} {cover}");
-        // A wall at 0.7 of the gun's own pierce: k = 1 - (1 - 3/7)^2 = 0.67, so less than the open shot reaches the body,
-        // and the hit counts as one through cover.
-        let probe = Game::new(soak_world_with(&[]), &[0, 1], 1, None, None);
-        let pierce = super::super::standin_damage::pierce_of(&probe.damage, gun("ak_74u").unwrap()).expect("its pierce");
+        // A wall at 0.7 of the gun's own pierce: k = 1 - 0.7^2 = 0.51 at the wall (less where the pierce has fallen), so
+        // less than through wood reaches the body, and the hit counts as one through cover.
         let (hit, damage, cover) = shot(Some(0.7 * pierce.value()), "ak_74u");
-        assert!(hit && damage > 0.0 && damage < open_damage && cover == 1, "{hit} {damage} {open_damage} {cover}");
+        assert!(hit && damage > 0.0 && damage < wood && cover == 1, "{hit} {damage} {wood} {cover}");
     }
 
     /// Against a body standing still the bullet's path hits where the instant ray does: the same lines over the chest and
@@ -1461,7 +1464,7 @@ mod game_tests {
         // A bullet's shot: the table's shooters carry no shotgun (the Support role's primary); a shotgun's pellets fly
         // in the live shot alone (G35).
         assert!(standin_damage::ammo_of(&game.damage, gun).buck_shot <= 1, "the old shot is a bullet's");
-        standin_damage::hit(&game.damage, other, gun, along, 1, &mut game.rng, tick);
+        standin_damage::hit(&game.damage, other, gun, along, 1, 1.0, &mut game.rng, tick);
         other.last_hit = tick;
         other.stagger.hit(tick, standin_stagger::power_of(&game.damage, gun));
         let lethal = other.health <= 1e-3;

@@ -521,22 +521,25 @@ pub(crate) fn wound_leg(target: &mut Body, leg: usize, amount: f32, hit_box: &st
 /// shotgun, the pellets that met the body, [`pellet_cone_deg`]): takes the damage off its pools and, when a lethal pool is
 /// empty, its `health` to 0 (the stand-in's death rule reads it). Draws the part and the box from `rng`. Gives the stamina
 /// the hit takes from the target's bar: the weapon's `stamina_damage` for each pellet or bullet that lands (none for a
-/// flat hit).
+/// flat hit). [Gap 8] `scale`: what the target's protection leaves of the damage (`1 - factor`, `hit_body_part` 0x2E5080;
+/// 1 unprotected; `standin_protection.rs`).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn hit(
     model: &Model,
     target: &mut Body,
     shooter_gun: &Gun,
     distance: f32,
     pellets: u32,
+    scale: f32,
     rng: &mut Rng,
     now: u32,
 ) -> f32 {
     if model.flat {
-        target.health -= FLAT_HIT;
+        target.health -= FLAT_HIT * scale;
         return 0.0;
     }
     let Some(weapon) = weapons::weapon_named(shooter_gun.item) else {
-        target.health -= FLAT_HIT;
+        target.health -= FLAT_HIT * scale;
         return 0.0;
     };
     let ammo = kit_of(model.tier, model.rusher, shooter_gun.item)
@@ -550,7 +553,7 @@ pub(crate) fn hit(
         let part = part_for(class, rng.unit());
         let boxes = part.boxes();
         let hit_box = boxes[rng.below(boxes.len())];
-        let taken = pools_taken(body, hit_box, bullet.damage, bullet.arp, armour_on_masked(worn, model.mask, hit_box));
+        let taken = pools_taken(body, hit_box, bullet.damage * scale, bullet.arp, armour_on_masked(worn, model.mask, hit_box));
         take(target, taken, hit_box, now);
     }
     if target.pools.dead() {
@@ -574,9 +577,9 @@ pub(crate) fn pierce_of(model: &Model, gun: &Gun) -> Option<Pierce> {
     Pierce::new(weapon.bullet_pierce * ammo_of(model, gun).k_arp)
 }
 
-/// What a bullet of `gun` carries `metres` from the muzzle if nothing took any of it: the damage and the pierce
-/// that fall by one factor with the bullet's speed (`bullet_at`, PROVEN: `update_bullet_position` sets both), for
-/// [`mapdata::RayTree::fly`]. `None` for a gun the data does not know.
+/// What a bullet of `gun` carries `metres` from the muzzle if nothing took any of it: the damage that falls with the
+/// bullet's speed and the muzzle's pierce (`bullet_at`, PROVEN: `update_bullet_position` sets the damage; client patch
+/// 173 keeps the pierce), for [`mapdata::RayTree::fly`]. `None` for a gun the data does not know.
 pub(crate) fn flight_of(model: &Model, gun: &Gun) -> Option<impl Fn(f32) -> Load> {
     let weapon = weapons::weapon_named(gun.item)?;
     let ammo = ammo_of(model, gun);
@@ -587,7 +590,7 @@ pub(crate) fn flight_of(model: &Model, gun: &Gun) -> Option<impl Fn(f32) -> Load
 }
 
 /// The bullets or pellets of one shot of `shooter_gun` that landed on `target`, each with the hit box the shot
-/// ray met and what the bullet carried when it got there: its damage and its pierce after the distance and the
+/// ray met and what the bullet carried when it got there: its damage after the distance, its pierce, and both after the
 /// surfaces it crossed ([`mapdata::RayTree::fly`]; the shapes of [`super::standin_hitbox`] say the box; nothing is
 /// drawn). The pools and the death rule are [`hit`]'s.
 pub(crate) fn hit_boxes(
@@ -595,21 +598,22 @@ pub(crate) fn hit_boxes(
     target: &mut Body,
     shooter_gun: &Gun,
     landed: &[(HitParam, Load)],
+    scale: f32,
     now: u32,
 ) {
     if model.flat {
-        target.health -= FLAT_HIT;
+        target.health -= FLAT_HIT * scale;
         return;
     }
     if weapons::weapon_named(shooter_gun.item).is_none() {
-        target.health -= FLAT_HIT;
+        target.health -= FLAT_HIT * scale;
         return;
     }
     let worn = kit_of(model.tier, model.rusher, target.gun.item);
     let body = damage::human();
     for &(param, load) in landed {
         let hit_box = param.name();
-        let taken = pools_taken(body, hit_box, load.damage, load.pierce, armour_on_masked(worn, model.mask, hit_box));
+        let taken = pools_taken(body, hit_box, load.damage * scale, load.pierce, armour_on_masked(worn, model.mask, hit_box));
         take(target, taken, hit_box, now);
     }
     if target.pools.dead() {
@@ -985,7 +989,7 @@ mod tests {
             grenades: true,
         };
         let mut rng = Rng::new(1);
-        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, 1, &mut rng, 1_000);
+        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, 1, 1.0, &mut rng, 1_000);
         assert!(near(body.health, 0.8));
     }
 
@@ -1004,7 +1008,7 @@ mod tests {
             grenades: true,
         };
         let mut rng = Rng::new(1);
-        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, 1, &mut rng, 1_000);
+        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, 1, 1.0, &mut rng, 1_000);
         assert!(body.health <= 1e-3);
     }
 

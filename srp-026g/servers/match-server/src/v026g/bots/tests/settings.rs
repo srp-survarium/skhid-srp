@@ -183,7 +183,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_HUMAN_SMOKE", "on", "off: the stand-in human throws no smoke (otherwise at the live rate, standin_smoke.rs)"),
     s("SRP_BENCH_SMOKE_FAIR_DUMP", "unset", "set: each sighting the smoke fairness counter counts is printed (`FAIR-SEEN`, tallies/owner/smoke.rs), with the clouds near it at the counter's tick and at the sensing's time"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),
-    s("SRP_BENCH_PROTECTION", "off", "**model** [Gap 8] `on`: the map's spawn protection by team and each bot's protected enemies after every world, as the live server gives them (`game/driven.rs`); the bots hold fire on a protected target (the stand-in's damage does not model protection)"),
+    s("SRP_BENCH_PROTECTION", "on", "**model** [Gap 8, patch 179] `off`: nobody is protected (the benches before it). Unset or `on`: the map's spawn protection by team and each bot's protected enemies after every world, as the live server gives them (`game/driven.rs`); the stand-in's damage model keeps each body's protection (a spawn's points' time, its team's bases, ended by its gun's shot) and drops or fades the hits on it (`standin_protection.rs`)"),
     s("SRP_BENCH_SHOT_RULE", "on", "**model** [patch 179] `off`: the bots' fair protection rule keeps an enemy who fired protected (the rule before exe patch 179), for the A/B's before arm; `on`: his first gun shot a bot heard or saw ends his protection for his life"),
     s("SRP_BENCH_CAMPER_AIM", "human", "**model** [A302] the stand-in camper's tuning: `human` (unset) the build's defaults with the human aim of `camper_human_aim.json`; `hunter` the hunter's (`standin_hunter::hunter_tuning`: the calibrated pre-aiming aim of the owner's play, A287), for a camping owner (0x60217a42: 9 bots in 26 s from one spot)"),
     s("SRP_BENCH_ENEMY_HUMAN_LANES", "on", "**model** `off` (or `0`): none. `on` (or `1`, `both`): every body of the other team counts as a human in the team's lanes of enemy humans (`know::HumanLanes`), for both teams; `team1` (or `team0`): for that team's bots only. Player vs Bots has its one human on team 0, so `team1` is that match (both teams placing traps counted them twice, an-gear-moves 3.3); only the lanes read it (the bear-trap habit's score needs them: a bench of bots alone has no human)"),
@@ -293,13 +293,17 @@ pub(crate) fn models_line(settings: &BenchSettings) -> String {
 ///   human goes at 1.02, the median of 841 live bodies (`standin_level.rs`).
 /// - `SRP_BENCH_CLIENT_KIT_RECOIL`: PROVEN, the client multiplies every shot's kick by `max(0, 1 + recoil_modifier)` of the
 ///   kit (0x331C50, 0x2D5AE0; `ren_gloves_1` -8 % since revision 38); on with `aim.combat.kit_recoil`.
-const LIVE_DEFAULTS: [(&str, &str); 6] = [
+/// - `SRP_BENCH_PROTECTION`: PROVEN, every spawn at a respawn point protects for the point's time (0x316E72..0x316E96), a
+///   team's base zone its own bodies inside it (0x31AD03..0x31AD15), a gun's shot ends it (exe patch 179); the live server
+///   gives the bots the points' time (`game/driven.rs`, `set_spawn_protection_ms`).
+const LIVE_DEFAULTS: [(&str, &str); 7] = [
     ("SRP_BENCH_WEAPONS", "1"),
     ("SRP_BENCH_BODY_BLOCK_M", "0.76"),
     ("SRP_BENCH_DRAW_TIME", "weapon"),
     ("SRP_BENCH_ENEMY_HUMAN_LANES", "on"),
     ("SRP_BENCH_STAND_IN_LEVEL", "on"),
     ("SRP_BENCH_CLIENT_KIT_RECOIL", "on"),
+    ("SRP_BENCH_PROTECTION", "on"),
 ];
 
 /// The read environment: each setting of [`SETTINGS`] (and `SRP_BENCH_<name>` and

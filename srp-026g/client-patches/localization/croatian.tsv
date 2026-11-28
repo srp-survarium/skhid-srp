@@ -2767,6 +2767,7 @@ st_level_13_name	Radarska postaja Vostok (v0.11)
 st_level_14_name	Rudnja (v0.69)
 st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovska utvrda (v0.21)
+st_level_28_name	Radarska postaja Vostok (v0.69)
 st_level_29_name	Rudnja (v0.21)
 st_level_31_name	Kemijska tvornica (v0.21)
 st_level_32_name	London (v0.42)
@@ -4135,6 +4136,7 @@ st_srp_map_vector	Laboratorij Vector
 st_srp_map_vostok	Radarska postaja Vostok
 st_srp_map_vostok_v011	Radarska postaja Vostok (v0.11)
 st_srp_map_vostok_v021	Radarska postaja Vostok (v0.21)
+st_srp_map_vostok_v069	Radarska postaja Vostok (v0.69)
 st_srp_matches_another_joining	Drugi se igrač pridružuje
 st_srp_matches_balanced	Borba je već uravnotežena
 st_srp_matches_cannot_join	Sada se ne možete pridružiti
@@ -4208,6 +4210,7 @@ st_srp_mode_cowboy	Svatko za sebe: Saloon
 st_srp_mode_cowboy_winchester	Svatko za sebe: Saloon (Winchester)
 st_srp_mode_free_for_all	Svatko za sebe
 st_srp_mode_freeze_tag	Zamrzavanje
+st_srp_mode_pistols	Svatko za sebe: Pištolji
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_racket	Svatko za sebe: Reket
 st_srp_mode_research	Istraživanje

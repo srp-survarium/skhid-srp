@@ -3,13 +3,18 @@
 //!
 //! The rule is read from the exe (`bullet::try_pierce` 0x32D960; the material loader 0x323A7B
 //! stores the key `armor` of `game.materials` at material+0x4C, which the bullet reads as the
-//! resistance). PROVEN. For a bullet of pierce `P` meeting a front face of armor `R`:
+//! resistance) with client patch 175 (`PIERCE_WALLS`, try_pierce's k in place at 0x32D99E,
+//! `docs/notes/client_patch.md` 3.96). PROVEN. For a bullet of pierce `P` meeting a front face of
+//! armor `R`:
 //!
 //! ```text
-//! f = clamp((P - R) / R, 0, 1)        (armor 0 is free: f = 1)
-//! k = 1 - (1 - f)^2                   (0 when P <= R: the bullet stops)
+//! k = 1 - (R / P)^2                   (armor 0 is free: k = 1; 0 or less when P <= R: the bullet stops)
 //! damage = damage * k,  P = P * k     and it flies on
 //! ```
+//!
+//! The stock game's `k = 1 - (1 - clamp((P - R) / R, 0, 1))^2` (1 from `P = 2R` on) is what a
+//! grenade's blast still keeps (`survarium::v026g::damage::blast_wall_share`); never less than the
+//! bullet's.
 //!
 //! Only front faces count. A bullet's pierce is its weapon's `bullet_pierce` times the ammo's
 //! `k_arp` (`weapon_ammunition.cpp`: `m_pierce = k_arp`) at the muzzle. In flight both the bullet's
@@ -38,7 +43,8 @@ impl Armor {
     }
 
     /// What a bullet of `pierce` has after crossing one front face of this armor
-    /// ([`survarium::v026g::damage::wall_share`]: the one formula for bullets and blasts).
+    /// ([`survarium::v026g::damage::wall_share`]: patch 175's rule; a blast's is another,
+    /// [`survarium::v026g::damage::blast_wall_share`]).
     pub fn crossed_by(self, pierce: f32) -> Crossing {
         let k = survarium::v026g::damage::wall_share(pierce, self.0);
         if k > 0.0 {
@@ -159,23 +165,24 @@ mod tests {
         }
     }
 
-    /// The table of `an-sight.md` §2.2 (live game data, rev 34): the damage share through one front
-    /// face. Wood 0.1 and a car 0.08; brick and thick metal 0.2; concrete 0.23.
+    /// The damage share through one front face, by patch 175's rule, for the guns of `an-sight.md` §2.2 (live game
+    /// data, rev 34): wood 0.1, a car 0.08, brick and thick metal 0.2, concrete 0.23. (That table, of the stock rule,
+    /// had wood and cars at 1.00 for every gun, brick 1.00 to 0.61, concrete 0.93 to 0.35.)
     #[test]
     fn matches_the_clients_table() {
-        // (gun and ammo, P, wood, brick or thick metal, concrete)
+        // (gun and ammo, P, wood, car, brick or thick metal, concrete)
         let table = [
-            ("AK-12 6.5x39", 0.40, 1.00, 1.00, 0.93),
-            ("SR-3M SP-6", 0.36, 1.00, 0.96, 0.81),
-            ("VSK-94 SP-5", 0.33, 1.00, 0.88, 0.68),
-            ("P90 5.7", 0.30, 1.00, 0.75, 0.52),
-            ("SR-2M 9x21", 0.275, 1.00, 0.61, 0.35),
+            ("AK-12 6.5x39", 0.40, 0.938, 0.960, 0.750, 0.669),
+            ("SR-3M SP-6", 0.36, 0.923, 0.951, 0.691, 0.592),
+            ("VSK-94 SP-5", 0.33, 0.908, 0.941, 0.633, 0.514),
+            ("P90 5.7", 0.30, 0.889, 0.929, 0.556, 0.412),
+            ("SR-2M 9x21", 0.275, 0.868, 0.915, 0.471, 0.300),
         ];
-        for (gun, p, wood, brick, concrete) in table {
-            for (armor, want) in [(0.1, wood), (0.08, wood), (0.2, brick), (0.23, concrete)] {
+        for (gun, p, wood, car, brick, concrete) in table {
+            for (armor, want) in [(0.1, wood), (0.08, car), (0.2, brick), (0.23, concrete)] {
                 let got = share(armor, p);
                 assert!(
-                    (got - want).abs() < 0.006,
+                    (got - want).abs() < 0.001,
                     "{gun} through armor {armor}: {got} vs {want}"
                 );
             }

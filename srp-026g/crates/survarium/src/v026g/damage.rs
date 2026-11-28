@@ -21,7 +21,11 @@
 //!    0x54-byte plain struct, a member of `weapon_core` (0x2DF3D4) at +0x268
 //!    of the ammunition item; the class name is LIKELY, from its RTTI type
 //!    descriptor, twin of `weapon_damage_params` at 0x332330). PROVEN.
-//! 2. Both fall by one factor with the bullet's speed: full up to
+//! 2. The damage falls by one factor with the bullet's speed (the stock
+//!    game lowered the armour piercing by the same factor; client patch 173,
+//!    `PIERCE_DISTANCE` in `client-patches/patch_026g.py`, makes the store of
+//!    it at 0x32F174 a nop, so the piercing keeps the muzzle's at every
+//!    distance: `docs/notes/client_patch.md` 3.94, PROVEN): full up to
 //!    `max_damage_distance × k_max_damage_distance`, down to
 //!    `min_damage_amount × k_min_damage_amount` of it at `min_damage_distance
 //!    × k_min_damage_distance`, flat after (`compute_damage_speed` 0x32C520,
@@ -55,7 +59,7 @@
 //!    its transform), `min + (max − min) (R − d) / R`; for each body part the
 //!    grenade's `splash_affected_bodies` lists (indices into the human body's
 //!    part list) that amount, times what a ray from the part to the blast
-//!    keeps through walls ([`wall_share`], 0x3393f0, the power
+//!    keeps through walls ([`blast_wall_share`], 0x3393f0, the power
 //!    `splash_pierce`), is **one hit of the grenade's `splash_damage_type`
 //!    with armour piercing 1.0** (the very argument layout of the bullet's
 //!    hit call, 0x32DA0D..0x32DA3A: PROVEN), so no armour holds against it
@@ -178,7 +182,8 @@ pub struct Bullet {
 }
 
 /// What a bullet of `ammo` fired from `weapon` carries after `distance`
-/// metres (steps 1 and 2 of the module's rule).
+/// metres (steps 1 and 2 of the module's rule): the damage after its fall,
+/// the armour piercing the muzzle's at any distance (patch 173).
 pub fn bullet_at(weapon: &WeaponParams, ammo: &AmmoParams, distance: f32) -> Bullet {
     let hi = weapon.bullet_damage * ammo.k_damage;
     let ahi = weapon.bullet_pierce * ammo.k_arp;
@@ -195,7 +200,7 @@ pub fn bullet_at(weapon: &WeaponParams, ammo: &AmmoParams, distance: f32) -> Bul
     let along = low + (1.0 - low) * s;
     Bullet {
         damage: hi * along,
-        arp: ahi * along,
+        arp: ahi,
     }
 }
 
@@ -465,11 +470,29 @@ pub fn derive_armour(
     Ok(rows)
 }
 
-/// What a wall keeps of a blast or a bullet of power `power` (a bullet's
-/// `arp`, a blast's `splash_pierce`): `1 − (1 − clamp(power / resistance − 1,
-/// 0, 1))²`; a wall of resistance 0 keeps all (`try_pierce` 0x32D960 for
-/// bullets, 0x3393f0 for blasts: PROVEN).
+/// What a wall of armour `resistance` keeps of a bullet of piercing `power`
+/// (its damage, piercing and speed are each times it): `1 − (resistance /
+/// power)²`, 0 when that is 0 or less (`power <= resistance`: the bullet
+/// stops); a wall of resistance 0 keeps all, also for a power of 0. Client
+/// patch 175 (`PIERCE_WALLS`, try_pierce 0x32D99E: `divss xmm2,xmm1` /
+/// `mulss xmm2,xmm2` / `subss xmm0,xmm2` with xmm0 1.0, xmm1 P, xmm2 A, and
+/// `test ah,44h` / `jnp` for A = 0; `client-patches/patch_026g.py`
+/// `PIERCE_WALLS`, `docs/notes/client_patch.md` 3.96): PROVEN. The stock rule
+/// it replaced, which a blast still keeps, is [`blast_wall_share`].
 pub fn wall_share(power: f32, resistance: f32) -> f32 {
+    if resistance == 0.0 {
+        return 1.0;
+    }
+    let q = resistance / power;
+    (1.0 - q * q).max(0.0)
+}
+
+/// What a wall keeps of a blast of power `power` (its `splash_pierce`):
+/// `1 − (1 − clamp(power / resistance − 1, 0, 1))²`; a wall of resistance 0
+/// keeps all (0x3393f0: PROVEN). The stock game's bullet rule was the same
+/// (`try_pierce` 0x32D960..0x32D9CB); client patch 175 replaced that one only
+/// ([`wall_share`]), the blast's site is not patched.
+pub fn blast_wall_share(power: f32, resistance: f32) -> f32 {
     if resistance == 0.0 {
         return 1.0;
     }
@@ -762,7 +785,8 @@ mod tests {
         let far = bullet_at(weapon, ammo, weapon.min_damage_distance * ammo.k_min_damage_distance + 50.0);
         let low = weapon.min_damage_amount * ammo.k_min_damage_amount;
         assert!(near(far.damage, near_in.damage * low), "{far:?} {near_in:?}");
-        assert!(near(far.arp, near_in.arp * low));
+        // Patch 173: the piercing does not fall with the distance.
+        assert!(near(far.arp, near_in.arp));
         let (d0, d1) = (
             weapon.max_damage_distance * ammo.k_max_damage_distance,
             weapon.min_damage_distance * ammo.k_min_damage_distance,
@@ -829,14 +853,36 @@ mod tests {
         assert!(splash_named("ak_74u").is_none());
     }
 
-    /// A wall keeps `1 − (1 − clamp(power / resistance − 1, 0, 1))²`: a wall of twice the
+    /// A blast's wall keeps `1 − (1 − clamp(power / resistance − 1, 0, 1))²`: a wall of twice the
     /// power stops it, one of half the power's resistance passes it all, 0 keeps all.
     #[test]
     fn a_wall_keeps_what_the_power_beats() {
-        assert_eq!(wall_share(0.15, 0.30), 0.0);
-        assert_eq!(wall_share(0.15, 0.075), 1.0);
-        assert!(near(wall_share(0.15, 0.1), 0.75));
-        assert_eq!(wall_share(0.15, 0.0), 1.0);
+        assert_eq!(blast_wall_share(0.15, 0.30), 0.0);
+        assert_eq!(blast_wall_share(0.15, 0.075), 1.0);
+        assert!(near(blast_wall_share(0.15, 0.1), 0.75));
+        assert_eq!(blast_wall_share(0.15, 0.0), 1.0);
+    }
+
+    /// Patch 175's bullet rule, `1 − (A / P)²`, with its README's figures: brick (0.20) at P 0.3 / 0.46 / 0.84
+    /// keeps 56 / 81 / 94 %, concrete (0.23) 41 / 75 / 93 %; armour 0 keeps all (P 0 too); P <= A stops (P 0
+    /// against a wall too). The blast rule is the stock one: at P 0.46 brick and concrete keep all of a blast.
+    #[test]
+    fn a_wall_costs_a_bullet_its_armour_over_its_piercing_squared() {
+        let pct = |p: f32, a: f32| (wall_share(p, a) * 100.0).round();
+        assert_eq!([pct(0.3, 0.2), pct(0.46, 0.2), pct(0.84, 0.2)], [56.0, 81.0, 94.0]);
+        assert_eq!([pct(0.3, 0.23), pct(0.46, 0.23), pct(0.84, 0.23)], [41.0, 75.0, 93.0]);
+        assert_eq!(wall_share(0.3, 0.0), 1.0);
+        assert_eq!(wall_share(0.0, 0.0), 1.0);
+        assert_eq!(wall_share(0.2, 0.2), 0.0);
+        assert_eq!(wall_share(0.15, 0.2), 0.0);
+        assert_eq!(wall_share(0.0, 0.2), 0.0);
+        assert_eq!([blast_wall_share(0.46, 0.2), blast_wall_share(0.46, 0.23)], [1.0, 1.0]);
+        // Never more than the stock rule kept (`(x - 1)^2 >= 0` with x = P / A in [1, 2]; 1 above).
+        for p in [0.21_f32, 0.25, 0.3125, 0.4, 0.6, 1.0] {
+            for a in [0.08_f32, 0.1, 0.2, 0.23] {
+                assert!(wall_share(p, a) <= blast_wall_share(p, a), "{p} {a}");
+            }
+        }
     }
 
     /// One blast of 0.8 on the parts of the RGD-5: the body pool takes the largest of the body

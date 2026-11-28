@@ -64,12 +64,14 @@ pub(crate) const SENSOR_M: f32 = 0.6;
 pub(crate) const SENSOR_TOP_M: f32 = 0.22;
 /// … or lower than this under it (another floor).
 pub(crate) const SENSOR_BELOW_M: f32 = 0.5;
-/// The trap's cylinder for a bullet.
-pub(crate) const HIT_R: f32 = 0.125;
-pub(crate) const HIT_HALF: f32 = 0.05;
+/// The trap's cylinder for a bullet: `data/hittable_object/meshes[0]/scale` of `blackmarket_trap.options`, 0.25 /
+/// 0.10 / 0.25 since `scripts/content-edit/trap-hit-shape-1.json` (the size of its sensor and use cylinders; stock 0.125 /
+/// 0.05). The edit sets the scale only, so its middle stays [`HIT_UP`] over the floor point.
+pub(crate) const HIT_R: f32 = 0.25;
+pub(crate) const HIT_HALF: f32 = 0.10;
 pub(crate) const HIT_UP: f32 = 0.12;
-/// A hand defuse, ms.
-pub(crate) const DEFUSE_MS: u32 = 5_000;
+/// A hand defuse, ms: `data/defuse_time` 4 s (`scripts/content-edit/throwables.tsv` `blackmarket_trap` `defuse_s`; stock 5).
+pub(crate) const DEFUSE_MS: u32 = 4_000;
 /// A fired or disarmed trap stands this long, ms.
 pub(crate) const GONE_MS: u32 = 8_000;
 /// The catch: legs at 0 this long, ms; the walk at this share of its speed; the pain taken.
@@ -634,16 +636,18 @@ mod tests {
         let level = |dy: f32| {
             ray_cylinder(Vec3::new(10.0, 0.12 + dy, 0.0), Vec3::new(0.0, 0.0, 1.0), 20.0, middle, HIT_R, HIT_HALF)
         };
-        // Along the ground plane at the middle's height: in 5 - 0.125 m.
-        assert!((level(0.0).unwrap() - 4.875).abs() < 1e-4);
+        // Along the ground plane at the middle's height: in 5 - 0.25 m.
+        assert!((level(0.0).unwrap() - 4.75).abs() < 1e-4);
         // Within the half-height, in; over it, past.
-        assert!(level(0.049).is_some());
-        assert!(level(0.06).is_none());
-        // From above, down the axis: the top cap, 0.05 over the middle.
+        assert!(level(0.099).is_some());
+        assert!(level(0.11).is_none());
+        // From above, down the axis: the top cap, 0.10 over the middle.
         let down = ray_cylinder(Vec3::new(10.0, 1.12, 5.0), Vec3::new(0.0, -1.0, 0.0), 5.0, middle, HIT_R, HIT_HALF);
-        assert!((down.unwrap() - 0.95).abs() < 1e-4);
-        // Beside it, out; too short, out.
-        let side = ray_cylinder(Vec3::new(10.2, 0.12, 0.0), Vec3::new(0.0, 0.0, 1.0), 20.0, middle, HIT_R, HIT_HALF);
+        assert!((down.unwrap() - 0.90).abs() < 1e-4);
+        // 0.2 m beside the axis is in now (the stock radius 0.125 missed it); 0.3 m out; too short, out.
+        let near_side = ray_cylinder(Vec3::new(10.2, 0.12, 0.0), Vec3::new(0.0, 0.0, 1.0), 20.0, middle, HIT_R, HIT_HALF);
+        assert!(near_side.is_some());
+        let side = ray_cylinder(Vec3::new(10.3, 0.12, 0.0), Vec3::new(0.0, 0.0, 1.0), 20.0, middle, HIT_R, HIT_HALF);
         assert!(side.is_none());
         let short = ray_cylinder(Vec3::new(10.0, 0.12, 0.0), Vec3::new(0.0, 0.0, 1.0), 4.0, middle, HIT_R, HIT_HALF);
         assert!(short.is_none());
@@ -789,10 +793,10 @@ mod tests {
         assert!(game.traps.list.is_empty());
     }
 
-    /// A use held 5 s with the eye ray on the trap, by its placer or a body of the other team, disarms it; a mate of the
+    /// A use held 4 s ([`DEFUSE_MS`]) with the eye ray on the trap, by its placer or a body of the other team, disarms it; a mate of the
     /// placer cannot, and letting go of the key starts it over.
     #[test]
-    fn a_use_held_five_seconds_disarms_the_trap() {
+    fn a_use_held_four_seconds_disarms_the_trap() {
         // The user stands 1 m south of the trap, facing north and looking down at it.
         let setup = |game: &mut Game, user: Place, at: Vec3| {
             let b = &mut game.bodies[user];
@@ -813,13 +817,13 @@ mod tests {
         placed(&mut game);
         let at = game.traps.list[0].at;
         setup(&mut game, 1, at);
-        // A pause of one tick restarts the five seconds.
+        // A pause of one tick restarts the four seconds.
         hold(&mut game, 1, 3_000);
         game.bodies[1].keys = 0;
         game.tick += TICK_MS;
         game.trap_tick(game.tick);
         hold(&mut game, 1, 3_000);
-        assert_eq!(game.traps.list[0].phase, Phase::Armed, "6 s in all, but not 5 in a row");
+        assert_eq!(game.traps.list[0].phase, Phase::Armed, "6 s in all, but not 4 in a row");
         hold(&mut game, 1, 2_050);
         assert!(matches!(game.traps.list[0].phase, Phase::Disarmed { .. }), "{:?}", game.traps.events);
         assert!(matches!(game.traps.events.last(), Some(Event::DefusedBy { by: 1, placer: 0, .. })));

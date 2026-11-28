@@ -486,19 +486,22 @@ or of the data it is read with makes real worlds unreadable. On 2026-11-06 the
 check of 50,205 live uploads found two such layout faults (active artefact
 cores, the effects floats) that every local test had missed. Four guards:
 
-- **Before a release: real worlds, the server's own check.**
+- **Before a merge: real worlds, the server's own check.**
   `srp-world-check --data <server-game-data.db> <recordings, dumps or folders>`
   (`servers/match-server/src/bin/srp-world-check.rs`,
   `v026g::world_check`) checks every complete upload of match recordings with
   `world_validation::check`, the match server's own function, against each
   match's roster (its 0xE4s and header), and the kept dumps of a match whose
   recording is given with them. Exit 1 on any refusal, any world it could not
-  check, or none checked. `release/release.sh` runs it in step 2 on the new
-  server data with the target's newest 3 kept recordings (or `--worlds
-  <folder>`), and stops before the go on any refusal. A release that changes
-  what games write is checked with recordings of its own games (a match on the
-  test environment; one against bots is kept), as the live games' are refused
-  then. With rev 51's content data and the typed check (#1458), the 372
+  check, or none checked. `tools/check`'s `world-check` runs it over the
+  private corpus of live recordings and local test matches (below); a PR that
+  changes what games write plays a local test match first. The release does
+  not run it any more (the owner, 2026-11-27): `release/release.sh` checked
+  the target's newest 3 kept recordings in step 2, today's games' worlds and
+  never what the new exe sends, and old ones blocked rev74. A release smoke
+  match (a headless local match against bots with the release's own exe and
+  server, every uploaded world checked) is the planned replacement. With rev
+  51's content data and the typed check (#1458), the 372
   non-empty live recordings of 2026-11-05..07: 175,872 worlds, all pass;
   one world with its effects' last byte changed is refused at `effects at
   0x67e9: the closing part at 12 is not every world's`.

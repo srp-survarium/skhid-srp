@@ -159,6 +159,9 @@ pub enum Next {
     Bring,
 }
 
+/// [core ways] Why a battery in an energy core's zones is not taken yet: its way in is being worked out (`Memo::zone_way_ask`).
+pub const WAY_PENDING: &str = "its way in is being worked out";
+
 /// The energy core whose zone that switches marks the floor `stand`, if one does.
 fn core_at<'a>(cx: &Ctx<'a>, stand: NodeId) -> Option<EnergyCore<'a>> {
     let hazards = &cx.tactics.hazards;
@@ -343,7 +346,12 @@ pub fn decide(cx: &Ctx, at: Vec3, every: bool) -> Result<Plan, &'static str> {
             cx.view.points,
         )))
     };
-    let Some(way) = cx.memo.zone_way(cx.tactics, core, side, stand) else {
+    // [core ways] Its way in under way (not kept for the zones and live fields now): no take yet.
+    let way = match cx.memo.zone_way_ask(cx.tactics, core, side, stand) {
+        crate::v026g::bots::plays::memo::ZoneWayAsk::Pending => return Err(WAY_PENDING),
+        crate::v026g::bots::plays::memo::ZoneWayAsk::Way(way) => way,
+    };
+    let Some(way) = way else {
         let text = format!(
             "{PREFIX}zone take battery at {} ({}): refused: no way in over walk links from a dry floor the side reaches",
             nav_log::at(at),

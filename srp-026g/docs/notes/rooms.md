@@ -172,9 +172,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     ("ffa should be a third pane always"), and Blackout had that card from 2026-11-02
     (`ffa.md`, "Where it is played").
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
-    draws "FFA: Racket", "FFA: Roulette" (one of its bands, not shown: `ffa-roulette.md`), "FFA: Saloon
-    (Winchester)", "FFA: Saloon" (the Colt alone) or none by the owner's shares (30 / 30 / 5 / 5 /
-    30 since 2026-11-22; the two Saloons by their own names since 2026-11-15, "so
+    draws "FFA: Racket", "FFA: Roulette" (one of its bands, not shown: `ffa-roulette.md`), "FFA:
+    Pistols" (`ffa-pistols.md`), "FFA: Saloon (Winchester)", "FFA: Saloon" (the Colt alone) or none
+    by the owner's shares (Racket 30, Roulette 25, Pistols 10, the Saloons 5 and 5, plain 25 since
+    2026-11-27; 30 / 30 / 5 / 5 / 30 from 2026-11-22; the two Saloons by their own names since
+    2026-11-15, "so
     people know what they get and can vote based on this"); a private
     room's is always plain Free for all, and the create window has no twist tick (the owner's of
     2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from

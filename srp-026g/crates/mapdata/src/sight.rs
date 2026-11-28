@@ -364,8 +364,8 @@ impl RayTree {
 
     /// The share of a bullet's damage that reaches `b` from `a`: the client's penetration
     /// ([`crate::pierce`], `bullet::try_pierce`). The line is followed surface by surface; each
-    /// front face of armor `R` lets `k = 1 - (1 - clamp((P - R) / R, 0, 1))^2` of the damage and of the
-    /// pierce `P` through, and a face with `P <= R` stops the bullet. Back faces and armor 0 cost nothing, so
+    /// front face of armor `R` lets `k = 1 - (R / P)^2` of the damage and of the pierce `P` through (client
+    /// patch 175), and a face with `P <= R` stops the bullet. Back faces and armor 0 cost nothing, so
     /// the share is [`DamageShare::ALL`] exactly when no front face of a known material and no face of unknown
     /// material ([`FaceArmor::Unknown`]: stops from either side) meets the line. A tree built without materials
     /// ([`Self::from_corners`]) stops at its first face, as [`Self::visible`] does.
@@ -1253,17 +1253,17 @@ mod tests {
     fn a_closed_body_is_crossed_once() {
         let (from, to) = (Vec3::new(0.0, 1.0, -5.0), Vec3::new(0.0, 1.0, 5.0));
         let wood = RayTree::from_armored_corners(solid_box(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 1.0, 0.3), 0.1));
-        assert_eq!(share(&wood, from, to, 0.40), 1.0, "an AK through wood");
+        assert!((share(&wood, from, to, 0.40) - 0.9375).abs() < 0.006, "an AK through wood: 1 - (0.1 / 0.4)^2");
         let brick = RayTree::from_armored_corners(solid_box(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 1.0, 0.3), 0.2));
-        assert!((share(&brick, from, to, 0.275) - 0.609).abs() < 0.006, "an SR-2M through brick");
-        assert!((share(&brick, from, to, 0.33) - 0.8775).abs() < 0.006, "a VSK through brick");
+        assert!((share(&brick, from, to, 0.275) - 0.471).abs() < 0.006, "an SR-2M through brick");
+        assert!((share(&brick, from, to, 0.33) - 0.6327).abs() < 0.006, "a VSK through brick");
         // From the other side, the same body.
-        assert!((share(&brick, to, from, 0.275) - 0.609).abs() < 0.006);
+        assert!((share(&brick, to, from, 0.275) - 0.471).abs() < 0.006);
         // A line that misses it, and one that stops short of it.
         assert_eq!(share(&brick, Vec3::new(3.0, 1.0, -5.0), Vec3::new(3.0, 1.0, 5.0), 0.275), 1.0);
         assert_eq!(share(&brick, from, Vec3::new(0.0, 1.0, -0.5), 0.275), 1.0);
         // A line that ends inside it has crossed the one face.
-        assert!((share(&brick, from, Vec3::new(0.0, 1.0, 0.0), 0.275) - 0.609).abs() < 0.006);
+        assert!((share(&brick, from, Vec3::new(0.0, 1.0, 0.0), 0.275) - 0.471).abs() < 0.006);
         // Stone stops a rifle.
         let stone = RayTree::from_armored_corners(solid_box(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 1.0, 0.3), 0.7));
         assert!(share(&stone, from, to, 0.40) == 0.0);
@@ -1281,12 +1281,12 @@ mod tests {
         bricks.extend(solid_box(Vec3::new(0.0, 1.0, 2.0), Vec3::new(1.0, 1.0, 0.1), 0.2));
         let tree = RayTree::from_armored_corners(bricks);
         let (from, to) = (Vec3::new(0.0, 1.0, -5.0), Vec3::new(0.0, 1.0, 5.0));
-        // SR-2M: 0.275 x 0.609 = 0.167 < 0.2: stopped at the second.
+        // SR-2M: k = 1 - (0.2 / 0.275)^2 = 0.471, 0.275 x 0.471 = 0.130 < 0.2: stopped at the second.
         assert_eq!(share(&tree, from, to, 0.275), 0.0);
-        // AK-12: 0.40 goes through both at full damage (k = 1, pierce unchanged).
-        assert_eq!(share(&tree, from, to, 0.40), 1.0);
-        // A VSK keeps 0.8775 of 0.33 = 0.2896 for the second brick: f = 0.448, k = 0.695; 0.8775 x 0.695.
-        let want = 0.8775 * 0.695;
+        // AK-12: k = 0.75 at the first (pierce 0.30 after it), 1 - (0.2 / 0.3)^2 = 0.556 at the second.
+        assert!((share(&tree, from, to, 0.40) - 0.75 * 0.5556).abs() < 0.006, "{}", share(&tree, from, to, 0.40));
+        // A VSK keeps 0.6327 of 0.33 = 0.2088 for the second brick: k = 1 - (0.2 / 0.2088)^2 = 0.0824.
+        let want = 0.6327 * 0.0824;
         assert!((share(&tree, from, to, 0.33) - want).abs() < 0.01, "{}", share(&tree, from, to, 0.33));
     }
 
@@ -1315,7 +1315,7 @@ mod tests {
         );
         let counted = seen_from_near.min(seen_from_far);
         // The origin is on the diagonal (the shared edge) of the quad: crossed once, not twice.
-        assert!((counted - 0.609).abs() < 0.006, "{counted}");
+        assert!((counted - 0.471).abs() < 0.006, "{counted}");
         let flipped = (share(&back, near, far, 0.275), share(&back, far, near, 0.275));
         assert_eq!(flipped, (seen_from_far, seen_from_near), "the other winding faces the other way");
         // Free armor.
@@ -1357,7 +1357,7 @@ mod tests {
         let (near, far) = (Vec3::new(0.0, 0.0, -3.0), Vec3::new(0.0, 0.0, 3.0));
         for (from, to) in [(near, far), (far, near)] {
             let got = share(&tree, from, to, 0.275);
-            assert!((got - 0.609).abs() < 0.006, "{from:?} -> {to:?}: {got}");
+            assert!((got - 0.471).abs() < 0.006, "{from:?} -> {to:?}: {got}");
         }
     }
 
@@ -1378,8 +1378,8 @@ mod tests {
             assert_eq!(share(&tree, from, to, pierce), share(&apart, from, to, pierce), "pierce {pierce}");
             assert_eq!(share(&tree, to, from, pierce), share(&apart, to, from, pierce), "pierce {pierce}, the other way");
         }
-        // And it is two, not one: a VSK keeps 0.8775 x 0.695 of it, an SR-2M none.
-        assert!((share(&tree, from, to, 0.33) - 0.8775 * 0.695).abs() < 0.01);
+        // And it is two, not one: a VSK keeps 0.6327 x 0.0824 of it, an SR-2M none.
+        assert!((share(&tree, from, to, 0.33) - 0.6327 * 0.0824).abs() < 0.01);
         assert_eq!(share(&tree, from, to, 0.275), 0.0);
     }
 
@@ -1393,7 +1393,7 @@ mod tests {
         let tree = RayTree::from_armored_corners(scene);
         let (from, to) = (Vec3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, 60.0));
         let got = share(&tree, from, to, 0.275);
-        assert!((got - 0.609).abs() < 0.006, "{got}");
+        assert!((got - 0.471).abs() < 0.006, "{got}");
     }
 
     /// A wall meets the pierce the bullet has where the wall is: the same brick lets an SMG's bullet through near the

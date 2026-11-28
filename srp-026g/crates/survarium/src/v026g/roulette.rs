@@ -12,7 +12,7 @@ use super::game_data::{GameData, GameDataError};
 use super::item_params::{self, ItemClass};
 use super::loadouts::{self, KitLayout, POCKET_SLOTS, category};
 use super::match_msgs::static_info::{
-    FULL_CONDITION, KIT_USABLE, MatchItem, MatchKit, MatchProfile, Upgrade,
+    FULL_CONDITION, KIT_NOT_LOADED, KIT_USABLE, MatchItem, MatchKit, MatchProfile, Upgrade,
 };
 use super::modifications::{MAX_RANK, Modifications};
 use super::prices;
@@ -359,34 +359,20 @@ impl Hand {
     ///   "roulette should also give random bonuses on equipment/weapons"), from a generator
     ///   seeded by a roll.
     pub fn deal(band: Band, below: &mut impl FnMut(usize) -> usize) -> Self {
-        let pool = &Pool::shared().bands[band as usize];
+        let pool = Pool::shared().band(band);
         let pistols = !pool.pistols.is_empty() && pick(100, below) < PISTOL_HANDS_PERCENT;
         let mut classes: Vec<&Vec<Gun>> = pool.classes.iter().collect();
-        let mut left: Vec<Gun> = Vec::new();
+        let mut pistol = pool.pistol_draw();
         let mut kits = std::array::from_fn(|_| {
             let main = if pistols {
-                // Three different pistols while the band has them, then again from all.
-                if left.is_empty() {
-                    left = pool.pistols.clone();
-                }
-                left.remove(pick(left.len(), below))
+                pistol.next(below)
             } else {
                 let class = classes.remove(pick(classes.len(), below));
                 class[pick(class.len(), below)]
             };
             pool.kit(main, below)
         });
-        for kit in &mut kits {
-            kit.main.attachments = Attachments::roll(kit.main.gun, &pool.modules, below);
-        }
-        let seed = (pick(1 << 31, below) as u64) << 32 | pick(1 << 31, below) as u64;
-        let mut rng = Rng::new(seed);
-        for kit in &mut kits {
-            kit.main.bonuses = Bonuses::roll(kit.main.gun, &mut rng);
-            for piece in kit.armour.iter_mut().flatten() {
-                piece.bonuses = Bonuses::roll(piece.piece, &mut rng);
-            }
-        }
+        pool.dress(&mut kits, below);
         Self { band, kits }
     }
 
@@ -400,21 +386,25 @@ impl Hand {
 
     /// Every stack it deals: the guns' ammo and the pocket items.
     pub fn stacks(&self) -> Vec<u16> {
-        let mut stacks: Vec<u16> = self
-            .kits
-            .iter()
-            .flat_map(|kit| {
-                kit.main
-                    .ammo()
-                    .map(|ammo| ammo.ammo)
-                    .chain(kit.pockets.into_iter().flatten())
-                    .collect::<Vec<u16>>()
-            })
-            .collect();
-        stacks.sort_unstable();
-        stacks.dedup();
-        stacks
+        stacks(&self.kits)
     }
+}
+
+/// Every stack `kits` deal: the guns' ammo and the pocket items, each once.
+pub(super) fn stacks(kits: &[Dealt]) -> Vec<u16> {
+    let mut stacks: Vec<u16> = kits
+        .iter()
+        .flat_map(|kit| {
+            kit.main
+                .ammo()
+                .map(|ammo| ammo.ammo)
+                .chain(kit.pockets.into_iter().flatten())
+                .collect::<Vec<u16>>()
+        })
+        .collect();
+    stacks.sort_unstable();
+    stacks.dedup();
+    stacks
 }
 
 /// Its band and its main guns, by name: what a log line says of it.
@@ -434,13 +424,18 @@ impl fmt::Debug for Hand {
 }
 
 /// A roll under `n` (`n` > 0).
-fn pick(n: usize, below: &mut impl FnMut(usize) -> usize) -> usize {
+pub(super) fn pick(n: usize, below: &mut impl FnMut(usize) -> usize) -> usize {
     below(n) % n
 }
 
 /// An item's `match_making_level`.
 fn level(dict_id: u16) -> Option<u8> {
     item_params::item_params(dict_id).map(|params| params.match_making_level)
+}
+
+/// Whether a gun is held in one hand (no `double_handed`).
+fn one_handed(dict_id: u16) -> bool {
+    item_params::item_params(dict_id).is_some_and(|params| !params.double_handed)
 }
 
 /// What the game makes of an item in a kit.
@@ -450,11 +445,15 @@ fn class(dict_id: u16) -> Option<ItemClass> {
 
 /// What a band deals from, read from the game data ([`Pool::of`]).
 #[derive(Clone, Debug, PartialEq)]
-struct BandPool {
+pub(super) struct BandPool {
     /// Each main-gun class the band has, its guns (no bonuses yet).
     classes: Vec<Vec<Gun>>,
     /// The band's pistols, else those of the highest band under it that has some (none is above
-    /// level 10): a pistol hand's guns; none, no pistol hand.
+    /// level 10): a pistol hand's guns, and FFA: Pistols' (`super::pistols`); none, no pistol
+    /// hand. A pistol is a gun of the pistols' category (17) held in one hand (not
+    /// `double_handed`): the AEK-919K "Kashtan", whose config's `type` is a pistol's (`wpn_pstl`),
+    /// is a submachine gun of both (category 15, two hands), and no pistol (the owner,
+    /// 2026-11-27: "kashtan is not a pistol").
     pistols: Vec<Gun>,
     /// By armour slot.
     armour: [Vec<u16>; 7],
@@ -467,8 +466,38 @@ struct BandPool {
 }
 
 impl BandPool {
+    /// The band's pistols ([`Self::pistols`]), by dict id.
+    pub(super) fn pistols(&self) -> impl Iterator<Item = u16> + '_ {
+        self.pistols.iter().map(|gun| gun.gun)
+    }
+
+    /// Draws of the band's pistols, each a different one while it has them, then again from all.
+    pub(super) fn pistol_draw(&self) -> PistolDraw<'_> {
+        PistolDraw {
+            pool: &self.pistols,
+            left: Vec::new(),
+        }
+    }
+
+    /// `kits`' finish, once their guns and armour are drawn: every gun its attachments
+    /// ([`Attachments::roll`]), then every gun and armour piece its bonuses ([`Bonuses::roll`])
+    /// from a generator seeded by two rolls.
+    pub(super) fn dress(&self, kits: &mut [Dealt], below: &mut impl FnMut(usize) -> usize) {
+        for kit in kits.iter_mut() {
+            kit.main.attachments = Attachments::roll(kit.main.gun, &self.modules, below);
+        }
+        let seed = (pick(1 << 31, below) as u64) << 32 | pick(1 << 31, below) as u64;
+        let mut rng = Rng::new(seed);
+        for kit in kits.iter_mut() {
+            kit.main.bonuses = Bonuses::roll(kit.main.gun, &mut rng);
+            for piece in kit.armour.iter_mut().flatten() {
+                piece.bonuses = Bonuses::roll(piece.piece, &mut rng);
+            }
+        }
+    }
+
     /// A kit of `main` (its bonuses are the hand's to roll).
-    fn kit(&self, main: Gun, below: &mut impl FnMut(usize) -> usize) -> Dealt {
+    pub(super) fn kit(&self, main: Gun, below: &mut impl FnMut(usize) -> usize) -> Dealt {
         let mut pockets = [None; POCKET_KINDS];
         let mut others = self.others.clone();
         let medkit = self.medkits[pick(self.medkits.len(), below)];
@@ -541,9 +570,27 @@ impl BandPool {
     }
 }
 
+/// Draws of a band's pistols ([`BandPool::pistol_draw`]).
+pub(super) struct PistolDraw<'a> {
+    pool: &'a [Gun],
+    /// Those not drawn yet since the pool was last full.
+    left: Vec<Gun>,
+}
+
+impl PistolDraw<'_> {
+    /// A pistol not drawn before while any is left, then again from all. The pool has one
+    /// ([`check`], [`super::pistols::check`]).
+    pub(super) fn next(&mut self, below: &mut impl FnMut(usize) -> usize) -> Gun {
+        if self.left.is_empty() {
+            self.left = self.pool.to_vec();
+        }
+        self.left.remove(pick(self.left.len(), below))
+    }
+}
+
 /// Every band's [`BandPool`].
 #[derive(Clone, Debug, PartialEq)]
-struct Pool {
+pub(super) struct Pool {
     bands: [BandPool; 3],
 }
 
@@ -642,7 +689,11 @@ impl Pool {
                 .into_iter()
                 .rev()
                 .filter(|lower| lower.top() <= top)
-                .map(|lower| guns(category::PISTOLS, MAIN, lower))
+                .map(|lower| {
+                    let mut pistols = guns(category::PISTOLS, MAIN, lower);
+                    pistols.retain(|gun| one_handed(gun.gun));
+                    pistols
+                })
                 .find(|pistols| !pistols.is_empty())
                 .unwrap_or_default();
             let classes: Vec<Vec<Gun>> = MAIN_CLASSES
@@ -706,8 +757,13 @@ impl Pool {
         })
     }
 
+    /// `band`'s pool.
+    pub(super) fn band(&self, band: Band) -> &BandPool {
+        &self.bands[band as usize]
+    }
+
     /// The pools of the server's game data ([`check`] refused data without them at start).
-    fn shared() -> &'static Self {
+    pub(super) fn shared() -> &'static Self {
         static SHARED: std::sync::OnceLock<Pool> = std::sync::OnceLock::new();
         SHARED.get_or_init(|| {
             Pool::of(Dictionary::shared()).expect("every band has a hand to deal (roulette::check)")
@@ -729,6 +785,13 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
 /// ([`Attachments::records`], their ids from [`RECORD_IDS`]), ids from 1; a stack's store the
 /// largest kit's units of it [`STORE_LIVES`] times.
 pub fn arm(profile: &mut MatchProfile, hand: &Hand) {
+    arm_kits(profile, |n| Some(&hand.kits[n % KITS]));
+}
+
+/// `profile` with the kits `dealt` gives as its own ([`arm`]): kit `n` `dealt(n)`'s, or, where it
+/// gives none, not loaded and empty (`KIT_NOT_LOADED`: no player object, a pick of it changes
+/// nothing; `match.md` §23), its id, name and skills kept.
+pub(super) fn arm_kits<'a>(profile: &mut MatchProfile, dealt: impl Fn(usize) -> Option<&'a Dealt>) {
     let mut items: Vec<(MatchItem, Attachments)> = Vec::new();
     let mut next_record = RECORD_IDS;
     let mut record_id = || {
@@ -737,7 +800,11 @@ pub fn arm(profile: &mut MatchProfile, hand: &Hand) {
     };
     let dictionary = Dictionary::shared();
     for (n, kit) in profile.kits.iter_mut().enumerate() {
-        let dealt = &hand.kits[n % KITS];
+        let name = std::mem::take(&mut kit.name);
+        let Some(dealt) = dealt(n) else {
+            *kit = MatchKit::new(KIT_NOT_LOADED, kit.id, name, [None; PROFILE_SLOTS], kit.modifiers);
+            continue;
+        };
         let mut slots = [None; PROFILE_SLOTS];
         for (slot, held) in dealt.slots(&kit.modifiers).into_iter().enumerate() {
             let Some((dict_id, units)) = held else {
@@ -771,7 +838,6 @@ pub fn arm(profile: &mut MatchProfile, hand: &Hand) {
             }
             slots[slot] = Some((at as u16, units));
         }
-        let name = std::mem::take(&mut kit.name);
         *kit = MatchKit::new(KIT_USABLE, kit.id, name, slots, kit.modifiers);
     }
     profile.items = items.into_iter().map(|(item, _)| item).collect();

@@ -369,6 +369,8 @@ pub(crate) struct Body {
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
+    /// [Gap 8, patch 179] Its damage model's protection (`standin_protection.rs`).
+    pub(crate) shield: standin_protection::Shield,
     /// Whether each of its three kits carries the radio (`respawn_booster`): the respawn booster works by being carried, so the delay
     /// of a death is the mode's time less the radio's only in a kit that has one ([`Game::set_radio_kits`]).
     pub(crate) radio: [bool; 3],
@@ -714,6 +716,10 @@ pub(crate) struct Game {
     /// [`respawn_rule_from_data`]); `None` keeps [`RESPAWN_BATTERIES_S`] / [`RESPAWN_TDM_S`] and [`RADIO_MODIFIER`]. A body's
     /// delay is [`Game::respawn_ms_of_body`]: with the radio of the kit it died in or without it.
     pub(crate) respawn_rule: Option<(u32, f32)>,
+    /// [Gap 8, patch 179] The spawn protection rule (`SRP_BENCH_PROTECTION`, on by default: the map's points' time and its
+    /// bases); `None` protects nobody. Its counts for the match's end.
+    pub(crate) protection: Option<standin_protection::Rule>,
+    pub(crate) protection_counts: standin_protection::Counts,
     /// Batteries no use takes off the floor (`SRP_BENCH_UNTAKEABLE=<n>`:
     /// the first n; as the sunk ones of audit #7, which a use never took).
     pub(crate) untakeable: usize,
@@ -970,6 +976,7 @@ impl Game {
             alive: false,
             dead_at: 0,
             spawned: 0,
+            shield: standin_protection::Shield::default(),
             radio: [true; 3],
             carrying: None,
             drawn_at: 0,
@@ -1078,6 +1085,8 @@ impl Game {
             use_line: false,
             take_m: BATTERY_M,
             respawn_rule: None,
+            protection: None,
+            protection_counts: standin_protection::Counts::default(),
             untakeable: 0,
             put_ms: bench_settings().number("SRP_BENCH_PUT_MS")
                 .unwrap_or(PUT_MS),
@@ -1204,6 +1213,9 @@ impl Game {
         body.zone_ys = [f32::NEG_INFINITY; 20];
         body.alive = true;
         body.spawned = tick;
+        if let Some(rule) = &self.protection {
+            body.shield = rule.spawn(body.team, tick);
+        }
         body.carrying = None;
         body.heal.spawn();
         body.grenades.spawn();
@@ -1441,6 +1453,7 @@ impl Game {
             }
         }
         self.record();
+        self.protect(tick);
         self.trap_place(&released, tick);
         self.trap_tick(tick);
         self.camp(tick, &mut pressed);
@@ -2143,6 +2156,13 @@ impl Game {
     pub(crate) fn shot(&mut self, shooter: Place, at: f32) {
         self.shots += 1;
         self.shots_hits[shooter].0 += 1;
+        // [patch 179] A gun's shot ends the shooter's protection (`standin_protection.rs`); counted when it still protected.
+        let tick = self.tick;
+        let shield = &mut self.bodies[shooter].shield;
+        if shield.factor(tick) > 0.0 {
+            self.protection_counts.ended_by_shot += 1;
+        }
+        shield.fired();
         let body = &self.bodies[shooter];
         let eye = Self::eye(body);
         // [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway (a smaller yaw is right).
@@ -2532,10 +2552,14 @@ impl Game {
         } else {
             self.hit_log.push((tick, shooter, target));
         }
+        // [Gap 8] A protected body: the hit dropped whole, or its damage times `1 - factor` (`standin_protection.rs`).
+        let Some(scale) = self.protected_scale(target, tick) else {
+            return !team_hit;
+        };
         let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
         let before = standin_heal::health_of(other);
-        let stamina = standin_damage::hit(&self.damage, other, gun, along, pellets, &mut self.rng, tick);
+        let stamina = standin_damage::hit(&self.damage, other, gun, along, pellets, scale, &mut self.rng, tick);
         standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
         other.stamina.hit(stamina);
         other.last_hit = tick;
@@ -2582,10 +2606,14 @@ impl Game {
                     self.cover_hits_by[usize::from(team).min(1)] += 1;
                 }
             }
+            // [Gap 8] A protected body: the hit dropped whole, or its damage times `1 - factor` (`standin_protection.rs`).
+            let Some(scale) = self.protected_scale(target, tick) else {
+                continue;
+            };
             let pain_before = self.bodies[target].pools.pain;
             let other = &mut self.bodies[target];
             let before = standin_heal::health_of(other);
-            standin_damage::hit_boxes(&self.damage, other, gun, &landed, tick);
+            standin_damage::hit_boxes(&self.damage, other, gun, &landed, scale, tick);
             standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
             other.last_hit = tick;
             other.received += if team_hit { 0.0 } else { 1.0 };
@@ -2601,6 +2629,27 @@ impl Game {
             self.hits += 1;
             self.shots_hits[shooter].1 += 1;
         }
+    }
+
+    /// [Gap 8, patch 179] Each living body's tick in its own team's bases (`standin_protection::Rule::tick`).
+    fn protect(&mut self, tick: u32) {
+        let Some(rule) = &self.protection else {
+            return;
+        };
+        for body in self.bodies.iter_mut().filter(|body| body.alive) {
+            rule.tick(&mut body.shield, body.team, body.feet, tick);
+        }
+    }
+
+    /// [Gap 8] What a hit on `target` at `tick` keeps of its damage (`None`: dropped whole), counted.
+    pub(crate) fn protected_scale(&mut self, target: Place, tick: u32) -> Option<f32> {
+        let scale = self.bodies[target].shield.scale(tick);
+        match scale {
+            None => self.protection_counts.dropped += 1,
+            Some(scale) if scale < 1.0 => self.protection_counts.scaled += 1,
+            Some(_) => {}
+        }
+        scale
     }
 
     /// After a hit on `target`: a team hit's pain is noted, and a lethal one is a kill.

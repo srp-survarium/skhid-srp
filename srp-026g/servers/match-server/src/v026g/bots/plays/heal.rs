@@ -129,10 +129,11 @@ pub const ITEMS: [Item; 4] = [
         ],
         also: &[],
     },
+    // `scripts/content-edit/medicines.tsv` `antitoxin`: use_s 1, active_s 15 (10 before the retune of revision 69).
     Item {
         drug: Drug::Antitoxin,
         delay_s: 1.0,
-        active_s: 10.0,
+        active_s: 15.0,
         treats: &[(Pool::Infection, 0.5)],
         also: &[],
     },
@@ -167,6 +168,12 @@ impl Item {
     }
 
     /// From the press until the effect is over, ms.
+    /// Whether a ranged hit that took health stops it (patch 84, `client-patches/rust/patches/src/drug_interrupt.rs`:
+    /// only a drug that heals a pool other than the infection, `Effect::Heals`; the antitoxin goes on).
+    fn hit_stops(&self) -> bool {
+        self.treats.iter().chain(self.also).any(|&(pool, _)| pool != Pool::Infection)
+    }
+
     fn window_ms(&self, f: DrugFactors) -> u32 {
         ((self.delay_for(f) + self.active_s) * 1000.0) as u32
     }
@@ -201,7 +208,7 @@ impl Item {
             None => {}
         }
         match press.hit {
-            Some(hit) if stops.known() && hit < end => hit,
+            Some(hit) if stops.known() && hit < end && self.hit_stops() => hit,
             _ => end,
         }
     }
@@ -621,6 +628,17 @@ fn old_step(state: &mut State, cx: &Ctx, rng: &mut Rng) -> Step {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Patch 84 since revision 69: a hit stops the medkits and the bandages, never the antitoxin (it heals the
+    /// infection alone), and the antitoxin's window is its 15 s.
+    #[test]
+    fn a_hit_stops_every_drug_but_the_antitoxin() {
+        for drug in [Drug::Medkit, Drug::Bandages, Drug::Military] {
+            assert!(item(drug).hit_stops(), "{drug:?}");
+        }
+        assert!(!item(Drug::Antitoxin).hit_stops());
+        assert_eq!(item(Drug::Antitoxin).active_s, 15.0);
+    }
     use crate::v026g::bots::know::Source;
     use crate::v026g::bots::plays::tests::Scenario;
     use crate::v026g::bots::stock::{Reading, Readings};
@@ -1046,7 +1064,7 @@ mod tests {
     }
 
     /// [A306] Each item's rates are its course totals over its active time (main's `medicines.tsv`): the Medikit 1/3 a second
-    /// on the body, head, hands and legs and 0.4/3 on the pain; the bandages their amounts (1 s active); the antitoxin 0.05 on
+    /// on the body, head, hands and legs and 0.4/3 on the pain; the bandages their amounts (1 s active); the antitoxin 1/30 on
     /// the infection. The old per-second reading: the medkit's 1 and the antitoxin's 0.5 a second, the pain as now.
     #[test]
     fn a_drugs_amounts_are_course_totals_over_its_active_time() {
@@ -1062,7 +1080,7 @@ mod tests {
         }
         assert_eq!(rates(Drug::Bandages, DrugAmounts::CourseTotal), rates(Drug::Bandages, DrugAmounts::PerSecond));
         let antitoxin = rates(Drug::Antitoxin, DrugAmounts::CourseTotal);
-        assert!(antitoxin.len() == 1 && close(antitoxin[0].1, 0.05), "{antitoxin:?}");
+        assert!(antitoxin.len() == 1 && close(antitoxin[0].1, 0.5 / 15.0), "{antitoxin:?}");
         assert!(close(rates(Drug::Antitoxin, DrugAmounts::PerSecond)[0].1, 0.5));
         // Every course heals its total, whatever the reading of a full one with the pools room enough.
         for it in &ITEMS {

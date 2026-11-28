@@ -777,6 +777,13 @@ impl Game {
         }
     }
 
+    /// A human's profile input as relayed for `time`: the bots see a Dead Man's Switch smoke by it.
+    pub(super) fn observe_profile(&mut self, index: usize, time: u32, value: u8) {
+        if let Some(walkers) = self.walkers.as_mut() {
+            walkers.bots.profile_input(index, time, value);
+        }
+    }
+
     /// TEST ONLY: the server's bots.
     #[cfg(test)]
     pub(crate) fn driven_bots(&self) -> Option<&Bots> {

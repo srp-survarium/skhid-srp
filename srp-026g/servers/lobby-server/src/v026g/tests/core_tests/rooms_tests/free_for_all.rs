@@ -4,8 +4,9 @@
 //! the room's size, 20 at the most); a private room's owner starts one alone.
 
 use std::collections::HashSet;
-use survarium::v026g::game_data::TEST_TWISTS_ONLY;
+use survarium::v026g::game_data::{TEST_RACKET_ONLY, TEST_TWISTS_ONLY};
 use survarium::v026g::maps::MapId;
+use survarium::v026g::twist::{Armed, LobbyMode, OpenPlay, Twist};
 
 use super::*;
 use crate::v026g::MatchSetup;
@@ -269,7 +270,7 @@ fn a_team_line_in_a_free_for_all_reaches_its_sender_only() {
     world.assert_clean();
 }
 
-/// A map played with a twist only (`MapMode::twists_only`: Military Warehouses in the live data,
+/// A map played with a twist only (`MapMode::open_play`: Military Warehouses in the live data,
 /// the test data's [`TEST_TWISTS_ONLY`]) in a private room: the create window lists it, a
 /// private room made with it alone holds it, and its owner's Start plays it plain (the owner,
 /// 2026-11-27: "we removed FFA from them, which is fine for pub lobbies, not for private ones").
@@ -277,7 +278,7 @@ fn a_team_line_in_a_free_for_all_reaches_its_sender_only() {
 fn a_private_room_plays_a_map_played_with_a_twist_only_plain() {
     let twisted = TEST_TWISTS_ONLY;
     let map = maps::map_mode(twisted).expect("its config");
-    assert!(map.twists_only);
+    assert_eq!(map.open_play, OpenPlay::Twisted);
     let mut world = world_of(vec![twisted]);
     let (key, members) = private_room(&mut world, 1);
     let pool = rows(&mut world, members[0], ROOM_POOL_BASE, 255);
@@ -329,4 +330,48 @@ fn an_open_rooms_card_on_a_map_played_with_a_twist_only_is_a_twist() {
     assert_eq!(setup.played.map().id, twisted);
     assert!(setup.played.armed().is_some(), "a twist");
     assert_eq!(setup.played.lobby_number(), modes[0].1);
+}
+
+/// A map played with Racket alone (`OpenPlay::Only`: Station in the live data, the test data's
+/// [`TEST_RACKET_ONLY`]; the owner, 2026-11-27: "make it racket only"): an open room's every card
+/// on it is FFA: Racket, its entry in the pool sent (the card's picture and name), and the match
+/// it wins plays Racket.
+#[test]
+fn an_open_rooms_card_on_a_map_played_with_racket_alone_is_racket() {
+    let racket = TEST_RACKET_ONLY;
+    let map = maps::map_mode(racket).expect("its config");
+    assert_eq!(map.open_play, OpenPlay::Only(Twist::Racket));
+    let mut world = world_of(vec![racket]);
+    let players: Vec<usize> = ["Alice", "Bob", "Carol"]
+        .into_iter()
+        .map(|name| world.connect(name))
+        .collect();
+    let pool = rows(&mut world, players[0], ROOM_POOL_BASE, 255);
+    let row = format!("0;{racket};{};{};8;0;0;1", map.level, map.weather);
+    assert_eq!(pool, ["S1;M;1;0", row.as_str()]);
+    let key = create(&mut world, players[0], spec(6), None);
+    for &index in &players[1..] {
+        rows(&mut world, index, ROOM_JOIN_BASE + key, 1);
+    }
+    world.advance(Duration::from_secs(1));
+    let voting = state(&mut world, players[0]);
+    let cards: Vec<(MapId, u8)> = voting
+        .iter()
+        .filter(|row| row.starts_with("C;"))
+        .map(|row| {
+            let fields: Vec<&str> = row.split(';').collect();
+            (fields[2].parse().unwrap(), fields[5].parse().unwrap())
+        })
+        .collect();
+    assert!(!cards.is_empty(), "{voting:?}");
+    for &(map, mode) in &cards {
+        assert_eq!((map, mode), (racket, LobbyMode::Racket.number()), "{voting:?}");
+    }
+    for &index in &players {
+        rows(&mut world, index, ROOM_VOTE_BASE, 1);
+    }
+    room_match_starts(&mut world, &players, VOTE_AND_WAIT);
+    let setup = last_setup(&world);
+    assert_eq!(setup.played.map().id, racket);
+    assert!(matches!(setup.played.armed(), Some(Armed::Racket(_))), "Racket");
 }

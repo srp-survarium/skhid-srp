@@ -95,7 +95,7 @@
 .stats-place-name { font-size:.95rem }
 .stats-maps-table tr.stats-mode-row td { background:color-mix(in srgb,var(--rule) 25%,transparent) }
 .stats-maps-table tr.stats-mode-row td:first-child { padding-left:18px }
-/* A free-for-all's versions (the Racket, the Saloon, the Roulette), under it on both boards. */
+/* A free-for-all's versions (the Racket, the Saloon, the Roulette, the Pistols), under it on both boards. */
 .stats-table tr.stats-version-row td { background:color-mix(in srgb,var(--rule) 18%,transparent) }
 .stats-table tr.stats-version-row td.stats-mode-cell { padding-left:26px }
 .stats-maps-table tr.stats-weather td { background:color-mix(in srgb,var(--rule) 12%,transparent) }
