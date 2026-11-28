@@ -58,7 +58,7 @@ Made by `scripts/number-decals/`; the pack is `number-decals@1` of `release/cont
 - Textures are read when a bake asks for them: a player's game loads the decals it shows, not
   the 1,000. The item configs (1.4 KB each) and the dictionary rows are read at the game's start.
 - Nothing here is near a limit the code shows: dictionary ids are u16, decal slots are per item
-  (two on a vest or trousers, one on a weapon), and an account gets one decal.
+  (two on a vest, trousers or a weapon), and an account gets one decal.
 
 ## The grant
 
