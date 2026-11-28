@@ -1111,6 +1111,46 @@ fn client_pitch(game: &mut Game) {
     }
 }
 
+/// [sliced load] The map's load in polls makes the use stands the load made at once, whole (both containers' and every zone's),
+/// a few floors a poll; through the bots ([`Bots::tactics_ready`]) the map is theirs only once the polls ended the load, and
+/// then the stands are made.
+#[test]
+fn a_load_in_polls_makes_the_use_stands_the_load_made_at_once() {
+    use super::plays::memo::{LoadBudget, Memo};
+    let world = soak_world();
+    let mut tactics = Tactics::new(world.clone(), 1.0);
+    let budget = LoadBudget { way_pops: 7, stand_floors: 5, entry_pops: 7, straight_checks: 1 };
+    let counts = Memo::assert_load_is_the_prewarm(&mut tactics, &[], budget, |_, _| {});
+    assert!(counts.stand_floors > 10, "{counts:?}");
+    assert!(counts.polls > 2, "{counts:?}");
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        0x7A6E,
+        survarium::v026g::maps::RuleMode::Batteries,
+        0,
+        &teams,
+        &[true, false],
+        &[None, None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    let line = bots.tactics_ready(Tactics::new(world, 1.0));
+    assert!(line.ends_with("the map's load runs in the polls before the bots enter"), "{line}");
+    assert!(!bots.has_map() && bots.loading(), "the map waits for its load");
+    let mut polls = 0;
+    let mut done = Vec::new();
+    while !bots.has_map() {
+        polls += 1;
+        let (_, notes) = bots.poll(Clock { clock: polls * 5, time_left_s: 600.0, total_s: 600.0, playing: false });
+        done.extend(notes.into_iter().filter(|n| n.text.starts_with("the map's load ran in")));
+        assert!(polls < 100_000, "it ends");
+    }
+    assert!(!bots.loading());
+    assert_eq!(done.len(), 1, "one line, at its end: {done:?}");
+    assert!(done[0].text.contains("use stands prewarmed in"), "{:?}", done[0].text);
+    assert!(bots.memo.use_stands_built(), "made by the load");
+}
+
 /// [use stands prewarm] The map's use stands are worked out at map load (`Bots::prewarm_use_stands`), at the match-wide tuning's
 /// eye and use ray whatever this thread's were before, and are the stands a first ask at that tuning works out: the same lists
 /// for every container and zone. Both eyes are asked, and their stands differ, so the load's are the tuning's.

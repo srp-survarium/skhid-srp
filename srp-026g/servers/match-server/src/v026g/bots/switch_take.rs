@@ -523,6 +523,25 @@ mod tests {
         assert_eq!(loaded.zone_way_counts().dropped, 2, "both sides' ways dropped");
     }
 
+    /// [sliced load] The map's load in polls (`plays::memo::MapLoad`, a few floors a poll) keeps the ways in the load made at
+    /// once kept, whole (each with its box's fields and the board's version), though a live field comes into the box between
+    /// two of its polls: its searches read the hazards of its beginning. Through the bots, the map is theirs once it ends.
+    #[test]
+    fn a_load_in_polls_keeps_the_ways_in_the_load_made_at_once() {
+        use crate::v026g::bots::plays::memo::{LoadBudget, Memo};
+        let mut tactics = clouded_spawner(0.0);
+        let budget = LoadBudget { way_pops: 7, stand_floors: 3, entry_pops: 7, straight_checks: 1 };
+        let world = tactics.world.clone();
+        let counts = Memo::assert_load_is_the_prewarm(&mut tactics, &[], budget, |tactics, poll| {
+            if poll == 1 {
+                tactics.hazards.set_fields(&[spring(2, Vec3::new(20.0, 0.0, 36.0), 1.5)], &world.grid, 2_000);
+            }
+        });
+        assert_eq!(counts.core_ways, 2, "{counts:?}");
+        assert!(counts.polls > 3, "{counts:?}");
+        assert_eq!(tactics.hazards.live.fields().len(), 1, "the match's own board kept its field");
+    }
+
     /// [core ways] A way-in search in slices (`PopBudget::Left`) finds the way the whole search finds, floor for floor, whatever the
     /// pops; through the memo with a poll's budget the ask is not yet answered, the polls run it on, and the answer is the whole
     /// search's.
