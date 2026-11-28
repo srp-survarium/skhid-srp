@@ -21,7 +21,9 @@ pub enum Kind {
     /// Players' dumps: the threads' stacks and registers, the modules, their
     /// data segments, and the memory the stacks point to and around what the
     /// crashing thread's registers point to ([`Registers`]), so the object
-    /// behind a faulting pointer is in it. Zipped with the logs: a few MB.
+    /// behind a faulting pointer is in it. Also the list of the address
+    /// space's regions and each thread's start address: a game that ran out
+    /// of address space says what holds it. Zipped with the logs: a few MB.
     Small,
     /// `SKHID_CRASH_DUMP=full` in the game's environment (for a crash to
     /// investigate on this PC): the whole process memory, every heap object.
@@ -48,7 +50,12 @@ impl Kind {
     }
     const fn dump_type(self) -> MINIDUMP_TYPE {
         match self {
-            Kind::Small => MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory,
+            Kind::Small => {
+                MiniDumpWithDataSegs
+                    | MiniDumpWithIndirectlyReferencedMemory
+                    | MiniDumpWithFullMemoryInfo
+                    | MiniDumpWithThreadInfo
+            }
             Kind::Full => {
                 MiniDumpWithFullMemory
                     | MiniDumpWithFullMemoryInfo
