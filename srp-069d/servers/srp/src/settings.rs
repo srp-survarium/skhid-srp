@@ -147,7 +147,7 @@ impl Default for WorldHost {
             max_matches: 4,
             max_zygotes: 8,
             idle_secs: 600,
-            prestart: vec!["pve_01_v1_maze2".into()],
+            prestart: Vec::new(),
         }
     }
 }
@@ -157,6 +157,7 @@ impl Default for WorldHost {
 pub struct Matches {
     pub min_players: u32,
     pub bot_wait_secs: u64,
+    pub bots_per_team: u64,
     pub report_grace_secs: u64,
     pub equipment_use_costs: Vec<u32>,
     pub match_silver_factors: Vec<f64>,
@@ -168,6 +169,7 @@ impl Default for Matches {
         Matches {
             min_players: l.online_min_players,
             bot_wait_secs: l.online_bot_wait.map_or(0, |d| d.as_secs()),
+            bots_per_team: l.bots_per_team as u64,
             report_grace_secs: l.online_report_grace.as_secs(),
             equipment_use_costs: l.equipment_use_costs,
             match_silver_factors: l.match_silver_factors,
@@ -457,6 +459,11 @@ impl Config {
         let m = &s.matches;
         l.online_min_players = m.min_players;
         l.online_bot_wait = (m.bot_wait_secs > 0).then(|| Duration::from_secs(m.bot_wait_secs));
+        let most = lobby_server::online::BOT_TEAM_MAX;
+        l.bots_per_team = match usize::try_from(m.bots_per_team) {
+            Ok(n) if (1..=most).contains(&n) => n,
+            _ => return Err(format!("matches.bots_per_team = {}: must be 1..={most} (AI players per team)", m.bots_per_team)),
+        };
         l.online_report_grace = Duration::from_secs(m.report_grace_secs);
         l.equipment_use_costs = m.equipment_use_costs.clone();
         l.match_silver_factors = m.match_silver_factors.clone();
@@ -683,6 +690,19 @@ mod tests {
         assert!(bad("[[events]]\nstart = 2026-12-01\nend = 2026-12-10\n[[events]]\nstart = 2026-12-05\nend = 2026-12-20").contains("overlap"));
         assert!(bad("[world_host]\nexe = \"/opt/game/survarium.exe\"").contains("exe_win"));
         assert!(bad("[[store.offers]]\nid = 9\ntab = 1\nlabel = \"st_x\"\ngold = 1\nimages = [\"a\", \"b\", \"c\"]\ngrant = \"gift\"").contains("grant"));
+        assert!(bad("[matches]\nbots_per_team = 0").contains("matches.bots_per_team"));
+        assert!(bad("[matches]\nbots_per_team = 9").contains("matches.bots_per_team = 9: must be 1..=8"));
+        assert!(Settings::parse("[matches]\nbots_per_team = -1").is_err(), "a negative count is no number of players");
+    }
+
+    #[test]
+    fn bots_per_team_is_read_from_matches() {
+        let base = Path::new("/srv");
+        let get = |t: &str| Config::from_settings(Settings::parse(t).unwrap(), base).unwrap().lobby.bots_per_team;
+        assert_eq!(get(""), 6, "default");
+        assert_eq!(get("[matches]\nbots_per_team = 8"), 8);
+        assert_eq!(get("[matches]\nbots_per_team = 1"), 1);
+        assert_eq!(lobby_server::online::BOT_TEAM_MAX, 8);
     }
 
     #[test]

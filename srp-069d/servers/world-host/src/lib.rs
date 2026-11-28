@@ -7,8 +7,11 @@
 #![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 #![allow(clippy::missing_safety_doc)]
 
+pub mod base;
+pub mod baseset;
 pub mod bots;
 pub mod bp;
+pub mod cmdline;
 pub mod crash;
 pub mod crypt;
 pub mod d3d;
@@ -23,7 +26,9 @@ pub mod log;
 pub mod mem;
 pub mod nullcook;
 pub mod other;
+pub mod pagemap;
 pub mod pe;
+pub mod registry;
 pub mod run;
 pub mod session;
 pub mod strings;

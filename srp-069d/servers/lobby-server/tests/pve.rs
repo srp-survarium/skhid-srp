@@ -10,6 +10,7 @@ use std::time::Duration;
 use accounts::{public_id, PveRun, PveRunPlayer};
 use game_data::pve::{KEY_FREE, KEY_PREMIUM};
 use game_data::GameData;
+use lobby_server::host_room::{HostRoom, HostStatus, LoadedMap, MatchRoom, NewMaps};
 use lobby_server::online::Left;
 use lobby_server::{Ended, EndedPlayer, HostOutcome, HostPlayerStat, LobbyConfig, MinimalMatches, OnlineMatches, PveSetup, Seat, Ticket82};
 use protocol::c2s::{Event53, Pve5F, Request, Squad49};
@@ -33,6 +34,8 @@ struct Fake {
     /// the world host's outcomes, and whether a world host is in use for the match
     outcomes: Mutex<Vec<HostOutcome>>,
     host: std::sync::atomic::AtomicBool,
+    /// the world host's room the hook reports (None = no world host status)
+    room: Mutex<Option<HostRoom>>,
 }
 
 /// The mission clock the fake match server reports (12 min 34 s).
@@ -83,6 +86,10 @@ impl OnlineMatches for Fake {
 
     fn world_host(&self, _: u32) -> bool {
         self.host.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn host_room(&self) -> Option<HostRoom> {
+        self.room.lock().unwrap().clone()
     }
 }
 
@@ -284,6 +291,59 @@ fn three_solo_players_fill_a_match_and_pay_keys() {
     }
     assert_eq!(w.e.store.load_profile(a.account).unwrap().silver, silver_before);
     assert!(w.e.server.registry.online.is_empty());
+}
+
+/// A loaded map of the world host's room: `running` matches, room as given, busy.
+fn loaded(project: &str, running: u16, room: MatchRoom) -> LoadedMap {
+    LoadedMap { project: project.into(), running, starting: 0, room, evict: None, loaded_secs: 60 }
+}
+
+/// No new map can load; these maps are loaded.
+fn no_room(maps: Vec<LoadedMap>) -> HostRoom {
+    HostRoom { age: Duration::from_millis(200), status: HostStatus { max_zygotes: Some(2), max_matches: 4, free_mb: None, new_maps: NewMaps::NoRoom, loaded: maps, drain: None } }
+}
+
+#[test]
+fn a_mission_waits_for_the_world_hosts_room_and_is_charged_once() {
+    game_data::require_tables!();
+    let mut w = world(true);
+    let (mut a, mut b, mut c) = (up(&mut w, "alpha"), up(&mut w, "bravo"), up(&mut w, "charlie"));
+    for x in [&a, &b, &c] {
+        give(&w, x, KEY_PREMIUM, 1);
+    }
+    let total = |w: &World, x: &Client| {
+        let (f, p) = keys(w, x);
+        f + p
+    };
+    let before: Vec<u32> = [&a, &b, &c].iter().map(|x| total(&w, x)).collect();
+    // no map can load and both mazes of difficulty 1 are loaded and full: the complete group is held
+    let full = |p: &str| loaded(p, 8, MatchRoom::Full);
+    *w.fake.room.lock().unwrap() = Some(no_room(vec![full("pve_01_v2_maze1"), full("pve_01_v2_maze2")]));
+    play_solo(&mut w, &mut a, 1, &mut [&mut b, &mut c]);
+    play_solo(&mut w, &mut b, 1, &mut [&mut a, &mut c]);
+    play_solo(&mut w, &mut c, 1, &mut [&mut a, &mut b]);
+    assert!(w.fake.pve.lock().unwrap().is_empty(), "held: no match");
+    assert_eq!(w.e.server.registry.pve.len(), 3, "the searches stay queued");
+    w.e.wait(&mut [&mut a, &mut b, &mut c], 3);
+    assert!(w.fake.pve.lock().unwrap().is_empty(), "still held after the retries");
+    assert_eq!([&a, &b, &c].iter().map(|x| total(&w, x)).collect::<Vec<_>>(), before, "nothing is charged while held");
+    for x in [&mut a, &mut b, &mut c] {
+        let m = x.take();
+        assert_eq!((denial(&m), idle_count(&m)), (None, 0), "no refusal, no 85 00");
+        assert!(connect(&m).is_none(), "no 82");
+    }
+    // maze 2 has a free slot now: the retry starts the mission there, once
+    *w.fake.room.lock().unwrap() = Some(no_room(vec![full("pve_01_v2_maze1"), loaded("pve_01_v2_maze2", 3, MatchRoom::Within)]));
+    w.e.wait(&mut [&mut a, &mut b, &mut c], 2);
+    let created = w.fake.pve.lock().unwrap().clone();
+    assert_eq!(created.len(), 1);
+    assert_eq!(created[0].0.project, "pve_01_v2_maze2");
+    assert!(w.e.server.registry.pve.is_empty());
+    let after: Vec<u32> = [&a, &b, &c].iter().map(|x| total(&w, x)).collect();
+    assert_eq!(after, before.iter().map(|k| k - 1).collect::<Vec<_>>(), "one key each, once");
+    w.e.wait(&mut [&mut a, &mut b, &mut c], 3);
+    assert_eq!(w.fake.pve.lock().unwrap().len(), 1, "no second start");
+    assert_eq!([&a, &b, &c].iter().map(|x| total(&w, x)).collect::<Vec<_>>(), after);
 }
 
 #[test]

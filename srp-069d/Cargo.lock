@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "accounts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "password-hash",
@@ -96,7 +96,7 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "client-files"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror",
 ]
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "data-extract"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "client-files",
  "thiserror",
@@ -242,7 +242,7 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "game-data"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -384,7 +384,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "lobby-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "accounts",
  "game-data",
@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "local-match"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "game-data",
  "protocol",
@@ -415,7 +415,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "login-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crc32fast",
  "log",
@@ -436,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "match-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crc32fast",
  "log",
@@ -570,7 +570,7 @@ dependencies = [
 
 [[package]]
 name = "protocol"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lzma-rs",
  "serde_json",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "srp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "accounts",
  "data-extract",
@@ -931,7 +931,7 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "udp-transport"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "log",
  "serde_json",
@@ -996,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "world-host"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "game-data",
  "libc",
@@ -1007,7 +1007,7 @@ dependencies = [
 
 [[package]]
 name = "world-host-proto"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "zerocopy"

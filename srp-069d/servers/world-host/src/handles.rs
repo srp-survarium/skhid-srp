@@ -31,6 +31,10 @@ pub struct State {
     pub next: u64,
     /// file handle -> (completion port, key)
     pub iocp_assoc: HashMap<u64, (u64, u64)>,
+    /// The exe's timer-loop threads seen in their idle wait (`wait_marked`): thread id -> inside that wait now. Set and
+    /// cleared under this lock, so a thread marked here cannot leave the wait while the lock is held (the fork census,
+    /// `run::fork_world`).
+    pub idle_waiters: HashMap<u64, bool>,
 }
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
@@ -39,9 +43,14 @@ static CV: Condvar = Condvar::new();
 pub fn lock() -> MutexGuard<'static, Option<State>> {
     let mut g = STATE.lock().unwrap();
     if g.is_none() {
-        *g = Some(State { objs: HashMap::new(), next: 0x1000, iocp_assoc: HashMap::new() });
+        *g = Some(State { objs: HashMap::new(), next: 0x1000, iocp_assoc: HashMap::new(), idle_waiters: HashMap::new() });
     }
     g
+}
+
+/// The fork census over the timer-loop threads' marks: (in their idle wait now, known).
+pub fn timer_census(marks: impl IntoIterator<Item = bool>) -> (usize, usize) {
+    marks.into_iter().fold((0, 0), |(k, n), m| (k + usize::from(m), n + 1))
 }
 
 pub fn notify() {
@@ -128,9 +137,28 @@ fn next_timer_due(s: &State) -> Option<Instant> {
 
 /// WaitForMultipleObjects semantics. Returns WAIT_OBJECT_0+i, WAIT_TIMEOUT or WAIT_FAILED.
 pub fn wait(hs: &[u64], all: bool, timeout_ms: u32) -> u32 {
+    wait_marked(hs, all, timeout_ms, false)
+}
+
+/// [`wait`]; `idle` = this is an exe timer-loop thread's idle wait: the thread is marked in `idle_waiters` from its
+/// first look at the handles to its return, both under the lock.
+pub fn wait_marked(hs: &[u64], all: bool, timeout_ms: u32, idle: bool) -> u32 {
     let tid = crate::teb::gettid();
-    let deadline = if timeout_ms == INFINITE { None } else { Some(Instant::now() + Duration::from_millis(timeout_ms as u64)) };
     let mut g = lock();
+    if idle {
+        g.as_mut().unwrap().idle_waiters.insert(tid, true);
+    }
+    let (mut g, r) = wait_in(g, hs, all, timeout_ms, tid);
+    if idle {
+        g.as_mut().unwrap().idle_waiters.insert(tid, false);
+    }
+    r
+}
+
+type Guard = MutexGuard<'static, Option<State>>;
+
+fn wait_in(mut g: Guard, hs: &[u64], all: bool, timeout_ms: u32, tid: u64) -> (Guard, u32) {
+    let deadline = if timeout_ms == INFINITE { None } else { Some(Instant::now() + Duration::from_millis(timeout_ms as u64)) };
     loop {
         let now = Instant::now();
         let s = g.as_mut().unwrap();
@@ -141,7 +169,7 @@ pub fn wait(hs: &[u64], all: bool, timeout_ms: u32) -> u32 {
                 Some(v) => sig.push(v),
                 None => {
                     crate::hlog!("wait: unknown handle {h:#x}");
-                    return WAIT_FAILED;
+                    return (g, WAIT_FAILED);
                 }
             }
         }
@@ -150,15 +178,15 @@ pub fn wait(hs: &[u64], all: bool, timeout_ms: u32) -> u32 {
                 for &h in hs {
                     consume(s, h, tid);
                 }
-                return WAIT_OBJECT_0;
+                return (g, WAIT_OBJECT_0);
             }
         } else if let Some(i) = sig.iter().position(|&x| x) {
             consume(s, hs[i], tid);
-            return WAIT_OBJECT_0 + i as u32;
+            return (g, WAIT_OBJECT_0 + i as u32);
         }
         if let Some(d) = deadline {
             if now >= d {
-                return WAIT_TIMEOUT;
+                return (g, WAIT_TIMEOUT);
             }
         }
         let mut until = deadline.unwrap_or(now + Duration::from_millis(50));
@@ -229,5 +257,18 @@ pub fn wait_resumed(h: u64) {
             _ => return,
         }
         g = CV.wait_timeout(g, Duration::from_millis(20)).unwrap().0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::timer_census;
+
+    #[test]
+    fn the_census_counts_the_marked_timer_threads_of_the_known_ones() {
+        assert_eq!(timer_census([]), (0, 0), "no timer thread seen yet: nothing to wait for");
+        assert_eq!(timer_census([true, true]), (2, 2));
+        assert_eq!(timer_census([true, false]), (1, 2), "one is out of its idle wait: the fork waits");
+        assert_eq!(timer_census([false, false, true]), (1, 3));
     }
 }

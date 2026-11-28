@@ -21,10 +21,54 @@ use crate::Config;
 pub const EXE_SIZE: u64 = 13_386_392;
 /// SHA-256 of that exe. The world host calls the exe's code at fixed addresses, so only this exact file works.
 pub const EXE_SHA256: &str = "1e1ae04dc981fc4f5734c56559fb0f2e0e74c787bcc53ebbfdc233f440d65448";
-/// Memory one loaded level ("zygote") takes at most (the `world_host.max_zygotes` comment: about 0.35-0.56 GB).
-const ZYGOTE_MB: u64 = 560;
-/// srp + the world host's front process, a rough allowance on top of the zygotes.
-const BASE_MB: u64 = 500;
+/// Memory one loaded map ("zygote") takes on its own, the largest kind, counted without the base pre-warm set's
+/// saving: the largest map (one level of three modes, the level alone 0.28 GB) with a pre-warm list measures
+/// 0.32-0.34 GB in one-shot runs and 308 MB as a zygote in a played match (kept at 0.35), a PvE mission zygote
+/// 0.25-0.26 GB (0.2 with the set), a usual PvP map 0.11-0.15 GB (61 MB measured with the set). Zygotes are forks of the world host's base
+/// process and share its start-up pages (docs/guide-server.md, "Memory: how many maps and matches").
+const ZYGOTE_MB: u64 = 350;
+/// One running match, the larger kind. Measured maxima: a 12-slot PvP match with 11 AI players on a map started from
+/// the common seed 137-140.5 MB, a PvE mission with the host's AI driving 17 AI players 122 MB, an 18-minute PvE
+/// mission 106 MB, a 16-slot PvP match with 15 AI players (level-1 equipment) 96-117 MB. Kept above them: higher
+/// equipment levels make a match larger.
+const MATCH_MB: u64 = 165;
+/// srp + the world host's front and base processes (measured: srp about 40 MB, the base 124 MB at the cut and about
+/// 168 MB with a 1413-entry base pre-warm set; the set grows with more lists and a higher max_zygotes, and a replaced
+/// base's pages stay with its maps for a while). Kept: the set's size at the default max_zygotes is not measured.
+const BASE_MB: u64 = 350;
+/// A usual PvP map once its list's common part sits in the base process (measured 61-68 MB; 101-116 MB without it,
+/// levels alone 31-98 MB) and a usual PvP match: filled with AI players (the default settings fill a match short of
+/// players after bot_wait_secs; 11 AI players in 12 slots measured 0.13-0.14 GB): the typical-PvP fit.
+const TYPICAL_PVP_MAP_MB: u64 = 85;
+const TYPICAL_PVP_MATCH_MB: u64 = 130;
+
+/// The most the server can use with `max_zygotes` maps of `max_matches` matches each (the guide's formula, larger
+/// kinds), in MB; None for `max_zygotes` 0 (no cap).
+pub fn memory_need_mb(max_zygotes: u32, max_matches: u32) -> Option<u64> {
+    (max_zygotes != 0).then(|| BASE_MB + u64::from(max_zygotes) * (ZYGOTE_MB + u64::from(max_matches) * MATCH_MB))
+}
+
+/// The `max_zygotes` that fits `available_mb` with `max_matches` matches per map (at least 1).
+pub fn zygotes_that_fit(available_mb: u64, max_matches: u32) -> u32 {
+    let per_map = ZYGOTE_MB + u64::from(max_matches) * MATCH_MB;
+    (available_mb.saturating_sub(BASE_MB) / per_map).max(1) as u32
+}
+
+/// The usual PvP maps with `max_matches` usual matches each that fit `available_mb` (at least 1): what a server
+/// that mostly runs PvP maps can expect, next to the worst case of [`zygotes_that_fit`].
+pub fn typical_pvp_maps_that_fit(available_mb: u64, max_matches: u32) -> u32 {
+    let per_map = TYPICAL_PVP_MAP_MB + u64::from(max_matches) * TYPICAL_PVP_MATCH_MB;
+    (available_mb.saturating_sub(BASE_MB) / per_map).max(1) as u32
+}
+
+/// The two fits `srp setup` prints for `available_mb`: the worst case and the usual PvP maps.
+pub fn memory_fit_text(available_mb: u64, max_matches: u32) -> String {
+    format!(
+        "this memory fits {} map(s) in the worst case (each map its largest kind, every match slot used) or about {} usual PvP maps, with max_matches = {max_matches}",
+        zygotes_that_fit(available_mb, max_matches),
+        typical_pvp_maps_that_fit(available_mb, max_matches)
+    )
+}
 /// Free disk below this gets a warning (logs, the database, the world host's per-match folders).
 const DISK_WARN_MB: u64 = 2048;
 
@@ -530,7 +574,7 @@ pub fn run(o: &Options) -> i32 {
     }
     if let Some(p) = c.world_host.daemon.as_ref().and_then(|d| crate::world_host::prewarm_dir(&c, d)) {
         match std::fs::create_dir_all(&p) {
-            Ok(()) => r.ok(&format!("pre-warm lists: {} (the world host adds a map's list after its first match there)", p.display())),
+            Ok(()) => r.ok(&format!("pre-warm lists: {} (every match adds what it loaded to its map's list)", p.display())),
             Err(e) => r.warn(&format!("pre-warm folder {}: {e}", p.display()), "set world_host.prewarm_dir to a writable folder"),
         }
     }
@@ -540,17 +584,28 @@ pub fn run(o: &Options) -> i32 {
         Ok(s) => r.ok(&format!("ports free: {s}")),
         Err(e) => r.problem(&e, ""),
     }
-    let zyg = c.world_host.daemon.as_ref().map_or(8, |d| d.max_zygotes);
+    let (zyg, per_map) = c.world_host.daemon.as_ref().map_or((8, 4), |d| (d.max_zygotes, d.max_matches));
     if let Some(mb) = available_mb() {
-        let need = if zyg == 0 { None } else { Some(BASE_MB + u64::from(zyg) * ZYGOTE_MB) };
+        let need = memory_need_mb(zyg, per_map);
         let txt = format!(
-            "memory: {:.1} GB available{}",
+            "memory: {:.1} GB available{}; {}",
             mb as f64 / 1024.0,
-            need.map_or(String::new(), |n| format!(" (the server uses up to about {:.1} GB with world_host.max_zygotes = {zyg})", n as f64 / 1024.0))
+            need.map_or(String::new(), |n| format!(
+                " (the server uses up to about {:.1} GB with world_host.max_zygotes = {zyg} and max_matches = {per_map}, every map full)",
+                n as f64 / 1024.0
+            )),
+            memory_fit_text(mb, per_map)
         );
+        let one = BASE_MB + ZYGOTE_MB + MATCH_MB;
         match need {
-            Some(_) if mb < BASE_MB + ZYGOTE_MB => r.problem(&format!("{txt}: too little for even one map ({:.1} GB)", (BASE_MB + ZYGOTE_MB) as f64 / 1024.0), "close other programs, or give WSL more memory (docs/guide-server.md)"),
-            Some(n) if mb < n => r.warn(&txt, "lower world_host.max_zygotes (fewer maps loaded at once) or add memory"),
+            Some(_) if mb < one => r.problem(&format!("{txt}: too little for even one map with one match ({:.1} GB)", one as f64 / 1024.0), "close other programs, or give WSL more memory (docs/guide-server.md)"),
+            Some(n) if mb < n => r.warn(
+                &txt,
+                &format!(
+                    "set world_host.max_zygotes = {} (the maps loaded at once that fit in this memory with max_matches = {per_map}; docs/guide-server.md, \"Memory: how many maps and matches\") or add memory",
+                    zygotes_that_fit(mb, per_map)
+                ),
+            ),
             _ => r.ok(&txt),
         }
     }
@@ -636,6 +691,36 @@ pub fn run(o: &Options) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_memory_suggestion_follows_the_guides_worst_case_table() {
+        // 0.35 GB + max_zygotes x (0.35 GB + max_matches x 0.165 GB)
+        assert_eq!(memory_need_mb(0, 4), None, "no cap");
+        assert_eq!(memory_need_mb(1, 4), Some(350 + 350 + 4 * 165));
+        assert_eq!(memory_need_mb(8, 4), Some(350 + 8 * 1010));
+        // the worst-case column of the guide's table (machine memory minus about 0.5 GB for the system)
+        assert_eq!(zygotes_that_fit(2048 - 512, 4), 1);
+        assert_eq!(zygotes_that_fit(4096 - 512, 4), 3);
+        assert_eq!(zygotes_that_fit(8192 - 512, 4), 7);
+        assert_eq!(zygotes_that_fit(16384 - 512, 4), 15);
+        assert_eq!(zygotes_that_fit(100, 4), 1, "never below one");
+        assert_eq!(zygotes_that_fit(4096 - 512, 2), 4, "fewer matches per map: more maps (3234 / 680)");
+    }
+
+    #[test]
+    fn setup_prints_the_worst_case_fit_and_the_usual_pvp_fit() {
+        // the guide's "Suggested settings by memory", usual PvP maps: 0.35 GB + n x (0.085 GB + max_matches x 0.13 GB)
+        assert_eq!(typical_pvp_maps_that_fit(2048 - 512, 4), 1);
+        assert_eq!(typical_pvp_maps_that_fit(4096 - 512, 4), 5);
+        assert_eq!(typical_pvp_maps_that_fit(8192 - 512, 4), 12);
+        assert_eq!(typical_pvp_maps_that_fit(16384 - 512, 4), 25);
+        assert_eq!(typical_pvp_maps_that_fit(100, 4), 1, "never below one");
+        assert_eq!(typical_pvp_maps_that_fit(4096 - 512, 2), 9, "3234 / 345");
+        assert_eq!(
+            memory_fit_text(8192 - 512, 4),
+            "this memory fits 7 map(s) in the worst case (each map its largest kind, every match slot used) or about 12 usual PvP maps, with max_matches = 4"
+        );
+    }
 
     #[test]
     fn sha256_matches_the_standard_vectors() {

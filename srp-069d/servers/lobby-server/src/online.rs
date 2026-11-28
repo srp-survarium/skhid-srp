@@ -93,8 +93,51 @@ pub struct BotFill {
     pub ignore_players: bool,
 }
 
-/// At most this many players per team in a bot-filled match (CHOICE); bots fill each team up to it.
-pub const BOT_TEAM_MAX: usize = 6;
+/// Hard cap of AI players per team (CHOICE): the most the `bots_per_team` setting allows. The exe holds 20 player
+/// records and 20 AI controllers per match (PROVEN), so 8 + 8 fit.
+pub const BOT_TEAM_MAX: usize = 8;
+
+/// Patrol graphs per team of every level project the PvP AI plays (`server_objects.patrol_graphs` by `team_id`: 8 per
+/// team in each project of the bot-playable rows, 9 in one; PROVEN data, and the world host logs [8, 8]). A PvP bot
+/// claims a FREE graph of its own team at its start and at each respawn and frees it at death; with none free the
+/// pick reads an uninitialised index (PROVEN path), so a team never gets more bots than this. The lobby has no
+/// per-project count: this minimum stands for every bot-playable row, and the world host refuses a match whose team
+/// has more bots than graphs.
+pub const PATROL_GRAPHS_PER_TEAM: usize = 8;
+
+/// What set the AI players per team of a bot-filled match ([`bot_team_cap`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BotCapBy {
+    /// the operator's `bots_per_team` ([`crate::LobbyConfig::bots_per_team`])
+    Setting,
+    /// half the row's match size ([`match_size`])
+    MatchSize,
+    /// [`PATROL_GRAPHS_PER_TEAM`]
+    Graphs,
+    /// [`BOT_TEAM_MAX`]
+    HardCap,
+}
+
+impl BotCapBy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BotCapBy::Setting => "setting",
+            BotCapBy::MatchSize => "match size",
+            BotCapBy::Graphs => "patrol graphs",
+            BotCapBy::HardCap => "hard cap",
+        }
+    }
+}
+
+/// Players (humans and AI) per team of a bot-filled match of `size` players: the smallest of the `setting`,
+/// [`BOT_TEAM_MAX`], half the match size and [`PATROL_GRAPHS_PER_TEAM`], at least 1, with the limit that set it (the
+/// first of those on a tie).
+pub fn bot_team_cap(setting: usize, size: u32) -> (usize, BotCapBy) {
+    let half = (size as usize / 2).max(1);
+    let limits = [(setting, BotCapBy::Setting), (half, BotCapBy::MatchSize), (PATROL_GRAPHS_PER_TEAM, BotCapBy::Graphs), (BOT_TEAM_MAX, BotCapBy::HardCap)];
+    let (cap, by) = limits.into_iter().min_by_key(|(n, _)| *n).unwrap_or((1, BotCapBy::Setting));
+    (cap.max(1), by)
+}
 
 /// Modes the exe's AI cannot play: Search and Destroy. A PvP bot claims a team patrol graph of the level project
 /// (`server_objects`, loader 0x2003E3430); the S&D projects carry none (world host on level_02_day_sad_v3,
@@ -301,6 +344,12 @@ pub trait OnlineMatches: Send + Sync {
     /// Rejoin declined: the dropped slot leaves for good (the leave then comes through `take_left`). Default: nothing.
     fn leave_dropped(&self, _match_id: u32, _account: AccountId) -> bool {
         false
+    }
+    /// The world host's room for new matches as the hook last read it, its own starts since counted in
+    /// ([`crate::host_room`]); the queues start only matches that fit it. None = no world host or no status (the link is
+    /// down): the queues choose as without one. Never blocks. Default: None.
+    fn host_room(&self) -> Option<crate::host_room::HostRoom> {
+        None
     }
 }
 
@@ -548,6 +597,8 @@ pub struct OnlineBook {
     of: BTreeMap<AccountId, u32>,
     /// A bot-filled start failed; the next try waits until then (the tick would retry it every pass)
     bot_retry: Option<Instant>,
+    /// A PvP queue group the world host's room held: tried again from the tick ([`crate::host_room::Held`])
+    pvp_held: crate::host_room::Held,
     /// PvP matches whose result went out: the match server closes them after their result at that time
     /// ([`PVP_END_AFTER_RESULT`])
     close_after: Vec<(u32, Instant)>,
@@ -684,24 +735,43 @@ fn row_of(cx: &Ctx, p: &crate::queue::Pick) -> Option<game_data::ModeRow> {
     cx.lobby.data.matches.modes().iter().find(|r| crate::queue::Pick::of(r) == *p).cloned()
 }
 
+/// Why a queue group did not become a match.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NoMatch {
+    /// nobody can play together yet: keep searching
+    Wait,
+    /// a group could play, but the world host has no room for any of its rows now ([`crate::host_room`]): it stays
+    /// queued and is tried again shortly; `key` = the group's shared mask, `kind` and `room` for the log line
+    Held { key: u32, kind: crate::host_room::HoldKind, room: crate::host_room::HostRoom },
+    /// no way to start (no hook, no served row)
+    Off,
+}
+
+/// The served rows with their level projects ([`crate::host_room::scope`]).
+fn with_projects(cx: &Ctx, rows: &[crate::queue::Pick]) -> Vec<(crate::queue::Pick, String)> {
+    rows.iter().filter_map(|p| row_of(cx, p).map(|r| (*p, r.project))).collect()
+}
+
 /// The queue's group and data row: with `online_queue` (a test-only override) every match is that one row
 /// and any group of the queue; otherwise a group whose tickets share a playable mode
 /// ([`crate::queue::PvpQueue::group_for_kinds`]; `unrated_only` for a bot fill) and the queue's pick among the rows the
-/// match server serves ([`crate::queue::PvpQueue::pick`]: mode, map, then the variation and weather drawn).
-/// Err(true) = nobody can play yet (keep searching), Err(false) = no way to start.
-fn queue_group(cx: &Ctx, needed: u32, unrated_only: bool, now_unix: i64) -> Result<QueueMatch, bool> {
-    let hook = cx.lobby.online.as_ref().ok_or(false)?;
+/// match server serves and the world host has room for ([`crate::host_room::scope`], [`crate::queue::PvpQueue::pick_in`]:
+/// mode, map, then the variation and weather).
+fn queue_group(cx: &Ctx, needed: u32, unrated_only: bool, now_unix: i64) -> Result<QueueMatch, NoMatch> {
+    let hook = cx.lobby.online.as_ref().ok_or(NoMatch::Off)?;
     let q = &cx.registry.queue;
     if let Some((map, mode, weather)) = cx.lobby.cfg.online_queue {
         if !hook.available(map, mode) {
-            return Err(false);
+            return Err(NoMatch::Off);
         }
-        let row = cx.lobby.data.matches.resolve_map(map, mode, weather).cloned().ok_or(false)?;
+        let row = cx.lobby.data.matches.resolve_map(map, mode, weather).cloned().ok_or(NoMatch::Off)?;
         if unrated_only && !bots_play(mode) {
-            return Err(true);
+            return Err(NoMatch::Wait);
         }
         let g = if unrated_only { q.group_for_unrated(needed, |_| true).map(|g| g.0) } else { Some(q.group(needed)) };
-        return g.filter(|g| !g.is_empty()).map(|group| QueueMatch { group, row, pinned: Some(weather) }).ok_or(true);
+        let only = vec![crate::queue::Pick::of(&row)];
+        let scope = crate::host_room::Scope::Rotation { served: only.clone(), rows: only, avoid: vec![] };
+        return g.filter(|g| !g.is_empty()).map(|group| QueueMatch { group, row, pinned: Some(weather), scope }).ok_or(NoMatch::Wait);
     }
     let mut rows = playable_rows(cx);
     if unrated_only {
@@ -709,14 +779,61 @@ fn queue_group(cx: &Ctx, needed: u32, unrated_only: bool, now_unix: i64) -> Resu
         rows.retain(|r| bots_play(r.mode));
     }
     if rows.is_empty() {
-        return Err(unrated_only);
+        return Err(if unrated_only { NoMatch::Wait } else { NoMatch::Off });
     }
-    let playable = |m: u32, rated: bool| q.choose(m, rated, &rows, now_unix).is_some();
-    let (g, mask) = if unrated_only { q.group_for_unrated(needed, |m| playable(m, false)) } else { q.group_for_kinds(needed, playable) }.ok_or(true)?;
+    // the world host's room: the rotation when a map can load, else the loaded maps with room, else hold
+    let room = hook.host_room();
+    let scope = crate::host_room::scope(&with_projects(cx, &rows), room.as_ref());
+    let (g, mask) = match q.group_in(needed, unrated_only, &rows, &scope, now_unix) {
+        crate::queue::Forms::Group(g, mask) => (g, mask),
+        crate::queue::Forms::Wait => return Err(NoMatch::Wait),
+        // a scope that left rows out has a status
+        crate::queue::Forms::Held(key) => match room {
+            Some(room) => return Err(NoMatch::Held { key, kind: crate::host_room::HoldKind::of(&room), room }),
+            None => return Err(NoMatch::Wait),
+        },
+    };
     let rated = g.first().is_some_and(|t| t.rated);
-    let p = cx.lobby.roll(|d| q.pick_random(mask, rated, &rows, now_unix, |n| d.below(n.max(1)))).ok_or(true)?;
-    let row = row_of(cx, &p).ok_or(false)?;
-    Ok(QueueMatch { group: g, row, pinned: None })
+    let p = cx.lobby.roll(|d| q.pick_in(mask, rated, &scope, now_unix, |n| d.below(n.max(1)))).ok_or(NoMatch::Wait)?;
+    let row = row_of(cx, &p).ok_or(NoMatch::Off)?;
+    if let (crate::host_room::Scope::Loaded { open, avoid, .. }, Some(room)) = (&scope, room.as_ref()) {
+        log_narrowed(cx, room, open, avoid, &row, mask, rated);
+    }
+    Ok(QueueMatch { group: g, row, pinned: None, scope })
+}
+
+/// The log line of a queue match narrowed to the loaded maps: the candidates of its mode with their last starts, the
+/// map the world host drains, the avoided rows (idle maps, the drained one) and why this one was picked.
+fn log_narrowed(cx: &Ctx, room: &crate::host_room::HostRoom, open: &[crate::queue::Pick], avoid: &[crate::queue::Pick], row: &game_data::ModeRow, mask: u32, rated: bool) {
+    let q = &cx.registry.queue;
+    let of_mode: Vec<String> = open
+        .iter()
+        .filter(|p| p.mode == row.mode)
+        .map(|p| {
+            let (map, own) = q.last_start(p);
+            let name = row_of(cx, p).map_or_else(|| format!("{p:?}"), |r| r.project);
+            let when = |s: u64| if s == 0 { "never".to_string() } else { format!("#{s}") };
+            format!("{name} (map last started {}, this variant {})", when(map), when(own))
+        })
+        .collect();
+    let modes: std::collections::BTreeSet<u32> = open.iter().map(|p| p.mode).collect();
+    let drained = crate::host_room::drain_map(&room.status).map_or(String::new(), |d| format!("; the world host drains {} (loaded {} s): no new match while another fits", d.project, d.loaded_secs));
+    let avoided = if avoid.contains(&crate::queue::Pick::of(row)) {
+        format!("; {} is avoided (idle, or drained) and taken: no other loaded map fits the group", row.project)
+    } else if avoid.is_empty() {
+        String::new()
+    } else {
+        format!("; {} avoided row(s): idle maps and the drained one, taken only when nothing else fits", avoid.len())
+    };
+    log::info!(
+        "queue: no new map can load: narrowed to the {} loaded row(s) with room (modes {modes:?}; {}){drained}{avoided}; group mask {mask:#x} rated {rated}: mode {} (its last queue match the oldest of the group's modes{}), candidates {}: picked {} (the map started the longest ago, then the variant started the longest ago)",
+        open.len(),
+        room.describe(),
+        row.mode,
+        if rated { ", ranked: the slot's mode" } else { "" },
+        of_mode.join(", "),
+        row.project
+    );
 }
 
 /// A queue group and the data row of its match.
@@ -725,6 +842,8 @@ struct QueueMatch {
     row: game_data::ModeRow,
     /// the test override's third value: the match is created as before the pick existed (`create(map, mode, value)`)
     pinned: Option<u32>,
+    /// the rows the world host had room for (the ranked fall-through draws from them too)
+    scope: crate::host_room::Scope,
 }
 
 impl QueueMatch {
@@ -747,8 +866,13 @@ pub fn queue_start(cx: &mut Ctx, now_unix: i64) -> QueueStart {
         Ok(x) => x,
         // fewer than `online_min_players` share a playable mode so far: they keep searching (the fallback would refuse
         // them at the smallest row minimum, which can be below the operator's group size)
-        Err(true) => return QueueStart::Wait,
-        Err(false) => return QueueStart::Fallback,
+        Err(NoMatch::Wait) => return QueueStart::Wait,
+        // the world host has no room for this group now: it keeps searching and is tried again (tick)
+        Err(NoMatch::Held { key, kind, room }) => {
+            cx.registry.online.pvp_held.hold(cx.now, "queue", key, kind, &room);
+            return QueueStart::Wait;
+        }
+        Err(NoMatch::Off) => return QueueStart::Fallback,
     };
     let rated = qm.group[0].rated;
     let split = |row: &game_data::ModeRow| {
@@ -759,7 +883,7 @@ pub fn queue_start(cx: &mut Ctx, now_unix: i64) -> QueueStart {
         Some(x) => x,
         // ranked: the slot's mode cannot form this match (e.g. Search and Destroy's 5 + 5 seats under the operator's
         // group size): the next rotation mode that can (queue::ranked_order, CHOICE)
-        None if rated && qm.pinned.is_none() => match ranked_fall_through(cx, qm.row.mode, now_unix, &split) {
+        None if rated && qm.pinned.is_none() => match ranked_fall_through(cx, &qm.scope, qm.row.mode, now_unix, &split) {
             Some((row, x)) => {
                 log::info!("queue: ranked slot mode {} cannot form this match ({} tickets): falls through to mode {} ({})", qm.row.mode, qm.group.len(), row.mode, row.project);
                 qm.row = row;
@@ -779,6 +903,7 @@ pub fn queue_start(cx: &mut Ctx, now_unix: i64) -> QueueStart {
             let taken: Vec<Ticket> = group.into_iter().filter(|t| used.contains(&t.order)).collect();
             cx.registry.queue.record_start(&taken, now_unix);
             cx.registry.queue.note_pick(crate::queue::Pick::of(&row));
+            cx.registry.online.pvp_held.started();
             log::info!("online match {id:#x} started from the queue ({} tickets): {} (map {map} mode {mode} weather {weather})", taken.len(), row.project);
             QueueStart::Started
         }
@@ -793,16 +918,16 @@ pub fn queue_start(cx: &mut Ctx, now_unix: i64) -> QueueStart {
 type Split = ([Vec<AccountId>; 2], Vec<u32>);
 
 /// The ranked fall-through of [`queue_start`] (CHOICE, [`crate::queue::ranked_order`]): the modes after `failed` in the
-/// slot's order, each with its ranked rows the match server serves; the first whose drawn row `split`s the group into
-/// two teams. None = no ranked mode can form this match yet (the group keeps searching).
-fn ranked_fall_through(cx: &Ctx, failed: u32, now_unix: i64, split: &dyn Fn(&game_data::ModeRow) -> Option<Split>) -> Option<(game_data::ModeRow, Split)> {
-    let rows = playable_rows(cx);
+/// slot's order, each with its ranked rows the match server serves and the world host has room for (`scope`, the
+/// group's); the first whose drawn row `split`s the group into two teams. None = no ranked mode can form this match yet
+/// (the group keeps searching).
+fn ranked_fall_through(cx: &Ctx, scope: &crate::host_room::Scope, failed: u32, now_unix: i64, split: &dyn Fn(&game_data::ModeRow) -> Option<Split>) -> Option<(game_data::ModeRow, Split)> {
     let q = &cx.registry.queue;
     let order = crate::queue::ranked_order(now_unix);
     let after = order.iter().position(|m| *m == failed).map_or(0, |i| i + 1);
     for &m in &order[after..] {
-        let of_mode: Vec<crate::queue::Pick> = rows.iter().filter(|r| r.mode == m).copied().collect();
-        let Some(p) = cx.lobby.roll(|d| q.pick_random(0, true, &of_mode, now_unix, |n| d.below(n.max(1)))) else { continue };
+        let of_mode = scope.of_mode(m);
+        let Some(p) = cx.lobby.roll(|d| q.pick_in(0, true, &of_mode, now_unix, |n| d.below(n.max(1)))) else { continue };
         let Some(row) = row_of(cx, &p) else { continue };
         if let Some(x) = split(&row) {
             return Some((row, x));
@@ -866,7 +991,7 @@ pub fn bot_level(cx: &Ctx, humans: &[AccountId]) -> u32 {
 
 /// A queue search that waited [`crate::LobbyConfig::online_bot_wait`] without a full group starts a match with the
 /// humans that share a playable mode with it (at least one; no minimum of [`queue_start`]) and AI players up to
-/// [`BOT_TEAM_MAX`] per team, on any mode the humans ticked. Only unrated searches: ranked stays humans-only
+/// [`bot_team_cap`] per team, on any mode the humans ticked. Only unrated searches: ranked stays humans-only
 /// (CHOICE). Only when the hook can drive bots. Called from [`tick`].
 pub fn queue_bot_fill(cx: &mut Ctx, now_unix: i64) {
     let Some(wait) = cx.lobby.cfg.online_bot_wait else { return };
@@ -882,31 +1007,41 @@ pub fn queue_bot_fill(cx: &mut Ctx, now_unix: i64) {
     if !cx.registry.queue.oldest_since(false).is_some_and(|s| now_unix - s >= wait.as_secs() as i64) {
         return;
     }
-    let Ok(qm) = queue_group(cx, 1, true, now_unix) else { return };
+    let qm = match queue_group(cx, 1, true, now_unix) {
+        Ok(qm) => qm,
+        // the world host has no room for it now: logged once per reason, tried again on a later tick
+        Err(NoMatch::Held { key, kind, room }) => {
+            cx.registry.online.pvp_held.hold(cx.now, "queue with AI players", key, kind, &room);
+            return;
+        }
+        Err(_) => return,
+    };
     let (third, row_arg) = qm.target();
     let (row, group) = (qm.row.clone(), qm.group.clone());
     if group.is_empty() || group.iter().any(|t| t.rated) || !due(&group) {
         return;
     }
     let (map, mode) = (row.map, row.mode);
-    let cap = (match_size(&row) as usize / 2).clamp(1, BOT_TEAM_MAX);
+    let (cap, by) = bot_team_cap(cx.lobby.cfg.bots_per_team, match_size(&row));
     let Some((teams, used, need)) = bot_fill_plan(&group, cap) else { return };
     let humans: Vec<AccountId> = teams.iter().flatten().copied().collect();
     let level = bot_level(cx, &humans);
     let kind = MatchKind::Random;
     log::info!(
-        "queue: {} human(s) waited {} s or more: a match on {} (map {map} mode {mode}) with {} + {} AI players at level {level}",
+        "queue: {} human(s) waited {} s or more: a match on {} (map {map} mode {mode}) with {} + {} AI players at level {level}, {cap} per team (by {})",
         humans.len(),
         wait.as_secs(),
         row.project,
         need[0],
-        need[1]
+        need[1],
+        by.as_str()
     );
     match start_with(cx, map, mode, third, kind, teams, Some(BotFill { need, level, ignore_players: false }), row_arg) {
         Ok(id) => {
             let taken: Vec<Ticket> = group.into_iter().filter(|t| used.contains(&t.order)).collect();
             cx.registry.queue.record_start(&taken, now_unix);
             cx.registry.queue.note_pick(crate::queue::Pick::of(&row));
+            cx.registry.online.pvp_held.started();
             cx.registry.online.bot_retry = None;
             log::info!("online match {id:#x} started from the queue with AI players ({} tickets)", taken.len());
         }
@@ -1147,6 +1282,15 @@ pub fn tick(cx: &mut Ctx) {
     if cx.lobby.online.is_some() && cx.registry.queue.ranked_slot_changed(now) {
         let r = queue_start(cx, now);
         log::debug!("queue: ranked mode slot {} (mode {}): {r:?}", now.div_euclid(crate::queue::RANKED_SLOT_SECS), crate::queue::ranked_mode(now));
+    }
+    // a group the world host's room held: tried again (a map may have freed or become loadable; nobody joins to trigger
+    // the queue then); a new hold sets the next try
+    if cx.registry.online.pvp_held.due(cx.now) && !cx.registry.queue.is_empty() {
+        let r = queue_start(cx, now);
+        log::debug!("queue: held group tried again: {r:?}");
+    }
+    if cx.registry.pve.held.due(cx.now) && !cx.registry.pve.is_empty() {
+        crate::pve::start_full(cx);
     }
     // the world host's outcomes first: a PvE result made from them carries the world's counters
     for o in hook.take_outcomes() {
@@ -2208,5 +2352,49 @@ mod tests {
         // a ticket that fits in neither team is left out
         let (teams, used) = balance(&[t(1, &[1, 2, 3]), t(2, &[4, 5, 6])], 2);
         assert!(teams[0].is_empty() && teams[1].is_empty() && used.is_empty());
+    }
+
+    #[test]
+    fn the_bot_team_cap_is_the_smallest_limit() {
+        // the default setting on the usual rows: 12 players -> 6, 14 -> 6 by the setting, 20 (no size stated) -> 6
+        assert_eq!(bot_team_cap(6, 12), (6, BotCapBy::Setting), "a tie names the setting");
+        assert_eq!(bot_team_cap(6, 14), (6, BotCapBy::Setting));
+        assert_eq!(bot_team_cap(6, 20), (6, BotCapBy::Setting));
+        // 8: the match size bounds the 12- and 14-player rows; 16 and 20 get 8 (the setting, equal to the graphs)
+        assert_eq!(bot_team_cap(8, 12), (6, BotCapBy::MatchSize));
+        assert_eq!(bot_team_cap(8, 14), (7, BotCapBy::MatchSize));
+        assert_eq!(bot_team_cap(8, 16), (8, BotCapBy::Setting));
+        assert_eq!(bot_team_cap(8, 20), (8, BotCapBy::Setting));
+        // over the hard cap (srp refuses such a setting): the patrol graphs come first, then the hard cap
+        assert_eq!(bot_team_cap(12, 20), (8, BotCapBy::Graphs));
+        // a smaller setting, a tiny match, a nonsense 0: always at least one per team
+        assert_eq!(bot_team_cap(3, 20), (3, BotCapBy::Setting));
+        assert_eq!(bot_team_cap(8, 2), (1, BotCapBy::MatchSize));
+        assert_eq!(bot_team_cap(8, 0), (1, BotCapBy::MatchSize));
+        assert_eq!(bot_team_cap(0, 20), (1, BotCapBy::Setting));
+        for s in 1..=BOT_TEAM_MAX {
+            for size in 0..=24 {
+                let (cap, _) = bot_team_cap(s, size);
+                assert!((1..=s).contains(&cap) && cap <= PATROL_GRAPHS_PER_TEAM && cap <= (size as usize / 2).max(1));
+            }
+        }
+    }
+
+    #[test]
+    fn a_bot_fill_of_8_fills_both_teams_to_8() {
+        // one human: alone on team 0, 7 + 8 AI players
+        let (teams, used, need) = bot_fill_plan(&[t(1, &[1])], 8).unwrap();
+        assert_eq!((teams[0].len() + teams[1].len(), used, need), (1, vec![1], [7, 8]));
+        // a squad of 3 and two singles: 5 humans split 3 / 2 (or 2 / 3), every team 8 in all
+        let (teams, used, need) = bot_fill_plan(&[t(1, &[1, 2, 3]), t(2, &[4]), t(3, &[5])], 8).unwrap();
+        assert_eq!(used.len(), 3);
+        assert_eq!([teams[0].len() + need[0], teams[1].len() + need[1]], [8, 8]);
+        assert!(need.iter().all(|n| *n <= PATROL_GRAPHS_PER_TEAM));
+        // 16 humans: no AI player
+        let full: Vec<Ticket> = (1..=16).map(|i| t(i, &[i64::from(i)])).collect();
+        let (teams, _, need) = bot_fill_plan(&full, 8).unwrap();
+        assert_eq!((teams[0].len(), teams[1].len(), need), (8, 8, [0, 0]));
+        // nobody fits (a squad larger than the team): no plan
+        assert!(bot_fill_plan(&[t(1, &[1, 2, 3])], 2).is_none());
     }
 }

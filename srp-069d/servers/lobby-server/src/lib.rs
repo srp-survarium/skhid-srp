@@ -36,6 +36,7 @@ pub mod equip;
 pub mod events;
 pub mod faction_battle;
 pub mod hero;
+pub mod host_room;
 pub mod hunt;
 pub mod items;
 pub mod league;
