@@ -5204,6 +5204,9 @@ that more often". The program and its pack are resource-porter's (`shaders/forwa
   pass's, the constants sent in order and a malformed one skipped, nothing else changed, ret 18h
   and the callee-saved registers); the forward water's compile to past its t_normal_map: our
   program and the material's normal map for a marked material, patch 130's for srp_water_v021d, the
-  original's otherwise. The patches crate's tests and Clippy. Captured headless (capture.py) on
-  Cologne (v0.69): the river drawn by the program; Rudnya (v0.69)'s pond (native material) the
-  same frame with and without the patch.
+  original's otherwise. The patches crate's tests and Clippy; the self-test. Captured headless
+  (capture.py) on Cologne (v0.69): the river drawn by the program (map 543, ground_03 and four views
+  from above against 0.69d). Rudnya (v0.69)'s pond (a native water material) from above, two poses,
+  three runs (the original revision, the patch, the original again): the patch's frames differ from
+  the original's as two runs of the original differ from each other (mean 1.3 to 2.7 of 255, grass
+  and water move between runs), no frame is pixel-identical run to run.
