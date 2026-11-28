@@ -86,3 +86,23 @@ The rules, as Vostok's:
 
 What 0.26g cannot draw is left out with a note, as on Rudnya: detail normals, fuzziness, 0.69d's
 sky and height fog (the sky and distance fog are native Cologne's).
+
+## Checked (2026-11-28)
+
+- A quick content build of this branch for revision 76 (`tools/test-build 76 --shared --slow`) over
+  the live patches 12..75: it builds (the ammo and lamp lists, the Keeper's counts, the maps_dict
+  counts). Its memory budget: Cologne (v0.69) 11.4 MiB of grass world, 1.1 MiB for its largest
+  project (day_3), 0.9 MiB of dictionary, 13.4 MiB in all (native Cologne 12.8, Vostok (v0.69) 23.9;
+  bounds 32 and 12 MiB): no `MEMORY_KNOWN` row. Players mount 57 patches with the next release's.
+- Headless captures straight into each map (`scripts/capture/capture.py`, exe patch 176, no server
+  or input), 1280x720 at the reference rig's settings: 543 130 pictures (three games), 544 20, 545
+  20, 546 14. Every game loaded and exited 0; the game logs have no missing material or texture,
+  only the one `cook of 'unused string' ... failed` line every map has.
+- Against 0.69d (its own `level_08/day_tdm` and `day_br` loaded by the rig's `ref069.py`, 136 poses
+  shot once and kept in `donor-refs/069d/level_08_*`): the port's light is 1.07 of 0.69d's (median of
+  the frames' mean luma; quartiles 1.00 and 1.13), interiors 1.09, the horizon 0.95, the ground
+  0.88. No wall or floor is missing. What differs: the river's water is 0.26g's own
+  `water/water_l08_boloto` (murky brown, where 0.69d draws it clear and blue); the sky and the
+  horizon are native Cologne's (no 0.69d dark band at the horizon, a hazier, brighter sky with
+  more bloom in the views up through the bridge: those frames are up to 1.5x 0.69d's); the shade
+  under foliage is a little warmer.
