@@ -1241,6 +1241,15 @@ pub(crate) fn real_bot_cost() {
                 })
                 .collect();
             bots.set_shot_reach(reach);
+            // [Gap 8, patch 179] `SRP_BENCH_PROTECTION=on`: the map's spawn protection by team, as the live server gives it
+            // (`game/driven.rs`), and each bot's protected enemies after every world (`Bots::share_protection`). The
+            // stand-in's damage does not model protection: the bots' held fire is what it reads.
+            let protection_on = bench_settings().var("SRP_BENCH_PROTECTION").ok().as_deref() == Some("on");
+            if protection_on {
+                let row = survarium::v026g::maps::find(level, survarium::v026g::maps::weather::DAY, mode.into());
+                bots.set_spawn_protection_ms(row.map_or([None, None], |row| row.spawn_protection_ms));
+                eprintln!("  spawn protection by team: {:?} ms", row.map(|row| row.spawn_protection_ms));
+            }
             // The armour each bot wears against a zone's hits, as the stand-in's body wears it (the kit of the
             // bench's tier and rusher kit that has the bot's gun): read only with `HazardTuning::zone_pools`
             // routed, which also makes the stand-in's zones hurt the pools their hits take from.
@@ -2062,6 +2071,9 @@ pub(crate) fn real_bot_cost() {
                     // [shot origin] The bots' shots from now on are scattered at this world's age.
                     game.note_world(clock);
                     events.world(clock, &mut game, &bots);
+                    if protection_on {
+                        bots.share_protection();
+                    }
                     let world_tick = clock / TICK_MS * TICK_MS - 300;
                     let hurts = game.hurts_at(world_tick).unwrap_or_default();
                     let all_hits = game.hits_at(world_tick).unwrap_or_default();
