@@ -407,8 +407,9 @@ class Lamps(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '0 walker_collision objects'):
             bottles_tool.collisions(path, bytes(lone))
 
-    def later_list_project(self, things, table_leftover=None):
-        """A project of a lamp, `things` (visuals) and a lamp table of the lamp alone."""
+    def later_list_project(self, things, table_leftover=None, solids=()):
+        """A project of a lamp, `things` (visuals), `solids` (collision objects) and a lamp table of the
+        lamp alone."""
         def record(value):
             return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
         lamp = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
@@ -416,7 +417,9 @@ class Lamps(unittest.TestCase):
         for v in visuals:
             v.setdefault('lib_name', v['visual_name'])
         data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals])),
-                                             ('client_objects', (4, []))])))
+                                             ('client_objects', (4, []))]
+                                            + ([('collision_objects', (4, [record(o) for o in solids]))]
+                                               if solids else []))))
         row = fixtures.row([-.1, 4.8, -.1], [.1, 5.01, .1], [0., 4.9, 0.], [0., 4.9, 0.],
                            visuals={'intact0': {'index': 0, 'state': 0}}, lights={})
         table = {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': {'lamp0': row}}
@@ -460,6 +463,18 @@ class Lamps(unittest.TestCase):
             bad = bytearray(data)
             edits.c.add_value(bad, 'srp_lamps/lamps', 'bell0', dict(row, **wrong))
             self.assertTrue(edits.check_built('p', bad), wrong)
+
+    def test_a_bell_merged_into_a_cluster_is_its_collision_object(self):
+        # School (v0.69): the converter merged three bells' visuals into clusters; each keeps its
+        # collision object at the bell's place, which is the bell its row needs.
+        row = fixtures.row([9.8, 1.98, -.1], [10.2, 2.31, .02], [10., 2.15, -.04], [10., 2.15, -.04],
+                           reaction='ring', ring_every=4.0, visuals={}, lights={})
+        for at, problems in (([10., 2., 0.], 0), ([12., 2., 0.], 1)):
+            solid = dict(lib_name='resources/models/props/electric/bell_school.model/collision', position=at,
+                         rotation=[0., 0., 0.], scale=[1., 1., 1.])
+            data = self.later_list_project([], solids=[solid])
+            edits.c.add_value(data, 'srp_lamps/lamps', 'bell0', row)
+            self.assertEqual(len(edits.check_built('p', data)), problems, at)
 
     def test_each_row_marks_by_its_own_leftover(self):
         # A skeleton's cap in a table of lamps says leftover body itself; a

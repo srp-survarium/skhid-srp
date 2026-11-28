@@ -135,7 +135,7 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   level's Artifact Hunt fits would get none (there is none). Concrete stands under the boxes are
   parked for later (the owner, 2026-11-23: "with slabs we will work later"; the research is in PR
   #2377's history). Pack `artefact-hunt-maps` (the configs) and `artefact-hunt-maps-1.json`
-  (projects, maps_dict 327-350), both made by `scripts/mode-maps/make.py` (each map's id kept in
+  (projects, maps_dict 327-352), both made by `scripts/mode-maps/make.py` (each map's id kept in
   its `ids.tsv`: a new map's is the next free one). London plays 0.32a4's projects
   (`london-v032-1`): maps 324-326 keep their ids and play configs of level 09's points on copies of
   v0.32's Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`); artefact-hunt-1's
@@ -152,6 +152,8 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   | 14 | Rudnya v0.69 | day | 434 | 335 | level 01's |
   | 25 | School v0.21 | 3 | 435-437 | 336-338 | level 02's |
   | 26 | Tarakanovsky Fort v0.21 | 3 | 438-440 | 339-341 | level 05's |
+  | 27 | School v0.69 | day | 451 | 351 | level 02's |
+  | 28 | Vostok Radar Station v0.69 | day | 452 | 352 | level 03's |
   | 29 | Rudnya v0.21 | 3 | 441-443 | 342-344 | level 01's |
   | 31 | Chemical Plant v0.21 | 3 | 444-446 | 345-347 | level 04's |
   | 32 | London v0.42 | 3 | 447-449 | 348-350 | level 09's |

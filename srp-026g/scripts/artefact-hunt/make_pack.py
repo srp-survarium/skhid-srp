@@ -98,8 +98,8 @@ FIRST_MAP_ID = 300
 # are the edit list's, not the pack's: a pack's rows come before every edit list and would move
 # the counts those lists expect. 241 since London (v0.42)'s nine rows (290-298, pack london-v042) and
 # one more landed before it (2026-11-22; the build said 241 where the list said 231); 243 with
-# Vostok (v0.69)'s two (258, 259, pack vostok-069d).
-MAPS_DICT_COUNT = 243
+# Vostok (v0.69)'s two (258, 259, pack vostok-069d); 247 with School (v0.69)'s four (pack school-069d).
+MAPS_DICT_COUNT = 247
 FOLDER = 'artefact_hunt'
 BOX = 'item/storage_device/box_atlant8c'
 # Its bounding box (render/export_properties): half its width in x and z, its height over its foot.
