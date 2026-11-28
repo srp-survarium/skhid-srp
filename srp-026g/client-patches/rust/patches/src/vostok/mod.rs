@@ -93,6 +93,7 @@ pub mod renderer;
 pub mod render_stage;
 pub mod probe_tiers;
 pub mod effect_compile;
+pub mod names;
 pub mod gun_cook;
 pub mod pickup;
 pub mod profile_kit;
