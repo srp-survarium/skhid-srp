@@ -1482,21 +1482,66 @@ pub const RELOAD_KNOT: u8 = 0x20;
 /// length 0x30E5C0; settle-weapon L1).
 pub const CLIP_FRAME_S: f32 = 0.033333335;
 
-/// [3B (a)] The length in seconds of the reload hands clip the weapon `w` plays with `magazine` rounds in its magazine
-/// (the world's, which a reload leaves until the clip's end): a magazine reload's (303) one clip; an empty-clip reload's
-/// (314) clip [1] from empty, else [0] (the lexeme 0x30FE90 picks slot `magazine == 0`, 0x30FEA5..0x30FEC9; settle-weapon
-/// L3). `None` for the others (the double barrel's and the round-by-round group-4 nodes are a sub-clip's, settle-tree
+/// [patch 205] The clip set a two-clip reload state's world names (`AnimationWait::index_of_animation_to_wait`, the state's
+/// +134h): `Some(true)` the second (314's empty clips, 311's two shells'), `Some(false)` the first; `None` before its first
+/// pick (0FFh) or for a byte that is no pick. The byte is `(pick * 8 + state + 144h - [+130h]) >> 2` (get_weapon_lexeme
+/// 0x30FEE4, 0x30F5FA), where every reload constructor sets [+130h] to the state's own +144h (0x30E2FA, 0x30F6AC,
+/// 0x30FF8C): four pairs of handles, the pair `pick + 2 x posture`, so the byte is `2 x (pick + 2 x posture)`
+/// (`client-patches/rust/patches/src/vostok/reload.rs` `saved_clip`). A world carries it (written 0x30DC90, read
+/// 0x30DC7C); patch 205 keeps the first pick for the whole reload (`reload.pick_*`, `docs/notes/reload-commit.md` "The
+/// clips stay the reload's").
+pub fn picked_second(index: Option<u8>) -> Option<bool> {
+    let index = index?;
+    (index % 2 == 0 && index < 8).then_some((index / 2) % 2 == 1)
+}
+
+/// [3B (a)] The length in seconds of the reload hands clip the weapon `w` plays: a magazine reload's (303) one clip; an
+/// empty-clip reload's (314) clip [1] from empty, else [0] (the lexeme 0x30FE90 picks slot `magazine == 0`,
+/// 0x30FEA5..0x30FEC9; settle-weapon L3). [patch 205] The pick is the reload's first, as its world names it (`picked`,
+/// [`picked_second`]): the magazine fills at the seat (`reload_commit`), mid-clip, and the game keeps the empty clip. Only
+/// a world with no pick yet (the reload's first selection to come) reads it from the world's `magazine`, as the game will
+/// pick it. `None` for the others (the double barrel's and the round-by-round group-4 nodes are a sub-clip's, settle-tree
 /// 3.3) and without the clips' lengths.
-pub fn reload_clip_s(w: &survarium::v026g::weapons::WeaponParams, magazine: u32) -> Option<f32> {
+pub fn reload_clip_s(w: &survarium::v026g::weapons::WeaponParams, magazine: u32, picked: Option<bool>) -> Option<f32> {
     use survarium::v026g::weapons::{STATE_RELOAD_EMPTY, STATE_RELOAD_MAGAZINE};
     let [rounds_left, empty] = w.reload_hands_frames?;
     let frames = match w.reload_state {
         STATE_RELOAD_MAGAZINE => rounds_left,
-        STATE_RELOAD_EMPTY if magazine == 0 => empty,
-        STATE_RELOAD_EMPTY => rounds_left,
+        STATE_RELOAD_EMPTY => {
+            let from_magazine = magazine == 0;
+            let second = picked.unwrap_or(from_magazine);
+            reload_picks::count(picked.map(|picked| picked != from_magazine));
+            if second { empty } else { rounds_left }
+        }
         _ => return None,
     };
     Some(frames * CLIP_FRAME_S)
+}
+
+/// [patch 205] [measure] The worlds' empty-clip reload reads ([`reload_clip_s`]): by the world's pick, those of them whose
+/// pick differs from the magazine's (after the seat: the old read's tactical clip), and those with no pick yet.
+pub mod reload_picks {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static PICKED: AtomicU64 = AtomicU64::new(0);
+    static DIFFERED: AtomicU64 = AtomicU64::new(0);
+    static UNPICKED: AtomicU64 = AtomicU64::new(0);
+
+    /// One read: `Some(differed)` by the world's pick, `None` with no pick.
+    pub fn count(by_pick: Option<bool>) {
+        match by_pick {
+            None => UNPICKED.fetch_add(1, Relaxed),
+            Some(differed) => {
+                DIFFERED.fetch_add(u64::from(differed), Relaxed);
+                PICKED.fetch_add(1, Relaxed)
+            }
+        };
+    }
+
+    /// The counts since the last call ([by pick, differed from the magazine, no pick]), set back to 0.
+    pub fn take() -> [u64; 3] {
+        [&PICKED, &DIFFERED, &UNPICKED].map(|c| c.swap(0, Relaxed))
+    }
 }
 
 /// [3B (a)] [`reload_clip_s`] of the weapon in hands of a world: the kit's own one (the item `supplies` found in the hands
@@ -1508,7 +1553,11 @@ pub fn world_reload_clip_s(
     let slot = supplies.hands_slot?;
     let item = supplies.items.iter().find(|item| item.slot == Some(slot) && item.magazine.is_some())?;
     let (_, gun) = guns.iter().find(|(at, _)| *at == slot)?;
-    reload_clip_s(survarium::v026g::weapons::weapon(item.dict_id)?, u32::from(gun.ammo_in_magazine()))
+    let picked = match gun.in_hand().map(|in_hand| in_hand.state()) {
+        Some(srp_validate::world::StateData::AnimationEnd(wait)) => picked_second(wait.index_of_animation_to_wait()),
+        _ => None,
+    };
+    reload_clip_s(survarium::v026g::weapons::weapon(item.dict_id)?, u32::from(gun.ammo_in_magazine()), picked)
 }
 
 #[cfg(test)]
@@ -1560,6 +1609,14 @@ mod tests {
     /// [3B (a)] The hands clip a reload plays: a magazine reload's one, an empty-clip reload's [1] from empty and [0] with
     /// rounds left, none for the others or without the lengths.
     #[test]
+    fn a_worlds_reload_pick_names_its_clip_set() {
+        // The byte is 2 x (pick + 2 x posture): 0 and 4 the first set (not aimed, aimed), 2 and 6 the second.
+        assert_eq!(picked_second(None), None, "0FFh: no pick yet");
+        assert_eq!([0, 2, 4, 6].map(|i| picked_second(Some(i))), [Some(false), Some(true), Some(false), Some(true)]);
+        assert_eq!([1, 3, 8, 0xFE].map(|i| picked_second(Some(i))), [None; 4], "no pick of the table");
+    }
+
+    #[test]
     fn the_reload_clip_is_the_one_the_magazine_picks() {
         use survarium::v026g::weapons::{STATE_RELOAD_BARRELS, STATE_RELOAD_EMPTY, STATE_RELOAD_MAGAZINE};
         let ak = *survarium::v026g::weapons::weapon_named("ak_74u").unwrap();
@@ -1569,11 +1626,15 @@ mod tests {
             ..ak
         };
         let pair = Some([150.0, 209.0]);
-        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 0), Some(209.0 * CLIP_FRAME_S));
-        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 3), Some(150.0 * CLIP_FRAME_S));
-        assert_eq!(reload_clip_s(&with(STATE_RELOAD_MAGAZINE, pair), 0), Some(150.0 * CLIP_FRAME_S));
-        assert_eq!(reload_clip_s(&with(STATE_RELOAD_BARRELS, pair), 0), None);
-        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, None), 0), None);
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 0, None), Some(209.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 3, None), Some(150.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_MAGAZINE, pair), 0, None), Some(150.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_BARRELS, pair), 0, None), None);
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, None), 0, None), None);
+        // [patch 205] After the seat the magazine is full and the world still names the empty clip: its length.
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 30, Some(true)), Some(209.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 0, Some(false)), Some(150.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_MAGAZINE, pair), 30, Some(true)), Some(150.0 * CLIP_FRAME_S));
     }
 
     #[test]
