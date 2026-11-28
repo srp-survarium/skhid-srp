@@ -238,7 +238,9 @@ package
             pick(tabs.indexOf(event.currentTarget));
         }
 
-        // The preview of the values the window shows (pending ones too), and its tabs.
+        // The preview of the values the window shows (pending ones too), and its tabs. Drawn only while the
+        // window is open (the exe's answers and the World FOV slider move its values while it is closed):
+        // its pictures are loaded only then.
         public function refresh(event:Event = null):void
         {
             for (var view:int = 0; view < tabs.length; view++)
@@ -246,8 +248,11 @@ package
                 tabs[view].selected = view == preview.shown;
             }
             var uro:Number = worldFov != null ? Number(worldFov()) : 65;
-            preview.draw(sliders[HIP].selectedIndex, sliders[SIGHTS].selectedIndex, sliders[SCOPES].selectedIndex, box.selected,
-                sliders[DISTANCE].selectedIndex, uro > 0 ? uro : 65);
+            if (open)
+            {
+                preview.draw(sliders[HIP].selectedIndex, sliders[SIGHTS].selectedIndex, sliders[SCOPES].selectedIndex,
+                    box.selected, sliders[DISTANCE].selectedIndex, uro > 0 ? uro : 65);
+            }
             if (applyButton != null)
             {
                 applyButton.enabled = changed();
@@ -482,6 +487,7 @@ package
                 return false;
             }
             visible = false;
+            preview.release();
             if (stage != null)
             {
                 stage.removeEventListener(Event.RESIZE, onResize);

@@ -19,8 +19,11 @@ movie, whose graphics, fonts, sounds and symbol bindings (everything but the
 code) the build keeps. A bitmap the original lacks is bitmaps/<class>.png
 (lossless) or bitmaps/<class>.jpg (a baseline JPEG, as the game's own renders are: a picture)
 beside src/: the build adds it, bound to <class> (a BitmapData of the
-tree, as the original's bitmaps are). A table is tables/<package path>/<Class>.tsv beside
-src/: the build makes it the class <Class> of src/ (table_class: one Array of rows a list). Data
+tree, as the original's bitmaps are). A bitmap is decoded when the movie loads and stays so for the
+movie's life; a picture shown only now and then goes in pictures/ instead, named as in bitmaps/: the
+build makes it the class <class> holding a movie of its own that shows it (picture_classes), which
+the movie decodes while it shows it (Loader.loadBytes, then unloadAndStop). A table is
+tables/<package path>/<Class>.tsv beside src/: the build makes it the class <Class> of src/ (table_class: one Array of rows a list). Data
 the movie shows that the game's data holds is not written in the tree: movie.json's `data`
 ({"<package path>/<Class>": "<a table of the repository>"}, e.g. scripts/content-edit's
 modifications.tsv) makes each such table the class <Class> (data_class: one Object a column, its
@@ -31,6 +34,7 @@ version), against the Flash Player API (playerglobal.swc) only: every class
 the movie uses is in the tree.
 """
 import argparse
+import base64
 from dataclasses import dataclass
 import fcntl
 import hashlib
@@ -136,10 +140,34 @@ class JpegAlpha:
         return swf.DEFINE_BITS_JPEG3, swf.jpeg_alpha(cid, self.data, self.alpha)
 
 
-def bitmaps(movie_dir):
-    """[Lossless | Jpeg | JpegAlpha] of the tree's bitmaps/<class>.png, <class>.jpg and <class>.jpg with
-    <class>.alpha.png, by name."""
-    folder = movie_dir / 'bitmaps'
+# The version of a picture's own movie: the original movies' own.
+PICTURE_VERSION = 10
+
+
+def picture_classes(movie_dir):
+    """{path under src/: ActionScript} of the tree's pictures/ (named and read as bitmaps/ is): each the
+    class <Class> whose MOVIE is a movie of its own that shows the picture (swf.picture_movie), as
+    base64 text. The game's Scaleform reads no DefineBinaryData: the movie writes the text into a
+    ByteArray (writeUTFBytes), decodes it, and Loader.loadBytes the picture while it shows it."""
+    out = {}
+    for b in bitmaps(movie_dir, 'pictures'):
+        relative = Path(b.name + '.as')
+        if (movie_dir / 'src' / relative).exists():
+            raise ValueError(f'pictures/{b.name}: src/{relative} is a class of the tree already')
+        size = (b.width, b.height) if isinstance(b, Lossless) else swf.jpeg(0, b.data)[1]
+        text = base64.b64encode(swf.picture_movie(b.define(1)[1], *size, PICTURE_VERSION)).decode('ascii')
+        out[relative] = '\n'.join([
+            '// Made by the movie build (flash_tree.py picture_classes) from pictures/' + b.name + '.',
+            'package', '{', f'   public class {b.name}', '   {',
+            f'      // {size[0]} x {size[1]}: a movie of its own that shows it, base64',
+            f'      public static const MOVIE:String = "{text}";', '   }', '}', ''])
+    return out
+
+
+def bitmaps(movie_dir, folder='bitmaps'):
+    """[Lossless | Jpeg | JpegAlpha] of the tree's bitmaps/ (or `folder`/) <class>.png, <class>.jpg and
+    <class>.jpg with <class>.alpha.png, by name."""
+    folder = movie_dir / folder
     if not folder.is_dir():
         return []
     out = []
@@ -396,7 +424,7 @@ def build(movie_dir, original_swf, tools, report=print):
         if (place / 'src').exists():
             shutil.rmtree(place / 'src')
         shutil.copytree(movie_dir / 'src', place / 'src')
-        for relative, source in tables(movie_dir).items():
+        for relative, source in (tables(movie_dir) | picture_classes(movie_dir)).items():
             (place / 'src' / relative).write_text(source, encoding='utf-8')
         try:
             code = compile_tree(place / 'src', tools, swf.uncompressed(data)[3], Path(work))

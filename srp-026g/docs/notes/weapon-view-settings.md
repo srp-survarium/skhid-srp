@@ -136,8 +136,8 @@ picture (the owner had it taken out). Moving a slider shows its view: the hip sl
 scopes' slider the scope, the sights' and the distance's the iron sights (or the red dot when it is
 shown); the checkbox draws it again. The World FOV slider's value, pending or not, draws the world.
 
-- **The pictures** are offline renders and captures, 44 bitmaps of the movie, about 5.3 MB
-  (`flash/main_menu/bitmaps/SrpPreview*`, made by `scripts/weapon-view-preview`):
+- **The pictures** are offline renders and captures, 44 pictures of the movie, about 5.3 MB
+  (`flash/main_menu/pictures/SrpPreview*`, made by `scripts/weapon-view-preview`):
   - the gun's layers, 1600x900 at JPEG quality 95, each with its alpha (`<class>.jpg` and `<class>.alpha.png`:
     one DefineBitsJPEG3, a tenth of a lossless bitmap), drawn at twice that and downsampled
     (anti-aliased edges). Each view at a few angles, its tiers: the widest its sliders reach (the hip's
@@ -183,11 +183,24 @@ shown); the checkbox draws it again. The World FOV slider's value, pending or no
   "Weapon at the world FOV" draws the gun at that world angle.
 - **The distance is approximate**: the two renders around it crossfaded (10 cm: the 0 cm one with
   the +25 cm one at 40 %).
-- **Drawn at the screen's pixels.** The pictures are smoothed Bitmaps scaled on the GPU under a mask,
+- **Drawn at the screen's pixels.** The pictures are smoothed bitmap fills scaled on the GPU under a mask,
   so at any UI scale (MainMenu scales the movie above 1080p: 1.33 at 1440p, 2 at 4K) they are
   filtered from their own pixels. Revision 80 drew them into one BitmapData of the pane's size, which
   the game's Scaleform then enlarged without filtering at 1440p (the owner: "the drawing quality is
-  atrocious"). A layer is made only while shown (5.8 MB decoded; the world up to 11.4 MB) and let go after.
+  atrocious"). A layer is decoded only while shown (5.8 MB decoded; the world up to 11.4 MB) and let go after.
+- **Loaded only while the window is open.** As bitmaps of the movie (revision 75) the 44 pictures were
+  decoded when the main menu's movie loaded and stayed so all game, open or not: its MovieData heap was
+  249 MiB instead of 6.8 (the memory profile of 2026-11-27), a quarter of the "global multithreaded"
+  arena. Now each is a movie of its own in `pictures/` (`tools/actionscript/flash_tree.py`
+  `picture_classes`: its JPEG and alpha one DefineBitsJPEG3 as before, filling the picture's rectangle,
+  smoothed), compressed, as base64 text in the generated class of its name (the game's Scaleform reads no
+  DefineBinaryData: "not supported"). The preview decodes the ones it shows (the text written into a
+  ByteArray, then `Loader.loadBytes`) and `unloadAndStop`s each it no longer shows, and every one when the
+  window closes; the window draws the preview only while open (the exe's answers and the World FOV slider
+  move its values while it is closed). Measured (memory profile, Wine, 2026-11-28): main_menu's MovieData
+  4.2 MiB, its MovieView 9.7 (the text); open, one small heap a picture shown; closed, none; 15 rounds of
+  opening, every tab, the sliders and closing left the Flash heaps as they were. The pictures look as
+  before (the default view: 49 of 377,000 pixels differ).
 - The window has no bottom band (the Settings' button bar is not part of its frame).
 - **The buttons** (the owner: "default settings, new line, apply close"): "Default settings" on a line of
   its own under the controls (the tab's standard button; the game's own text, the Controls tab's

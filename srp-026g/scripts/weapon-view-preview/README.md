@@ -1,6 +1,6 @@
 # The Weapon view window's preview pictures
 
-The 44 bitmaps of `flash/main_menu/bitmaps/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 219,
+The 44 pictures of `flash/main_menu/pictures/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 219,
 `docs/notes/weapon-view-settings.md`, "The preview"). Made once, offline; nothing here runs in a
 build or a check. NumPy and Pillow, `scripts/sight-alignment`'s renderer, the weapon-modules pack
 `release/content.tsv` ships (`private/content-packs/weapon-modules-<version>/files`), and the stock
@@ -26,4 +26,4 @@ person clips), the decal packs (`private/content-packs`) and Vostok's walk grid 
 
        python world.py ../sight-alignment <character assets> <shots> vostok.json <out> <pack> <content packs> ak12.json
 
-Copy the JPEGs and their `.alpha.png` files into `flash/main_menu/bitmaps/` under their names.
+Copy the JPEGs and their `.alpha.png` files into `flash/main_menu/pictures/` under their names.
