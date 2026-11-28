@@ -3,7 +3,8 @@
 Part of **Skhid (Схід)**, a private server for Survarium 0.69d. The `srp` program is the Skhid server; the operator guide is [guide-server.md](../guide-server.md).
 
 Status words: PROVEN = read from the exe / lobby movie / game data (address or file given); LIKELY = inferred; CHOICE = a
-server rule no source states; OPEN = unknown, nothing invented. Nothing here was run against the real client.
+server rule no source states; OPEN = unknown, nothing invented. "Seen with the real client" marks what a lobby session
+with the unmodified game showed; the rest was not run against it.
 Code: `crates/game-data/src/decals.rs`, `data/decals_069d.json` (made by `crates/data-extract`),
 `servers/lobby-server/src/decals.rs`, `crates/accounts` (schema v12 `item_decals`).
 
@@ -39,13 +40,31 @@ erases the first entry with the same `id` and slot. The u8 is therefore an entry
 server never interprets (LIKELY: position / angle / scale packed by the editor; kept as raw bits).
 The item-to-owner map the client builds from the n3 lists (0x24A130) is keyed by the decal item's uid: one owner per decal item.
 
+The readers update only the inventory's copy of the item and the Paint window's slot icons. The 3D character is built from
+the 87 profile's own copy of the items (`game+0x6B19C0`) and rebuilt only when the 87's version changes (0x200277EED..
+0x200277F0E), so the server follows every successful `45 01` / `45 02` / `45 04` with a fresh 87 (version bumped), as it
+does after a weapon skin (`45 11`, weapon-skins.md). Without it the change shows only after the next sign-in (seen with the
+real client).
+
+The Paint window's lists: the client makes the camouflage / decal list when the `8A` arrives (0x2001757A8); an `89` (or an
+added item) marks the owned entries and hands the list to the lobby movie (`root.setup_camo_decal_data`, 0x200249FE0 /
+0x200249D60). The sign-in sends `89` before `8A` (the 87 needs the inventory first), so it sends the `89` a second time right
+after the `8A`; without it the Paint lists stayed empty after a sign-in (seen with the real client). Per camouflage / decal
+dict the list offers one owned uid (`fill_inventory` 0x20024A340 marks `has_item` once).
+
 ## 3. Server rules (decals.rs)
 
-PROVEN client facts: target = torso / legs with the matching flag; at most 3 entries; same slot replaces; one owner per decal.
-CHOICE: a decal item on another piece, or the same item twice on a piece, is refused (the client would show it wrong); a refusal
-is silent (the client has no deny for 45 01); attaching and removing are free (no price anywhere in data or client); a
-decal item removed by a sale leaves its piece (the piece's record is pushed again); an armour piece that is sold takes its
-entries with it (the decal items stay in the inventory).
+PROVEN client facts: target = torso / legs with the matching flag; at most 3 entries; same slot replaces.
+CHOICE: one owned camouflage can sit on several pieces at once (the Paint list offers one uid per camouflage, so that one
+camouflage is the one offered for every piece); a decal item sits on one piece only (the item-to-owner map above), and the same
+item twice on a piece is refused (the client would show it wrong); the same camouflage or decal worn twice counts once for
+the reward bonus (the Paint window: "These do not stack"); a refusal is silent (the client has no deny for 45 01); attaching
+and removing are free (no price anywhere in data or client); a decal item removed by a sale leaves every piece it sat on
+(their records are pushed again); an armour piece that is sold takes its entries with it (the decal items stay in the
+inventory).
+
+Seen with the real client and OPEN: a camouflage on the jacket also shows on the pants of the same set (the server stores it
+on the jacket only and sends the legs with an empty n3 list; the client-side cause is not found).
 
 Buying: decals are dictionary items bought with `46 00`. The faction shop table lists 19 camouflages (silver); other camouflage
 and decals are sold at the dictionary `cost` / `currency` when the type prefix is `stk_` or `prm_` and the cost is > 0
@@ -97,7 +116,8 @@ Camouflage and decals in the match itself: the only modification a camouflage / 
   match's item cook (`item_config_cook::translate_query` 0x200335120) applies each entry's decal `parameters.modification` with
   the 8 bytes (the modification's `<low_param>` / `<high_param>` = the two u32 halves, 0x2005AD960; that the value is the 8 bytes
   is LIKELY). Built: `HumanLoadout::decals` from the stored rows, written into every human's options items. That the
-  match draws them is LIKELY (not run). The lobby preview comes from the n3 list.
+  match draws them is LIKELY (not run). The lobby character shows them (seen with the real client after a sign-in; after
+  each change through the fresh 87: LIKELY, not seen yet).
 * Editor rules: from the lobby movie `DecorateControl` / `ListDecorItem`, see section 6.
 * The placement value is not an IEEE double (section 6); its meaning stays opaque, the server keeps the 8 bytes.
 * Weapon skins (`45 11` / `45 12`): see `weapon-skins.md`. No reward bonus is attached to skins in any data read.

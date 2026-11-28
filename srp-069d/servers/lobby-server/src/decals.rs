@@ -11,13 +11,20 @@
 //!   and 1, so a piece wears one camouflage and two decals; the camouflage has no placement editor (no 45 04 for slot 3);
 //!   the 8 placement bytes are an opaque packed transform made by the native editor (0x27A660 -> 0x61A460), not an
 //!   IEEE double: they are stored and echoed verbatim;
-//! * one owner per decal item (the client keys an item-to-owner map by the decal item's uid): a decal item that sits on
-//!   another piece is refused, the same item twice on one piece too (CHOICE: the client would show it twice);
+//! * an owned camouflage can sit on several pieces at once (the client's Paint list offers one uid per camouflage dict,
+//!   `fill_inventory` 0x20024A340, so one owned camouflage is the one offered for every piece: CHOICE following it); a
+//!   decal item sits on one piece only (the client keys an item-to-owner map by the decal item's uid: CHOICE), and the
+//!   same item twice on one piece is refused (CHOICE: the client would show it twice);
+//! * the same camouflage or decal worn twice counts once for the reward bonus (the Paint window: "These do not stack.
+//!   Both camos and all 4 decals should differ if you want all bonuses to count.");
+//! * every change is followed by a fresh 87 (PROVEN: the 3D character is built from the 87's own copy of the items and
+//!   rebuilt only when the 87 version changes, 0x200277EED; the `83 45` readers touch only the inventory copy);
 //! * attaching and removing are free (no price in the data or the client: CHOICE).
 
 use accounts::DecalRow;
 use protocol::s2c::*;
 
+use crate::build;
 use crate::dispatch::{update, Ctx};
 use crate::peer::Peer;
 
@@ -44,10 +51,11 @@ pub fn attach(gd: &game_data::GameData, p: &mut accounts::Profile, item: u32, de
     if !gd.decals.slot_fits(d, slot) {
         return Err(Refused::WrongSlot);
     }
-    if let Some(owner) = p.decal_owner(decal) {
-        if owner != item {
-            return Err(Refused::OwnedElsewhere);
-        }
+    if slot != game_data::decals::CAMO_SLOT
+        && let Some(owner) = p.decal_owner(decal)
+        && owner != item
+    {
+        return Err(Refused::OwnedElsewhere);
     }
     let list = p.decals.entry(item).or_default();
     if list.iter().any(|e| e.decal_uid == decal && e.slot != slot) {
@@ -87,47 +95,67 @@ pub fn set_placement(p: &mut accounts::Profile, item: u32, decal: u32, slot: u8,
     }
 }
 
-/// 45 01.
+/// The 87 after a change: the profile's version bumped, so the client rebuilds the 3D character (module docs).
+fn fresh_87(gd: &game_data::GameData, p: &mut accounts::Profile, name: &str) -> Account87 {
+    p.bump_version();
+    build::account_87(gd, p, name)
+}
+
+/// 45 01: `83 45 01`, then a fresh 87.
 pub fn relocate(cx: &mut Ctx, peer: &mut Peer, item: u32, decal: u32, slot: u8, x_bits: u64) {
     let gd = &cx.lobby.data;
     let rw = cx.lobby.cfg.achievement_rewards;
+    let name = peer.name.clone();
     let Some(res) = update(cx, peer, |p| {
         let row = attach(gd, p, item, decal, slot, x_bits)?;
         // achievement 403 ("Change appearance of an item")
-        Ok::<_, Refused>((row, crate::achievements::event_in(gd, rw, p, crate::achievements::Event::Customised)))
+        let ach = crate::achievements::event_in(gd, rw, p, crate::achievements::Event::Customised);
+        Ok::<_, Refused>((row, ach, fresh_87(gd, p, &name)))
     }) else {
         return;
     };
     match res {
-        Ok((row, (changes, before))) => {
+        Ok((row, (changes, before), acct)) => {
             log::info!("45 01: decal item {decal} (dict {}) on item {item} slot {slot}", row.dict);
             peer.reply(Reply::Inventory(Inventory45::Camo { item, id: decal, x: slot, value: f64::from_bits(x_bits) }));
+            peer.push(&S2c::Account(acct));
             crate::achievements::push_changes(cx, peer, &changes, before);
         }
         Err(why) => log::info!("45 01 item {item} decal {decal} slot {slot}: refused ({why:?})"),
     }
 }
 
-/// 45 02.
+/// 45 02: `83 45 02`, then a fresh 87.
 pub fn drop(cx: &mut Ctx, peer: &mut Peer, item: u32, decal: u32, slot: u8) {
-    let Some(gone) = update(cx, peer, |p| detach(p, item, decal, slot)) else { return };
-    if gone {
-        log::info!("45 02: decal item {decal} removed from item {item} slot {slot}");
-        peer.reply(Reply::Inventory(Inventory45::CamoDrop { item, id: decal, slot }));
-    } else {
-        log::info!("45 02 item {item} decal {decal} slot {slot}: no such entry");
+    let gd = &cx.lobby.data;
+    let name = peer.name.clone();
+    let Some(acct) = update(cx, peer, |p| detach(p, item, decal, slot).then(|| fresh_87(gd, p, &name))) else { return };
+    match acct {
+        Some(acct) => {
+            log::info!("45 02: decal item {decal} removed from item {item} slot {slot}");
+            peer.reply(Reply::Inventory(Inventory45::CamoDrop { item, id: decal, slot }));
+            peer.push(&S2c::Account(acct));
+        }
+        None => log::info!("45 02 item {item} decal {decal} slot {slot}: no such entry"),
     }
 }
 
-/// 45 04: the editor stores the placement the client already applied. No answer (the client reads none).
+/// 45 04: the editor stores the placement the client already applied. No `83 45` answer (the client reads none); a
+/// fresh 87 so the character shows the stored placement.
 pub fn save(cx: &mut Ctx, peer: &mut Peer, item: u32, decal: u32, x_bits: u64, slot: u8) {
-    let Some(ok) = update(cx, peer, |p| set_placement(p, item, decal, slot, x_bits)) else { return };
-    if !ok {
-        log::info!("45 04 item {item} decal {decal} slot {slot}: no such entry");
+    let gd = &cx.lobby.data;
+    let name = peer.name.clone();
+    let Some(acct) = update(cx, peer, |p| set_placement(p, item, decal, slot, x_bits).then(|| fresh_87(gd, p, &name))) else {
+        return;
+    };
+    match acct {
+        Some(acct) => peer.push(&S2c::Account(acct)),
+        None => log::info!("45 04 item {item} decal {decal} slot {slot}: no such entry"),
     }
 }
 
-/// The dictionary ids of the decals and camouflages worn by the equipped armour (the entries of every item in a slot).
+/// The dictionary ids of the decals and camouflages worn by the equipped armour (the entries of every item in a slot),
+/// each dict once: the same camouflage or decal on two pieces does not stack (module docs).
 pub fn worn_dicts(p: &accounts::Profile) -> Vec<u16> {
     let mut out = vec![];
     for uid in p.slots.values() {
@@ -135,6 +163,8 @@ pub fn worn_dicts(p: &accounts::Profile) -> Vec<u16> {
             out.extend(list.iter().map(|d| d.dict));
         }
     }
+    out.sort_unstable();
+    out.dedup();
     out
 }
 
@@ -179,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn one_owner_and_cleanup() {
+    fn one_owner_per_decal_and_cleanup() {
         game_data::require_tables!();
         let (gd, mut p, torso, decal, _) = setup();
         let legs = p.add_item(gd.items.iter().find(|i| i.category == 5).unwrap().dict_id, 1);
@@ -192,6 +222,33 @@ mod tests {
         p.remove_item(decal);
         assert!(p.decals.is_empty());
         assert!(!detach(&mut p, torso, decal, 0));
+    }
+
+    /// One owned camouflage on the jacket and the pants at once; worn twice it counts once; selling it clears both.
+    #[test]
+    fn one_camouflage_on_several_pieces() {
+        game_data::require_tables!();
+        let (gd, mut p, torso, _, camo) = setup();
+        let legs_dict = gd.items.iter().find(|i| i.category == 5 && gd.decals.fits(i.dict_id, 154)).unwrap().dict_id;
+        let legs = p.add_item(legs_dict, 1);
+        attach(&gd, &mut p, torso, camo, 3, 0).unwrap();
+        attach(&gd, &mut p, legs, camo, 3, 0).unwrap();
+        let mut owners = p.decal_owners(camo);
+        owners.sort_unstable();
+        let mut want = vec![torso, legs];
+        want.sort_unstable();
+        assert_eq!(owners, want);
+        // both worn: the camouflage's bonus counts once
+        let legs_slot = *p.slots.iter().find(|(_, u)| p.item(**u).is_some_and(|i| gd.items.category(i.dict_id) == 5)).unwrap().0;
+        p.slots.insert(legs_slot, legs);
+        assert!(p.slots.values().any(|u| *u == torso), "the starter wears its torso");
+        assert_eq!(super::worn_dicts(&p), vec![154]);
+        // removing it from one piece keeps it on the other
+        assert!(detach(&mut p, torso, camo, 3));
+        assert_eq!(p.decal_owners(camo), vec![legs]);
+        attach(&gd, &mut p, torso, camo, 3, 0).unwrap();
+        p.remove_item(camo);
+        assert!(p.decals.is_empty());
     }
 
     /// dict 184 `camo_fabric_grey` carries (128, 1) = `edge_rep_booster` +1 %: reputation bonus for faction 4 (border)

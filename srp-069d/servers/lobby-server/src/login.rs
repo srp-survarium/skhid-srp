@@ -175,10 +175,14 @@ pub fn notices_push(cx: &Ctx, p: &Profile) -> S2c {
 }
 
 /// The loading messages, in the order the real client accepted: 91 first (the pocket mask must be there before an 87
-/// names a pocket item), then 8F, 8B, 9D, 89, 87, B0 06, 85, 9F, 8A, 96, 8E, 8D, 95, 94, 8C, 9C, 9E, AC, B8.
+/// names a pocket item), then 8F, 8B, 9D, 89, 87, B0 06, 85, 9F, 8A, 89, 96, 8E, 8D, 95, 94, 8C, 9C, 9E, AC, B8.
 ///
 /// 8A comes before 96 / 8E (PROVEN): the client handles each message in arrival order (0x200175590), and the 8E faction
 /// levels lock only the shop items the 8A has already made; with 8E first the shop shows no level locks.
+///
+/// The 89 goes out again right after the 8A (PROVEN): the Paint window's camouflage / decal list is made by the 8A
+/// (0x2001757A8), and only an 89 (or an added item) marks the owned ones and hands the list to the lobby movie
+/// (0x200249FE0 / 0x200249D60); the first 89, before the 8A, finds no list yet (docs/notes/decals.md).
 pub fn login_pushes(cx: &Ctx, peer: &Peer, p: &Profile) -> Vec<S2c> {
     let gd = &cx.lobby.data;
     let ignored = social::ignored_rows(cx, peer);
@@ -196,6 +200,8 @@ pub fn login_pushes(cx: &Ctx, peer: &Peer, p: &Profile) -> Vec<S2c> {
         crate::league::login_push(cx, peer.account.unwrap_or_default(), p),
         // the shop items first, then the faction levels that lock them (see above)
         S2c::Prices(build::prices_8a(gd)),
+        // again after the 8A: fills the Paint window's camouflage / decal list (see above)
+        S2c::Inventory(build::inventory_89(gd, p)),
         faction_mask_push(),
         S2c::Factions(crate::faction_battle::factions_8e(cx, p, crate::premium::unix_now())),
         S2c::ServicePrices(build::service_prices_8d(gd)),
