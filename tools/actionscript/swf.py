@@ -269,6 +269,65 @@ def jpeg_alpha(cid, data, alpha):
     return tag(DEFINE_BITS_JPEG3, struct.pack('<HI', cid, len(data)) + data + zlib.compress(alpha, 9))
 
 
+FILE_ATTRIBUTES, DEFINE_SHAPE = 69, 2
+# FileAttributes' flag: the movie is ActionScript 3's (it has no code; a movie AS3 loads is one).
+AS3 = 0x08
+# A bitmap fill drawn clipped (not repeated) and smoothed.
+CLIPPED_SMOOTHED = 0x41
+
+
+class _Bits:
+    """SWF bit fields, most significant bit first."""
+    def __init__(self):
+        self.bits = []
+
+    def unsigned(self, value, n):
+        self.bits += [(value >> (n - 1 - i)) & 1 for i in range(n)]
+        return self
+
+    def signed(self, value, n):
+        return self.unsigned(value & ((1 << n) - 1), n)
+
+    def bytes(self):
+        bits = self.bits + [0] * (-len(self.bits) % 8)
+        return bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
+
+
+def _width(*values):
+    """The bits a signed field needs for every value."""
+    return max(max(abs(v), 1).bit_length() + 1 for v in values)
+
+
+def _rect(xmax, ymax):
+    n = _width(xmax, ymax)
+    return _Bits().unsigned(n, 5).signed(0, n).signed(xmax, n).signed(0, n).signed(ymax, n).bytes()
+
+
+def picture_movie(define, width, height, version):
+    """A movie of its own that shows one picture and does nothing else: `define` (a DefineBits tag of
+    character 1, e.g. jpeg_alpha(1, ...)) filling a width x height pixel rectangle, smoothed, on its one
+    frame; no code (an AS3 movie, for Loader.loadBytes of an AS3 movie). Compressed."""
+    w, h = width * 20, height * 20
+    scale = 20 << 16
+    n = _width(scale)
+    matrix = _Bits().unsigned(1, 1).unsigned(n, 5).signed(scale, n).signed(scale, n).unsigned(0, 1).unsigned(0, 5)
+    edges = _Bits().unsigned(1, 4).unsigned(0, 4)
+    # a style change: fill style 1 on the right, moved to (0, 0)
+    edges.unsigned(0, 1).unsigned(0, 1).unsigned(0, 1).unsigned(1, 1).unsigned(0, 1).unsigned(1, 1)
+    edges.unsigned(1, 5).signed(0, 1).signed(0, 1).unsigned(1, 1)
+    n = _width(w, h)
+    for dx, dy in ((w, 0), (0, h), (-w, 0), (0, -h)):
+        edges.unsigned(1, 1).unsigned(1, 1).unsigned(n - 2, 4).unsigned(1, 1).signed(dx, n).signed(dy, n)
+    edges.unsigned(0, 6)
+    shape = struct.pack('<H', 2) + _rect(w, h) + bytes([1, CLIPPED_SMOOTHED]) + struct.pack('<H', 1) \
+        + matrix.bytes() + bytes([0]) + edges.bytes()
+    short = lambda kind, body: struct.pack('<H', kind << 6 | len(body)) + body
+    tags = [short(FILE_ATTRIBUTES, struct.pack('<I', AS3)), define, tag(DEFINE_SHAPE, shape),
+            short(PLACE_OBJECT2, bytes([0x02]) + struct.pack('<HH', 1, 2)), short(SHOW_FRAME, b''), short(END, b'')]
+    body = _rect(w, h) + struct.pack('<HH', 30 << 8, 1) + b''.join(tags)
+    return b'CWS' + bytes([version]) + struct.pack('<I', len(body) + 8) + zlib.compress(body, 9)
+
+
 class _Reader:
     def __init__(self, data):
         self.data, self.pos = data, 0

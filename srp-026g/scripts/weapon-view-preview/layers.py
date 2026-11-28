@@ -1,4 +1,4 @@
-"""The Weapon view window's gun layers (flash/main_menu/bitmaps/SrpPreview*), offline.
+"""The Weapon view window's gun layers (flash/main_menu/pictures/SrpPreview*), offline.
 
 python layers.py <scripts/sight-alignment> <weapon-modules pack files> <preview_eyes JSON> <out folder>
                  <character assets>
