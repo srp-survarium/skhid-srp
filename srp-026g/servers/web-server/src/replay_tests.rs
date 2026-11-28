@@ -534,6 +534,7 @@ fn no_other_route_reaches_a_private_file() {
         format!("/resources/{blob}"),
         "/api/stats".to_owned(),
         "/patches".to_owned(),
+        "/patch-sizes".to_owned(),
         "/api/client-files".to_owned(),
         "/launcher".to_owned(),
         "/launcher/places/en".to_owned(),

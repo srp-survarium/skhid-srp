@@ -61,6 +61,7 @@ use updater_logic::manifest::{
 use updater_logic::pipe::{FromLauncher, ToLauncher, Torrenting, state, step};
 use updater_logic::diagnosis::{Diagnosis, next_try};
 use updater_logic::problem::{Failed, Fault, Miss, Problem, Removal, Where};
+use updater_logic::progress::{Meter, seconds_left};
 use updater_logic::route::{self as routing, Event, Probed, Shown};
 use updater_logic::sha256::{digest, to_hex};
 use updater_logic::url::{self, Url};
@@ -130,10 +131,8 @@ struct Session {
     quiet: bool,
     run: Run,
     last_progress: u64,
-    started: u64,
-    /// The bytes done at the first report since [`Session::begin_progress`]
-    /// (those of a download gone on from): the speed counts from them.
-    counted_from: Option<u64>,
+    /// The speed of the request downloading now, for the progress messages.
+    meter: Meter,
     /// The launcher's line names a file ("Extracting file <name>") that the
     /// next state message must clear.
     named_file: bool,
@@ -349,10 +348,23 @@ impl Session {
         self.pump()
     }
 
+    /// Another kind of progress (checking, a download, an install): the bar
+    /// from 0, its speed measured from nothing.
     fn begin_progress(&mut self) {
-        self.started = win::ticks();
+        self.meter.reset();
+        self.empty_bar();
+    }
+
+    /// The next file of a download whose bar is each file's (the patches,
+    /// their sizes not known): the bar from 0, the speed measured of the
+    /// file before shown until this one's is (`progress::Meter`).
+    fn begin_file(&mut self) {
+        self.meter.restart();
+        self.empty_bar();
+    }
+
+    fn empty_bar(&mut self) {
         self.last_progress = 0;
-        self.counted_from = None;
         self.send(ToLauncher::Progress {
             done: 0,
             total: 0,
@@ -361,34 +373,29 @@ impl Session {
         });
     }
 
-    /// A new request of the same file (another address, a new try): its
-    /// speed is measured anew from its first report, the bar kept as it is.
+    /// A new request of the same download (another address, a new try, the
+    /// next patch of a bar over them all): its speed is measured anew from
+    /// its first report, the one before shown meanwhile, the bar kept as it
+    /// is.
     fn restart_speed(&mut self) {
-        self.counted_from = None;
+        self.meter.restart();
     }
 
     /// Reports bytes done of a total, four times a second at most (always
-    /// at the end). `false` when told to stop.
+    /// at the end). `false` when told to stop. The launcher shows the time
+    /// left of a download as `(total - done) / speed` (and the message's
+    /// own while it installs): a download of several patches reports over
+    /// them all for it to be their time (`patches.rs`, `progress::Step`).
     fn progress(&mut self, done: u64, total: u64) -> bool {
         let now = win::ticks();
-        // The first report, or a file started again from byte 0: the speed
-        // is of the bytes from here on.
-        if self.counted_from.is_none_or(|from| done < from) {
-            self.counted_from = Some(done);
-            self.started = now;
-        }
+        // Every report counts: the first one starts the measure (a file
+        // started again from byte 0 starts it anew).
+        let speed = self.meter.speed(now, done);
         if done < total && now < self.last_progress + 250 {
             return !self.stopped();
         }
         self.last_progress = now;
-        let elapsed = now.saturating_sub(self.started).max(1);
-        let counted = done.saturating_sub(self.counted_from.unwrap_or(done));
-        let speed = counted.saturating_mul(1000) / elapsed;
-        let eta = if speed == 0 || total < done {
-            u64::MAX
-        } else {
-            (total - done) / speed
-        };
+        let eta = seconds_left(done, total, speed);
         self.send(ToLauncher::Progress {
             done,
             total,
@@ -1529,8 +1536,7 @@ fn run() -> u32 {
         quiet: options.quiet,
         run: Run::Going,
         last_progress: 0,
-        started: 0,
-        counted_from: None,
+        meter: Meter::new(),
         named_file: false,
         seen: None,
         trouble: None,

@@ -118,6 +118,7 @@ class Site:
         self.patches = {}               # n -> bytes: listed at /patches, served at /store/patch_<n>
         self.patch_list = None          # bytes to answer /patches with instead of the true list
         self.patch_list_status = 200
+        self.patch_sizes = None         # /patch-sizes: None a 404 (a server before it), "true" the true sizes, else these bytes
         self.patch_base = None          # where the list says the files are (default: this site)
         self.patch_statuses = {}        # n -> another status than 200 for its file
         self.patch_bodies = {}          # n -> other bytes than the listed ones
@@ -177,6 +178,12 @@ class Site:
                                 time.sleep(site.slow)
                     except OSError:
                         pass
+                elif self.path == "/patch-sizes":
+                    if site.patch_sizes is None:
+                        self.answer(404, b"not found\n")
+                    else:
+                        body = site.true_patch_sizes() if site.patch_sizes == "true" else site.patch_sizes
+                        self.answer(200, body, "application/json")
                 elif self.path == "/patches":
                     if site.patch_list_status != 200:
                         self.answer(site.patch_list_status, b"")
@@ -297,6 +304,10 @@ class Site:
             else:
                 listed[f"patch_{n}"] = {"sha256": sha256(data), "urls": urls}
         return json.dumps(listed).encode()
+
+    def true_patch_sizes(self):
+        return json.dumps({f"patch_{n}": {"sha256": sha256(data), "size": len(data)}
+                           for n, data in self.patches.items()}).encode()
 
     def close(self):
         self.server.shutdown()

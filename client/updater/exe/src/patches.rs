@@ -45,11 +45,13 @@ use updater_logic::checked::{Identity, Record, parse_record, write_record};
 use updater_logic::download::{Action, Decision, Event, Failure, Mirrors};
 use updater_logic::file_error::Stop;
 use updater_logic::patches::{
-    Address, FILE_PREFIX, Fetch, List, ListError, Local, MAX_LIST, Next, PART_PATTERN, Part, Patch,
-    Problem, Tried, after, check, overlay_patch, parse_list, todo, write_list,
+    Address, FILE_PREFIX, Fetch, List, ListError, Local, MAX_LIST, MAX_SIZES, Next, PART_PATTERN,
+    Part, Patch, Problem, Sizes, Tried, after, check, overlay_patch, parse_list, parse_sizes, todo,
+    write_list,
 };
 use updater_logic::pipe::{FileOf, ToLauncher, state, step};
 use updater_logic::problem::{self, Fault};
+use updater_logic::progress::{Bar, Step};
 use updater_logic::sha256::to_hex;
 use updater_logic::url::Url;
 use windows_sys::Win32::Foundation::{
@@ -569,8 +571,9 @@ impl Run<'_> {
 
     /// Downloads one patch into its place, from the first of its addresses
     /// that gives it, unless the launcher turns torrent on meanwhile. Each
-    /// try goes on from what its part holds.
-    fn fetch(&mut self, fetch: &Fetch) -> Result<bool, Fail> {
+    /// try goes on from what its part holds. `bar`: what the launcher's bar
+    /// shows of it, the file alone or the step's.
+    fn fetch(&mut self, fetch: &Fetch, bar: Bar) -> Result<bool, Fail> {
         let patch = &fetch.patch;
         let name = patch.file_name();
         let target = place(self.layout, &name);
@@ -598,7 +601,10 @@ impl Run<'_> {
         let mut mirrors = Mirrors::new(count, FETCH_TRIES);
         let mut first: Option<(String, problem::Miss, &Address)> = None;
         let mut misses: Vec<Option<problem::Miss>> = alloc::vec![None; count];
-        self.session.begin_progress();
+        // The step's bar goes on from the file before.
+        if bar == Bar::File {
+            self.session.begin_file();
+        }
         loop {
             if !self.session.pump() {
                 return Err(Fail::Stopped);
@@ -619,7 +625,7 @@ impl Run<'_> {
                 ticks: win::ticks(),
                 done: held.from(),
             });
-            let (result, now) = self.download(&part, patch, &mut mirrors, held);
+            let (result, now) = self.download(&part, patch, &mut mirrors, held, bar);
             held = now;
             let (reason, why, miss, failure) = match result {
                 Ok(identity) => {
@@ -697,13 +703,14 @@ impl Run<'_> {
     /// One try of one address, from what `part` holds (`held`): its bytes
     /// on into the part, flushed, read back and checked once whole. What
     /// Windows says of the part then (to know it in its place); and what the
-    /// part holds after the try.
+    /// part holds after the try. The launcher's bar shows it as `bar` says.
     fn download(
         &mut self,
         part: &str,
         patch: &Patch,
         mirrors: &mut Mirrors,
         held: Part,
+        bar: Bar,
     ) -> (Result<Option<Identity>, Miss>, Part) {
         let from = held.from();
         let at = mirrors.at();
@@ -744,7 +751,8 @@ impl Run<'_> {
                         return false;
                     }
                 }
-                if !session.progress(done, total.unwrap_or(0)) {
+                let (shown, of) = bar.shown(done, total);
+                if !session.progress(shown, of) {
                     return false;
                 }
                 let event = Event::Progress {
@@ -948,9 +956,13 @@ impl Run<'_> {
 
     /// Downloads every patch of `files`, the launcher's line saying which
     /// of how many: each one's number, and whether it is known in place by
-    /// the file ID.
-    fn fetch_all(&mut self, files: &[Fetch]) -> Result<Vec<(u8, bool)>, Fail> {
+    /// the file ID. With `step` the bar is over them all, and so the time
+    /// left the launcher shows; else each file's.
+    fn fetch_all(&mut self, files: &[Fetch], step: Option<&Step>) -> Result<Vec<(u8, bool)>, Fail> {
         let mut downloaded = Vec::new();
+        if !files.is_empty() {
+            self.session.begin_progress();
+        }
         for (index, fetch) in files.iter().enumerate() {
             if !self.session.pump() {
                 return Err(Fail::Stopped);
@@ -963,10 +975,82 @@ impl Run<'_> {
                 self.delete(&fetch.patch.file_name())?;
             }
             self.session.send(ToLauncher::FileOf(FileOf::at(index, files.len())));
-            let known = self.fetch(fetch)?;
+            let bar = step.map_or(Bar::File, |step| step.bar(index));
+            let known = self.fetch(fetch, bar)?;
             downloaded.push((fetch.patch.number, known));
         }
         Ok(downloaded)
+    }
+
+    /// The bar over every patch of `files` (`fetch_all`), when two or more
+    /// are to be downloaded and each one's size is known: the launcher's
+    /// time left is then theirs, not the file's. The sizes are the server's
+    /// (`GET /patch-sizes`, asked briefly; any failure leaves them to the
+    /// ones built in), else those built into this updater, each taken only
+    /// for the file of its SHA-256. `None`: the bar is each file's, as
+    /// before (an older server, an updater built without them).
+    fn plan(&mut self, files: &[Fetch]) -> Option<Step> {
+        // The patches to download, and those the torrent gave (nothing to
+        // download, nothing on the bar).
+        let given: Vec<bool> = files
+            .iter()
+            .map(|fetch| self.torrented.iter().any(|(number, _)| *number == fetch.patch.number))
+            .collect();
+        let downloads = given.iter().filter(|given| !**given).count();
+        if downloads < 2 {
+            return None;
+        }
+        let server = match &self.source {
+            Source::Server(server) => Some(*server),
+            Source::Torrent(_) | Source::BuiltIn(_) => None,
+        };
+        let asked = server.and_then(|server| self.sizes(server));
+        let built = built_in_sizes();
+        let size = |patch: &Patch| asked.as_ref().and_then(|sizes| sizes.of(patch)).or_else(|| built.of(patch));
+        let step = Step::new(files.iter().zip(&given).map(|(fetch, given)| {
+            if *given {
+                (Some(0), 0)
+            } else {
+                (size(&fetch.patch), fetch.part.from())
+            }
+        }));
+        match &step {
+            Some(step) => log!(
+                "patches: the launcher's bar is over the {downloads} downloads, {} bytes in all",
+                step.total()
+            ),
+            None => {
+                let unknown: Vec<String> = files
+                    .iter()
+                    .zip(&given)
+                    .filter(|(fetch, given)| !**given && size(&fetch.patch).is_none())
+                    .map(|(fetch, _)| fetch.patch.file_name())
+                    .collect();
+                log!(
+                    "patches: the size of {} is not known: the launcher's bar is each file's",
+                    unknown.join(", ")
+                );
+            }
+        }
+        step
+    }
+
+    /// `GET /patch-sizes` of the server, or `None` (logged): not needed for
+    /// the update, so asked once, briefly, and nothing of the run's
+    /// trouble.
+    fn sizes(&mut self, server: &Url) -> Option<Sizes> {
+        let session = &mut *self.session;
+        let error = match http::get_briefly(server, "/patch-sizes", MAX_SIZES, &mut |_, _| session.pump()) {
+            Ok(body) => match parse_sizes(&body) {
+                Ok(sizes) => return Some(sizes),
+                Err(error) => format!("not an answer ({error:?})"),
+            },
+            // The stop is seen by the next pump.
+            Err(HttpError::Stopped) => return None,
+            Err(error) => text::http(server, "/patch-sizes", &error),
+        };
+        log!("patches: the sizes from the server: {error}: those built in");
+        None
     }
 
     /// What the torrent has of `fetch`, into parts checked against the
@@ -1134,7 +1218,8 @@ impl Run<'_> {
             let wanted: Vec<&Patch> = todo.fetch.iter().map(|fetch| &fetch.patch).collect();
             self.by_torrent(&wanted)?;
         }
-        let fetched = self.fetch_all(&todo.fetch);
+        let step = self.plan(&todo.fetch);
+        let fetched = self.fetch_all(&todo.fetch, step.as_ref());
         self.session.send(ToLauncher::FileOf(None));
         let downloaded = fetched?;
         // The folder against the list, as `ready` checks it: no other patch
@@ -1206,6 +1291,16 @@ fn built_in() -> Option<List> {
     option_env!("SKHID_BUILTIN_PATCHES")
         .and_then(|text| parse_list(text.as_bytes()).ok())
         .filter(|list| !list.patches.is_empty())
+}
+
+/// The sizes of the files of [`built_in`]'s list (`SKHID_BUILTIN_PATCH_SIZES`,
+/// the `/patch-sizes` of `release/patches.tsv`, which `release/build-zip`
+/// passes to the build), for the launcher's bar when the server does not
+/// say them; none without.
+fn built_in_sizes() -> Sizes {
+    option_env!("SKHID_BUILTIN_PATCH_SIZES")
+        .and_then(|text| parse_sizes(text.as_bytes()).ok())
+        .unwrap_or_default()
 }
 
 /// Writes `data` beside, then renames it over `path`.

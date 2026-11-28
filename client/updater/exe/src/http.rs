@@ -209,8 +209,30 @@ pub fn get(
     limit: usize,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<Vec<u8>, HttpError> {
+    get_patiently(Patience::Download, url, path, limit, progress)
+}
+
+/// [`get`] of what the update does without (the patches' sizes): a few
+/// seconds a step at most, not the download's patience.
+pub fn get_briefly(
+    url: &Url,
+    path: &str,
+    limit: usize,
+    progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
+) -> Result<Vec<u8>, HttpError> {
+    get_patiently(Patience::Question, url, path, limit, progress)
+}
+
+fn get_patiently(
+    patience: Patience,
+    url: &Url,
+    path: &str,
+    limit: usize,
+    progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
+) -> Result<Vec<u8>, HttpError> {
     let mut body = Vec::new();
-    get_stream(
+    stream(
+        patience,
         url,
         path,
         limit as u64,
@@ -232,7 +254,18 @@ pub fn get_stream(
     sink: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
-    let session = open_session(Patience::Download)?;
+    stream(Patience::Download, url, path, limit, sink, progress)
+}
+
+fn stream(
+    patience: Patience,
+    url: &Url,
+    path: &str,
+    limit: u64,
+    sink: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
+    progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
+) -> Result<(), HttpError> {
+    let session = open_session(patience)?;
     let mut full_path = String::from(&*url.prefix);
     full_path.push_str(path);
     let answer = ask(&session, url, &full_path, 0)?;

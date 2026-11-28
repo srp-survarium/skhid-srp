@@ -22,6 +22,7 @@ pub mod network;
 pub mod patches;
 pub mod pipe;
 pub mod problem;
+pub mod progress;
 pub mod replay;
 pub mod revision;
 pub mod route;

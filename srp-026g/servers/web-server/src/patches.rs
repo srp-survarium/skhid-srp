@@ -1,11 +1,12 @@
-//! `GET /patches` and `GET /game` (the 0.26g page only): the files the
-//! players' updater downloads (`client/updater/README.md`, "Patches" and
-//! "Mirrors"), as JSON:
+//! `GET /patches`, `GET /patch-sizes` and `GET /game` (the 0.26g page
+//! only): the files the players' updater downloads
+//! (`client/updater/README.md`, "Patches" and "Mirrors"), as JSON:
 //!
 //! ```text
-//! /patches  {"patch_14":{"sha256":"<64 hex>","urls":["http://203.0.113.5/patches/resources.db.patch_14",
-//!                                                   "https://mirror.example/resources.db.patch_14"]},...}
-//! /game     {"sha256":"<64 hex>","size":2906544103,"urls":["http://203.0.113.5:8090/survarium-026g.7z",...]}
+//! /patches      {"patch_14":{"sha256":"<64 hex>","urls":["http://203.0.113.5/patches/resources.db.patch_14",
+//!                                                       "https://mirror.example/resources.db.patch_14"]},...}
+//! /patch-sizes  {"patch_14":{"sha256":"<64 hex>","size":848021018},...}
+//! /game         {"sha256":"<64 hex>","size":2906544103,"urls":["http://203.0.113.5:8090/survarium-026g.7z",...]}
 //! ```
 //!
 //! Each file's URLs are the updater's to try in their order: the release's
@@ -15,9 +16,15 @@
 //! too; those never read this one: a release that brings 0.3.0 has them
 //! install it first (the overlay comes before the patch step), and it does
 //! the patches. A patch has no `size` there: the updaters take an entry of
-//! exactly `sha256` and `urls`. The game's archive is apart, at `/game`:
-//! `Skhid-without-updater.bat` takes every member of `/patches` for a
-//! patch.
+//! exactly `sha256` and `urls`, and one with any other member keeps PLAY
+//! off. Its size is at `/patch-sizes` instead, the same patches by name
+//! with their SHA-256 (a size is that file's): the updaters that ask it
+//! (after the list, briefly, only when they download two patches or more)
+//! show the launcher's bar, and so its time left, over every patch they
+//! download; one that gets no answer, or another form, shows each file's,
+//! and the updaters before it never ask. The game's archive is apart, at
+//! `/game`: `Skhid-without-updater.bat` takes every member of `/patches`
+//! for a patch.
 //!
 //! They are the files the server's game data names (`survarium::v026g::
 //! game_data`, `Provenance`), the patches in the game's order, so the
@@ -42,7 +49,8 @@ pub struct OfferedPatch {
     pub name: String,
     /// The sha256 of the file, lowercase hex.
     pub sha256: String,
-    /// Its size in bytes (said at `/game` only).
+    /// Its size in bytes (said at `/game`, and a patch's at
+    /// `/patch-sizes`, never at `/patches`).
     pub size: u64,
     /// Where the updater downloads it: 1 to 8 URLs, tried in this order.
     pub urls: Vec<String>,
@@ -267,6 +275,22 @@ pub(crate) fn json(patches: &[OfferedPatch]) -> String {
     format!("{{{}}}", entries.join(","))
 }
 
+/// The patches' sizes, each with its SHA-256, in the order given.
+pub(crate) fn sizes_json(patches: &[OfferedPatch]) -> String {
+    let entries: Vec<String> = patches
+        .iter()
+        .map(|patch| {
+            format!(
+                "{}:{{\"sha256\":{},\"size\":{}}}",
+                string(&patch.name),
+                string(&patch.sha256),
+                patch.size
+            )
+        })
+        .collect();
+    format!("{{{}}}", entries.join(","))
+}
+
 /// The game's archive.
 pub(crate) fn game_json(game: &OfferedPatch) -> String {
     format!(
@@ -282,6 +306,15 @@ pub(crate) fn response(downloads: &Downloads) -> Response {
         status: "200 OK",
         content_type: ContentType::Json,
         body: json(&downloads.patches()),
+    }
+}
+
+/// `GET /patch-sizes`: answered wherever `/patches` is, `{}` with it.
+pub(crate) fn sizes_response(downloads: &Downloads) -> Response {
+    Response {
+        status: "200 OK",
+        content_type: ContentType::Json,
+        body: sizes_json(&downloads.patches()),
     }
 }
 
