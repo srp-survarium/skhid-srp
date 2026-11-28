@@ -1,0 +1,10 @@
+# Patch 221: after a camera cut (the eye more than 2 m from the frame before's)
+# the sun's cached shadow cascades are drawn again whole, by the stage's own
+# reset (renderer-026g.md 4.5). The site is sites_026g.tsv's; the logic is
+# sun_shadow_cut.rs.
+name = "sun_shadow_cut"
+patch = 221
+
+[[hook]]
+site = "shadow_direct.cascades_placed"
+handler = "on_cascades_placed"

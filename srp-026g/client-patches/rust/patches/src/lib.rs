@@ -168,6 +168,8 @@ pub mod light_occlusion;
 pub mod first_person_occlusion;
 // patch 215: everything held in first person moves with the view in TAA (optics, parts)
 pub mod first_person_motion;
+// patch 221: after a camera cut the sun's cached shadow cascades are drawn again whole
+pub mod sun_shadow_cut;
 // patch 193: material_pair takes an id past its table as the default material
 pub mod material_bounds;
 pub mod animation_math;
