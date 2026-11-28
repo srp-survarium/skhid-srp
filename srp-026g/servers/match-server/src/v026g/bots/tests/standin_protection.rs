@@ -45,11 +45,6 @@ impl Shield {
         self.end = None;
     }
 
-    /// Whether a shot ended it (or none was ever given).
-    pub(crate) fn ended(&self) -> bool {
-        self.end.is_none()
-    }
-
     /// `get_invulnerability` at `now`: 1 fully protected, 0 not.
     pub(crate) fn factor(&self, now: u32) -> f32 {
         protection::factor(self.end, self.fade_ms, now)
@@ -83,7 +78,8 @@ impl Rule {
     }
 }
 
-/// [measure] The match's protection in the stand-in: hits dropped by it, hits it scaled, shields a shot ended.
+/// [measure] The match's protection in the stand-in: hits dropped by it, hits it scaled, protections a shot ended while
+/// they still protected (a factor over 0).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Counts {
     pub(crate) dropped: u32,
@@ -133,7 +129,6 @@ mod tests {
         rule.tick(&mut other, 0, Vec3::new(50.0, 0.0, 0.0), 21_000);
         assert_eq!(other, shield, "outside the base: unchanged");
         shield.fired();
-        assert!(shield.ended());
         assert_eq!(shield.scale(20_000), Some(1.0), "ended at once, whole");
         rule.tick(&mut shield, 0, Vec3::new(1.0, 0.0, 0.0), 20_050);
         assert_eq!(shield.scale(20_100), Some(1.0), "the base gives none back");

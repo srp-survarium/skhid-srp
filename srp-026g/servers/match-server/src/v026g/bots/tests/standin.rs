@@ -2156,12 +2156,13 @@ impl Game {
     pub(crate) fn shot(&mut self, shooter: Place, at: f32) {
         self.shots += 1;
         self.shots_hits[shooter].0 += 1;
-        // [patch 179] A gun's shot ends the shooter's protection (`standin_protection.rs`).
+        // [patch 179] A gun's shot ends the shooter's protection (`standin_protection.rs`); counted when it still protected.
+        let tick = self.tick;
         let shield = &mut self.bodies[shooter].shield;
-        if !shield.ended() {
-            shield.fired();
+        if shield.factor(tick) > 0.0 {
             self.protection_counts.ended_by_shot += 1;
         }
+        shield.fired();
         let body = &self.bodies[shooter];
         let eye = Self::eye(body);
         // [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway (a smaller yaw is right).
