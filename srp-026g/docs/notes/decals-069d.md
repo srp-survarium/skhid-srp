@@ -31,7 +31,7 @@ drop weight from the dictionary and the config; each item has its row in
   hold the same values in its newer format). Boar hunter and Deer hunter (1_10, 1_11) have a 128²
   normal map and 256² fmap and smap in 0.69d, kept so (every 0.26g normal map is 512²; the bake
   samples each layer on its own).
-- **Where they go**: as any decal: two on a vest or trousers, one on a weapon (#273); Steam camo
+- **Where they go**: as any decal: two on a vest, trousers or a weapon (#273 gave weapons one; two since the weapon kit, client patch 68; the owner confirmed two, 2026-11-28); Steam camo
   on any vest, trousers and weapon.
 - **Texts**: 0.69d's in the six languages. Fixed: English "Clover оrnament" (a Cyrillic o),
   "Flag Of …" → "Flag of …", Polish "Flaga Nigeri" → "Flaga Nigerii".

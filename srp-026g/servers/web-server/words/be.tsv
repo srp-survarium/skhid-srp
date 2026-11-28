@@ -1018,3 +1018,28 @@ Weathers	Надвор'е
 Variants	Варыянты
 History since {0}.	Гісторыя з {0}.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Гісторыя з {0}, а таксама {1} ранейшых матчаў, адноўленых з іх запісаў, ад {2}; матчы да {0} ёсць не ўсе.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Камуфляжы
+Decals	Нашыўкі
+Every camouflage: how to get it and what it goes on.	Усе камуфляжы: як іх атрымаць і на што яны ставяцца.
+Every decal: how to get it and what it goes on.	Усе нашыўкі: як іх атрымаць і на што яны ставяцца.
+Given to account {0}	Выдаецца акаўнту {0}
+Premium	Прэміум
+Flags	Сцягі
+Coats of arms and emblems	Гербы і эмблемы
+{count} items, each given to the account of the same id	Прадметаў: {count}; кожны выдаецца акаўнту з тым жа ID
+Sold by the factions	Прадаюць фракцыі
+Badges	Значкі
+Drops	Выпадаюць
+Given	Выдаюцца
+Each faction sells its own for silver.	Кожная фракцыя прадае свае за срэбра.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Прадаюцца за срэбра: значок фракцыі прадае гэтая фракцыя са звання, якое ён называе, астатнія — усе гандляры.
+Sold for silver by every trader.	Прадаюцца за срэбра ва ўсіх гандляроў.
+Found in drops, never one you already have.	Выпадаюць у дропе; паўторы не выпадаюць.
+Each is given to one account.	Кожны прадмет выдаецца аднаму акаўнту.
+Where it goes	Куды ставіцца
+Items that take it	Прадметаў, што яго прымаюць
+At once	Адначасова
+Bought once, it is yours: put it on any number of your items at the same time.	Купіўшы раз, вы ім валодаеце: стаўце на колькі заўгодна сваіх прадметаў адначасова.
+Sold back, it pays a quarter of its price and comes off every item.	Пры продажы прыносіць чвэрць цаны і здымаецца з усіх прадметаў.

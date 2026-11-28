@@ -8,6 +8,8 @@ workspace = true
 
 [dependencies]
 log = { workspace = true }
+# An item's icon cell (`ui_desc.icon`) in its config, for the wiki's camouflages and decals.
+binary-config-parser = { workspace = true }
 # SHA-1: the digest the 0.26g client gives for a password.
 openssl = { workspace = true }
 # The URLs the players' updater takes (`server::is_url`), for `mirrors.tsv`.

@@ -1165,6 +1165,8 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/modifiers",
         "/wiki/equipment",
         "/wiki/artefacts",
+        "/wiki/camouflages",
+        "/wiki/decals",
         "/wiki/calculator",
         "/wiki/maps",
         "/wiki/skills",
@@ -1204,6 +1206,8 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
                 "/wiki/weapons",
                 "/wiki/equipment",
                 "/wiki/modifiers",
+                "/wiki/camouflages",
+                "/wiki/decals",
                 "/wiki/modes",
                 "/wiki/maps",
                 "/wiki/artefacts",
@@ -1233,6 +1237,9 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             assert!(drawn || !files.is_empty(), "{path}: no picture");
             if path == &"/wiki/modifiers" {
                 assert_eq!(files.len(), 6, "{path}: a glyph left out");
+            }
+            if path == &"/wiki/camouflages" || path == &"/wiki/decals" {
+                assert_eq!(files.len(), 3, "{path}: an icon left out");
             }
             for file in files {
                 let (kind, bytes) = crate::static_file(file).expect(file);

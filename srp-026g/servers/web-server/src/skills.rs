@@ -123,7 +123,7 @@ fn with_takers(lang: Lang, trees: &str, takers: &SkillTakers) -> String {
 }
 
 /// `n` with its thousands apart, as `lang` writes them (as the planner's `toLocaleString`).
-fn thousands(lang: Lang, n: u32) -> String {
+pub(crate) fn thousands(lang: Lang, n: u32) -> String {
     let digits = n.to_string();
     let gap = match lang {
         Lang::En => ",",

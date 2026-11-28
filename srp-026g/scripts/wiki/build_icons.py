@@ -46,6 +46,12 @@ release makes them again from its own patches. Writes <out>/ anew:
   them (66x66 cells, IconContainer("factionIconsBig", 66, 66, ..., 2, 2): the middle column
   is their normal state), at their own size: the quest window's faction tab draws a 38x51
   bitmap, which no tile could show sharp;
+- camos/<row>_<column>.webp and decals/<row>_<column>.webp: each cell of the camouflage (72x72) and
+  decal (82x82) atlases that a camouflage's or decal's config (item_category 25, 26) names by its
+  `ui_desc.icon` [row, column], from 1: the lobby's own cut (ItemFactory.createBaseItem:
+  IconContainer("camo", 72, 72, ...) and ("decals", 82, 82, ...), iconId = (column - 1) * rows +
+  row - 1, column-major); one file a cell, so items that share a cell share it (the 1,000 number
+  decals' one icon), lossy (`photo`); a named cell with nothing drawn in it stops the build;
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -84,6 +90,9 @@ FILTER_FRAME = 300
 QUEST_ICONS = (("SrvQuestSideRenderer", "questIcon", "quests", 64),
                ("SrvQuestFactionTab", "icon", "factions", 96))
 TYPES = {"webp": "image/webp"}
+# The cosmetics' atlases (LobbyMenu.as: IconContainer("camo", 72, 72, ...), ("decals", 82, 82, ...)),
+# by item_category: (folder, the bitmap's class in FFDec's export `<id>_<class>.png`, cell side).
+COSMETICS = {25: ("camos", "LobbyMenu_CamoIcons", 72), 26: ("decals", "LobbyMenu_DecalsIcons", 82)}
 
 
 def load(json_dir, name):
@@ -126,6 +135,14 @@ def glyph(image):
 def webp(image):
     data = io.BytesIO()
     image.save(data, "WEBP", lossless=True, quality=100, method=6, exact=True)
+    return data.getvalue()
+
+
+def photo(image):
+    """A camouflage's or decal's icon: cloth and print, lossy (a third of the lossless size, the
+    same at 72 pixels), its alpha whole."""
+    data = io.BytesIO()
+    image.save(data, "WEBP", quality=90, alpha_quality=100, method=6)
     return data.getvalue()
 
 
@@ -330,6 +347,31 @@ def main():
     if missing:
         raise SystemExit(f"no lobby icon for {', '.join(missing)}")
 
+    # The camouflages' and decals' cells, each once.
+    for category, (folder, cls, side) in COSMETICS.items():
+        found = [path for path in args.images.iterdir() if re.fullmatch(rf"\d+_{cls}\.png", path.name)]
+        if len(found) != 1:
+            raise SystemExit(f"{args.images}: {len(found)} exported bitmaps of {cls}, not one")
+        atlas = Image.open(found[0]).convert("RGBA")
+        rows_, columns = atlas.height // side, atlas.width // side
+        cells = {}
+        for item in dictionary:
+            if item["item_category"] != category:
+                continue
+            config = load(args.json, item["cfg_name"].replace("/", "__") + ".json")
+            icon = config.get("ui_desc", {}).get("icon")
+            if not (isinstance(icon, list) and len(icon) == 2 and all(isinstance(n, int) for n in icon)):
+                raise SystemExit(f"{item['name']}: ui_desc.icon is {icon!r}, no [row, column]")
+            cells.setdefault(tuple(icon), item["name"])
+        for (row, column), name in sorted(cells.items()):
+            if not (1 <= row <= rows_ and 1 <= column <= columns):
+                raise SystemExit(f"{name}: icon [{row}, {column}] is outside {cls}'s {rows_}x{columns} cells")
+            left, top = (column - 1) * side, (row - 1) * side
+            cell = atlas.crop((left, top, left + side, top + side))
+            if cell.getchannel("A").getbbox() is None:
+                raise SystemExit(f"{name}: icon [{row}, {column}] of {cls} is empty")
+            write(f"{folder}/{row}_{column}.webp", photo(cell))
+
     atlas = Image.open(args.images / MOD_ATLAS).convert("RGBA")
     cells = atlas.height // MOD_CELL
     shown = {row["ui_desc"]["icon"] for row in rows(
@@ -386,9 +428,9 @@ def main():
         "files! {\n" + "".join(f'    "{path}" => "{kind}",\n' for path, kind in sorted(files.items())) + "}\n")
     total = sum((out / path).stat().st_size for path in files)
     counts = {kind: sum(path.startswith(kind + "/") for path in files)
-              for kind in ("items", "mods", "groups", "quests", "factions", "maps", "modes")}
+              for kind in ("items", "mods", "groups", "quests", "factions", "maps", "modes", "camos", "decals")}
     print(f"{out}: {counts['items']} items, {counts['mods']} modification, {counts['groups']} group, "
-          f"{counts['quests']} quest and {counts['factions']} faction icons, {counts['maps']} map pictures, {counts['modes']} mode icons, "
+          f"{counts['quests']} quest and {counts['factions']} faction icons, {counts['maps']} map pictures, {counts['modes']} mode icons, {counts['camos']} camouflage and {counts['decals']} decal icons, "
           f"{total / 1024:.0f} KB")
 
 

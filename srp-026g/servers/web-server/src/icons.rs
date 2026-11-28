@@ -4,7 +4,8 @@
 //! faction's (the quest window's faction tab), and each map's picture as the
 //! rooms draw it (the lobby's table `MapRenders.tsv` names it: the rooms and
 //! the site read the one table), each mode's loading-screen icon, and the
-//! wiki index's tile pictures the other sets have too small. Built per release with the calculator
+//! wiki index's tile pictures the other sets have too small, and each cell of
+//! the camouflage and decal atlases an item names. Built per release with the calculator
 //! (`srp-026g/scripts/damage-calc/build_site.py`, through
 //! `srp-026g/scripts/wiki/build_icons.py`) into `../wiki/icons/`; every file
 //! is part of the binary, `../wiki/icons/files.rs` lists them. The
@@ -38,6 +39,11 @@ pub(crate) enum IconSet {
     /// have none big enough for a tile; `<section>@2x` its copy for screens
     /// of twice the density.
     Tile,
+    /// By the cell of the camouflage atlas a camouflage's config names
+    /// (`ui_desc.icon`), `<row>_<column>` from 1: items that share a cell share it.
+    Camouflage,
+    /// By the cell of the decal atlas, as [`Self::Camouflage`].
+    Decal,
 }
 
 impl IconSet {
@@ -51,6 +57,8 @@ impl IconSet {
             Self::Map => "maps",
             Self::Mode => "modes",
             Self::Tile => "tiles",
+            Self::Camouflage => "camos",
+            Self::Decal => "decals",
         }
     }
 }

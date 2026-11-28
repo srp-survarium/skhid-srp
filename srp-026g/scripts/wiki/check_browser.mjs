@@ -50,8 +50,8 @@ try {
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/wiki');
   assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.wiki-link')].map(a => a.pathname))")), [
-    '/wiki/skills', '/wiki/weapons', '/wiki/equipment', '/wiki/modifiers', '/wiki/modes',
-    '/wiki/maps', '/wiki/artefacts', '/wiki/quests', '/wiki/calculator', '/wiki/simulators']);
+    '/wiki/skills', '/wiki/weapons', '/wiki/equipment', '/wiki/modifiers', '/wiki/camouflages', '/wiki/decals',
+    '/wiki/modes', '/wiki/maps', '/wiki/artefacts', '/wiki/quests', '/wiki/calculator', '/wiki/simulators']);
   // Every tile has its picture, drawn under the real CSP (lazy ones once scrolled to), in one box size.
   assert.deepEqual(JSON.parse(await evaluate(`(async () => {
     window.scrollTo(0, document.body.scrollHeight);
@@ -636,7 +636,32 @@ try {
       if (lang === 'en') await screenshot(`artefacts-${width}`);
     }
   }
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, the calculator in EN/RU/DE, the artefacts' power tables in EN/UK, 360 px and CSP.`);
+  // The camouflages and decals in English and Ukrainian: a card an item, each with its lobby icon
+  // drawn (every one, under the real CSP), a name and how it is got; the page no wider than a phone.
+  for (const width of [1280, 390]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const page of ['camouflages', 'decals']) {
+      for (const lang of ['en', 'uk']) {
+        await navigate(`/wiki/${page}?lang=${lang}`);
+        const cards = await evaluate("document.querySelectorAll('.cosmetic').length");
+        assert.ok(cards > 10, `${page}, ${lang}: its cards`);
+        assert.deepEqual(JSON.parse(await evaluate(`(async () => {
+          const images = [...document.querySelectorAll('.cosmetic img')];
+          images.forEach(i => { i.loading = 'eager'; });
+          await Promise.all(images.map(i => i.decode().catch(() => {})));
+          return JSON.stringify([...document.querySelectorAll('.cosmetic')].filter(c => {
+            const img = c.querySelector('img');
+            return !img || !img.naturalWidth || !c.querySelector('b').textContent.trim() || (!c.closest('#drop') && !c.querySelector('small')?.textContent.trim());
+          }).map(c => c.id));
+        })()`)), [], `${page}, ${lang}: every card has its icon, name and (off Drops) way`);
+        assert.ok(await evaluate("document.querySelectorAll('#where tbody tr').length") >= 2, `${page}, ${lang}: where it goes`);
+        assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), true, `${page}, ${lang} at ${width}: no sideways scroll`);
+        assert.equal(await evaluate("document.documentElement.innerHTML.includes('⟦')"), false, `${page}, ${lang}: no place left`);
+        if (lang === 'en') await screenshot(`${page}-${width}`);
+      }
+    }
+  }
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, the calculator in EN/RU/DE, the artefacts' power tables in EN/UK, the camouflages' and decals' cards in EN/UK, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});

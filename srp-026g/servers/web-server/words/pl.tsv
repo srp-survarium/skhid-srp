@@ -1018,3 +1018,28 @@ Weathers	Pogoda
 Variants	Warianty
 History since {0}.	Historia od {0}.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Historia od {0}, a także {1} wcześniejszych meczów odtworzonych z ich nagrań, od {2}; meczów sprzed {0} nie ma wszystkich.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Kamuflaże
+Decals	Naszywki
+Every camouflage: how to get it and what it goes on.	Każdy kamuflaż: jak go zdobyć i na co pasuje.
+Every decal: how to get it and what it goes on.	Każda naszywka: jak ją zdobyć i na co pasuje.
+Given to account {0}	Przyznawana kontu {0}
+Premium	Premium
+Flags	Flagi
+Coats of arms and emblems	Herby i emblematy
+{count} items, each given to the account of the same id	Sztuk: {count}; każda przyznawana kontu o tym samym ID
+Sold by the factions	Sprzedawane przez frakcje
+Badges	Odznaki
+Drops	Dropy
+Given	Przyznawane
+Each faction sells its own for silver.	Każda frakcja sprzedaje własne za srebro.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Sprzedawane za srebro: odznakę frakcji sprzedaje ta frakcja od rangi, którą nazywa, pozostałe każdy handlarz.
+Sold for silver by every trader.	Sprzedawane za srebro u każdego handlarza.
+Found in drops, never one you already have.	Wypadają w dropach, nigdy te, które już masz.
+Each is given to one account.	Każdy przedmiot jest przyznawany jednemu kontu.
+Where it goes	Gdzie pasuje
+Items that take it	Przedmioty, które go przyjmują
+At once	Naraz
+Bought once, it is yours: put it on any number of your items at the same time.	Kupiony raz jest twój: załóż go na dowolną liczbę swoich przedmiotów naraz.
+Sold back, it pays a quarter of its price and comes off every item.	Sprzedany zwraca ćwierć ceny i znika ze wszystkich przedmiotów.

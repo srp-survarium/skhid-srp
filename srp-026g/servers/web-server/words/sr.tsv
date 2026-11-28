@@ -1018,3 +1018,28 @@ Weathers	Vreme
 Variants	Varijante
 History since {0}.	Istorija od {0}.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Istorija od {0}, i još {1} ranijih mečeva obnovljenih iz njihovih snimaka, od {2}; mečevi pre {0} nisu svi tu.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Kamuflaže
+Decals	Oznake
+Every camouflage: how to get it and what it goes on.	Svaka kamuflaža: kako se dobija i na šta ide.
+Every decal: how to get it and what it goes on.	Svaka oznaka: kako se dobija i na šta ide.
+Given to account {0}	Dodeljuje se nalogu {0}
+Premium	Premijum
+Flags	Zastave
+Coats of arms and emblems	Grbovi i amblemi
+{count} items, each given to the account of the same id	Komada: {count}; svaki se dodeljuje nalogu sa istim ID-jem
+Sold by the factions	Prodaju frakcije
+Badges	Bedževi
+Drops	Dropovi
+Given	Dodeljuju se
+Each faction sells its own for silver.	Svaka frakcija prodaje svoje za srebro.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Prodaju se za srebro: bedž frakcije prodaje ta frakcija od čina koji nosi u imenu, ostale svaki trgovac.
+Sold for silver by every trader.	Prodaju se za srebro kod svakog trgovca.
+Found in drops, never one you already have.	Ispadaju u dropu, nikad one koje već imaš.
+Each is given to one account.	Svaki predmet se dodeljuje jednom nalogu.
+Where it goes	Gde ide
+Items that take it	Predmeta koji ga primaju
+At once	Odjednom
+Bought once, it is yours: put it on any number of your items at the same time.	Kupljen jednom, tvoj je: stavi ga na koliko god hoćeš svojih predmeta odjednom.
+Sold back, it pays a quarter of its price and comes off every item.	Prodat vraća četvrtinu cene i skida se sa svih predmeta.

@@ -1018,3 +1018,28 @@ Weathers	Wetter
 Variants	Varianten
 History since {0}.	Verlauf seit {0}.
 History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Verlauf seit {0}, dazu {1} frühere Spiele, aus ihren Aufzeichnungen wiederhergestellt, ab {2}; die Spiele vor dem {0} sind nicht vollständig.
+
+# The wiki's camouflages and decals (src/cosmetics.rs).
+Camouflages	Tarnungen
+Decals	Aufnäher
+Every camouflage: how to get it and what it goes on.	Jede Tarnung: wie man sie bekommt und worauf sie passt.
+Every decal: how to get it and what it goes on.	Jeder Aufnäher: wie man ihn bekommt und worauf er passt.
+Given to account {0}	Für das Konto {0}
+Premium	Premium
+Flags	Flaggen
+Coats of arms and emblems	Wappen und Embleme
+{count} items, each given to the account of the same id	{count} Stück, jedes für das Konto mit derselben ID
+Sold by the factions	Von den Fraktionen verkauft
+Badges	Abzeichen
+Drops	Drops
+Given	Vergeben
+Each faction sells its own for silver.	Jede Fraktion verkauft ihre eigenen für Silber.
+Sold for silver: a faction's badge by that faction at the rank it names, the others by every trader.	Für Silber verkauft: das Abzeichen einer Fraktion von dieser Fraktion ab dem Rang, den es nennt, die übrigen von jedem Händler.
+Sold for silver by every trader.	Bei jedem Händler für Silber erhältlich.
+Found in drops, never one you already have.	Kommen aus Drops, nie eines, das du schon hast.
+Each is given to one account.	Jedes wird einem Konto gegeben.
+Where it goes	Wohin es passt
+Items that take it	Gegenstände, die es tragen
+At once	Gleichzeitig
+Bought once, it is yours: put it on any number of your items at the same time.	Einmal gekauft, gehört es dir: auf beliebig viele deiner Gegenstände gleichzeitig.
+Sold back, it pays a quarter of its price and comes off every item.	Zurückverkauft bringt es ein Viertel seines Preises und verschwindet von allen Gegenständen.
