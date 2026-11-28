@@ -174,18 +174,20 @@ impl Default for Exposure {
 }
 
 /// Cover that stops bullets, by the game's own rule: a bullet of this `pierce` goes through crates, cars,
-/// sandbags, thin metal and most building walls at full or high damage (`bullet::try_pierce`, an-sight 2.2), so
-/// a spot behind them is in the line of fire.
+/// sandbags, thin metal and most building walls at high or part damage (`bullet::try_pierce` with client patch
+/// 175, `k = 1 - (A / P)^2`: `mapdata::pierce`), so a spot behind them is in the line of fire.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct PierceCover {
     /// The pierce of the bullets the bot hides from: `bullet_pierce` times the ammunition's `k_arp`, 0.275 (SR-2M)
     /// to 0.40 (AK-12) for the rifles and SMGs of the kits. The middle of them: 0.3125 (between the P90 0.30 and the
-    /// VSK-94 0.33; brick keeps 0.81 of the damage, concrete 0.59).
+    /// VSK-94 0.33; wood keeps 0.90 of the damage, a car 0.93, brick 0.59, concrete 0.46).
     pub pierce: BulletPierce,
-    /// A line is open to fire when more than this share of the damage reaches its end: the 0.5 of brick (0.61 to 1.0
-    /// by the gun) and concrete (0.35 to 0.93) is open to the rifles that go through; stone, the ground and the
-    /// default material stop everything. GUESS: a share a bot would not sit behind.
+    /// A line is open to fire when more than this share of the damage reaches its end. With patch 175 brick keeps
+    /// 0.47 (SR-2M) to 0.75 (AK-12) and concrete 0.30 to 0.67, so at the middle pierce brick (0.59) is open and
+    /// concrete (0.46) is cover: the bar falls between them (armor up to 0.221 open at 0.3125; before patch 175 up to
+    /// 0.242, so concrete was open too). Wood (0.1) and cars (0.08) are open; stone, the ground and the default material
+    /// stop everything. GUESS: a share a bot would not sit behind.
     pub max_share: Share,
 }
 

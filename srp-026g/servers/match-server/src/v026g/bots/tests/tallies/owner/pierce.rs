@@ -9,6 +9,8 @@ use super::*;
 #[derive(Default)]
 pub(super) struct PierceCounts {
     cover: [u64; 10],
+    /// The wall share's trace: tests through a wall not stopped, their kept share (thousandths) summed.
+    walled: [u64; 2],
     /// [A195] Hold-spot lists ranked with an exposure term: lists, those whose best changed, and the bearings (other than the
     /// anchor's) of the best by height and nearness and of the best given, summed.
     exposure: [u64; 4],
@@ -35,6 +37,7 @@ impl Topic for PierceCounts {
                 t.spot_share_filter_milli.load(Relaxed),
                 t.spot_share_weighed_milli.load(Relaxed),
             ];
+            self.walled = [t.walled.load(Relaxed), t.walled_share_milli.load(Relaxed)];
             self.exposure = [
                 t.exposure_lists.load(Relaxed),
                 t.exposure_changed.load(Relaxed),
@@ -89,6 +92,8 @@ impl PierceCounts {
             "pierce_spots_changed": changed,
             "pierce_spots_share_filter_milli": mean(filter_milli),
             "pierce_spots_share_weighed_milli": mean(weighed_milli),
+            "pierce_tests_walled": self.walled[0],
+            "pierce_tests_walled_share_milli": self.walled[1].checked_div(self.walled[0]).unwrap_or(0),
         });
         // The exposure term's counts (`SpotQuery::exposure`), only when a play used it: the keys are not there with it off.
         if self.exposure[0] > 0 {
@@ -110,7 +115,7 @@ impl PierceCounts {
             format!("stopped {} / <=0.25 {} / <=0.5 {} / <1 {} / all {}", b[0], b[1], b[2], b[3], b[4])
         };
         let text = format!(
-            "owner-test pierce: bullet mesh {} faces ({} with armor, {} free, {} no material = unknown, stops all); strikes' lines open {} through cover {} stopped {} (by armor {:?}), {} faces crossed; shots into cover by the share kept, team 0 [{}], team 1 [{}]; hits through cover {:?} kills {:?}; cover tests: sight-only {} clear {} opened by the pierce {} shut with some damage {} shut and stopped {} ({} opened lines noted); hiding spots weighed {} (the pick changed {}; share reaching the spot, thousandths: filter {} weighed {}){}",
+            "owner-test pierce: bullet mesh {} faces ({} with armor, {} free, {} no material = unknown, stops all); strikes' lines open {} through cover {} stopped {} (by armor {:?}), {} faces crossed; shots into cover by the share kept, team 0 [{}], team 1 [{}]; hits through cover {:?} kills {:?}; cover tests: sight-only {} clear {} opened by the pierce {} shut with some damage {} shut and stopped {} ({} opened lines noted; through a wall and not stopped {}, the share they kept {} thousandths); hiding spots weighed {} (the pick changed {}; share reaching the spot, thousandths: filter {} weighed {}){}",
             census.total,
             census.armored,
             census.free,
@@ -130,6 +135,8 @@ impl PierceCounts {
             shut_partial,
             shut_stopped,
             events,
+            self.walled[0],
+            self.walled[1].checked_div(self.walled[0]).unwrap_or(0),
             weighed,
             changed,
             mean(filter_milli),
@@ -183,17 +190,18 @@ mod tests {
 
     #[test]
     fn the_counts_name_what_the_strike_met() {
-        // Wood (0.1) is crossed whole: an open line (the share is 1), one face crossed, and the shot was walled on the solid mesh.
+        // Wood (0.1) costs the bullet `(0.1 / P)^2` (client patch 175): a partial line in the 0.5-1 band, one face crossed,
+        // and the shot was walled on the solid mesh.
         let wood = shot_through(0.1);
-        assert_eq!(wood["pierce_strikes_open"], 1);
+        assert_eq!(wood["pierce_strikes_partial"], 1);
         assert_eq!(wood["pierce_faces_crossed"], 1);
-        assert_eq!(wood["pierce_walled_bands_team0"], serde_json::json!([0, 0, 0, 0, 1]));
+        assert_eq!(wood["pierce_walled_bands_team0"], serde_json::json!([0, 0, 0, 1, 0]));
         // Stone (0.7) stops it, and the count names the armor.
         let stone = shot_through(0.7);
         assert_eq!(stone["pierce_strikes_stopped"], 1);
         assert_eq!(stone["pierce_stopped_by"], serde_json::json!({"0.7": 1}));
         assert_eq!(stone["pierce_walled_bands_team0"], serde_json::json!([1, 0, 0, 0, 0]));
-        // Armor at 0.7 of the gun's pierce keeps some, under all: a partial line, in the 0.5-1 band.
+        // Armor at 0.7 of the gun's pierce keeps 1 - 0.7^2 = 0.51: a partial line, in the 0.5-1 band.
         let pierce = wood["pierce_of_the_gun"].as_f64().unwrap() as f32;
         let partial = shot_through(0.7 * pierce);
         assert_eq!(partial["pierce_strikes_partial"], 1);
