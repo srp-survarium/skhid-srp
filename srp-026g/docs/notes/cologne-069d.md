@@ -101,8 +101,44 @@ sky and height fog (the sky and distance fog are native Cologne's).
 - Against 0.69d (its own `level_08/day_tdm` and `day_br` loaded by the rig's `ref069.py`, 136 poses
   shot once and kept in `donor-refs/069d/level_08_*`): the port's light is 1.07 of 0.69d's (median of
   the frames' mean luma; quartiles 1.00 and 1.13), interiors 1.09, the horizon 0.95, the ground
-  0.88. No wall or floor is missing. What differs: the river's water is 0.26g's own
-  `water/water_l08_boloto` (murky brown, where 0.69d draws it clear and blue); the sky and the
+  0.88. No wall or floor is missing. What differs: the river's water (below, "The river"); the sky and the
   horizon are native Cologne's (no 0.69d dark band at the horizon, a hazier, brighter sky with
   more bloom in the views up through the bridge: those frames are up to 1.5x 0.69d's); the shade
   under foliage is a little warmer.
+
+## The river (2026-11-28)
+
+The owner, on 0.69d's `ground_03` (the ground from 3 m, 21.74 16.44 -8.84, yaw 99.5, pitch -28.1;
+the pose's map 263 is the id this port had before 543): "water is not drawn at all". 0.69d draws a
+clear teal river with the bed under it; @3 drew the stones a little dim and brown, nothing more.
+
+- **Cause.** 0.69d's river is the plane `level/08/moss/back_niz1`, surface `do2sg` (y 14.743, x -129
+  to 120, z -396 to 582), with 0.69d's `water/water_l08_boloto` (scattering colour 0.2 0.4 0.5,
+  extinction 0.75). 0.26g ships a material of that name, native Cologne's swamp on the same plane
+  (fog 0.040 0.075 0.034, density 0.4, one-sided, a night probe that ships nowhere), and the
+  converter drew namesake water with 0.26g's material as it is. Native Cologne keeps that plane
+  mostly under its ground; 0.69d lowered the riverbed, so the plane draws over the whole river, but
+  as a thin dark film: no colour of its own, no reflection. It is drawn: the same material with a red
+  fog turns the whole river red.
+- **Fix** (resource-porter `fix/cologne-069d-water`, on `port/cologne-v069`; `docs/porting-water.md`):
+  the manifest's `donor_water` gives 0.69d's water 0.69d's look on its 0.26g namesake. From both
+  shaders (0.69d `forward_water_stage_default.ps` adds `scattering colour x sun illuminance` with
+  depth; 0.26g `forward_water.ps` mixes an unlit fog colour by depth and adds a probe's reflection):
+  fog colour = linear scattering colour x the port's sun illuminance x 0.14, density = extinction x
+  0.47 (fitted on this river against 0.69d's frames), reflection = the map-wide probe. For
+  Cologne: `v069d_cologne/water/water_l08_boloto`, fog 0.194 0.604 0.696, density 0.3525,
+  `v069d_cologne/environment_probes/map_wide`. Two files change: that material (new) and
+  `back_niz1`'s settings.
+- **What 0.26g cannot draw:** 0.69d's sun glints (0.26g's water has no sun term; a reflection cube
+  with the sun in it changed no frame), and 0.69d's sharp drop from clear shallows to opaque teal
+  (0.26g's depth fog is flat past 2.5 m): the shallows are a little more teal, the deep water a
+  little less opaque, and from above the water is more saturated, less silvery than 0.69d's.
+- **Checked** (headless `capture.py`, map 543, the test-76 build with a delta patch of the two files,
+  local pack `private/content-packs/cologne-069d-4-water`, not listed). Columns are 0.69d / before / after.
+  `ground_03`: frame luma 98.9 / 57.5 / 96.4, mean difference from 0.69d 48.8 before, 32.8 after; the deep water
+  rgb 38 88 99 / 33 20 4 / 43 82 91. Seen from above, after: `ground_02` 114.7 (0.69d 116.9), `ground_05` 100.0 (115.1),
+  `ground_10` 110.1 (122.1), `ground_11` 112.5 (116.8). The pack's row and version here are unchanged (@3);
+  the fix joins the next build of the pack.
+- Rudnya (v0.69) (`water_l1_poison`) and Vostok (v0.69) (`water_l04_shallow`) take the same path:
+  0.26g's namesake as it is. Their manifests do not set `donor_water`; their packs are unchanged.
+
