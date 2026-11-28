@@ -155,8 +155,9 @@ pub fn used(
     respawns: u32,
     twist: Option<Armed>,
 ) -> Vec<(u16, u32)> {
-    // Roulette's kits held nothing of the account's (`survarium::v026g::roulette`).
-    if matches!(twist, Some(Armed::Roulette(_))) {
+    // Roulette's and Pistols' kits held nothing of the account's (`survarium::v026g::roulette`,
+    // `pistols`).
+    if twist.is_some_and(|twist| !twist.keeps_own_items()) {
         return Vec::new();
     }
     let dictionary = Dictionary::shared();

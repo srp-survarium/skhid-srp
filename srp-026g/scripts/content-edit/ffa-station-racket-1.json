@@ -1,0 +1,11 @@
+{
+  "_about": "Station (maps_dict 31) in Free for All as Racket only in open rooms (the owner, 2026-11-27: \"make it racket only\"): srp's key mode.srp_twists_only = \"racket\" in its config, which the server reads (survarium maps::MapMode::open_play, twist::OpenPlay::Only): an open room's card on it is always FFA: Racket, never plain Free for All or another twist; a private room plays it plain, as its every free-for-all. Military Warehouses' true (ffa-twists-only-1) is any twist (docs/notes/ffa.md, \"Twists\").",
+  "add_value": [
+    {
+      "files": ["gameplay/game_modes/ffa/v010b_soc_ug_station_day_8.options"],
+      "table": "mode",
+      "key": "srp_twists_only",
+      "value": "racket"
+    }
+  ]
+}

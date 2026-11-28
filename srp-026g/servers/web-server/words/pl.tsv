@@ -513,9 +513,14 @@ Level bands: {0}.	Przedziały poziomów: {0}.
 A room draws bands up to its level.	Pokój losuje przedziały do swojego poziomu.
 Each kit a gun of another class, with random bonuses and attachments.	W każdym zestawie broń innej klasy, z losowymi bonusami i dodatkami.
 {0} % of deals: pistols only.	{0} % rozdań: tylko pistolety.
-Plain FFA: {0} % of FFA cards.	Zwykłe FFA: {0} % kart FFA.
+Everyone plays his own kits.	Każdy gra swoimi zestawami.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Wszyscy grają tymi samymi {0} losowymi zestawami, w każdym jeden pistolet; trzeci zestaw zostaje pusty.
+Pistols of levels {0}: {1}.	Pistolety poziomów {0}: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	Pokój losuje przedziały do swojego poziomu; pokój powyżej poziomu 10 gra 0–5 lub 6–10.
+Two different pistols of the band, with random armour, bonuses and attachments.	Dwa różne pistolety z przedziału, z losowym pancerzem, bonusami i dodatkami.
 {0} % of FFA cards.	{0} % kart FFA.
 FFA: Roulette	FFA: Ruletka
+FFA: Pistols	FFA: Pistolety
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Szukaj broni

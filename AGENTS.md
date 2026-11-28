@@ -111,6 +111,10 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   worlds that a sample of a third of the recordings passed were refused.
 - A change to what games write also needs worlds from a game that has it: play a local test match
   (local runs record into the corpus) and check it before the PR is merged.
+- These are the world checks: the release no longer re-checks live worlds (the owner, 2026-11-27).
+  `release/release.sh` runs no world check; the live host's newest recordings are today's games, never
+  what the new exe sends. The planned replacement is a release smoke match (a headless local match
+  against bots with the release's own exe and server, every uploaded world checked), not built yet.
 - Never loosen a rule only to make a real world pass. Find what the game writes and why it reads it
   safely (its reader in the exe), as #1434 did. A game bug behind it gets a board ticket.
 - Merging PRs that touch the same code: build and test the combined tree (main with each of them)
@@ -154,8 +158,8 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   `tools/checks.tsv` with every input it reads; a changed file it reports as `not covered` has no
   check yet (docs need none).
 - Where it has no row yet, use the patch's own self-tests and Unicorn check or the movie's
-  Ruffle harness (`selftest_026g.py` runs at a release, in `release/release.sh`: not during
-  development). Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
+  Ruffle harness (`selftest_026g.py` is the `selftest` row, and runs at every release in
+  `release/release.sh`). Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
   server tests. World save/load changes also need `check_world_roundtrip_026g.py` (the
   `ffa-native` check runs it). Reserve full suites for shared infrastructure changes that affect
   them or release validation.

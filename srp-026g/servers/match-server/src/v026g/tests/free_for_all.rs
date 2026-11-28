@@ -489,3 +489,69 @@ fn a_cowboy_match_gives_everyone_a_colt_python() {
         }
     }
 }
+
+/// A Pistols free-for-all (`docs/notes/ffa-pistols.md`) gives every place,
+/// a late joiner's too, the same two kits, a pistol each in the first slot
+/// and nothing in the second, and leaves the third kit not loaded: the
+/// profiles the clients read are the ones the server keeps.
+#[test]
+fn a_pistols_match_gives_everyone_the_same_two_pistol_kits() {
+    use survarium::v026g::loadouts::category;
+    use survarium::v026g::match_msgs::static_info::{KIT_NOT_LOADED, KIT_USABLE};
+    use survarium::v026g::pistols::{Band, Pair};
+    use survarium::v026g::twist::{Armed, Played, Twist};
+    use survarium::v026g::match_msgs::static_info::MatchKit;
+    // Every place with three kits, as an account has.
+    let three = |mut player: MatchPlayer| {
+        while player.profile.kits.len() < 3 {
+            let id = player.profile.kits.len() as u32 + 1;
+            player.profile.kits.push(MatchKit::empty(id, ""));
+        }
+        player
+    };
+    let registry = MatchRegistry::new("127.0.0.1", 1239);
+    let mut made = setup(2, map_id());
+    for player in &mut made.players {
+        *player = three(player.clone());
+    }
+    let map = maps::MatchMap::of(map_id()).unwrap();
+    let mut roll = 0;
+    let pair = Pair::deal(Band::Low, &mut |n| {
+        roll += 1;
+        roll % n
+    });
+    made.played = Played::twisted(map, Armed::Pistols(pair)).expect("a free-for-all's");
+    let id = registry.create_growing(made).unwrap().match_id;
+    assert_eq!(registry.formed(id).unwrap().played.twist(), Some(Twist::Pistols));
+    registry.set_admitting(id, 2, Ok(Instant::now() + Duration::from_secs(60)), LivePhase::Playing);
+    assert!(registry.join_running(id, three(newcomer(2, 0))).is_ok());
+    let formed = registry.formed(id).unwrap();
+    let options = parse_options(formed.info.options(), Dictionary::shared()).expect("options a client reads");
+    assert_eq!(options.players, formed.profiles, "the clients get what the server keeps");
+    assert_eq!(formed.profiles.len(), 3);
+    let dictionary = Dictionary::shared();
+    let kits = |profile: &survarium::v026g::match_msgs::static_info::MatchProfile| -> Vec<(u8, Option<u16>)> {
+        profile
+            .kits
+            .iter()
+            .map(|kit| (kit.state, kit.slots[7].map(|(index, _)| profile.items[usize::from(index)].dict_id)))
+            .collect()
+    };
+    let first = kits(&formed.profiles[0]);
+    for profile in &formed.profiles {
+        assert_eq!(kits(profile), first, "everyone's the same");
+        for (kit, &(state, gun)) in profile.kits.iter().zip(&first) {
+            match gun {
+                Some(gun) => {
+                    assert_eq!(state, KIT_USABLE);
+                    assert_eq!(dictionary.item(gun).unwrap().category, category::PISTOLS);
+                    assert_eq!(kit.slots[10], None);
+                }
+                None => assert_eq!(state, KIT_NOT_LOADED),
+            }
+        }
+    }
+    let states: Vec<u8> = first.iter().map(|&(state, _)| state).collect();
+    assert_eq!(states, [KIT_USABLE, KIT_USABLE, KIT_NOT_LOADED]);
+    assert_ne!(first[0].1, first[1].1, "two different pistols");
+}

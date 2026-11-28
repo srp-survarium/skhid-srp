@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: release/build-server-db [--test] [--out <file>]
+# usage: release/build-server-db [--test] [--out <file>] [--urls-checked <file>]
 #
 # Builds the game server's server-game-data.db from the stock resources.db
 # ($SKHID_STOCK_DB) and the patches of the offered-patch list
@@ -12,7 +12,8 @@
 #      followed, not a web page), whole once and then by its first bytes
 #      (lib.sh check_patch_url): the patches server's must give it; another
 #      that does not is a WARNING (players move on to the next), unless
-#      none does. Cached bytes never replace URL availability checks;
+#      none does. Cached bytes never replace URL availability checks
+#      (only a check of this same release's preflight does: --urls-checked);
 #   3. the game's archive's row (survarium-026g.7z, release/game.tsv):
 #      each of its URLs asked for its first bytes as the updater fetches it
 #      (200 or 206, not a web page, the row's size, a 7z archive; never the
@@ -31,6 +32,11 @@
 #   --test         the test environment's: release/patches-test.tsv on
 #                  $SKHID_TEST_PATCHES_URL
 #   --out <file>   default ./server-game-data.db; never overwritten
+#   --urls-checked <file>
+#                  `<sha256> <size> <url>` lines of the URLs that gave their
+#                  file in this release's preflight minutes ago (release.sh
+#                  writes it): those are not asked again; every other URL
+#                  (the new patch's) is checked as above
 #
 # Run it for every release, content or not. Reads only; runs at nice 10.
 # Next: release/deploy.
@@ -42,10 +48,12 @@ while (($#)); do
     -h | --help) usage ;;
     --test) which='test'; shift ;;
     --out) (($# >= 2)) || usage 1; out=$2; shift 2 ;;
+    --urls-checked) (($# >= 2)) || usage 1; URLS_CHECKED_BEFORE=$2; shift 2 ;;
     *) die "unknown argument $1 (--help)" ;;
     esac
 done
 [[ ! -e $out ]] || die "$out: already there; never overwritten"
+[[ -z $URLS_CHECKED_BEFORE || -f $URLS_CHECKED_BEFORE ]] || die "--urls-checked $URLS_CHECKED_BEFORE: no such file"
 need_cmds curl sha256sum
 lower_priority
 load_env SKHID_STOCK_DB

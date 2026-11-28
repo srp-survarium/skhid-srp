@@ -513,9 +513,14 @@ Level bands: {0}.	Szintsávok: {0}.
 A room draws bands up to its level.	A szoba a szintjéig sorsol sávot.
 Each kit a gun of another class, with random bonuses and attachments.	Minden felszerelésben más osztályú fegyver, véletlen bónuszokkal és kiegészítőkkel.
 {0} % of deals: pistols only.	Az osztások {0} %-a: csak pisztolyok.
-Plain FFA: {0} % of FFA cards.	Sima FFA: az FFA-kártyák {0} %-a.
+Everyone plays his own kits.	Mindenki a saját felszereléseivel játszik.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Mindenki ugyanazzal a {0} véletlen felszereléssel játszik, mindegyikben egy pisztoly; a harmadik felszerelés üres marad.
+Pistols of levels {0}: {1}.	{0} szintű pisztolyok: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	A szoba a szintjéig sorsol sávot; a 10. szint feletti szoba 0–5 vagy 6–10 sávval játszik.
+Two different pistols of the band, with random armour, bonuses and attachments.	Két különböző pisztoly a sávból, véletlen páncéllal, bónuszokkal és kiegészítőkkel.
 {0} % of FFA cards.	Az FFA-kártyák {0} %-a.
 FFA: Roulette	FFA: Rulett
+FFA: Pistols	FFA: Pisztolyok
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Fegyver keresése

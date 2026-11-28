@@ -10,14 +10,15 @@
 //! **What carrying does** (the client, PROVEN in the exe unless marked;
 //! `default.player`'s `stamina_params`):
 //! - The capacity is `max_carried_weight` (30 kg) plus modifier 5
-//!   `max_carried_weight`, which adds (table 0x927E08): skill 209 gives 2 kg
-//!   a level, 10 kg at its five; some modifications add or take kilograms
+//!   `max_carried_weight`, which adds (table 0x927E08): skill 209 gives what
+//!   the tree says, 2 kg a level in revisions 56 to 74 (10 kg at its five),
+//!   1 kg since revision 75 (5 kg); some modifications add or take kilograms
 //!   (1120.. +1..+4, the defect 4080 -3), counted through the item's nodes.
 //! - From `min_carried_weight` (20 kg) to the capacity the weight costs
 //!   `t = clamp((w - 20) / (capacity - 20), 0, 1)` (0x329B20): movement
 //!   speed `-0.2 × t` (`max_carried_weight_movement_speed_modifier`, scaled
-//!   by `1 + overweight_penalty`: skill 202 takes 5 % of it a level, a
-//!   quarter at five; skill 214 removes it) and stamina spent `× (1 + 1.5 ×
+//!   by `1 + overweight_penalty`: skill 202 takes 5 % of it a level in
+//!   revisions 56 to 74, 3 % since 75; skill 214 removes it) and stamina spent `× (1 + 1.5 ×
 //!   t)` (`max_carried_weight_spending_speed_modifier`).
 //! - At or over the capacity the player is overburdened: no sprint
 //!   (`player_stamina::is_overburdened` 0x329C60, read where a sprint is
@@ -1104,8 +1105,11 @@ mod tests {
     }
 
     /// No bot kit is overburdened: every kit of every tier and role
-    /// weighs less than the capacity its skills give (40 kg), and its
-    /// skills are those of its tier's gear level.
+    /// weighs less than the capacity its skills give (the player's 30 kg and
+    /// Athlete's, 209: +2 kg a rank in the data of revisions 56 to 74, +1 kg
+    /// since revision 75, so 40 or 35 kg at its five ranks), and its skills
+    /// are those of its tier's gear level. Each kit's weight and capacity are
+    /// printed (`--nocapture`).
     #[test]
     fn no_bot_kit_is_over_its_capacity() {
         assert_eq!(item_params::player().max_carried_weight, 30.0);
@@ -1122,12 +1126,14 @@ mod tests {
                 "{tier} {role}"
             );
             let modifiers = skills.modifiers_with(new);
+            // The player's and the skills' kilograms (Athlete's from the data), and at most 5 of the carry upgrades.
+            let base = item_params::player().max_carried_weight + modifiers[MAX_CARRIED_WEIGHT];
             for kit in kits {
                 let capacity = carry_capacity(kit, &modifiers);
-                // 40 kg, and the kilograms of the carry upgrades.
-                assert!(capacity >= 40.0, "{tier} {role}");
-                assert!(capacity <= 45.0, "{tier} {role}: {capacity}");
-                assert!(kit.weight() < capacity, "{tier} {role}: {}", kit.weight());
+                println!("{tier} {role} new={new}: kit {:.2} kg, capacity {capacity:.2} kg (skills {base:.2})", kit.weight());
+                assert!(capacity >= base, "{tier} {role}: {capacity} {base}");
+                assert!(capacity <= base + 5.0, "{tier} {role}: {capacity} {base}");
+                assert!(kit.weight() < capacity, "{tier} {role}: {} of {capacity}", kit.weight());
             }
         }
     }
@@ -1228,6 +1234,8 @@ mod tests {
         // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
         let _kit = KitSwitches::OFF.scope();
         use crate::v026g::match_msgs::static_info::MatchProfile;
+        // Every kit out of the band, gathered so that one run names them all.
+        let mut out = Vec::new();
         for (equipment, role, new, upgrades) in every_bot() {
             let tier = equipment.tier;
             let owned = bot_kits_in(equipment, role, new, upgrades);
@@ -1264,10 +1272,14 @@ mod tests {
                 // The tiers' kits: under 31 kg of 40, so a few percent
                 // slower at most (the owner's kit is 1.5 to 2.5 kg
                 // heavier); the skills' and the armour's speed above.
-                assert!((0.93..=1.15).contains(&level), "{tier} {role}: {level}");
+                println!("{tier} {role} new={new} kit {k}: level {level:.4}, {weight:.2} kg of {capacity:.2}");
+                if !(0.93..=1.15).contains(&level) {
+                    out.push(format!("{tier} {role} new={new} kit {k}: {level} ({weight:.2} kg of {capacity:.2})"));
+                }
             }
             assert_eq!(profile_movement_level(&profile, kits.len()), None);
         }
+        assert!(out.is_empty(), "out of 0.93..=1.15: {out:#?}");
     }
 
     /// [A372] On the players' data (`SRP_GAME_DATA`, the live `server-game-data.db`; 0.26g's own archive has no medical tab):
