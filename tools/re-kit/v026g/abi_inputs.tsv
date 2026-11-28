@@ -6878,3 +6878,8 @@ va	name	location	role	basis
 0x00173f10	vostok::render::stage_shadow_direct::cascade_needs_static_draw	ESI	shadow stage receiver	observed
 0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	ECX	shadow stage receiver	observed
 0x001741f0	vostok::render::stage_shadow_direct::is_cascade_updated_this_frame	EAX	cascade index	observed
+0x000f2bc0	vostok::math::cuboid::test_inexact	EAX	the cuboid: 6 aabb_planes of 14h bytes	observed
+0x000f2bc0	vostok::math::cuboid::test_inexact	entry ESP+4	the box as 6 floats	observed
+0x001073b0	vostok::math::aabb_plane::test	ECX	the plane: normal xyz, d, then at +10h the corner bits: the low 3 pick (through the index triples at 0x9CC880) the corner farthest along the normal, behind the plane: outside; the next 3 the nearest corner, behind: intersect	observed
+0x001073b0	vostok::math::aabb_plane::test	EAX	the box as 6 floats (min xyz, max xyz)	observed
+0x001072e0	vostok::math::aabb_plane::normalize [descriptive]	ECX	the plane (read and written; frustum::frustum 0xEFA92 for each of its six)	observed
