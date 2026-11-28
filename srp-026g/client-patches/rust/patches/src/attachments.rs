@@ -46,7 +46,8 @@ use weapon_modules::{Bare, EyeAnchor, Gun, Hand, Loadout, Part, Placement, resol
 
 use crate::vostok::attachments::{self, Cook, FingerCorrector, HandSet, Leaving, Named, PartModels, Records};
 use crate::vostok::{
-    AttachmentsOnScopeDictExit, AttachmentsOnScopeResultExit, Context, Flow, NoExit, OrigFingersSetWeaponModel, Thread,
+    AttachmentsOnScopeDictExit, AttachmentsOnScopeResultExit, Context, Flow, Lock, NoExit, OrigFingersSetWeaponModel,
+    Thread,
 };
 
 /// What the eye is fixed to while aiming through an optic: the gun's aimed
@@ -63,10 +64,49 @@ const HAND_SETS: [HandSet; 2] = [HandSet::Idle, HandSet::Lobby];
 /// lacks, a fit it refuses, or nothing fitted (the game's own weapon stays
 /// as it is).
 fn bare(thread: &Thread, named: Named, with: impl FnOnce(Gun<'static>, &Bare<'static>)) {
-    let Some(gun) = attachments::modules(thread).and_then(|table| table.gun(named.gun)) else { return };
-    if let Ok(Loadout::Bare(bare)) = resolve(gun, named.wanted) {
+    if let Resolved::Bare(gun, bare) = resolved(thread, named) {
         with(gun, &bare);
     }
+}
+
+/// What a weapon config resolves to: a function of the config and the
+/// modules table, which stays as game data first gave it.
+#[derive(Clone, Copy)]
+enum Resolved {
+    /// The table lacks the gun, refuses the fit, or nothing is fitted.
+    Nothing,
+    Bare(Gun<'static>, Bare<'static>),
+}
+
+/// The configs resolved last, the next one written at `next`: the hand,
+/// sight and camera sites ask every tick and frame for the same few guns.
+struct Recent {
+    entries: [Option<(Named, Resolved)>; RECENT],
+    next: usize,
+}
+
+const RECENT: usize = 16;
+
+static RECENT_RESOLVED: Lock<Recent> = Lock::new(Recent { entries: [None; RECENT], next: 0 });
+
+/// `named` resolved, once for each config while it is among the recent ones.
+fn resolved(thread: &Thread, named: Named) -> Resolved {
+    let Some(table) = attachments::modules(thread) else { return Resolved::Nothing };
+    let kept = RECENT_RESOLVED.with(thread, |recent| {
+        recent.entries.iter().flatten().find(|(of, _)| *of == named).map(|(_, resolved)| *resolved)
+    });
+    if let Some(resolved) = kept {
+        return resolved;
+    }
+    let resolved = match table.gun(named.gun).map(|gun| (gun, resolve(gun, named.wanted))) {
+        Some((gun, Ok(Loadout::Bare(bare)))) => Resolved::Bare(gun, bare),
+        _ => Resolved::Nothing,
+    };
+    RECENT_RESOLVED.with(thread, |recent| {
+        recent.entries[recent.next] = Some((named, resolved));
+        recent.next = (recent.next + 1) % RECENT;
+    });
+    resolved
 }
 
 /// The shells' frame as a matrix times the scope's new one: where the scope
