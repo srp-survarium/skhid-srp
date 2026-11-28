@@ -350,7 +350,7 @@ fn ways(lang: Lang, cosmetic: &Cosmetic) -> String {
     if cosmetic.ways.is_empty() {
         lines.push(escape(&lang.t("Not obtainable")));
     }
-    // A premium item where premium is news: one that drops (Khaki fabric 3).
+    // A premium item where premium is news: one that drops (Dust, camo_khaki_fabric_03).
     if cosmetic.item.is_premium
         && matches!(cosmetic.shelf, Shelf::Faction | Shelf::Badge | Shelf::Drop)
     {
