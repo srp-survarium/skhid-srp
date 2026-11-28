@@ -553,7 +553,7 @@ it, 60 and 70 m keep it; +z 42 m loses it, -x and -z 20 to 60 m and +x 10 and 25
 a cascade holds before and after a jump of that size, inside it both times, is neither drawn again
 nor carried over by the scroll; which step loses it (the copy's offset, its depth range) is not
 read. A player meets it after any cut of the eye of that size: a respawn, the death camera, a
-spectator's switch to another player. Patch 221 (`sun_shadow_cut`, site
+spectator's switch to another player. Patch 222 (`sun_shadow_cut`, site
 `shadow_direct.cascades_placed` 0x172FBF) sets the stage's own reset for one frame (+2Ch 1, +2Dh
 101: flushed that frame, cached again from the next) when the eye moved over 2 m since the frame
 before.

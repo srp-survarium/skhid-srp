@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Patch 221: after a camera cut the sun's cached cascades are drawn again whole, by the stage's own
+# Patch 222: after a camera cut the sun's cached cascades are drawn again whole, by the stage's own
 # reset for that frame; nothing else changes (Unicorn).
 set -euo pipefail
 main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')

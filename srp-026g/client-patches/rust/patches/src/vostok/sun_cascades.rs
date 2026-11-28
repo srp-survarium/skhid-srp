@@ -1,6 +1,6 @@
 //! The sun's cascaded shadow maps as stage_shadow_direct::execute (0x172E30;
 //! renderer-026g.md 4.5) holds them once it has placed the cascades for the
-//! frame (site `shadow_direct.cascades_placed`), for patch 221
+//! frame (site `shadow_direct.cascades_placed`), for patch 222
 //! (sun_shadow_cut). The render thread's.
 //!
 //! With r_use_csm_scrolling (on in the game) a cascade keeps its static

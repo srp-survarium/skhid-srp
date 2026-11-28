@@ -1,4 +1,4 @@
-//! Patch 221: after a camera cut the sun's shadows are drawn again whole
+//! Patch 222: after a camera cut the sun's shadows are drawn again whole
 //! (renderer-026g.md 4.5).
 //!
 //! The game keeps each sun cascade's static casters from frame to frame

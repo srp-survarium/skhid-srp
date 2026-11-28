@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 221, the sun's cached cascades drawn again whole after a camera cut
+"""Run patch 222, the sun's cached cascades drawn again whole after a camera cut
 (rust/patches/src/sun_shadow_cut.rs, vostok/sun_cascades.rs;
 ../docs/notes/renderer-026g.md 4.5), in the default build beside the original exe.
 
@@ -128,8 +128,8 @@ def main():
         for key in ("registers", "flags", "stack pointer", "frame"):
             case(f"{what}: the {key} as the original's", was[key] == now[key], f"{was[key]!r} / {now[key]!r}")
     if failed:
-        raise SystemExit(f"patch 221: {failed} failed")
-    print(f"patch 221: {len(FRAMES)} frames at shadow_direct.cascades_placed: a cut of the eye (over 2 m from the "
+        raise SystemExit(f"patch 222: {failed} failed")
+    print(f"patch 222: {len(FRAMES)} frames at shadow_direct.cascades_placed: a cut of the eye (over 2 m from the "
           f"frame before's) sets the stage's own reset for that frame alone, nothing else does; flags, registers "
           f"and stack the original's")
 
