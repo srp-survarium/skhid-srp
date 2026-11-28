@@ -496,7 +496,7 @@ fn a_cowboy_match_gives_everyone_a_colt_python() {
 /// profiles the clients read are the ones the server keeps.
 #[test]
 fn a_pistols_match_gives_everyone_the_same_two_pistol_kits() {
-    use survarium::v026g::loadouts::bot_gear::category;
+    use survarium::v026g::loadouts::category;
     use survarium::v026g::match_msgs::static_info::{KIT_NOT_LOADED, KIT_USABLE};
     use survarium::v026g::pistols::{Band, Pair};
     use survarium::v026g::twist::{Armed, Played, Twist};

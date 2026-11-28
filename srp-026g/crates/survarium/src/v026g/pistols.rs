@@ -157,7 +157,7 @@ pub fn arm(profile: &mut MatchProfile, pair: &Pair) {
 #[cfg(test)]
 mod tests {
     use super::super::item_params;
-    use super::super::loadouts::bot_gear::category;
+    use super::super::loadouts::category;
     use super::super::match_msgs::static_info::{
         self, KIT_NOT_LOADED, KIT_USABLE, MatchKit,
     };
