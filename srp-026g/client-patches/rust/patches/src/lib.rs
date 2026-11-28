@@ -202,6 +202,8 @@ pub mod battery_hit;
 pub mod lobby_seeding;
 // patch 159: the console's output scrolls
 pub mod console_scroll;
+// patch 221: a material draws with the shaders, textures and constants its own config names
+pub mod material_shaders;
 pub mod v021d_render;
 // patch 178: the ported Londons' deferred composition is 0.44a5's
 pub mod composition_v044a;

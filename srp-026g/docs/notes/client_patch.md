@@ -5149,3 +5149,64 @@ their defaults and ranges, the scopes' surround and what to look at are in `weap
 before the new site.
 
 **Not run:** a game.
+
+### 3.116 A material's own shaders, constants and textures (written 2026-11-28, README patch 221) — PROVEN in the code and under Unicorn; captured headless on Cologne (v0.69)
+
+The owner, 2026-11-28, on Cologne (v0.69)'s river ("it doesn't let light through as easily and
+tints it and doesn't have on the surface the same detail"): 0.69d's water program translated for
+0.26g, under its own name, drawn only for the ported materials; "I like patching exe, we can do
+that more often". The program and its pack are resource-porter's (`shaders/forward_water_069d.ps`,
+`scripts/build_water_069d_shader.py`, the pack `water-069d`; `docs/porting-water.md`).
+
+- **Why the exe** (PROVEN). 0.26g cannot compile a program at run time (build 802's cook has its
+  recompile arm compiled out); every program is a blob, `shaders/sm_4_0/<family>.ps/<permutation>`.
+  A material picks its effect class by `effect_id`; the class's compile names the families in code:
+  `effect_fstage_simpe_water_materials::compile` (0x1E5FE0) passes `forward_water` (technique 0) or
+  `forward_water_local_reflections` (1) to compile_begin (0x1E6017..0x1E6037), binds
+  `engine/water_waves2` as t_normal_map (0x1E6048) and sends `packed_water_parameters_0`,
+  `foam_intensity` and `soft_intersection_factor` (0x1E6211..0x1E62C5). No material field names
+  a program.
+- **The mechanism** (one shared module, `material_shaders.rs`; every material effect but the
+  texture site). A material's effect table (the tree its compile merges, `material/<stage>/effect`)
+  may hold:
+  - `srp_pixel_shader = { from, to }`: compile_begin's begin_pass (`material.begin_pass`,
+    0x1CD1B6, the pushed PS slot at [esp], `compile_begin_frame.pixel_shader`) gets `to` when the
+    pass's family is `from`. Every material effect's every pass goes through compile_begin, so a
+    new effect class needs no new hook for its program.
+  - `srp_constants`: an array of `{ name, value = [x, y, z, w] }`, sent with set_constant<float4>
+    (0x1A8900) at compile_begin's epilogue (`material.begun`, 0x1CD361: the five pops before
+    `ret 18h`, where the cache pass's jne and the build's fall-through meet; EBP the compiler,
+    ESP+28h the merged tree), after begin_pass and before the effect's own constants. A set keeps
+    a name's first value and a program without the name skips it
+    (`shader_constant_table::apply_bindings` 0x3D7F40), so a native program is not affected.
+  - `srp_textures`: an array of `{ slot, texture_path }`, bound at an effect class's own texture
+    site in place of its block, through `texture_for`: the forward water's t_normal_map
+    (`water.normal_texture`, patch 130's site, now a chain: this patch's handler order 1, patch
+    130's 0.21 wave normals 2; a material has one key or the other). Another class takes part with
+    a lohook of its texture block calling `texture_for` (set_texture copies the path, 0x3D9921).
+  - A name from a config is copied into the arena's pool (`vostok::names`, 4 KiB, append-only)
+    before the engine gets it: begin_pass keeps its names by name, and the config lives as long as
+    its compile data. A malformed key is logged and left out; a material without the keys compiles
+    exactly as before.
+- **The program's permutation** (PROVEN in the data, as patch 130's twins). `shaders/masks` lists
+  no define for `forward_water_069d.ps`, so every pass asks for its one blob, 67 `_`. The pack's
+  blob is compiled for vertex input type 1 (the static meshes a water plane is: 0.26g's own
+  forward_water.ps of that type reads TEXCOORD0..2 the tangent-to-view rows, 3 the world position,
+  4 the view position) with the cascaded shadow; native's `_3__2_1..._1` permutation (shadow map
+  quality 3, shading 2, type 1) is what the river drew with before (a capture with every
+  permutation's blob replaced by stripes of its own period).
+- **Cost**: the program is 398 instruction slots (261 without the shadow); 0.26g's forward_water.ps
+  of that permutation 381, 0.69d's forward_water_stage_default.ps about 200.
+- **What changes:** what a marked material draws. Nothing a match computes; no row in
+  `../../crates/session/src/v026g/simulation_changes.tsv`.
+- **Checked:** `check_material_shaders_026g.py` (Unicorn, patch 130's harness): compile_begin whole
+  in both exes for three families and six configs (the family swapped exactly when `from` is the
+  pass's, the constants sent in order and a malformed one skipped, nothing else changed, ret 18h
+  and the callee-saved registers); the forward water's compile to past its t_normal_map: our
+  program and the material's normal map for a marked material, patch 130's for srp_water_v021d, the
+  original's otherwise. The patches crate's tests and Clippy; the self-test. Captured headless
+  (capture.py) on Cologne (v0.69): the river drawn by the program (map 543, ground_03 and four views
+  from above against 0.69d). Rudnya (v0.69)'s pond (a native water material) from above, two poses,
+  three runs (the original revision, the patch, the original again): the patch's frames differ from
+  the original's as two runs of the original differ from each other (mean 1.3 to 2.7 of 255, grass
+  and water move between runs), no frame is pixel-identical run to run.

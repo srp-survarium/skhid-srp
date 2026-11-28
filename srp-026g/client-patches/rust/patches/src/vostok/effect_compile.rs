@@ -311,6 +311,57 @@ impl<'c> MaterialPass<'c> {
         // SAFETY: compile_begin's own argument slot (see `at`).
         unsafe { self.frame.set_vertex_shader(name.as_ptr().cast_mut().cast()) }
     }
+
+    /// The PS family name the pass is about to begin with.
+    pub fn pixel_shader(&self) -> Option<&'c CStr> {
+        // SAFETY: the PS name compile_begin pushed for begin_pass (its second
+        // argument: a C string of the exe's, or one of ours).
+        unsafe { super::ui::c_string(self.frame.pixel_shader(), 128) }
+    }
+
+    /// Makes `name` the PS family of this pass (the pushed slot begin_pass
+    /// takes it from; nothing reads it after).
+    pub fn set_pixel_shader(&mut self, name: &'static CStr) {
+        // SAFETY: begin_pass's argument slot compile_begin pushed (see `at`).
+        unsafe { self.frame.set_pixel_shader(name.as_ptr().cast_mut().cast()) }
+    }
+}
+
+/// A material effect's pass at compile_begin's end (`material.begun`): its
+/// pass begun and its states set, before the effect's own textures and
+/// constants.
+pub struct MaterialBegun<'c> {
+    compiler: raw::EffectCompiler,
+    config: Option<ConfigTable<'c>>,
+}
+
+impl<'c> MaterialBegun<'c> {
+    pub fn at(ctx: &'c Context<'_>) -> MaterialBegun<'c> {
+        use raw::site::material_begun as site;
+        // SAFETY: the site's EBP is compile_begin's compiler (its third
+        // argument, 0x1CD0B7); the ESP frame holds its arguments, the config
+        // tree the compile data's, immutable while the effect compiles.
+        unsafe {
+            let compiler = site::compiler(ctx).expect("the compile's compiler");
+            let config = site::frame(ctx).and_then(|frame| frame.config()).and_then(|tree| ConfigValue::read(tree).ok()?.table().ok());
+            MaterialBegun { compiler, config }
+        }
+    }
+
+    /// The material effect's merged config (its <stage>.effect table), if a table.
+    pub fn config(&self) -> Option<&ConfigTable<'c>> {
+        self.config.as_ref()
+    }
+
+    /// Sets a float4 constant of the pass: the game's set_constant<float4>,
+    /// which binds it only while building and only when no binding has the
+    /// name, and which a program without the name skips.
+    pub fn send_float4(&self, name: &'static CStr, value: [f32; 4]) {
+        // SAFETY: set_constant<float4> (thiscall: ECX the value, then the
+        // compiler and the name), on the compile's own thread and compiler;
+        // it copies the value and interns the name.
+        unsafe { raw::engine_set_constant_float4(value.as_ptr(), Some(self.compiler), name.as_ptr().cast()) }
+    }
 }
 
 /// The shader configuration's byte 0Dh, as fill_shader_configuration_macros
