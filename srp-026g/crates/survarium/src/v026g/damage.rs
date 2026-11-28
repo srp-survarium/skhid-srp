@@ -21,7 +21,11 @@
 //!    0x54-byte plain struct, a member of `weapon_core` (0x2DF3D4) at +0x268
 //!    of the ammunition item; the class name is LIKELY, from its RTTI type
 //!    descriptor, twin of `weapon_damage_params` at 0x332330). PROVEN.
-//! 2. Both fall by one factor with the bullet's speed: full up to
+//! 2. The damage falls by one factor with the bullet's speed (the stock
+//!    game lowered the armour piercing by the same factor; client patch 173,
+//!    `PIERCE_DISTANCE` in `client-patches/patch_026g.py`, makes the store of
+//!    it at 0x32F174 a nop, so the piercing keeps the muzzle's at every
+//!    distance: `docs/notes/client_patch.md` 3.94, PROVEN): full up to
 //!    `max_damage_distance × k_max_damage_distance`, down to
 //!    `min_damage_amount × k_min_damage_amount` of it at `min_damage_distance
 //!    × k_min_damage_distance`, flat after (`compute_damage_speed` 0x32C520,
@@ -178,7 +182,8 @@ pub struct Bullet {
 }
 
 /// What a bullet of `ammo` fired from `weapon` carries after `distance`
-/// metres (steps 1 and 2 of the module's rule).
+/// metres (steps 1 and 2 of the module's rule): the damage after its fall,
+/// the armour piercing the muzzle's at any distance (patch 173).
 pub fn bullet_at(weapon: &WeaponParams, ammo: &AmmoParams, distance: f32) -> Bullet {
     let hi = weapon.bullet_damage * ammo.k_damage;
     let ahi = weapon.bullet_pierce * ammo.k_arp;
@@ -195,7 +200,7 @@ pub fn bullet_at(weapon: &WeaponParams, ammo: &AmmoParams, distance: f32) -> Bul
     let along = low + (1.0 - low) * s;
     Bullet {
         damage: hi * along,
-        arp: ahi * along,
+        arp: ahi,
     }
 }
 
@@ -780,7 +785,8 @@ mod tests {
         let far = bullet_at(weapon, ammo, weapon.min_damage_distance * ammo.k_min_damage_distance + 50.0);
         let low = weapon.min_damage_amount * ammo.k_min_damage_amount;
         assert!(near(far.damage, near_in.damage * low), "{far:?} {near_in:?}");
-        assert!(near(far.arp, near_in.arp * low));
+        // Patch 173: the piercing does not fall with the distance.
+        assert!(near(far.arp, near_in.arp));
         let (d0, d1) = (
             weapon.max_damage_distance * ammo.k_max_damage_distance,
             weapon.min_damage_distance * ammo.k_min_damage_distance,
