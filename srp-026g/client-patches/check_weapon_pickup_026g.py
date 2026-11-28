@@ -1089,11 +1089,13 @@ def late_join(patched):
     r.load(r.picker, record(slot10=(DIED + 900, 6, KIT, 1)))
     assert len(r.queries) == 1 and r.slot(r.inventory, 10) == gun + 0x10, r.log
     assert r.slot(cooked, 10) == r.own_gun + 0x10
-    assert r.native == [("set_user", gun, r.picker), ("initialize", gun)], ("a fresh cook: set_user + initialize", r.native)
+    # No user of ours: the reader set_users the gun only if the state holds it; a holstered one has none where
+    # it was written, and weapon_core::deserialize reads the hands' block by the user (the rev75 crash).
+    assert r.native == [] and r.read(gun + 8) == 0, ("a fresh cook: no weapon call", r.native)
     assert any("a loaded record: installed: slot 10's picked gun (taken at 13250 ms, the gun of place 6 kit 1 "
                "slot 10)" in l for l in r.log), r.log
     print("ok a loaded record naming a gun not on this client, no world load before it: cooked from its recipe "
-          "in the wait (the game's dispatch), installed without the switch")
+          "in the wait (the game's dispatch), installed without the switch nor a user")
 
 
 PLAYER_MADE_SITE, PLAYER_MADE_AFTER = 0x202DD0, 0x202DD6
@@ -1214,7 +1216,7 @@ def late_join_after_player_made(patched):
     r.load(r.picker, loaded)
     assert r.queries == [] and r.slot(r.inventory, 10) == gun + 0x10, r.log
     assert r.slot(cooked, 10) == r.own_gun + 0x10
-    assert r.native == [("set_user", gun, r.picker), ("initialize", gun)], ("a fresh cook: set_user + initialize", r.native)
+    assert r.native == [] and r.read(gun + 8) == 0, ("a fresh cook: no weapon call", r.native)
     assert not any("NOT installed" in l for l in r.log), r.log
     assert r.save(r.picker) == loaded, "the state matches the record"
     # A world whose records name only guns this client has: nothing cooked.
@@ -1241,7 +1243,7 @@ def late_join_after_player_made(patched):
           "a gun), each logged NOT made before the load" % held_for)
     print("ok a late join's first world with its players made this frame (player_cook.ready): the gun a record "
           "names that this client never cooked is cooked at the 0xE8 handler before the load, the reader installs "
-          "it with no wait (fresh: set_user + initialize), the state saved is the record; a world naming only kept "
+          "it with no wait (no weapon call: no user), the state saved is the record; a world naming only kept "
           "guns cooks nothing; the record read alone with the flag up still refuses (as before)")
 
 

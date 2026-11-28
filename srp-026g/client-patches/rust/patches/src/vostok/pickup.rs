@@ -266,25 +266,14 @@ pub enum Mode<'a> {
     /// first (the own gun and ammunition back, to be parked again), then
     /// the switch from it.
     Replace(Option<(u8, bool)>, &'a Installed, &'a Registered),
-    /// A loaded world's record (a rollback, a late join): the native reader
-    /// switches the held object; the snapshot gives the magazine and reserve.
-    Load(Fresh),
-}
-
-/// Whether a gun loaded into a slot was ever active on this client.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Fresh {
-    /// Never in hands here (a late join's, a resync's cook): set_user and
-    /// initialize, as a switch would before its activate.
-    Yes,
-    /// Already in hands here (a rollback re-installs it): no weapon call of
-    /// ours. The game's reader set_users it and activates it once the
-    /// animation player is loaded (0x2DB662..0x2DB67B, 0x2DB7F3..0x2DB80D),
-    /// as for any gun of its own; it never initializes one. (83Lb41 also
-    /// set_user'd and initialized it, resetting its logic to the initial
-    /// state and entering it, outside any switch: the crashes all followed
-    /// such a re-install.)
-    No,
+    /// A loaded world's record (a rollback, a late join): no weapon call of
+    /// ours. The native reader set_users the gun the state holds
+    /// (0x2DB662..0x2DB67B) and activates it (0x2DB7F3..0x2DB80D), never
+    /// initializing it; any other gun keeps no user, as in the game that
+    /// wrote the state (a switch's deactivate(1) clears +8h, 0x2E2EE0), and
+    /// weapon_core::deserialize reads the hands' block only for a gun with a
+    /// user (0x2E35B1).
+    Load,
 }
 
 /// A pickup site's player.
@@ -598,7 +587,7 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
     // Drawn as its drop, its models are ours: out of the scene before the game shows it.
     gun_cook::hide(player.thread, cook);
     let (registered, replacing) = match mode {
-        Mode::Load(_) => return place(player, own, cook, slot, id, mode).map_err(Failure::Refused),
+        Mode::Load => return place(player, own, cook, slot, id, mode).map_err(Failure::Refused),
         Mode::Switch(_, r) => (r, None),
         Mode::Replace(_, old, r) => (r, Some(old)),
     };
@@ -688,7 +677,7 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
         let held = p.held_item();
         let registered = match mode {
             Mode::Switch(_, r) | Mode::Replace(_, _, r) => Some(r),
-            Mode::Load(_) => None,
+            Mode::Load => None,
         };
         if let Some(r) = registered {
             let (_, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
@@ -833,11 +822,7 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
                 grant(w, Ammo::grant(capacity, loaded, chamber));
                 raw::engine_weapon_activate(Some(gun), 1);
             }
-            Mode::Load(Fresh::Yes) => {
-                raw::engine_weapon_set_user(Some(gun), Some(p));
-                raw::engine_weapon_initialize(Some(gun));
-            }
-            Mode::Load(Fresh::No) => {}
+            Mode::Load => {}
         }
         Ok(Installed { cook, own, slot, own_gun: ItemId::of(own_gun), own_wear: Wear::of(read(own_item.condition())),
                        gun: ItemId::of(gun), moved, saved, cooked: cooked_binding, id })

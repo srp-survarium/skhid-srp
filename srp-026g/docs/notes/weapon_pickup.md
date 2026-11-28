@@ -494,13 +494,27 @@ nothing in hands.
   this client gets no weapon call of ours; the game's reader set_users and
   activates it once the animation player is loaded (0x2DB662..0x2DB67B,
   0x2DB7F3..0x2DB80D), as for any of its own guns, and never initializes
-  it. Only a fresh cook (a late join's) is set_user'd and initialized.
+  it. A fresh cook (a late join's) gets none either (below).
   83Lb41 set_user'd and initialized the used gun too: initialize resets its
   logic to the initial state and enters it (0x2E2A88, 0x2E2A97) outside any
   switch. Not proven the crash's cause (the dumps had no heap); the fallback
   is a fresh cook on re-install. Logged for the next crash (D): every picked
   gun's object address at its cook, registration, install, put-away, let-go,
   re-install and free, with its registry id and slot (`gun 0x...:` lines).
+- **A fresh cook set_user'd by a load** (the 2026-11-28 rev75 crash, and
+  likely the 11-07/11-08 rev50/53 ones at the same assert): a late joiner's
+  record install set_user'd and initialized the gun it cooked. weapon_core::
+  deserialize reads a gun's hands' block (ammo switch, recoil, dispersion,
+  aim, its logic's state, the portable object) only when the reader's own
+  gun has a user (+8h, 0x2E35B1); where the state was written a gun not in
+  hands has none (a switch away deactivate(1)s it, 0x2E2EE0). Place 6 held
+  its own slot 7 (active objects 39/39, active slot 7) with a pick holstered
+  in slot 10: the writer saved that gun in 12 bytes, the joiner read 238
+  (patch 115 skipping the state id 153 it found), slots 13 to 15 and the
+  damage model from 226 bytes past their place, the fifth body part's
+  health -4.06e31, affects 67 at state byte 0x31B. A load now makes no
+  weapon call for any gun: the reader set_users the held one, as for a
+  stock gun never in hands, and binds every gun's retained stack (0x2E3513).
 - **The switch** (`pickup.switch` 0x2D76D0, reached once the held gun is
   ready to be deactivated): every check first, the gun in hands put away
   (above), then the install (the stage 2a moves; the gun under
@@ -620,10 +634,10 @@ cooked gun).
   in its body's drop (a rollback undoing the pickup); a pick the record
   names and the slot lacks is installed without the switch (its gun the
   one let go, else an untaken drop's of the same recipe, else cooked from
-  the recipe's profile kit slot and waited for; set_user and
-  initialize only, held left: 0x2DB62B deactivates the old held object and
-  set_users the new one when they differ, and the inventory reader then
-  finds the slots as the snapshot has them).
+  the recipe's profile kit slot and waited for; no weapon call, held left:
+  0x2DB62B deactivates the old held object and set_users the new one when
+  they differ, and the inventory reader then finds the slots and the users
+  as the snapshot has them).
 - **The crate**: `pickup.can_use` 0x2F809C and `pickup.use_hint` 0x2F80E4
   (before check_resupply's `mov ecx,[eax+10Ch]`): a borrowed stack below its
   refill exits to "available" (0x2F80B3, 0x2F8116); else ECX is a 188h
