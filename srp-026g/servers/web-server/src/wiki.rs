@@ -56,6 +56,10 @@ enum Picture {
     Dense(Option<(String, String)>),
     /// Lobby glyphs (their addresses), in the accent colour.
     Glyphs(Vec<Option<String>>),
+    /// Small pictures in their own colours (their addresses), two a row at
+    /// about their files' size, so none is drawn larger than it is: the
+    /// modes' loading-screen icons (64 px files of 61x55 bitmaps).
+    Icons(Vec<Option<String>>),
     /// A drawing of the section's own (an SVG), in the page's colours.
     Drawing(Option<&'static str>),
 }
@@ -91,6 +95,19 @@ impl Picture {
                     })
                     .collect();
                 format!("<span class=wiki-glyphs aria-hidden=true>{glyphs}</span>")
+            }
+            Self::Icons(urls) => {
+                let icons: String = urls
+                    .iter()
+                    .flatten()
+                    .map(|url| {
+                        format!(
+                            "<img src=\"{}\" alt=\"\" loading=lazy decoding=async>",
+                            escape(url)
+                        )
+                    })
+                    .collect();
+                format!("<span class=wiki-icons aria-hidden=true>{icons}</span>")
             }
             Self::Drawing(svg) => svg.unwrap_or_default().to_owned(),
         }
@@ -164,7 +181,12 @@ fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
             modes::PATH,
             lang.t("Modes"),
             lang.t("Every mode: its rules, numbers and maps."),
-            Picture::Image(icons::url(IconSet::Mode, "1")),
+            // Protective device, Team Deathmatch, Research, Artifact Hunt.
+            Picture::Icons(
+                ["1", "3", "2", "4"]
+                    .map(|icon| icons::url(IconSet::Mode, icon))
+                    .to_vec(),
+            ),
         ),
         (
             maps::PATH,
