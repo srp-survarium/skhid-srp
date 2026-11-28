@@ -147,3 +147,13 @@ Still differs:
   not draw, is the candidate;
 - the sky up near the sun is whiter and about 1.5x 0.69d's: the cloud layer (0.26g's cloud lighting
   over 0.69d's texture; the sky is blue with the clouds off) and 0.26g's atmosphere.
+
+The colour (2026-11-28, the owner's approval of fixing the 0.69d ports' cast): 0.69d white-balances
+the exposed colour before its grading (`use_white_balance`, 6500 K with a tint of -0.07 on
+level_08 and -0.1 on School's level_02: Unreal 4's balance, built by the exe at 0x2005570c0), which
+turns grey a little green; the converter left it out, so every port was less green than 0.69d. The
+grading texture now carries it (resource-porter #118). Per pose (port r/g) / (0.69d r/g), median,
+eye adaptation held fast on both sides: Cologne (40 poses) 1.046 -> 1.014, b/g 0.985 -> 0.962;
+School (76 poses, school-069d@9 and lighting @21) 1.040 -> 0.987, b/g 1.043 -> 0.992. Luma is
+unchanged. The packs to compose: `cologne-069d-4-tone`, and for School its next version built with
+#118's white balance (`school-069d-10-wb` is @9 with only that texture, for tests).
