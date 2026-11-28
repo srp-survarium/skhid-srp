@@ -4352,6 +4352,9 @@ pub struct Reflex {
     cloud_hold: Option<CloudHolding>,
     /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
     hold_ended: Option<(Vec3, u32)>,
+    /// [patch 180] Cloud holds ended because the bot stood in a toxic cloud (`smoke::HoldEnd::Toxic`), for the match-end
+    /// smoke line.
+    toxic_hold_ends: u32,
     /// [pincer] A hold at a pincer's stage under way (`lane_draw::pincer`).
     pincer_hold: Option<PincerHolding>,
     /// [pincer] How the last hold at a stage ended and how long it held, ms, not yet taken by the drive.
@@ -5492,6 +5495,11 @@ impl Reflex {
         self.cloud_hold.is_some()
     }
 
+    /// [patch 180] How many cloud holds a toxic cloud ended.
+    pub fn toxic_hold_ends(&self) -> u32 {
+        self.toxic_hold_ends
+    }
+
     /// [A208 `smoke.wait_for_cloud`] A hold for a mate's cloud from now (`smoke::WaitsFor::Mates`), if nothing has the
     /// legs: no throw, no hold, no target. Whether it was begun.
     pub fn hold_for_cloud(&mut self, wait: super::smoke::CloudWait, me: &PlaceView, now: u32) -> bool {
@@ -5858,7 +5866,9 @@ impl Reflex {
                 track.own.is_some_and(|(at, time)| now.saturating_sub(time) <= w.close_sensed_ms && at.distance_xz(me.feet) <= w.close_m)
             })
         };
-        let end = if w.hidden(&view.smoke, now) {
+        let end = if view.smoke.toxic_at(me.feet, super::smoke::MatchMs(now)).is_some() {
+            Some(HoldEnd::Toxic)
+        } else if w.hidden(&view.smoke, now) {
             Some(HoldEnd::Hidden)
         } else if self.target.is_some_and(|target| Some(target) != w.threat) {
             Some(HoldEnd::Fight)
@@ -5874,6 +5884,7 @@ impl Reflex {
         if let Some(why) = end {
             self.cloud_hold = None;
             self.hold_ended = Some((w.line.crossing, now));
+            self.toxic_hold_ends += u32::from(why == HoldEnd::Toxic);
             self.smoke_notes.push(format!("walks on after holding for the cloud ({:?}): {why:?}", w.waits_for));
             #[cfg(test)]
             {

@@ -1037,6 +1037,7 @@ impl Tracker {
                     match was {
                         Placed::Arc => "the arc's rest",
                         Placed::DeadHand => "the dead thrower's body",
+                        Placed::Switch => "the dead thrower's body (Dead Man's Switch)",
                         Placed::Seen { .. } => "its last sighting",
                     },
                 ));
@@ -1157,9 +1158,12 @@ impl Tracker {
         {
             let bots_frag = *Grenade::bots();
             let mut kit = 0;
+            // The thrower's technical skills (client patch 180): a human's kit in use; a bot takes none.
+            let mut technical = technical_skills::Skills::default();
             let thrown = match &mut state.throws {
                 Throws::Human(pockets) => {
                     kit = pockets.in_use().get();
+                    technical = pockets.technical();
                     self.throws.quick_rules_differ += u32::from(pockets.quick_rules_differ(pressed));
                     match pockets.throw_grenade(pressed, time) {
                         Some((item, grenade)) => Some((item, grenade, Whose::Human)),
@@ -1226,13 +1230,24 @@ impl Tracker {
                     self.throws.smoke += 1;
                     state.last_throw = Some(time);
                     self.smoke_counts.thrown[usize::from(state.team & 1)] += 1;
+                    let mut grenade = *SmokeGrenade::of_game_data();
+                    grenade.cloud = grenade.cloud.thrown_by(technical);
+                    self.smoke_counts.held[usize::from(state.team & 1)] += u32::from(grenade.cloud.held_ms() > 0);
+                    self.smoke_counts.toxic[usize::from(state.team & 1)] += u32::from(grenade.cloud.toxic.is_some());
+                    if self.listing_notes && (grenade.cloud.held_ms() > 0 || grenade.cloud.toxic.is_some()) {
+                        self.notes.push(format!(
+                            "smoke of a technical thrower: place {place} at {time}, held {} ms longer, toxic {:?}",
+                            grenade.cloud.held_ms(),
+                            grenade.cloud.toxic.map(|t| t.per_s)
+                        ));
+                    }
                     self.smoke_throws.push(SmokeThrow {
                         by: place,
                         team: state.team,
                         press: MatchMs(time),
                         keys: pressed & THROW_KEYS,
                         release: None,
-                        grenade: *SmokeGrenade::of_game_data(),
+                        grenade,
                     });
                 }
                 Some((Pocketed::Other, _, _)) | None => {}
@@ -1254,6 +1269,59 @@ impl Tracker {
                 },
             );
         }
+    }
+
+    /// A relayed profile input of `place` at `time` (its relayed time): client patch 180's Dead Man's Switch
+    /// (`technical_skills::dead_mans_switch`) when it is the switch's value, the place is a human believed dead whose
+    /// kit in use has the skill and a smoke, and no smoke of his is in his hand or not yet gone off (the game plays the
+    /// switch only then): a cloud at his body, going off at the fuse's end ([`super::smoke::Placed::Switch`]). Every game
+    /// plays it from the relayed input and its world, and the smoke is seen when it goes off.
+    pub fn profile_input(&mut self, place: Place, time: u32, value: u8, world: Option<&World>) {
+        use technical_skills::dead_mans_switch::{ProfileInput, Tick, on_grid};
+        if ProfileInput::parse(value) != ProfileInput::Switch {
+            return;
+        }
+        let Some(state) = self.places.get(place) else {
+            return;
+        };
+        let Throws::Human(pockets) = &state.throws else {
+            return;
+        };
+        let skills = pockets.technical();
+        let own_smoke_live = self.smoke_throws.iter().any(|t| t.by == place)
+            || self.clouds.iter().any(|c| c.by == place && c.pours.0 > time);
+        if !skills.dead_mans_switch() || state.alive || pockets.smoke_key().is_none() || own_smoke_live {
+            return;
+        }
+        let Some((_, feet)) = state.body.last_alive() else {
+            return;
+        };
+        let team = state.team;
+        let grenade = SmokeGrenade::of_game_data();
+        let tick = Tick { now: on_grid(time), length: survarium::v026g::match_msgs::TICK_MS };
+        let pours = tick.fuse_end(u16::try_from(grenade.cloud.fuse_ms).unwrap_or(u16::MAX));
+        let drop = feet + Vec3::new(0.0, technical_skills::dead_mans_switch::DROP_HEIGHT, 0.0);
+        let centre = world
+            .and_then(|world| super::smoke::floor_under(&world.sight, drop))
+            .map_or(drop, |y| Vec3::new(drop.x, y, drop.z));
+        let shape = grenade.cloud.thrown_by(skills);
+        self.smoke_counts.switch[usize::from(team & 1)] += 1;
+        self.smoke_counts.clouds[usize::from(team & 1)] += 1;
+        if self.listing_notes {
+            self.notes.push(format!(
+                "Dead Man's Switch: place {place} at {time}, a smoke at ({:.1}, {:.1}, {:.1}) going off at {pours}",
+                centre.x, centre.y, centre.z
+            ));
+        }
+        self.clouds.push(Cloud {
+            by: place,
+            team,
+            placed: super::smoke::Placed::Switch,
+            centre,
+            thrown: MatchMs(tick.now),
+            pours: MatchMs(pours),
+            shape,
+        });
     }
 
     /// A use of `place`: kept, and if he is believed to carry a battery
@@ -1539,12 +1607,18 @@ impl Tracker {
         // [A388 (e) gap 18] A carrier's level is its kit's with empty hands and the battery's term.
         state.body.set_hands(if carrying { super::body::Hands::Battery } else { super::body::Hands::Kit });
         state.alive = fix.alive;
-        if state.spawned != fix.inserted
-            && let Some(pockets) = state.throws.pockets_mut()
-        {
+        let new_life = state.spawned != fix.inserted;
+        if new_life && let Some(pockets) = state.throws.pockets_mut() {
             pockets.refill();
         }
         state.spawned = fix.inserted;
+        // A new life spawned before a Dead Man's Switch smoke of the last went off: the respawn took it out unexploded.
+        if new_life {
+            self.clouds.retain(|c| !(c.by == place && c.placed == super::smoke::Placed::Switch && c.pours.0 > fix.inserted));
+        }
+        let Some(state) = self.places.get_mut(place) else {
+            return false;
+        };
         if let Some(health) = health {
             state.health = health;
         }

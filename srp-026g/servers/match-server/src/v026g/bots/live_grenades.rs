@@ -383,6 +383,9 @@ impl KitIndex {
 pub struct KitPockets {
     /// One set of pockets for each kit, in the profile's order; never empty.
     kits: Vec<Pockets>,
+    /// Each kit's technical skills (client patch 180, modifier 47 `technical_skills::MODIFIER` of the profile's kit),
+    /// in the same order; a kit past the list has none.
+    skills: Vec<technical_skills::Skills>,
     in_use: KitIndex,
 }
 
@@ -392,8 +395,20 @@ impl KitPockets {
     pub fn new(kits: Vec<Pockets>) -> Option<Self> {
         (!kits.is_empty()).then_some(Self {
             kits,
+            skills: Vec::new(),
             in_use: KitIndex(0),
         })
+    }
+
+    /// The same pockets, the kits' technical skills `skills` (in the kits' order).
+    pub fn with_skills(self, skills: Vec<technical_skills::Skills>) -> Self {
+        Self { skills, ..self }
+    }
+
+    /// The technical skills of the kit in use (none for a kit the list does not reach, a bot's: the bots take no
+    /// technical skill).
+    pub fn technical(&self) -> technical_skills::Skills {
+        self.skills.get(self.in_use.0).copied().unwrap_or_default()
     }
 
     /// A world's raw kit index parsed against this profile's kits; `None` for a kit it does not have.
@@ -470,8 +485,15 @@ impl KitPockets {
                 let stored = kit.map(|pocket| pocket?.stored.filter(|_| all_kits));
                 Pockets::new(slots).with_grenades(grenades).with_storage(stored)
             })
+            .collect::<Vec<_>>();
+        // The kits' technical skills, as every game reads them (an unreadable value is none, as `Skills::parse` says).
+        let skills = profile
+            .kits
+            .iter()
+            .take(kits.len())
+            .map(|kit| technical_skills::Skills::parse(kit.modifiers[technical_skills::MODIFIER]).unwrap_or_default())
             .collect();
-        Self::new(kits)
+        Self::new(kits).map(|pockets| pockets.with_skills(skills))
     }
 }
 
@@ -480,6 +502,7 @@ impl From<Pockets> for KitPockets {
     fn from(pockets: Pockets) -> Self {
         Self {
             kits: vec![pockets],
+            skills: Vec::new(),
             in_use: KitIndex(0),
         }
     }
@@ -1587,5 +1610,63 @@ mod tests {
     /// The nth six-bit pattern with two or more bits set (`weapon_pickup`'s order).
     fn weapon_pickup_pattern(n: usize) -> u8 {
         (0u8..64).filter(|p| p.count_ones() >= 2).nth(n).expect("40 patterns")
+    }
+
+    /// Client patch 180 in the bots' view: a human's smoke from a kit with Dense Smoke 3 and Toxic Smoke 2 is held 8.7 s
+    /// longer and toxic from 1.9 s after it pours to its end; dead with Dead Man's Switch, his profile input drops one at
+    /// his body, going off at the fuse's end on the 50 ms grid, once while it is live, and a respawn before that takes
+    /// it back. A kit without the skills gives the stock cloud.
+    #[test]
+    fn a_technical_throwers_smokes_are_held_toxic_and_dropped_by_the_switch() {
+        use crate::v026g::bots::smoke::{Clouds, MatchMs, Placed, SmokeGrenade};
+        use technical_skills::dead_mans_switch::{INPUT, Tick};
+        use technical_skills::{Skills, weight};
+        let world = floor_world();
+        let stock = SmokeGrenade::of_game_data().cloud;
+        assert_eq!(stock.thrown_by(Skills::default()), stock, "no skill: the stock cloud");
+        let skills = Skills::parse((3 * weight(1) + weight(11) + 2 * weight(13)) as f32).expect("the three skills");
+        assert!(skills.dead_mans_switch());
+        let pockets = Pockets::new([Some((Pocketed::Smoke, 2)), None, None, None, None, None]);
+        let kits = KitPockets::new(vec![pockets]).expect("one kit").with_skills(vec![skills]);
+        let mut tracker = stand_pockets(None, Some(kits));
+        press(&mut tracker, 1, 1_000, key::GRENADE);
+        press(&mut tracker, 1, 1_050, 0);
+        tracker.launch_grenades(2_100, Some(&*world));
+        let cloud = tracker.clouds()[0];
+        assert_eq!((cloud.shape.full_ms, cloud.shape.gone_ms), (stock.full_ms + 8_700, stock.gone_ms + 8_700));
+        assert_eq!(cloud.shape.toxic.map(|t| t.per_s), Some(0.06));
+        let counts = tracker.smoke_counts();
+        assert_eq!((counts.held, counts.toxic, counts.switch), ([0, 1], [0, 1], [0, 0]));
+        let clouds = Clouds::new(tracker.clouds().to_vec());
+        let pours = cloud.pours.0;
+        assert!(clouds.toxic_at(cloud.centre, MatchMs(pours + 1_899)).is_none(), "not before 1.9 s");
+        assert!(clouds.toxic_at(cloud.centre, MatchMs(pours + 1_900)).is_some());
+        assert!(clouds.toxic_at(cloud.centre + Vec3::new(8.5, 0.0, 0.0), MatchMs(pours + 5_000)).is_none(), "out of its 8 m");
+        assert!(clouds.toxic_at(cloud.centre + Vec3::new(0.0, -3.0, 0.0), MatchMs(pours + 5_000)).is_none(), "eyes under it");
+        assert!(clouds.toxic_at(cloud.centre, MatchMs(pours + stock.gone_ms + 8_699)).is_some(), "held to its end");
+        assert!(clouds.toxic_at(cloud.centre, MatchMs(pours + stock.gone_ms + 8_700)).is_none());
+
+        // Dead (long after that cloud), his switch: a smoke at the body where he was last alive (the stand's feet).
+        let dead = Fix { alive: false, feet: None, speed: None, ..fix(50_000, 10) };
+        tracker.fixed(1, dead, Some(0.0), &Kinematics::default(), None);
+        tracker.profile_input(1, 50_030, 1, Some(&*world));
+        assert_eq!(tracker.smoke_counts().switch, [0, 0], "a kit choice is no switch");
+        tracker.profile_input(1, 50_030, INPUT, Some(&*world));
+        let switch = *tracker.clouds().last().expect("the switch's cloud");
+        assert_eq!(switch.placed, Placed::Switch);
+        let fuse = u16::try_from(stock.fuse_ms).unwrap();
+        assert_eq!(switch.pours.0, Tick { now: 50_050, length: 50 }.fuse_end(fuse));
+        assert!(switch.centre.distance_xz(Vec3::ZERO) < 0.1 && switch.centre.y.abs() < 0.01, "{:?}", switch.centre);
+        assert_eq!(switch.shape.toxic.map(|t| t.per_s), Some(0.06), "his skills hold for it too");
+        assert_eq!(tracker.smoke_counts().switch, [0, 1]);
+        // Once while it is live.
+        tracker.profile_input(1, 50_100, INPUT, Some(&*world));
+        assert_eq!(tracker.smoke_counts().switch, [0, 1]);
+        // A respawn before it goes off takes it out unexploded.
+        tracker.fixed(1, fix(53_000, 52_000), Some(1.0), &Kinematics::default(), None);
+        assert!(tracker.clouds().iter().all(|c| c.placed != Placed::Switch), "{:?}", tracker.clouds());
+        // Alive, no switch.
+        tracker.profile_input(1, 60_000, INPUT, Some(&*world));
+        assert_eq!(tracker.smoke_counts().switch, [0, 1]);
     }
 }

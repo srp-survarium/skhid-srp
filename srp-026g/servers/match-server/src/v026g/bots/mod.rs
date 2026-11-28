@@ -1793,6 +1793,16 @@ impl Bots {
         );
     }
 
+    /// A human's profile input as relayed for `time`: client patch 180's Dead Man's Switch is one
+    /// ([`view::Tracker::profile_input`]).
+    pub fn profile_input(&mut self, place: Place, time: u32, value: u8) {
+        if self.is_bot(place) {
+            return;
+        }
+        let world = self.tactics.as_ref().map(|t| t.world.clone());
+        self.tracker.profile_input(place, time, value, world.as_deref());
+    }
+
     /// A trusted world's word on one place's hurts (with its body's,
     /// [`Self::fixed`]): what its jumps may do ([`Hurt::may_jump`]).
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
@@ -1916,9 +1926,11 @@ impl Bots {
                     .map(|rule| format!("{} {}", rule.name(), refused[rule.index()]))
                     .collect::<Vec<_>>()
                     .join(", ");
+                let toxic_ends: u32 =
+                    self.bots.iter().flatten().filter(|bot| bot.team.min(1) == team).map(|bot| bot.reflex.toxic_hold_ends()).sum();
                 format!(
-                    "team {team}: smoke keys {}, clouds {}, dropped {}; plans refused over our own container or batteries [{by_rule}]",
-                    counts.thrown[i], counts.clouds[i], counts.dropped[i]
+                    "team {team}: smoke keys {}, clouds {}, dropped {} (patch 180: held by Dense Smoke {}, toxic {}, Dead Man's Switch {}; cloud holds a toxic cloud ended {toxic_ends}); plans refused over our own container or batteries [{by_rule}]",
+                    counts.thrown[i], counts.clouds[i], counts.dropped[i], counts.held[i], counts.toxic[i], counts.switch[i]
                 )
             })
             .collect::<Vec<_>>()

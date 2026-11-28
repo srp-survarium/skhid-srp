@@ -3900,6 +3900,7 @@ impl Game {
         };
         self.relay_to_others(index, &what, relayed_time, now);
         self.inputs.push((relayed_time, index, what));
+        self.observe_profile(index, relayed_time, value);
     }
 
     /// A kit choice of the player at `index`, relayed for `time`: counted
