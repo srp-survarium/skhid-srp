@@ -358,7 +358,8 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
         maps: Some(walking_map()),
         ..Settings::default()
     };
-    let mut bench = Bench::with_driven(2, MAP_TDM, settings, &[1]);
+    // The bot's draws are seeded by the match id: a fixed one plays the same each run.
+    let mut bench = Bench::with_driven_from_id(2, MAP_TDM, settings, &[1], 0x5EED_0001);
     // The real client's worlds have the bot's body standing at (-20, 0, 0)
     // (the physics frame mirrors z), facing +z.
     let sim = &mut bench.clients[0].sim;
@@ -398,7 +399,8 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
 
     // Once a world shows its body and play has begun (after the 20 s
     // countdown) it heads for a station: forward, and turns that ease in,
-    // none more than the top turning speed allows.
+    // none more than its turning speed allows (its own cap, raised by its
+    // skill: A416d).
     assert!(bench.until(30_000, |bench| {
         bench.clients[0]
             .relays_of(1)
@@ -415,10 +417,12 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
         relays.iter().filter(|input| yaw(input) != 0.0).count() >= 3,
         "{relays:?}"
     );
+    let cap = bench.game().driven_turn_cap(1).expect("the bot's motor");
     assert!(
         relays
             .iter()
-            .all(|input| yaw(input).abs() <= 5.0 * 0.05 + 1e-3)
+            .all(|input| yaw(input).abs() <= cap * 0.05 + 1e-3),
+        "a turn over its cap of {cap} rad/s: {relays:?}"
     );
 
     // The worlds keep showing the body where it stood: it is stuck, and
