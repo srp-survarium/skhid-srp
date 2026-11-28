@@ -211,7 +211,8 @@ fn the_faces_entry_is_a_face_a_place_of_the_roster() {
 /// entry `{7, roster, 0 or 1 a place}`, after the entry of a mode with a
 /// notice, as the server writes it in every match of such a mode. The
 /// clients' check refuses it on another mode, of another length than the
-/// roster's, with another byte, and twice.
+/// roster's, with another byte, and twice; its absence (an older server)
+/// it takes.
 #[test]
 fn the_notices_entry_is_a_notice_a_place_of_a_notice_mode() {
     let data = Data(Dictionary::shared());
@@ -227,6 +228,11 @@ fn the_notices_entry_is_a_notice_a_place_of_a_notice_mode() {
     assert_eq!(messages::options(&bytes, &data), Ok(2));
     assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
     let before = &bytes[..bytes.len() - entry.len()];
+    // Without it (an older server's options): both read, every place's
+    // notice shown, as the exe shows it (patch 214).
+    assert_eq!(messages::options(before, &data), Ok(2));
+    let old = info::parse_options(before, data.0).unwrap();
+    assert!(old.players.iter().all(|profile| profile.notice == info::Notice::Shown));
     for suffix in [
         &b"\x07\x01\x00"[..],
         b"\x07\x03\x00\x00\x00",

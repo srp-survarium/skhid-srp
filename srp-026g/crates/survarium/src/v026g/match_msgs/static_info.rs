@@ -347,8 +347,9 @@ pub struct MatchProfile {
     /// Whether the place's own hud shows its match's mode notice
     /// (`mode_introductions.md`): srp's block's notices entry
     /// ([`SRPX_NOTICES`]), written in a mode that has a notice
-    /// ([`maps::GameMode::notice`]) and only there; not a part of the
-    /// profile on the wire.
+    /// ([`maps::GameMode::notice`]) and only there (options of such a mode
+    /// without it, an older server's, read as every place's shown); not a
+    /// part of the profile on the wire.
     pub notice: Notice,
 }
 
@@ -1269,18 +1270,22 @@ pub fn parse_options(
     let map = maps::MatchMap::of(map_id)
         .filter(|&map| SrpBlock::of(map) == block)
         .ok_or(StaticInfoError::Map(map_id))?;
-    // The notices: in every match of a mode with a notice, in no other.
-    if notices.is_some() != map.mode().notice().is_some() {
-        return Err(StaticInfoError::SrpBlock);
-    }
+    // Each place's notice, by the mode and the entry: a mode with a notice
+    // has the entry's, or without one (an older server's options, before
+    // patch 214's entry) every place's shown, as the exe shows it then; a
+    // mode without a notice has none, and its entry is refused.
+    let notices = match (map.mode().notice(), notices) {
+        (Some(_), Some(entry)) => entry,
+        (Some(_), None) => vec![Notice::Shown; roster],
+        (None, None) => vec![Notice::Skipped; roster],
+        (None, Some(_)) => return Err(StaticInfoError::SrpBlock),
+    };
     players.truncate(roster);
-    for (player, (profile, &squad)) in players.iter_mut().zip(squads).enumerate() {
+    for (player, ((profile, &squad), notice)) in players.iter_mut().zip(squads).zip(notices).enumerate() {
         profile.squad = squad;
+        profile.notice = notice;
         if let Some(faces) = &faces {
             profile.face = faces[player];
-        }
-        if let Some(notices) = &notices {
-            profile.notice = notices[player];
         }
         check_profile(player, profile, dictionary)?;
         check_team(player, profile.team, Some(map.mode()))?;
@@ -1664,12 +1669,11 @@ mod tests {
             assert!(bytes.ends_with(b"\x06\x01\x01\x07\x02\x00\x01"), "{:?}", &bytes[without.len()..]);
             assert_eq!(parse_options(&bytes, dictionary()), Ok(freeze));
         }
-        // On a mode without a notice, missing on Blackout, another length
-        // than the roster's, a byte other than 0 and 1, twice: refused.
+        // On a mode without a notice, another length than the roster's, a
+        // byte other than 0 and 1, twice: refused.
         let blackout_plain = &bytes[..bytes.len() - 5];
         for bad in [
             [&without[..], b"SRPX\x07\x02\x00\x01"].concat(),
-            blackout_plain.to_vec(),
             [blackout_plain, b"\x07\x01\x01"].concat(),
             [blackout_plain, b"\x07\x02\x00\x02"].concat(),
             [blackout_plain, b"\x07\x02\x00\x01\x07\x02\x00\x01"].concat(),
@@ -1682,6 +1686,36 @@ mod tests {
         assert_eq!(parse_profile(&with_notice, 1, dictionary()), Err(StaticInfoError::SrpBlock));
         let joined = parse_profile(&profile_bytes(1, &bob, dictionary()).unwrap(), 1, dictionary()).unwrap();
         assert_eq!(joined.notice, Notice::Skipped, "not sent with a late joiner's profile");
+    }
+
+    /// The 0xE4 of a Blackout or Freeze Tag match from an older server (the
+    /// live rev73's, before the notices entry; recordings of 2026-11-26):
+    /// its mode's entry and the faces, no notices. It reads, every place's
+    /// notice shown, as the exe shows it without an entry (patch 214).
+    #[test]
+    fn a_notice_modes_options_without_the_entry_read_every_notice_shown() {
+        let bob = MatchProfile {
+            name: "Bob".into(),
+            face: Faces::shared().face(2).unwrap(),
+            ..alice()
+        };
+        let plain = options(vec![alice(), bob]);
+        let freeze = maps::playable()
+            .find(|map| map.mode == maps::GameMode::FreezeTag)
+            .and_then(|map| maps::MatchMap::of(map.id));
+        for map in std::iter::once(blackout_map()).chain(freeze) {
+            let sent = MatchOptions { map, ..plain.clone() };
+            let bytes = options_bytes(&sent, dictionary()).unwrap();
+            let entry = b"\x07\x02\x00\x00";
+            assert!(bytes.ends_with(b"\x05\x02\x00\x02\x07\x02\x00\x00"), "{:?}", map.mode());
+            let old = &bytes[..bytes.len() - entry.len()];
+            let payload = [&[1][..], &lzma2::stored(old)].concat();
+            let (index, read) = parse_payload(&payload, dictionary()).unwrap();
+            assert_eq!(index, 1);
+            assert_eq!(read.map, map);
+            assert_eq!(read.players[1].face, Faces::shared().face(2).unwrap());
+            assert!(read.players.iter().all(|profile| profile.notice == Notice::Shown), "{:?}", map.mode());
+        }
     }
 
     #[test]
