@@ -9,7 +9,7 @@
 //!   ([`maps::playable_in`], [`maps::MapMode`]): a span where maps differ;
 //! - Freeze Tag's are its rule's ([`freeze`]), a free-for-all's versions
 //!   their shares and arms ([`twist::SHARES`], [`racket`], [`cowboy`],
-//!   [`roulette`]);
+//!   [`roulette`], [`pistols`]);
 //! - the rooms' offer is the running lobby's pools ([`Pools`]).
 
 use std::collections::BTreeSet;
@@ -20,6 +20,7 @@ use survarium::v026g::cowboy::{self, Variation};
 use survarium::v026g::dictionary::{Dictionary, MapId};
 use survarium::v026g::item_params;
 use survarium::v026g::maps::{self, GameMode, MapMode};
+use survarium::v026g::pistols;
 use survarium::v026g::racket::{self, Arms, Gun};
 use survarium::v026g::roulette::{self, Band};
 use survarium::v026g::twist::{self, LobbyMode, Pick};
@@ -33,7 +34,7 @@ pub(crate) const PATH: &str = "/wiki/modes";
 
 /// Where the rooms offer the maps: the lobby's pools as the server runs
 /// them (`SRP_MATCH_MAPS` and `SRP_ROOMS_EXTRA_MAPS`; the lobby's
-/// `Core::room_entries` and `private_entries`).
+/// `Core::room_entries`).
 #[derive(Clone, Debug)]
 pub struct Pools {
     /// The match pool: every public room's, and a private room's too.
@@ -94,12 +95,12 @@ impl Pools {
         Self::new(&ids, &[])
     }
 
-    /// Where `map` is offered: a map played with a free-for-all's versions
-    /// only is never a private room's (`private_entries`).
+    /// Where `map` is offered (a map played with a free-for-all's versions
+    /// only too: a private room plays it plain).
     fn offer(&self, map: &MapMode) -> Option<Offer> {
         if self.public.contains(&map.id) {
             Some(Offer::Public)
-        } else if self.experimental.contains(&map.id) && !map.twists_only {
+        } else if self.experimental.contains(&map.id) {
             Some(Offer::PrivateOnly)
         } else {
             None
@@ -111,26 +112,22 @@ impl Pools {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Rooms {
     Both,
-    PublicOnly,
     PrivateOnly,
     None,
 }
 
 impl Rooms {
-    /// A mode's, from its maps: public with a map of the match pool, private
-    /// with one a private room may hold.
+    /// A mode's, from its maps: in every room with a map of the match pool
+    /// (a private room may hold any map a public one plays), in private rooms
+    /// only with an experimental map alone.
     fn of(pools: &Pools, maps: &[&MapMode]) -> Self {
-        let offers: Vec<(Offer, bool)> = maps
-            .iter()
-            .filter_map(|map| pools.offer(map).map(|offer| (offer, map.twists_only)))
-            .collect();
-        let public = offers.iter().any(|&(offer, _)| offer == Offer::Public);
-        let private = offers.iter().any(|&(_, twists_only)| !twists_only);
-        match (public, private) {
-            (true, true) => Self::Both,
-            (true, false) => Self::PublicOnly,
-            (false, true) => Self::PrivateOnly,
-            (false, false) => Self::None,
+        let offers: Vec<Offer> = maps.iter().filter_map(|map| pools.offer(map)).collect();
+        if offers.contains(&Offer::Public) {
+            Self::Both
+        } else if offers.is_empty() {
+            Self::None
+        } else {
+            Self::PrivateOnly
         }
     }
 
@@ -138,7 +135,6 @@ impl Rooms {
     fn line(self, lang: Lang) -> String {
         let text = match self {
             Self::Both => return String::new(),
-            Self::PublicOnly => lang.t("Public rooms only"),
             Self::PrivateOnly => lang.t("Private rooms only"),
             Self::None => lang.t("Not offered now"),
         };
@@ -166,8 +162,13 @@ fn anchor(mode: LobbyMode) -> &'static str {
         LobbyMode::Cowboy(Variation::Colt) => "saloon",
         LobbyMode::Cowboy(Variation::WinchesterAndColt) => "saloon-winchester",
         LobbyMode::Roulette(_) => "roulette",
+        LobbyMode::Pistols => "pistols",
     }
 }
+
+/// The plain free-for-all's plaque among its versions: its own anchor, the mode's
+/// section having the mode's.
+const PLAIN_VERSION: &str = "plain";
 
 /// The modes in the order the lobby lists them: the protective device's
 /// kinds, then the rest.
@@ -211,11 +212,15 @@ fn mode_icon(maps: &[&MapMode]) -> String {
         })
 }
 
-/// A version's icon: the one the loading screen shows for it.
+/// A version's icon: the one the loading screen shows for it; the plain
+/// free-for-all's its maps' ([`mode_icon`]).
 fn version_icon(mode: LobbyMode) -> String {
-    icons::url(IconSet::Mode, &format!("twist-{}", mode.number())).map_or_else(String::new, |url| {
-        format!("<img class=mode-icon src=\"{}\" alt=\"\">", escape(&url))
-    })
+    match mode {
+        LobbyMode::Plain(mode) => mode_icon(&maps::playable_in(mode).collect::<Vec<_>>()),
+        twist => icons::url(IconSet::Mode, &format!("twist-{}", twist.number())).map_or_else(String::new, |url| {
+            format!("<img class=mode-icon src=\"{}\" alt=\"\">", escape(&url))
+        }),
+    }
 }
 
 /// A list of rules, a line each.
@@ -446,6 +451,29 @@ fn version_rules(lang: Lang, mode: LobbyMode) -> Vec<String> {
                 ),
             ]
         }
+        LobbyMode::Pistols => {
+            let mut lines = vec![lang.tf(
+                "Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.",
+                &[("0", &pistols::KITS)],
+            )];
+            // Each band's pistols, as the data has them.
+            // 0-5 and 6-10 alone: an 11-15 room plays one of them (the owner, 2026-11-27).
+            lines.extend(pistols::Band::ALL.iter().map(|&band| {
+                let (low, top) = band.levels();
+                let names: Vec<String> = pistols::pistols(band)
+                    .into_iter()
+                    .map(|gun| escape(&item_name(lang, gun)))
+                    .collect();
+                lang.tf(
+                    "Pistols of levels {0}: {1}.",
+                    &[("0", &format!("{low}–{top}")), ("1", &names.join(", "))],
+                )
+            }));
+            lines.push(lang.t("A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10."));
+            lines.push(lang.t("Two different pistols of the band, with random armour, bonuses and attachments."));
+            lines
+        }
+        LobbyMode::Plain(GameMode::FreeForAll) => vec![lang.t("Everyone plays his own kits.")],
         LobbyMode::Plain(_) => Vec::new(),
     }
 }
@@ -460,15 +488,12 @@ fn share(pick: Pick) -> u32 {
         .sum()
 }
 
-/// The free-for-all's versions: their subsections.
+/// The free-for-all's versions: their subsections, the plain one's first
+/// (the owner, 2026-11-27: the plain FFA had no plaque of its own).
 fn versions(lang: Lang, out: &mut String) {
-    let _ = write!(
-        out,
-        "<h3 class=mode-versions>{}</h3><ul class=mode-rules><li>{}</li></ul>",
-        lang.t("Versions"),
-        lang.tf("Plain FFA: {0} % of FFA cards.", &[("0", &share(Pick::Plain))]),
-    );
+    let _ = write!(out, "<h3 class=mode-versions>{}</h3>", lang.t("Versions"));
     for (mode, pick) in [
+        (LobbyMode::Plain(GameMode::FreeForAll), Pick::Plain),
         (LobbyMode::Racket, Pick::Racket),
         (LobbyMode::Cowboy(Variation::Colt), Pick::Cowboy(Variation::Colt)),
         (
@@ -476,6 +501,7 @@ fn versions(lang: Lang, out: &mut String) {
             Pick::Cowboy(Variation::WinchesterAndColt),
         ),
         (LobbyMode::Roulette(Band::Low), Pick::Roulette),
+        (LobbyMode::Pistols, Pick::Pistols),
     ] {
         let name = match mode {
             LobbyMode::Roulette(_) => lang.t("FFA: Roulette"),
@@ -483,10 +509,14 @@ fn versions(lang: Lang, out: &mut String) {
         };
         let mut lines = vec![lang.tf("{0} % of FFA cards.", &[("0", &share(pick))])];
         lines.extend(version_rules(lang, mode));
+        let id = match mode {
+            LobbyMode::Plain(_) => PLAIN_VERSION,
+            twist => anchor(twist),
+        };
         let _ = write!(
             out,
             "<section class=mode-version id={}><h3>{}{}</h3>{}</section>",
-            anchor(mode),
+            id,
             version_icon(mode),
             escape(&name),
             rules(&lines),
@@ -588,5 +618,41 @@ mod tests {
             1 + usize::from(Dictionary::shared().item_named(racket::SIGHT).is_some()),
             "the sight's line where the data has it"
         );
+    }
+
+    /// Every version of the free-for-all is a plaque alike (the owner, 2026-11-27: the plain FFA
+    /// had none), the plain one first and Pistols last, each with its icon, its name and its share
+    /// of the cards, in every language.
+    #[test]
+    fn every_version_has_its_plaque_the_plain_one_first() {
+        for lang in Lang::ALL {
+            let page = body(lang, &Pools::every_playable());
+            let versions = page.split_once("<h3 class=mode-versions>").unwrap().1;
+            let versions = versions.split_once("</h3>").unwrap().1;
+            assert!(versions.starts_with("<section class=mode-version id=plain>"), "{}: {versions:.80}", lang.code());
+            let plaques: Vec<&str> = versions
+                .split("<section class=mode-version id=")
+                .skip(1)
+                .map(|plaque| plaque.split_once("</section>").unwrap().0)
+                .collect();
+            let ids: Vec<&str> = plaques.iter().map(|plaque| plaque.split_once('>').unwrap().0).collect();
+            assert_eq!(ids, ["plain", "racket", "saloon", "saloon-winchester", "roulette", "pistols"]);
+            for plaque in plaques {
+                assert!(plaque.contains("><h3><img class=mode-icon src=\"/wiki/icons/modes/"), "{}: {plaque}", lang.code());
+                assert!(plaque.contains("<ul class=mode-rules><li>"), "{}: {plaque}", lang.code());
+            }
+        }
+        let page = body(Lang::En, &Pools::every_playable());
+        let plain = page.split_once("<section class=mode-version id=plain>").unwrap().1;
+        assert!(plain.contains(">Free for all</h3><ul class=mode-rules><li>25 % of FFA cards.</li><li>Everyone plays his own kits.</li></ul>"), "{plain:.300}");
+        // The plain one's icon is the mode's own (its maps' `ui.icon`).
+        let section = page.split_once("<section class=\"modifiers mode\" id=free-for-all><h2>").unwrap().1;
+        let icon = section.split_once("alt=\"\">").unwrap().0;
+        assert!(icon.starts_with("<img class=mode-icon src=\"/wiki/icons/modes/"), "{icon}");
+        assert!(plain.starts_with(&format!("<h3>{icon}alt=\"\">Free for all</h3>")), "Free for All's own icon: {plain:.200}");
+        let pistols = page.split_once("<section class=mode-version id=pistols>").unwrap().1;
+        assert!(pistols.contains("src=\"/wiki/icons/modes/twist-18.webp"), "{pistols:.200}");
+        assert!(pistols.contains(">FFA: Pistols</h3><ul class=mode-rules><li>10 % of FFA cards.</li><li>Everyone plays the same 2 random kits, each with one pistol; the third kit stays empty.</li><li>Pistols of levels 0–5: TT-33, "), "{pistols:.600}");
+        assert!(!page.contains("Kashtan"), "the Kashtan is no pistol");
     }
 }

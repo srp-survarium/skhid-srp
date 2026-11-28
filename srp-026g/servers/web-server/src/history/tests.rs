@@ -11,7 +11,7 @@ use session::v026g::account::Account;
 use session::v026g::clans::{Clan, Member, Rank, status};
 use session::v026g::persist::history::{
     Counters, Earned, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
-    Outcome, PlayerRecord, Presence, WeaponCounts, Winner,
+    Outcome, PlayerRecord, Presence, Source, WeaponCounts, Winner,
 };
 use session::v026g::replays::{ReplayId, Replays};
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
@@ -72,7 +72,7 @@ fn line(team: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
         } else {
             Outcome::Lost
         },
-        rating: 120,
+        rating: Some(120),
         score,
         kills,
         deaths,
@@ -152,6 +152,7 @@ fn weapons() -> BTreeMap<u16, WeaponCounts> {
 
 fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
     MatchRecord {
+        source: Source::Live,
         replay_id: ReplayId::new(
             0x1234,
             std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at),
@@ -873,10 +874,17 @@ fn the_days_leaders_and_the_all_time_totals() {
     let all = world.ok("/api/history/totals");
     assert_eq!(
         keys(&all),
-        ["accuracy", "assists", "hits", "kills", "matches", "played_s", "players", "shots"]
+        [
+            "accuracy", "assists", "hits", "kills", "matches", "played_s", "players", "recorded",
+            "shots", "since"
+        ]
     );
     assert_eq!((&all["players"], &all["matches"]), (&json!(2), &json!(3)));
     assert_eq!(all["kills"], 3 * (14 + 6));
+    // Every match is srp's own: the history began with the first, and has
+    // none made again from a recording.
+    assert!(all["since"].as_u64().is_some());
+    assert_eq!(all["recorded"], Value::Null);
 }
 
 /// The Maps and Modes boards add up the counted public matches of their
@@ -1273,7 +1281,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
                             Presence::Finished
                         },
                         outcome: Outcome::Neither,
-                        rating: 1180 - 20 * k as u16,
+                        rating: Some(1180 - 20 * k as u16),
                         score: 60 + 25 * kills + random(90),
                         kills,
                         deaths,
@@ -1328,6 +1336,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
         }
         let ended_at = now - u64::from(22 - i) * 5_400;
         let record = MatchRecord {
+            source: Source::Live,
             replay_id: ReplayId::new(
                 0x5E1A_0000 + i,
                 std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at - 900),
@@ -1396,7 +1405,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
                         seat: seat as u8,
                         presence: Presence::Finished,
                         outcome: if won { Outcome::Won } else { Outcome::Lost },
-                        rating: 1000,
+                        rating: Some(1000),
                         score: 60 + 25 * kills + random(90),
                         kills,
                         deaths,
@@ -1422,6 +1431,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
         let ended_at = now - 60 * u64::from(i + 1);
         repository
             .record_match(&MatchRecord {
+                source: Source::Live,
                 replay_id: ReplayId::new(
                     0x5E1B_0000 + i,
                     std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at - 900),
@@ -1487,7 +1497,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
                             Winner::Draw => Outcome::Neither,
                             _ => Outcome::Lost,
                         },
-                        rating: 1000,
+                        rating: Some(1000),
                         score: 60 + 25 * kills,
                         kills,
                         deaths,
@@ -1505,6 +1515,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
         let ended_at = now - DAY - back * back * 84 * DAY / u64::from(past * past);
         repository
             .record_match(&MatchRecord {
+                source: Source::Live,
                 replay_id: ReplayId::new(
                     0x5E1C_0000 + i,
                     std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at - 900),

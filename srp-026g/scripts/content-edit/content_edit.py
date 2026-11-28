@@ -40,9 +40,11 @@ Edits (edits.json):
                                                        value (a stale base is refused), `to` appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
-  "add_entry":      [{"files", "list", "after", "like", "values", "only_if", "expected_files"}]
+  "add_entry":      [{"files", "list", "after" | "at_end", "like", "values", "only_if", "expected_files"}]
                     a new entry of the indexed table `list` (a lobby card's `ui_desc/props_list`, the
-                    card lines' `ui_properties`) after the entry whose keys match `after`, made like
+                    card lines' `ui_properties`) after the entry whose keys match `after` (with
+                    "at_end": true instead, after its last entry: a project's new visuals, whose
+                    last may have a twin), made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
                     the same file, a list of numbers a vector (a position), a list of vectors an
                     indexed table of vectors (a wire's points) made anew; a key of `values` may be a
@@ -475,16 +477,16 @@ def filled(buf, text):
 
 
 def add_entry(buf, path, after, like, values):
-    """A new entry of the indexed table `path` after the one matching `after`: the entry matching
-    `like` copied (its keys, types and order), the keys of `values` set. Its records and the table's
-    new array are appended; the old array stays, unreferenced. Returns the new entry's index, or None
-    when the file has no such table or entry."""
+    """A new entry of the indexed table `path` after the one matching `after` (None: after its last):
+    the entry matching `like` copied (its keys, types and order), the keys of `values` set. Its
+    records and the table's new array are appended; the old array stays, unreferenced. Returns the
+    new entry's index, or None when the file has no such table or entry."""
     try:
         lst = find(buf, path)
     except KeyError:
         return None
     kids = children(buf, lst)
-    at = [i for i, e in enumerate(kids) if matches(buf, e, after)]
+    at = [len(kids) - 1] if after is None else [i for i, e in enumerate(kids) if matches(buf, e, after)]
     model = [e for e in kids if matches(buf, e, like)]
     if not at or not model:
         return None
@@ -2717,7 +2719,9 @@ def main():
                 if p not in pierced:
                     continue
                 values = dict(values, prop_value=pierced[p])
-            at = add_entry(b, e['list'], e['after'], e['like'], values)
+            if ('after' in e) == bool(e.get('at_end')):
+                raise ValueError('add_entry %s of %s: "after" or "at_end", one of them' % (e['list'], e['files']))
+            at = add_entry(b, e['list'], None if e.get('at_end') else e['after'], e['like'], values)
             if at is None:
                 continue
             bufs[p] = b
@@ -2731,8 +2735,8 @@ def main():
             grown[p][lst] += 1
         if 'expected_files' in e and n != e['expected_files']:
             raise ValueError('add_entry %s of %s after %s: %d files took it, not %d'
-                             % (e['list'], e['files'], e['after'], n, e['expected_files']))
-        print('entry %s after %s: %d files' % (e['list'], e['after'], n))
+                             % (e['list'], e['files'], e.get('after', 'its end'), n, e['expected_files']))
+        print('entry %s after %s: %d files' % (e['list'], e.get('after', 'its end'), n))
     for e in edits.get('append_entry', []):
         if 'files' in e:
             if len(e['files']) != len(e['expected_counts']):

@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
+use crate::checked::{CHECKED, Checked};
 use crate::overlay::Overlay;
 use crate::{Archive, Error, crc32};
 
@@ -603,6 +604,9 @@ pub struct Built {
     pub projects: usize,
     /// What each archive gave: `resources.db`, then the patches in order.
     pub given: Vec<Given>,
+    /// The files a match asks the players' games to hash
+    /// ([`crate::checked`]), each once.
+    pub checked: usize,
 }
 
 /// `patches` in the game's order, by their n. A patch must be called as the
@@ -685,10 +689,12 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
     let mut opened = Vec::new();
     let mut given = Vec::new();
     let mut seen = BTreeSet::new();
-    for path in paths {
+    let mut tables = BTreeMap::new();
+    for (path, name) in paths.into_iter().zip(&names) {
         let at = |cause: &dyn std::fmt::Display| content(format!("{}: {cause}", path.display()));
         let file = File::open(path).map_err(|cause| at(&cause))?;
-        let archive = Archive::new(file).map_err(|cause| at(&cause))?;
+        let (archive, table) = Archive::with_table(file).map_err(|cause| at(&cause))?;
+        tables.insert(format!("@table/{name}"), crate::checked::Sum::of(&table).map_err(|cause| at(&cause))?);
         let mut files = 0;
         let mut replaced = 0;
         for (file, _) in archive.files_under("").filter(|(file, _)| is_read(file)) {
@@ -738,6 +744,10 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
     if gameplay == 0 {
         return Err(content(format!("{} has no {GAMEPLAY}", names.join(" + "))));
     }
+    let mut checked = Checked::of(&mut overlay)?;
+    checked.always.extend(tables.keys().cloned());
+    checked.files.extend(tables);
+    files.insert(CHECKED.to_owned(), checked.text().into_bytes());
     files.insert(PROVENANCE.to_owned(), provenance.text().into_bytes());
     Ok(Built {
         bytes: crate::write::write(&files)?,
@@ -745,6 +755,7 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
         gameplay,
         projects,
         given,
+        checked: checked.files.len(),
     })
 }
 

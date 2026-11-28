@@ -462,7 +462,6 @@ Nobody yet.	Ei vielä ketään.
 Modes	Pelimuodot
 Every mode: its rules, numbers and maps.	Jokainen pelimuoto: säännöt, luvut ja kartat.
 Versions	Muunnelmat
-Public rooms only	Vain julkiset huoneet
 Private rooms only	Vain yksityiset huoneet
 Not offered now	Ei tarjolla nyt
 Respawn after {0} s.	Uudelleensyntyminen {0} s:n kuluttua.
@@ -514,9 +513,14 @@ Level bands: {0}.	Tasoalueet: {0}.
 A room draws bands up to its level.	Huone arpoo alueita tasoonsa asti.
 Each kit a gun of another class, with random bonuses and attachments.	Jokaisessa varustuksessa eri luokan ase, satunnaisilla bonuksilla ja lisäosilla.
 {0} % of deals: pistols only.	{0} % jaoista: vain pistoolit.
-Plain FFA: {0} % of FFA cards.	Tavallinen FFA: {0} % FFA-korteista.
+Everyone plays his own kits.	Jokainen pelaa omilla varustuksillaan.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Kaikki pelaavat samoilla {0} satunnaisella varustuksella, kummassakin yksi pistooli; kolmas varustus jää tyhjäksi.
+Pistols of levels {0}: {1}.	Tasojen {0} pistoolit: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	Huone arpoo alueita tasoonsa asti; tason 10 ylittävä huone pelaa 0–5 tai 6–10.
+Two different pistols of the band, with random armour, bonuses and attachments.	Kaksi eri pistoolia alueelta, satunnaisilla suojavarusteilla, bonuksilla ja lisäosilla.
 {0} % of FFA cards.	{0} % FFA-korteista.
 FFA: Roulette	FFA: Ruletti
+FFA: Pistols	FFA: Pistoolit
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Hae aseita
@@ -943,6 +947,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Saman lajin kappaleet lasketaan yhteen (Onyksin passiivi kertautuu); enintään 4 lasketaan.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Jousen ja Ritarinkannuksen aktiivi lisätään passiiviin; Onyksin korvaa sen.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Yhdessä aktivoidut Onyksit: yksi vähennys, 1 s pidempään jokaista lisäkappaletta kohden.
+Power per activation	Voima aktivointien jälkeen
+Activations	Aktivoinnit
+Power	Voima	artefact
+Next activation	Seuraava aktivointi
+Regeneration limit	Palautumisraja
+Missing health restored	Palautettu puuttuva terveys
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Jokainen aktivointi jättää artefaktille 80% sen voimasta: 100 → 80 → 64 → 51%… Se ei koskaan lopu, ja voima pysyy siinä kappaleessa, kunnes saat uuden.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Jokainen rivi: niin monen aktivoinnin jälkeen passiivi nyt ja seuraava aktivointi. Vain näppäimellä aktivoidut kappaleet heikkenevät.
+It still cures injuries on every activation.	Se parantaa yhä vammat jokaisella aktivoinnilla.
+Its skills work at its power: {skills}.	Sen taidot toimivat sen voimalla: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Palautumisraja lisätään kunkin ruumiinosan omaan rajaan, kuitenkin enintään täyteen.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomaliat
@@ -1001,3 +1016,5 @@ night	yö	weather
 before rain	ennen sadetta	weather
 Weathers	Säät
 Variants	Muunnelmat
+History since {0}.	Historia {0} alkaen.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Historia {0} alkaen sekä {1} aiempaa ottelua tallenteistaan palautettuina, {2} alkaen; ennen {0} pelatut ottelut eivät ole kaikki mukana.

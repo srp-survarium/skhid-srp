@@ -436,3 +436,27 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .artefact-skills li { margin:0 }
 .artefact-skills a { padding:4px 10px 4px 4px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
 .artefact-skill a:hover,.artefact-skills a:hover { color:var(--accent) }
+/* The power per activation (src/artefacts.rs, wear_section): the rule, the power after each
+   activation as a wrapping row, and each kind's numbers by activation under its name, closed until
+   it opens them: the site's opener (`.stats-opener`, the stats' Maps board's "Modes (n) ▾"). */
+.artefact-wear { min-width:0 }
+.wear-text { margin:0 0 8px; color:var(--ink-2); max-width:78ch }
+.wear-steps { display:flex; flex-wrap:wrap; gap:4px; list-style:none; margin:12px 0 10px; padding:0 }
+.wear-steps li { display:flex; flex-direction:column; align-items:center; min-width:46px; padding:5px 6px; border:1px solid var(--rule); background:var(--panel) }
+.wear-steps small { font:.7rem var(--data); color:var(--ink-3) }
+.wear-steps b { font:700 .85rem var(--data); color:var(--ink) }
+.wear-steps .wear-steps-head { align-items:flex-start; border-color:transparent; background:none }
+.wear-steps .wear-steps-head small { font:700 .65rem var(--display); text-transform:uppercase; letter-spacing:.04em }
+.wear-steps .wear-steps-head b { font:700 .75rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-2) }
+.wear-kinds { display:flex; flex-wrap:wrap; gap:6px 24px; align-items:baseline }
+.wear-kind { min-width:0 }
+.wear-kind[open] { flex-basis:100%; margin:4px 0 8px }
+.wear-kind > .table-scroll { margin-top:8px; border:1px solid var(--rule); background:var(--panel) }
+.wear-kind .wiki-note { margin:6px 0 0 }
+.wear-table thead th { white-space:normal; vertical-align:bottom; word-break:normal; overflow-wrap:normal; hyphens:auto; min-width:4.5em }
+.wear-table thead th[rowspan] { min-width:0 }
+.wear-table thead tr:first-child th[colspan] { border-bottom-color:var(--ink-3) }
+.wear-table th,.wear-table td { padding:5px 10px }
+.wear-table tbody th { font:700 .85rem var(--data); text-align:right; width:1% }
+.wear-table td { font:.85rem var(--data); white-space:nowrap; color:var(--ink) }
+.wear-table tbody tr:nth-child(even) { background:color-mix(in srgb,var(--ink) 3%,transparent) }

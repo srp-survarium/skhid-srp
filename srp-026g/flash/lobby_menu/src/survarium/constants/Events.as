@@ -9,6 +9,9 @@ package survarium.constants
       
       public static const SKILL_UPDATE:String = "skillUpdate";
       
+      // A right click on a skill with points: CharWindow takes one back or refuses.
+      public static const SKILL_TAKE_BACK:String = "skillTakeBack";
+
       public static const SHOW_ANTISKILLS:String = "showAntiskills";
       
       public static const HIDE_ANTISKILLS:String = "hideAntiskills";

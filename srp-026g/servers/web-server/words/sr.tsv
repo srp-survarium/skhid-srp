@@ -462,7 +462,6 @@ Nobody yet.	Još niko.
 Modes	Režimi
 Every mode: its rules, numbers and maps.	Svaki režim: pravila, brojevi i mape.
 Versions	Varijante
-Public rooms only	Samo javne sobe
 Private rooms only	Samo privatne sobe
 Not offered now	Trenutno se ne nudi
 Respawn after {0} s.	Ponovno oživljavanje posle {0} s.
@@ -514,9 +513,14 @@ Level bands: {0}.	Opsezi nivoa: {0}.
 A room draws bands up to its level.	Soba izvlači opsege do svog nivoa.
 Each kit a gun of another class, with random bonuses and attachments.	U svakom kompletu oružje druge klase, sa nasumičnim bonusima i dodacima.
 {0} % of deals: pistols only.	{0} % deljenja: samo pištolji.
-Plain FFA: {0} % of FFA cards.	Obični FFA: {0} % FFA karata.
+Everyone plays his own kits.	Svako igra svojim kompletima.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Svi igraju iste {0} nasumična kompleta, svaki sa jednim pištoljem; treći komplet ostaje prazan.
+Pistols of levels {0}: {1}.	Pištolji nivoa {0}: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	Soba izvlači opsege do svog nivoa; soba iznad nivoa 10 igra 0–5 ili 6–10.
+Two different pistols of the band, with random armour, bonuses and attachments.	Dva različita pištolja opsega, sa nasumičnim oklopom, bonusima i dodacima.
 {0} % of FFA cards.	{0} % FFA karata.
 FFA: Roulette	FFA: Rulet
+FFA: Pistols	FFA: Pištolji
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Pretraga oružja
@@ -943,6 +947,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopije iste vrste se sabiraju (pasiv Oniksa se množi); računaju se najviše 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivacija Federa i Živokosta dodaje se pasivu; Oniksova ga zamenjuje.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Oniksi aktivirani zajedno: jedno smanjenje, 1 s duže za svaku dodatnu kopiju.
+Power per activation	Snaga po aktivacijama
+Activations	Aktivacije
+Power	Snaga	artefact
+Next activation	Sledeća aktivacija
+Regeneration limit	Granica regeneracije
+Missing health restored	Vraćeno izgubljeno zdravlje
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Svaka aktivacija ostavlja artefaktu 80% snage: 100 → 80 → 64 → 51%… Nikad se ne istroši, a snaga ostaje uz tu kopiju dok ne dobiješ novu.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Svaki red: posle toliko aktivacija — pasiv sada i sledeća aktivacija. Slabe samo kopije koje taster aktivira.
+It still cures injuries on every activation.	I dalje leči povrede pri svakoj aktivaciji.
+Its skills work at its power: {skills}.	Njegove veštine deluju njegovom snagom: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Granica regeneracije dodaje se sopstvenoj granici svakog dela tela, nikad preko punog.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomalije
@@ -1001,3 +1016,5 @@ night	noć	weather
 before rain	pred kišu	weather
 Weathers	Vreme
 Variants	Varijante
+History since {0}.	Istorija od {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Istorija od {0}, i još {1} ranijih mečeva obnovljenih iz njihovih snimaka, od {2}; mečevi pre {0} nisu svi tu.

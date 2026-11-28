@@ -415,7 +415,10 @@ fn handle_client(
         return;
     }
     if request_type[0] == udp_transport::relay::PROBE_PREFIX[0] {
-        let _ = echo_probe(stream, request_type[0]);
+        let start = Instant::now();
+        let probe = echo_probe(stream, request_type[0]);
+        let seconds = start.elapsed().as_secs_f64();
+        log::info!("Route check from {peer}: {seconds:.1} s, {probe}");
         return;
     }
     // The 0.26g client connects only to sign in: it signs out without a word
@@ -430,11 +433,53 @@ fn handle_client(
     }
 }
 
+const PROBE_TIME: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// A route check's bytes echoed and how it ended.
+struct Probe {
+    echoed: u64,
+    end: ProbeEnd,
+}
+enum ProbeEnd {
+    /// All of `PROBE_BYTES`, the check's whole.
+    Whole,
+    /// The client closed before.
+    Closed,
+    /// Its first bytes are not the check's.
+    NotAProbe,
+    /// A read or write failed, or `PROBE_TIME` passed.
+    Failed(io::Error),
+}
+impl std::fmt::Display for Probe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} bytes echoed, ", self.echoed)?;
+        match &self.end {
+            ProbeEnd::Whole => f.write_str("whole"),
+            ProbeEnd::Closed => f.write_str("closed by the client before the whole"),
+            ProbeEnd::NotAProbe => f.write_str("not a route check"),
+            // The deadline, or a socket timeout set to the time left to it.
+            ProbeEnd::Failed(error)
+                if matches!(error.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) =>
+            {
+                write!(f, "cut at {} s", PROBE_TIME.as_secs())
+            }
+            ProbeEnd::Failed(error) => write!(f, "{error}"),
+        }
+    }
+}
+
 /// The updater's route check: its bytes echoed as they come, so never more
 /// than were sent, up to `PROBE_BYTES` and for `PROBE_TIME` at most.
-fn echo_probe(mut stream: TcpStream, first: u8) -> io::Result<()> {
+fn echo_probe(stream: TcpStream, first: u8) -> Probe {
+    let mut echoed = 0;
+    let end = match echo_probe_counted(stream, first, &mut echoed) {
+        Ok(end) => end,
+        Err(error) => ProbeEnd::Failed(error),
+    };
+    Probe { echoed, end }
+}
+fn echo_probe_counted(mut stream: TcpStream, first: u8, echoed: &mut u64) -> io::Result<ProbeEnd> {
     use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
-    const PROBE_TIME: std::time::Duration = std::time::Duration::from_secs(30);
     let deadline = Instant::now() + PROBE_TIME;
     // The time left, or a timed-out error once there is none.
     let wait = || {
@@ -446,7 +491,7 @@ fn echo_probe(mut stream: TcpStream, first: u8) -> io::Result<()> {
     buffer[0] = first;
     io::Read::read_exact(&mut stream, &mut buffer[1..PROBE_PREFIX.len()])?;
     if &buffer[..PROBE_PREFIX.len()] != PROBE_PREFIX {
-        return Ok(());
+        return Ok(ProbeEnd::NotAProbe);
     }
     let mut length = PROBE_PREFIX.len();
     let mut left = PROBE_BYTES;
@@ -454,14 +499,15 @@ fn echo_probe(mut stream: TcpStream, first: u8) -> io::Result<()> {
         stream.set_write_timeout(Some(wait()?))?;
         stream.write_all(&buffer[..length])?;
         left -= length as u64;
+        *echoed += length as u64;
         if left == 0 {
-            return Ok(());
+            return Ok(ProbeEnd::Whole);
         }
         stream.set_read_timeout(Some(wait()?))?;
         let want = buffer.len().min(usize::try_from(left).unwrap_or(usize::MAX));
         length = io::Read::read(&mut stream, &mut buffer[..want])?;
         if length == 0 {
-            return Ok(());
+            return Ok(ProbeEnd::Closed);
         }
     }
 }
@@ -597,11 +643,10 @@ fn handle_sign_in(
     key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
-    origin: Peer,
+    peer: Peer,
     mut stream: TcpStream,
 ) {
     let mut buffer = [0; 1024];
-    let peer = origin.address();
     let reached = stream.local_addr().ok().map(|reached| reached.ip());
     let len = match read_message(&mut stream, &mut buffer, sign_in_length) {
         Ok(len) => len,
@@ -734,7 +779,7 @@ fn handle_sign_in(
         return;
     };
     store.signed_in_from(account_id, peer.ip());
-    let (lobby_ip, lobby_port) = lobby.address_for_origin(origin, reached);
+    let (lobby_ip, lobby_port) = lobby.address_for_origin(peer, reached);
     log::info!(
         "Sign-in: account={account_id:#x} from {peer} session={session_id:#x}, \
          sent to the lobby at UDP {lobby_ip}:{lobby_port}"
@@ -768,7 +813,8 @@ mod tests {
                 let (mut stream, _) = listener.accept().unwrap();
                 let mut first = [0];
                 stream.read_exact(&mut first).unwrap();
-                echo_probe(stream, first[0]).unwrap();
+                let probe = echo_probe(stream, first[0]);
+                assert_eq!(probe.to_string(), "65536 bytes echoed, whole");
             });
             let mut stream = TcpStream::connect(address).unwrap();
             stream

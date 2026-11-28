@@ -1404,9 +1404,19 @@ package survarium.upgrade
             this._chosenSlot = slot;
             this._inventory.selectCategory([kind]);
          }
-         else if(!slot.data)
+         else if(hostDictId >= 0 && event.target.name != "btnDrop")
          {
-            category = hostDictId >= 0 ? this.weaponSlotCategory(slot) : int(this._slotAgreements[slot.index]);
+            // a weapon's camouflage or decal slot, empty or not (a click on a filled slot's middle is
+            // its change button): its own kind listed. Only an empty one listed it, and a filled
+            // camouflage's click left the list on what it showed, the decals after a decal slot's
+            // click (the owner, 2026-11-27: "when clicking camouflage slot in appearance of weapons
+            // opens decals", "should open camo instead")
+            this._inventory.selectCategory([this.weaponSlotCategory(slot)]);
+         }
+         else if(hostDictId < 0 && !slot.data)
+         {
+            // armour's empty slot, as the stock movie lists it
+            category = int(this._slotAgreements[slot.index]);
             this._inventory.selectCategory([category]);
          }
       }

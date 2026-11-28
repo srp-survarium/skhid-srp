@@ -34,7 +34,7 @@ class Picks(unittest.TestCase):
         self.assertEqual(len(recipe.get('set_entry', [])), count('moved'))
         self.assertEqual(len(recipe.get('add_entry', [])), count('added', 'roof'))
         self.assertEqual(len(recipe.get('remove_entry', [])), count('removed'))
-        for row in recipe['set_entry']:
+        for row in recipe.get('set_entry', []):
             self.assertRegex(row['file'], r'^projects/[a-z0-9_]+/[a-z]+_8/client_project$')
             self.assertEqual(row['where']['team'], 2)
             position, yaw = picks[row['file']]['moved'][row['where']['point_id']]
@@ -116,6 +116,56 @@ class Picks(unittest.TestCase):
             points[3]['position'], points[3]['rotation'] = [130., 7., 50.], [0., -1., 0.]
             del points[4]
             self.assertEqual(actual, expected)
+            # New points there (Fire Station's three more): the team names the entry after and the model.
+            grown = rows(moved={0: ([100., 7., 50.], 0.5), 1: ([130., 7., 50.], -1.), 2: ([160., 7., 50.], 0.)},
+                         added={3: ([200., 7., 50.], 1.)})
+            with patch.object(m, 'picks', return_value={path: grown}):
+                actual = self.apply(root, path, m.edits(TEST, root / 'live'))
+            got = actual['server_objects']['respawn_points']
+            self.assertEqual([(p['point_id'], p['team']) for p in got], [(0, 0), (1, 0), (0, 2), (1, 2), (2, 2), (3, 2)])
+            self.assertEqual((got[5]['name'], got[5]['position'], got[5]['rotation']),
+                             ('ffa_test_3', [200., 7., 50.], [0., 1., 0.]))
+
+    def test_a_list_of_new_points_leaves_the_others_as_they_are(self):
+        adds = TEST._replace(adds=True)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = 'projects/test/day_8/client_project'
+            source = root / 'live' / path
+            source.parent.mkdir(parents=True)
+            # London (v0.32)'s: the ally radius an int.
+            entries = [{'point_id': i, 'name': f'p{i}', 'full_name': f'logic/p{i}', 'team': team,
+                'position': (float(40 * i), 6., 5.), 'rotation': (0., 1., 0.),
+                'enemy_check_radius': 20., 'ally_check_radius': 1, 'invulnerability_time': 0,
+                'invulnerability_time_ms': 500, 'ally_zones': {'collision_geometries': {}},
+                'enemy_zones': {'collision_geometries': {}}}
+                for i, team in enumerate([0, 2, 2])]
+            source.write_bytes(config({'server_objects': {'respawn_points': entries}}))
+            old = m.base.tree(source.read_bytes())
+            # No solo spawn removed, none moved but a solo spawn, the new ones after the last.
+            for wrong in (rows(moved={0: ([100., 7., 50.], 0.5)}, added={3: ([200., 7., 50.], 1.)}),
+                          rows(removed={2: None}), rows(added={4: ([200., 7., 50.], 1.)})):
+                with self.subTest(wrong=wrong), self.assertRaises(ValueError), \
+                        patch.object(m, 'picks', return_value={path: wrong}):
+                    m.edits(adds, root / 'live')
+            new = rows(added={3: ([200., 7., 50.], 1.), 4: ([230., 7., 50.], -1.)})
+            with patch.object(m, 'picks', return_value={path: new}):
+                recipe = m.edits(adds, root / 'live')
+            self.assertEqual(sorted(recipe), ['_about', 'add_entry'])
+            got = self.apply(root, path, recipe)['server_objects']['respawn_points']
+            self.assertEqual(got[:3], old['server_objects']['respawn_points'])
+            self.assertEqual([(p['point_id'], p['team'], p['ally_check_radius'], p['enemy_check_radius'])
+                              for p in got[3:]], [(3, 2, 1, 20.), (4, 2, 1, 20.)])
+            self.assertEqual([p['position'] for p in got[3:]], [[200., 7., 50.], [230., 7., 50.]])
+            # Past the respawn's 128 (Station's, picks --cap): a pick in a solo spawn's place, the
+            # other solo spawn as it is.
+            capped = rows(moved={2: ([130., 7., 50.], -1.)}, added={3: ([200., 7., 50.], 1.)})
+            with patch.object(m, 'picks', return_value={path: capped}):
+                recipe = m.edits(adds, root / 'live')
+            got = self.apply(root, path, recipe)['server_objects']['respawn_points']
+            self.assertEqual(got[:2], old['server_objects']['respawn_points'][:2])
+            self.assertEqual((got[2]['name'], got[2]['position'], got[2]['rotation']), ('p2', [130., 7., 50.], [0., -1., 0.]))
+            self.assertEqual([(p['point_id'], p['position']) for p in got[3:]], [(3, [200., 7., 50.])])
 
 
 if __name__ == '__main__':

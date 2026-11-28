@@ -408,13 +408,6 @@ pub fn kept(thread: &Thread, weapon: WeaponId) -> Option<Kept> {
     })
 }
 
-/// Whether `weapon`'s optic is the table's: its config names one by
-/// `data/srp_scope` and its parts are held (else the optic it draws is its
-/// own, `addons/rifle_scope_dict_id`).
-pub fn scope_fitted(thread: &Thread, weapon: raw::Weapon) -> bool {
-    kept(thread, WeaponId(weapon.address())).is_some_and(|kept| kept.named.wanted.scope.is_some())
-}
-
 /// The shells' frame of a held weapon, worked out once its model is loaded.
 pub fn set_shells(thread: &Thread, weapon: WeaponId, shells: Option<Affine>) {
     FITTED.with(thread, |fitted| {

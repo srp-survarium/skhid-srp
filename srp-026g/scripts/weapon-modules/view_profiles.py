@@ -2,7 +2,8 @@
 """The guns' first-person projection: ../content-edit/weapon-view-069.json.
 
 usage: python3 -I view_profiles.py                      check the edit list against view_factors_069.tsv
-       python3 -I view_profiles.py --write              make the edit list from it
+                                                        and iron-sights-1.json
+       python3 -I view_profiles.py --write              make the edit list from them
        python3 -I view_profiles.py --retail <leaves>    make view_factors_069.tsv from 0.69d0's game.options
 
 <leaves>  0.69d0's game.options as `vostok-port dump-config --leaves` prints it (`weapons.<item>.parameters.
@@ -13,6 +14,12 @@ item's weapon_fov_factor at the hip, its aimed_weapon_fov_factor fully aimed, be
 view_factors_069.tsv holds the two of every 0.69d0 item ../remodel-069/items.tsv makes a gun of, as
 0.69d0 has them; the edit list puts them in the dictionary's srp_weapon_views under each gun's dict id
 (weapon-modules-1.json's data/srp_gun), which patch 161 reads.
+
+Each gun whose iron sights ../content-edit/iron-sights-1.json moves to 0.69d0's eye also gets
+`aim_offset_026g`: its parameters/aim_offset before that edit (the edit's `from`; 0 for a gun that had
+none, which the edit adds), the iron sights' eye of revision 73. The player's sight distance (patch 219,
+docs/notes/weapon-view-settings.md) moves the eye toward it. The guns with an optic of their own, which
+the edit leaves out, have none.
 """
 import json
 import re
@@ -28,6 +35,7 @@ ABOUT = ("The 0.69d0 first-person weapon projection (patch 161): under each gun'
          "its 0.69d0 item's parameters/weapon_fov_factor and aimed_weapon_fov_factor (view_factors_069.tsv; "
          "made by scripts/weapon-modules/view_profiles.py).")
 KEYS = ('weapon_fov_factor', 'aimed_weapon_fov_factor')
+IRON = SCRIPTS / 'content-edit/iron-sights-1.json'
 
 
 def items():
@@ -48,10 +56,21 @@ def factors():
     return {donor: [float(hip), float(aimed)] for donor, hip, aimed in rows}
 
 
+def iron_026g():
+    """{config stem: its aim_offset before iron-sights-1.json} of every gun that edit moves."""
+    edits = json.loads(IRON.read_text())
+    out = {Path(e['file']).stem: float(e['from']) for e in edits['set'] if e['path'] == 'parameters/aim_offset'}
+    for e in edits['add_value']:
+        if (e['table'], e['key']) == ('parameters', 'aim_offset'):
+            out.update({Path(path).stem: 0.0 for path in e['files']})
+    return out
+
+
 def edit():
-    """The edit list, as view_factors_069.tsv makes it."""
-    have = factors()
-    value = {stem: {'gun': gun, 'fov': have[donor]} for stem, (gun, donor) in sorted(items().items())}
+    """The edit list, as view_factors_069.tsv and iron-sights-1.json make it."""
+    have, iron = factors(), iron_026g()
+    value = {stem: {'gun': gun, 'fov': have[donor]} | ({'aim_offset_026g': iron[stem]} if stem in iron else {})
+             for stem, (gun, donor) in sorted(items().items())}
     return {'_about': ABOUT, 'add_value': [{'files': ['gameplay/db_static_dictionaries'], 'table': '',
                                             'key': 'srp_weapon_views', 'value': value}]}
 
@@ -83,7 +102,11 @@ def main():
     rows = want['add_value'][0]['value']
     if len({row['gun'] for row in rows.values()}) != len(rows) or not all(0 < f <= 1 for row in rows.values() for f in row['fov']):
         sys.exit('a gun twice, or a factor outside (0, 1]')
-    print(f'{EDIT.name}: the {len(rows)} guns at their 0.69d0 items\' factors')
+    if not all(abs(row.get('aim_offset_026g', 0.0)) <= 1.0 for row in rows.values()):
+        sys.exit('an aim_offset_026g beyond 1 m')
+    irons = sum('aim_offset_026g' in row for row in rows.values())
+    print(f'{EDIT.name}: the {len(rows)} guns at their 0.69d0 items\' factors, {irons} with their iron sights\' '
+          'revision 73 aim_offset')
 
 
 if __name__ == '__main__':

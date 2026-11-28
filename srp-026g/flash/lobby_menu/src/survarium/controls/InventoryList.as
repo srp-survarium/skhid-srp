@@ -2106,15 +2106,18 @@ package survarium.controls
          dispatchEvent(new Event(Events.CRAFFT_ITEM));
       }
       
-      protected function sellElement(event:Event = null) : void
+      // The menu's Sell: the owned item the menu was opened on (a row of the inventory, a kit's
+      // item), as the inventory has it. Not the list's selected row: in the shop the list holds
+      // only the shop's entries and a kit item has no row there, so Sell sold nothing (as Buy
+      // bought another item, buyMenuItem).
+      protected function sellMenuItem(event:Event = null) : void
       {
-         var position:Number = itemsTileList.getActualScrollPosition();
-         var item:* = itemsTileList.getRendererAt(itemsTileList.selectedIndex,position);
-         if(!item || !item.data || !item.data.enabled)
+         var item:ItemData = this._menuItem;
+         if(item == null || item.descriptor > ItemPlace.INVENTORY || !this.owns(item.itemId))
          {
             return;
          }
-         this.sellObject(item.data);
+         this.sellObject(this.ownedCopy(item));
       }
       
       override protected function configureInventoryTab() : void
@@ -3672,11 +3675,17 @@ package survarium.controls
                   });
                }
             }
-            if((itemData.descriptor <= ItemPlace.INVENTORY && itemData.enabled || itemData.isStack) && !this.isShop)
+            // Sell: every owned item, a row of the inventory or a kit's item, in the inventory and in
+            // the shop alike (the owner, 2026-11-27: "when in shop rmb on equipment there is no sell
+            // button"; the shop shows the kits since shop-character-menu.md, and the menu left Sell
+            // out there). A shop entry or a bundle (not owned: the shop's list holds only those)
+            // offers Buy only. An item a kit wears is sold as from the inventory: the server takes
+            // it off every kit (rules::sell), and the sale's question names the loadouts using it.
+            if(owned && itemData.descriptor <= ItemPlace.INVENTORY)
             {
                options.push({
                   name:LocalizationData.getName("sell"),
-                  click_function:this.sellElement
+                  click_function:this.sellMenuItem
                });
             }
             if((options.length))

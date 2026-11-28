@@ -1223,7 +1223,9 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             let files: Vec<&str> = picture
                 .match_indices("?v=")
                 .map(|(at, _)| {
-                    let start = picture[..at].rfind(['"', '\'']).unwrap() + 1;
+                    // An address starts after a quote, or after the space
+                    // before it in a srcset.
+                    let start = picture[..at].rfind(['"', '\'', ' ']).unwrap() + 1;
                     &picture[start..at]
                 })
                 .collect();
@@ -1364,10 +1366,11 @@ fn serve_wiki_preview() {
 
 #[test]
 fn every_file_the_maps_name_is_served() {
-    // What the page and its script ask for, before a ?v=: its own files
-    // and the calculator's renders and fonts.
+    // What the page and its script ask for, before a ?v=: its own files,
+    // the calculator's renders and fonts, and the wiki's icons (the
+    // battery's marker is the Protective device's mode icon).
     fn named(text: &str) -> Vec<String> {
-        ["/maps/", "/damage/"]
+        ["/maps/", "/damage/", "/wiki/icons/"]
             .iter()
             .flat_map(|prefix| text.match_indices(prefix))
             // "/damage/maps/..." holds a "/maps/" too.
@@ -1386,9 +1389,11 @@ fn every_file_the_maps_name_is_served() {
     assert!(wanted.iter().any(|path| path.starts_with("/maps/minimap/")));
     assert!(wanted.iter().any(|path| path.starts_with("/maps/icons/")));
     assert!(wanted.iter().any(|path| path.starts_with("/damage/maps/")));
+    assert!(wanted.iter().any(|path| path.starts_with("/wiki/icons/modes/")));
     for path in &wanted {
         let (_, bytes) = crate::maps::file(path)
             .or_else(|| crate::damage::file(path))
+            .or_else(|| crate::icons::file(path))
             .unwrap_or_else(|| panic!("{path}"));
         assert!(!bytes.is_empty(), "{path}");
     }

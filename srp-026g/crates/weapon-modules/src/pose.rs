@@ -92,11 +92,49 @@ pub enum EyeAnchor {
     GunIdle,
 }
 
+/// The least eye relief the player's sight distance leaves a sight in the
+/// gun's eye plane (metres from the sight's own locator, its reticle): the
+/// nearest eye a released build drew is revision 73's 8 cm behind the M4A1's
+/// EOTech 552 (`docs/notes/attachments-scopes.md`).
+pub const LEAST_RELIEF: f32 = 0.06;
+
+/// Where an eye's relief comes from, and so what the player's sight distance
+/// (patch 219, `docs/notes/weapon-view-settings.md`) may do with it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Relief {
+    /// The optic's own eye (a magnified scope): the optic brings its eye
+    /// relief, the same in every build; nothing moves it.
+    Own,
+    /// The gun's eye plane (a collimator, the rail iron sight: 0.69d's
+    /// `plane_slot`). The eye stands `along` its line from the sight's own
+    /// locator (negative: behind it, toward the shooter).
+    InGunPlane { along: f32 },
+}
+
+impl Relief {
+    /// How far the eye goes along its line (an `aim_offset` more: positive
+    /// toward the sight) for the player's sight distance `farther` metres
+    /// (negative: closer): never nearer the sight than [`LEAST_RELIEF`], nor
+    /// nearer than this resolver's eye where that is nearer already. The line
+    /// is the eye's own, so the reticle stays at the screen's centre; 0 moves
+    /// nothing (and a magnified scope's own eye never moves).
+    pub fn shift(self, farther: f32) -> f32 {
+        let Relief::InGunPlane { along } = self else { return 0.0 };
+        if !farther.is_finite() || farther == 0.0 {
+            return 0.0;
+        }
+        let nearest = along.max(-LEAST_RELIEF);
+        let shift = (along - farther).min(nearest) - along;
+        if shift.is_finite() { shift } else { 0.0 }
+    }
+}
+
 /// An optic's eye, either way.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Eye {
     optic: Placement,
     gun_idle: Placement,
+    relief: Relief,
 }
 
 impl Eye {
@@ -104,9 +142,14 @@ impl Eye {
     /// optic's bone), for a gun whose bones stand at `optic_bone` and
     /// `aim_bone` (matrices in the model's space) in its aimed idle pose.
     /// None when the aim bone's pose has no inverse.
-    pub(crate) fn new(eye: Placement, optic_bone: &Affine, aim_bone: (BoneIndex, &Affine)) -> Option<Eye> {
+    pub(crate) fn new(eye: Placement, optic_bone: &Affine, aim_bone: (BoneIndex, &Affine), relief: Relief) -> Option<Eye> {
         let offset = eye.offset.then(optic_bone).then(&aim_bone.1.inverse()?);
-        Some(Eye { optic: eye, gun_idle: Placement { bone: aim_bone.0, offset } })
+        Some(Eye { optic: eye, gun_idle: Placement { bone: aim_bone.0, offset }, relief })
+    }
+
+    /// Where its relief comes from.
+    pub fn relief(&self) -> Relief {
+        self.relief
     }
 
     /// The aim record's content.

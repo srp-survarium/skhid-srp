@@ -21,7 +21,15 @@ the configs read by `survarium::v026g::artefacts`): each artefact's passive and
 active with its numbers, active time, cooldown, weight and skill, the rules of
 carrying several (exe patches 54 and 109, `docs/notes/artefacts.md`) and the
 artefact tree's skills. Its icons are the lobby's, made with the wiki's
-(`build_icons.py`).
+(`build_icons.py`). Its "Power per activation" (`#wear`) says the wear rule in
+two sentences (`docs/notes/artefacts.md`, "Wear from activation": each successful
+activation leaves a copy 80% of its power) and gives the power after 0 to 10
+activations; under it each kind's name opens its table, closed at first, with the
+site's opener (`.stats-opener`, the stats' Maps board's "Modes (n) ▾"), and the
+finer points as notes under the table. A table holds what wears: the config's numbers at the power
+of `srp_validate::world::ArtefactWear` (the rule's own code), as the patch scales
+them (`at_power`, `spring_value`, `heal_amount`). Active time, cooldown, weight
+and the injuries cured do not wear and are left out of those tables.
 
 The weapons section is a searchable weapon catalogue with class filters,
 sorting and expandable weapon stats. Both pages are one copy for every language
@@ -193,7 +201,15 @@ gives an address with its `?v=` hash):
   (FilterItemCatRenderer's `itemIcon`, sprite 1125, frame 300 + the icon of
   that category's filter in the lobby's table
   `flash/lobby_menu/tables/survarium/data/ShopFilters.tsv`, the one the movie
-  is built with).
+  is built with);
+- `tiles/`: the index's tile pictures that the other sets have too small for
+  a tile: `maps.webp` and `maps@2x.webp` (the Maps tile, a `srcset`), level
+  1's day picture from its 1920-wide bitmap, and `quests.webp`, the four
+  factions' emblems from the lobby's `factionIconsBig` atlas at their own
+  66x66 (the faction tab's emblem is a 38x51 bitmap).
+
+The other bitmap tiles' pictures have no larger source in the game: an item's
+171x83 atlas cell, a mode's 61x56 icon, and the skills page's own icon.
 
 The modification and group icons are written white, with the glyph's
 brightness as alpha (their baked drop shadow drops out), for the page to
@@ -224,7 +240,8 @@ by set (a faction's tier: `<family>_<slot>_<tier>` configs) or slot.
 quests page: one page, a section a mode in the lobby's order, each with its
 anchor (`#team-deathmatch`, `#protective-device`, `#chargers`, `#blackout`,
 `#research`, `#free-for-all`, `#freeze-tag`, `#artifact-hunt`) and the free-for-all's
-versions under it (`#racket`, `#saloon`, `#saloon-winchester`, `#roulette`). A
+versions under it, a plaque each, the plain one's first (`#plain`, `#racket`, `#saloon`,
+`#saloon-winchester`, `#roulette`, `#pistols`). A
 section has the mode's loading-screen icon (`icons/modes/`, above), its game
 name, the rooms that offer it, its rules a short line each, and its maps with
 their weathers, each linked to the Maps tab (`#<project folder>/<mode>`) when
@@ -238,7 +255,7 @@ the tab has it. Nothing in it is typed in that the server has:
   constants (`srp_validate::world::freeze`);
 - a free-for-all's versions: their shares (`twist::SHARES`), Racket's guns and
   sight (`racket`), Saloon's (`cowboy`), Roulette's kits, bands and pistol share
-  (`roulette`);
+  (`roulette`), Pistols' kits and each band's pistols (`pistols`);
 - the rooms: the running lobby's pools (`SRP_MATCH_MAPS`,
   `SRP_ROOMS_EXTRA_MAPS`; srp hands them to the page as `web_server::Pools`):
   a mode is public with a map of the match pool, private only with an

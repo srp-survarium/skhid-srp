@@ -611,7 +611,18 @@
       [TEXT.assists, row => n(row.assists)], [TEXT.shots, row => n(row.shots)], [TEXT.accuracy, aim],
       [TEXT.hours, row => hours.format(row.played_s / 3600)]], data && [data], 1);
     box.classList.add('stats-all');
-    return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box];
+    return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box, ...historyNote(data)];
+  }
+  // When the history began, and what it has of before: the matches made again from their
+  // recordings, which are not all of them.
+  function historyNote(data) {
+    if (!data || !data.since) return [];
+    const on = at => day.format(new Date(at * 1000));
+    const text = data.recorded
+      ? TEXT.historySinceRecorded.replaceAll('{0}', on(data.since)).replace('{1}', numbers.format(data.recorded.matches))
+        .replace('{2}', on(data.recorded.since))
+      : TEXT.historySince.replace('{0}', on(data.since));
+    return [el('p', {className: 'stats-note'}, text)];
   }
 
   // The Maps and Modes boards (maps, modes): the counted public matches of a period (`&period=`,
@@ -745,7 +756,7 @@
     const note = el('p', {className: 'stats-note stats-trend-note'}, data
       ? `${TEXT.trend}: ${TEXT[STEP_NOTE[data.step]]}, ${stepName(data.step, steps[0])} – ${stepName(data.step, steps[steps.length - 1])}` : BLANK);
     const modes = table(modeColumns, data && data.modes, 8, '', row => row.mode_url || null);
-    // Every free-for-all is one mode: its versions under it (the Racket, the Saloon, the Roulette),
+    // Every free-for-all is one mode: its versions under it (the Racket, the Saloon, the Roulette, the Pistols),
     // each with its own numbers, closed until its button opens them.
     if (data) data.modes.forEach((mode, i) => {
       if (!mode.versions) return;

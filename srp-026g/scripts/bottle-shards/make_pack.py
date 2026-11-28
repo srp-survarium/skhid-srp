@@ -62,10 +62,39 @@ SHARDS = 1 + len(SEEDS)
 JITTER = 0.008
 
 
-def jitter(k):
-    """A fixed value in -JITTER..JITTER for the k-th small triangle."""
+class Cut:
+    """How a surface breaks: its triangles cut to at most `step` a side,
+    those above `neck` (None: none) one shard, the rest each the nearest of
+    `seeds`' (jittered by up to `jitter` a triangle). The bottle's is the
+    module's constants; other glass (kitchen-ware's jugs, Vector's capsule
+    glass) makes its own, with seeds from far_seeds."""
+
+    def __init__(self, seeds, neck=None, step=STEP, jitter=JITTER):
+        self.seeds, self.neck, self.step, self.jitter = list(seeds), neck, step, jitter
+        self.count = len(self.seeds) + (neck is not None)
+
+
+BOTTLE = Cut(SEEDS, NECK)
+
+
+def far_seeds(data, n, step, first):
+    """`n` seeds spread over the mesh's surface: its small triangles'
+    centres picked one by one, each the farthest from those picked, from
+    the one nearest `first`."""
+    centres = [[sum(p[0][a] for p in t) / 3 for a in range(3)] for t in subdivided(data, step)]
+    picked = [min(centres, key=lambda c: math.dist(c, first))]
+    nearest = [math.dist(c, picked[0]) for c in centres]
+    while len(picked) < n:
+        k = max(range(len(centres)), key=lambda i: nearest[i])
+        picked.append(centres[k])
+        nearest = [min(d, math.dist(c, centres[k])) for d, c in zip(nearest, centres)]
+    return [tuple(c) for c in picked]
+
+
+def jitter(k, size=JITTER):
+    """A fixed value in -size..size for the k-th small triangle."""
     h = (k * 2654435761) & 0xFFFFFFFF
-    return ((h >> 8) / float(1 << 24) * 2 - 1) * JITTER
+    return ((h >> 8) / float(1 << 24) * 2 - 1) * size
 
 
 def vectors(record):
@@ -86,8 +115,8 @@ def vertex(position, uv, vs, ws):
     return struct.pack('<3f', *position) + encode(vs, ws) + struct.pack('<2e', *uv)
 
 
-def subdivided(data):
-    """The mesh's triangles cut to at most STEP a side: [(three vertices as
+def subdivided(data, step=STEP):
+    """The mesh's triangles cut to at most `step` a side: [(three vertices as
     (position, uv, vectors, w bytes))]."""
     records, indices = mesh_tools.mesh(data)
     corners = []
@@ -97,7 +126,7 @@ def subdivided(data):
     out = []
     for t in range(0, len(indices), 3):
         a, b, c = (corners[i] for i in indices[t:t + 3])
-        n = max(1, math.ceil(max(math.dist(p[0], q[0]) for p, q in ((a, b), (b, c), (c, a))) / STEP))
+        n = max(1, math.ceil(max(math.dist(p[0], q[0]) for p, q in ((a, b), (b, c), (c, a))) / step))
 
         def at(i, j):
             u, v = i / n, j / n
@@ -113,19 +142,22 @@ def subdivided(data):
     return out
 
 
-def shard_of(k, triangle):
-    """Which shard the k-th small triangle is: the neck's, else its nearest seed's (jittered)."""
+def shard_of(k, triangle, cut=BOTTLE):
+    """Which shard the k-th small triangle is: the neck's (the first, when
+    the cut has one), else its nearest seed's (jittered)."""
     centre = [sum(p[0][a] for p in triangle) / 3 for a in range(3)]
-    if centre[1] > NECK:
+    neck = cut.neck is not None
+    if neck and centre[1] > cut.neck:
         return 0
-    return 1 + min(range(len(SEEDS)), key=lambda s: math.dist(centre, SEEDS[s]) + jitter(k * len(SEEDS) + s))
+    seeds = cut.seeds
+    return neck + min(range(len(seeds)), key=lambda s: math.dist(centre, seeds[s]) + jitter(k * len(seeds) + s, cut.jitter))
 
 
-def shards(data):
+def shards(data, cut=BOTTLE):
     """[(converted_model blob, its points, triangle count, centre)] of each shard, in shard order."""
-    groups = [[] for _ in range(SHARDS)]
-    for k, triangle in enumerate(subdivided(data)):
-        groups[shard_of(k, triangle)].append(triangle)
+    groups = [[] for _ in range(cut.count)]
+    for k, triangle in enumerate(subdivided(data, cut.step)):
+        groups[shard_of(k, triangle, cut)].append(triangle)
     out = []
     for group in groups:
         assert group, 'an empty shard'

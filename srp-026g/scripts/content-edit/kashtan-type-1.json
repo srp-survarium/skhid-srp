@@ -1,0 +1,6 @@
+{
+ "_about": "The AEK-919K \"Kashtan\" is a submachine gun (the owner, 2026-11-27: \"kashtan is not a pistol\", \"for some reason on website it is a pistol\"): its dictionary category is 15 (submachine guns) and it is double_handed, but its config's parameters/type was a pistol's, wpn_pstl; every other gun of category 15 but the ones typed as assault rifles (the PPSh-41, the MP7s) is wpn_smg. The type is read by the site (the damage calculator's and the wiki's weapon groups) and by srp's bots' reflex (match-server bots::reflex::Kind::of_item); the 0.26g exe has no wpn_* string (docs/notes/ffa-pistols.md, \"The Kashtan\").",
+ "set_string": [
+  {"file": "gameplay/items/weapons/wpn_aek_919k.options", "path": "parameters/type", "from": "wpn_pstl", "to": "wpn_smg"}
+ ]
+}

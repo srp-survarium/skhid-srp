@@ -18,7 +18,6 @@ files! {
     "minimap/v011e_level_04.webp" => "image/webp",
     "minimap/v032a_level_09.webp" => "image/webp",
     "minimap/v044a_level_09.webp" => "image/webp",
-    "icons/battery.svg" => "image/svg+xml",
     "icons/hud_base.svg" => "image/svg+xml",
     "icons/hud_charger.svg" => "image/svg+xml",
     "icons/hud_player.svg" => "image/svg+xml",

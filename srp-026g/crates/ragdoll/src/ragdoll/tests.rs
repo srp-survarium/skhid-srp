@@ -1660,7 +1660,7 @@ fn shards_of_a_shot_bottle_scatter_outward_and_along_the_shot_and_rest() {
     let dropped = rest_of(Vec3::new(0.03, 0.9, 0.0), Vec3::ZERO, Vec3::ZERO);
     assert!((dropped.x - 0.03).abs() < 0.01 && dropped.z.abs() < 0.01, "{dropped:?}");
     // kicked on from where it lies
-    let mut kicked = LoneBody::shard_kicked(Pose::new(Quat::IDENTITY, east), Vec3::Y, Vec3::new(1.0, 0.0, 0.0));
+    let mut kicked = LoneBody::shard_kicked(Pose::new(Quat::IDENTITY, east), ShardSize::Bottle, Vec3::Y, Vec3::new(1.0, 0.0, 0.0));
     let mut ground = Ground::flat();
     for _ in 0..900 {
         if kicked.step(1.0 / 60.0, Vec3::Y, &mut ground) == Motion::Settled {
@@ -1671,3 +1671,70 @@ fn shards_of_a_shot_bottle_scatter_outward_and_along_the_shot_and_rest() {
     }
     panic!("the kicked shard never rested");
 }
+
+fn rest_of(body: &mut LoneBody) -> Vec3 {
+    let mut ground = Ground::flat();
+    (1..=900).find_map(|_| (body.step(1.0 / 60.0, Vec3::Y, &mut ground) == Motion::Settled).then(|| body.pose().position))
+        .expect("it never rested")
+}
+
+#[test]
+fn a_pane_s_shards_fall_out_of_their_frame_and_rest_near_it() {
+    // Vector's capsule glass: 0.6 to 3.1 m up, its outward normal +Z there,
+    // shot from outside (toward -Z); a shard standing along its glass (its
+    // body's X up)
+    let along_glass = Quat::from_axis_angle(Vec3::Z, core::f32::consts::FRAC_PI_2);
+    for y in [0.8, 1.8, 2.9] {
+        let at = Vec3::new(0.3, y, 0.4);
+        let mut shard = LoneBody::pane_shattered(Pose::new(along_glass, at), Vec3::Y, Vec3::new(0.0, -0.2, -1.0),
+                                                 Vec3::new(0.0, 0.0, 1.0));
+        assert_eq!(shard.body.shape, PANE);
+        let mut ground = Ground::flat();
+        // as fast as a stone: on the floor within a free fall's time and a
+        // half (its little lift, its topple)
+        let fall = crate::math::sqrt(2.0 * y / GRAVITY) * 60.0;
+        let landed = (1..=120).find(|_| {
+            shard.step(1.0 / 60.0, Vec3::Y, &mut ground);
+            shard.pose().position.y < 0.15
+        }).expect("it never came down");
+        assert!((landed as f32) < fall * 1.5 + 6.0, "landed at frame {landed}, a free fall {fall}");
+        let rest = rest_of(&mut shard);
+        assert!((rest.y - PANE.radius).abs() < 0.03, "on the ground: {rest:?}");
+        assert!(rest.z > at.z + 0.5 && rest.z < at.z + 3.5, "burst out of its frame, not into it: {rest:?} from {at:?}");
+    }
+    // a break no shot of this client's made drops it where it was
+    let rest = rest_of(&mut LoneBody::pane_shattered(Pose::new(along_glass, Vec3::new(0.0, 1.0, 0.0)), Vec3::Y,
+                                                     Vec3::ZERO, Vec3::ZERO));
+    assert!(rest.x.abs() < 0.3 && rest.z.abs() < 0.3, "{rest:?}");
+}
+
+#[test]
+fn a_shot_can_jumps_off_its_table_tumbles_and_rests_on_the_floor() {
+    // a tin can (20 cm across, 32 tall) on a table 0.8 m up, its body's axis
+    // its height; shot level toward +Z
+    let can = WareShape::new(0.06, 0.1).unwrap();
+    let at = Vec3::new(0.0, 0.96, 0.0);
+    let upright = Pose::new(Quat::from_axis_angle(Vec3::Z, core::f32::consts::FRAC_PI_2), at);
+    let mut body = LoneBody::ware_shot(upright, can, Vec3::Y, Vec3::new(0.0, 0.0, 1.0));
+    assert!((body.body.velocity - Vec3::new(0.0, 2.2, 2.6)).length() < 1e-5, "{:?}", body.body.velocity);
+    let mut ground = Ground::flat();
+    let mut top = at.y;
+    let rest = (1..=900).find_map(|_| {
+        let motion = body.step(1.0 / 60.0, Vec3::Y, &mut ground);
+        top = top.max(body.pose().position.y);
+        (motion == Motion::Settled).then(|| body.pose().position)
+    }).expect("the can never rested");
+    assert!(top > at.y + 0.15, "it jumped: {top}");
+    assert!(rest.z > 0.8 && rest.z < 3.5 && rest.x.abs() < 0.3, "along the shot: {rest:?}");
+    assert!((rest.y - 0.1).abs() < 0.03, "lying on the floor: {rest:?}");
+    // a break no shot of this client's made drops it where it stood
+    let rest = rest_of(&mut LoneBody::ware_shot(upright, can, Vec3::Y, Vec3::ZERO));
+    assert!(rest.x.abs() < 0.05 && rest.z.abs() < 0.05, "{rest:?}");
+    // kicked on from where it lies
+    let rest = rest_of(&mut LoneBody::ware_kicked(Pose::new(Quat::IDENTITY, Vec3::new(0.0, 0.1, 0.0)), can, Vec3::Y,
+                                                  Vec3::new(1.0, -0.2, 0.0)));
+    assert!(rest.x > 0.6 && rest.x < 3.5, "on along the push: {rest:?}");
+    assert!(WareShape::new(-0.1, 0.1).is_none() && WareShape::new(0.1, 0.0).is_none());
+    assert!(WareShape::new(f32::NAN, 0.1).is_none() && WareShape::new(0.1, f32::NAN).is_none());
+}
+

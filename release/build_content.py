@@ -68,17 +68,19 @@ LOBBY = 'lobby_menu'
 # configs have both there: content_type_check.number_either).
 # Rudnya v0.21 (pack maps-021d-rudnya): numbers 0.21d authored as floats where 0.26g's own projects
 # happen to have whole numbers.
+# Mode 8: Rudnya's and Chemical Plant's (v021d_level_04) Free for All projects are the Team
+# Deathmatch ones copied as they are (ffa-rudnya-v021-1.json, ffa-chemical-plant-v021-1.json).
 TYPE_ALLOWLIST = {
     **{(f'projects/v021d_level_01/day_{mode}/client_project',
         '/client_objects[environment]/properties/sky_clouds_color_multiplier'):
        "0.21d's 1.28 in its day environment (a 0.21d key 0.26g does not read; its environment loader "
        'load_environment_properties_impl 0x34E1E0 reads a float as it is and an int through cvtsi2ss)'
-       for mode in (2, 4, 'ah')},
+       for mode in (2, 4, 8, 'ah')},
     **{(f'projects/v021d_level_01/day_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
        "0.21d's 0.02 on the swamp anomaly's fourth sensor: a fraction the hit takes with max_hit "
        '(damage_zone_core::hit_objects 0x319AF0, +1C4h beside the float +1C0h), as srp reads it '
        "(mapdata's f32_or); 0.26g's own zones have a whole 0 there"
-       for mode in (2, 4, 'ah')},
+       for mode in (2, 4, 8, 'ah')},
     # London's evening (pack london-weathers): 0.31a2's stratosphere turns at 0.62, a fraction where
     # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F). `ah`:
     # Artifact Hunt's copy of evening_4 (artefact-hunt-1.json), the same value.
@@ -104,11 +106,12 @@ TYPE_ALLOWLIST = {
        for mode in (2, 3, 4, 'ah') for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
     # London (v0.42) (pack london-v042): 0.44a5's vignette power is 2.56, a fraction where 0.26g's
     # corpus has whole numbers; the reader takes either (0x34F2C2, the same read as the stratosphere's).
+    # Mode 8: its Free for All projects are the Team Deathmatch ones copied as they are (ffa-london-v042-1.json).
     **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
         '/client_objects[environment]/properties/vignette_effect_power'):
        "0.44a5's London 2.56; load_environment_properties_impl 0x34E1E0 reads float/int "
        'numerically (vignette 0x34F2C2)'
-       for weather in ('day', 'rain', 'evening') for mode in (2, 3, 4, 'ah')},
+       for weather in ('day', 'rain', 'evening') for mode in (2, 3, 4, 8, 'ah')},
     # Its evening's camera track (only the console command demo_play flies it, game_world::demo_play
     # 0x1F9800): the editor writes a whole key value as an int and a fraction as a float, and 0.26g's own
     # lobby track mixes them channel by channel (rotateZ's ints, rotateY's floats), which its curve
@@ -117,18 +120,19 @@ TYPE_ALLOWLIST = {
         f'/client_objects[track]/path/channels/{channel}/keys[]/value'):
        "0.44a5's London evening track: whole key values as ints, fractions as floats, as the editor writes "
        "them and as 0.26g's lobby track (projects/lobby_scene/day) mixes them"
-       for mode in (2, 3, 4, 'ah') for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
+       for mode in (2, 3, 4, 8, 'ah') for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
     # Its rain and evening: 0.44a5's stratosphere turns at a fraction, as London's evening above.
     **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
         '/client_objects[environment]/properties/stratosphere_rotation_speed'):
        "0.44a5's London rain and evening; load_environment_properties_impl 0x34E1E0 reads float/int "
        'numerically (stratosphere 0x34E84F)'
-       for weather in ('rain', 'evening') for mode in (2, 3, 4, 'ah')},
+       for weather in ('rain', 'evening') for mode in (2, 3, 4, 8, 'ah')},
     # Original 0.21 weather scalar representations, scoped to the exact
     # projects/keys that differ from the 0.26 corpus. The native reader tests
     # binary-config type 2 then uses movss; otherwise it uses cvtsi2ss. Keep
     # fractional donor values instead of rounding them to the corpus's ints.
-    # `ah`: Artifact Hunt's copies of the Team Deathmatch projects (artefact-hunt-maps-1.json).
+    # `ah`: Artifact Hunt's copies of the Team Deathmatch projects (artefact-hunt-maps-1.json);
+    # 8: Rudnya's and Chemical Plant's Free for All copies (above).
     **{(f'projects/v021d_level_{level}/{weather}_{mode}/client_project',
         f'/client_objects[environment]/properties/{key}'):
        "Original 0.21d weather scalar; load_environment_properties_impl 0x34E1E0 "
@@ -148,11 +152,11 @@ TYPE_ALLOWLIST = {
            ('05', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
            ('06', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
            ('06', 'rain', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
-       ) for mode in (2, 4, 'ah') for key in keys},
+       ) for mode in (2, 4, 'ah') + ((8,) if level in ('01', '04') else ()) for key in keys},
     **{(f'projects/v021d_level_01/{weather}_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
        "Same authored Rudnya day swamp sensor's 0.02; damage_zone_core::hit_objects 0x319AF0 "
        "reads float +1C4h beside max_hit +1C0h (mapdata f32_or), retained in both original weathers"
-       for weather in ('rain', 'evening') for mode in (2, 4, 'ah')},
+       for weather in ('rain', 'evening') for mode in (2, 4, 8, 'ah')},
 }
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
@@ -294,7 +298,9 @@ class Layers:
 
     def __init__(self, game, cache, reader, archives, sha_of):
         self.game, self.cache, self.archives = game, cache, archives
-        self.of = game.files(archives)                      # path: the name of the archive giving it
+        listing = game.listing(archives)
+        self.of = {path: name for path, (_, name) in listing.items()}   # path: the archive giving it
+        self.size = {path: size for path, (size, _) in listing.items()}  # path: its bytes there
         self.key_of = {Path(a).name: Cache.key('file digests', reader, sha_of[Path(a).name]) for a in archives}
         self.known, self.new = {}, set()                    # archive name: {path: sha256}; names to save
 
@@ -419,8 +425,12 @@ class Game:
 
     def files(self, archives):
         """{path: archive name} of every file the archives give."""
+        return {path: name for path, (_, name) in self.listing(archives).items()}
+
+    def listing(self, archives):
+        """{path: (size, archive name)} of every file the archives give."""
         text = run([self.binary, 'files'] + self.layers(archives), 'srp-game-data files')
-        return {path: name for path, _, _, name in (line.split('\t') for line in text.splitlines())}
+        return {path: (int(size), name) for path, size, _, name in (line.split('\t') for line in text.splitlines())}
 
     def get(self, archives, paths):
         """{path: bytes} of those files as the archives give them."""
@@ -1078,6 +1088,56 @@ def apply_edits(rows, tree, base, work, world, cache):
             world.put(path, data, f'edit {name}', digests[path])
 
 
+# The binary configs laid out again from their record trees after the edit lists
+# (config_compact.py): the bytes content_edit.py's edits leave behind that no record reaches go,
+# which the game would otherwise hold in its unmanaged arena with the config (memory budget).
+# Rev75: the dictionary (65,017,848 bytes, 896,505 compacted) and Vector Laboratory's 18
+# projects (about 30 MB each, 1.2 MB compacted). The edit lists still run on the files as the
+# rows above leave them, each build, and this step after them. The consolidated resources.db that
+# follows rev75 keeps each file's bytes as they are, these dead bytes included: it has to re-lay
+# every config an edit list makes the same way (or this list grows to them all).
+COMPACTED = ('gameplay/db_static_dictionaries',
+             *(f'projects/level_07/{weather}_{mode}/client_project'
+               for weather in ('day', 'evening', 'rain') for mode in (2, 3, 4, 5, 8, 'ah')))
+
+
+def compact_configs(world, cache):
+    """Every file of COMPACTED, as the edit lists made it, laid out again (config_compact.py; its
+    tree, every key, value, type and order, the same or no patch). Each is one the build makes: a
+    path of the list no edit list makes is a Problem (the list names files that are edited). Cached
+    by the file's bytes and the compactor's."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'config_compact', str(Path(__file__).resolve().parent / 'config_compact.py'))
+    cc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cc)
+    missing = [p for p in COMPACTED if p not in world]
+    if missing:
+        raise Problem(f'COMPACTED names {len(missing)} file(s) no edit list makes: ' + ', '.join(missing))
+    before = after = 0
+    for path in COMPACTED:
+        digest = world.sha256(path)
+        key = Cache.key('compacted', files_digest([Path(spec.origin)]), code_digest(compact_configs), digest)
+        made = cache.get(key)
+        if made:
+            files, said = made
+            world.put_cached(path, files[path], 'compacted')
+        else:
+            data = world.data(path)
+            try:
+                out = cc.compact(path, data)
+            except ValueError as e:
+                raise Problem(str(e)) from None
+            said = f'{len(data)} -> {len(out)} bytes'
+            out_digest = sha256(out)
+            cache.put(key, {path: out}, said, {path: out_digest})
+            world.put(path, out, 'compacted', out_digest)
+        old, new = (int(n) for n in said.replace(' bytes', '').split(' -> '))
+        before, after = before + old, after + new
+        print(f'  compacted {path}: {said}')
+    print(f'compacted: {len(COMPACTED)} config(s), {before} -> {after} bytes, the same trees')
+
+
 def type_check(rows, tree, base, world, cache, whole):
     """Every file the manifest makes keeps the value type of each key path the
     base/live version has, and a new key uses a 0.26g type for its path or is
@@ -1473,6 +1533,132 @@ def grass_check(base, world, cache):
     print(f'grass: each of {len(maps)} map folder(s) at most {GRASS_MAX} instances (most: {folder}, {most})')
 
 
+# The client's unmanaged arena (the resources' "unmanaged" doug_lea heap) holds, while a map is
+# loaded, its grass world as one block and every binary config the game read, whole: the bytes
+# content_edit.py's appends leave behind that no record reaches (config_compact.py) included. A
+# full arena, or one without a hole as big as the block it is asked for, ends the game
+# (out_of_memory_with_crash 0xE4D70; memory-profile.md). The owner's Fire Station loads reached
+# 240.6 MiB of it in memory.log, other maps about 210 MiB.
+#
+# The grass world (grass_world, made by the grass cook from all of a project folder's .veg layers
+# at once) is cells x 0x40C0 + instances x 0x84 + layers x 0x24 + 0x20C bytes, a cell being a
+# layer's (one model's) 16 m square: floor(x / 16), floor(z / 16) (0.0625 at 0xA2D9B0; the cell
+# key {model, z, x}, 0x12BA40 / 0x12BA80). Stalker Maps 2@5's Fire Station: 14 layers, 120,000
+# instances, 3,690 cells, 77,006,468 bytes, the profile's 77,006,472 (its 8-byte rounding).
+GRASS_WORLD_MAX = 32 << 20      # one map's grass block
+CONFIG_MAX = 12 << 20           # one binary config a map's load reads (a project, the dictionary);
+                                # the largest but the known: v011e_level_03/day_5, 10.6 MiB (7.2 dead)
+# What is over its bound and known, each at most its bytes here (it may not grow), with why. A row
+# whose file or map is within its bound now is a Problem: remove it.
+MEMORY_KNOWN = {
+    'projects/v010b_cs_mp_firestation': (77_006_468,
+        "Fire Station's grass (Stalker Maps 2@5, patch 62): no grass of it lies beyond the draw "
+        'distance (High: 150 m patch centres, 49 instances beyond 162 m of walkable ground), so '
+        'none goes without a visible cut (the owner, 2026-11-27); a smaller cell block in the exe is '
+        'the fix'),
+    'projects/v010b_cs_mp_military_1': (45_335_016,
+        "Dark Valley's grass (patch 57): all of it within 49 m of walkable ground"),
+    'projects/v010b_cs_mp_bath': (40_472_928,
+        "Bath's grass (patch 57): none beyond 116 m of walkable ground"),
+}
+
+
+def grass_cells(path, data):
+    """A .veg layer's (instances, cells): its positions (chunk 0x58, float3 each) and the distinct
+    16 m squares they fall in."""
+    import math
+    at = 0
+    while at + 8 <= len(data):
+        tag, size = int.from_bytes(data[at:at + 4], 'little'), int.from_bytes(data[at + 4:at + 8], 'little')
+        if tag == 0x58:
+            if size % 12:
+                raise Problem(f'{path}: positions of {size} bytes, not float3s')
+            import struct
+            cells = {(math.floor(x * 0.0625), math.floor(z * 0.0625))
+                     for x, _, z in struct.iter_unpack('<3f', data[at + 8:at + 8 + size])}
+            return size // 12, len(cells)
+        at += 8 + size
+    raise Problem(f'{path}: a vegetation layer without positions')
+
+
+def grass_world_bytes(layers):
+    """The grass world's block for these layers' (instances, cells); 0 without grass."""
+    layers = [(n, c) for n, c in layers if n]
+    if not layers:
+        return 0
+    return sum(c * 0x40C0 + n * 0x84 + 0x24 for n, c in layers) + 0x20C
+
+
+def memory_problems(sizes, known):
+    """The problems of {name: (bytes, bound)} against `known` ({name: (at most, why)}): a name over
+    its bound and not known, a known one over its at-most, a known one within its bound."""
+    problems = []
+    for name, (size, bound) in sorted(sizes.items()):
+        if name in known:
+            most = known[name][0]
+            if size <= bound:
+                problems.append(f'{name}: {size} bytes, within its bound {bound}: remove its MEMORY_KNOWN row')
+            elif size > most:
+                problems.append(f'{name}: {size} bytes, more than the {most} MEMORY_KNOWN allows')
+        elif size > bound:
+            problems.append(f'{name}: {size} bytes, over its bound {bound}')
+    problems += [f'{name}: a MEMORY_KNOWN row of nothing the build has' for name in sorted(set(known) - set(sizes))]
+    return problems
+
+
+def memory_check(base, world, cache):
+    """Every map's grass world at most GRASS_WORLD_MAX bytes and every project and the dictionary
+    at most CONFIG_MAX, as players will have them (the build's files over the base: the patch
+    stack, or one consolidated db), but the MEMORY_KNOWN rows, each not growing; then a table of
+    each map's grass, its largest project and the dictionary. A layer's counts are cached by its
+    bytes."""
+    veg = sorted(p for p in set(base.of) | set(world)
+                 if p.startswith('projects/') and p.endswith('.veg') and '/vegetation/' in p)
+    configs = sorted(p for p in set(base.of) | set(world)
+                     if (p.startswith('projects/') and p.endswith('/client_project'))
+                     or p == 'gameplay/db_static_dictionaries')
+    key = Cache.key('the grass cells of layers', code_digest(grass_cells))
+    earlier = (cache.get(key) or ({}, {}))[1]
+    digests, files = base.digests([p for p in veg if p not in world])
+    digests.update({p: world.sha256(p) for p in veg if p in world})
+    todo = [p for p in veg if digests[p] not in earlier]
+    files.update(base.game.get(base.archives, [p for p in todo if p not in world and p not in files]))
+    counts = {digests[p]: grass_cells(p, world.data(p) if p in world else files[p]) for p in todo}
+    if counts:
+        cache.put(key, {}, earlier | counts)
+    counts = earlier | counts
+    layers = {}
+    for path in veg:
+        layers.setdefault(path.rsplit('/vegetation/', 1)[0], []).append(tuple(counts[digests[path]]))
+    size = {p: len(world.data(p)) for p in configs if p in world}
+    size.update({p: base.size[p] for p in configs if p not in world})
+    sizes = {folder: (grass_world_bytes(ls), GRASS_WORLD_MAX) for folder, ls in layers.items()}
+    sizes.update({p: (n, CONFIG_MAX) for p, n in size.items()})
+    dictionary = size.get('gameplay/db_static_dictionaries', 0)
+    mib = lambda n: f'{n / 2**20:6.1f}'
+    print('memory (MiB): grass world, largest project, dictionary, their sum; ! over its bound')
+    folders = sorted(set(layers) | {p.rsplit('/', 2)[0] for p in size if p.startswith('projects/')})
+    for folder in folders:
+        grass = sizes.get(folder, (0, 0))[0]
+        project, most = max(((p, n) for p, n in size.items() if p.startswith(folder + '/')),
+                            key=lambda pn: pn[1], default=('-', 0))
+        flag = lambda n, bound: '!' if n > bound else ' '
+        print(f'  {folder[len("projects/"):]:<26} {mib(grass)}{flag(grass, GRASS_WORLD_MAX)} '
+              f'{mib(most)}{flag(most, CONFIG_MAX)} {mib(dictionary)}{flag(dictionary, CONFIG_MAX)} '
+              f'{mib(grass + most + dictionary)}  {project.rsplit("/", 2)[-2] if project != "-" else "-"}')
+    problems = memory_problems(sizes, MEMORY_KNOWN)
+    if problems:
+        print()
+        for problem in problems:
+            print(f'MEMORY: {problem}')
+        raise Problem(f'{len(problems)} memory budget problem(s): no patch made (a map\'s grass world '
+                      f'at most {GRASS_WORLD_MAX >> 20} MiB, a config at most {CONFIG_MAX >> 20} MiB, '
+                      'or a MEMORY_KNOWN row)')
+    over = sorted(n for n, (s, b) in sizes.items() if s > b)
+    print(f'memory: {len(layers)} grass world(s), {len(size)} config(s) within their bounds but '
+          f'{len(over)} known ({", ".join(over) if len(over) < 6 else f"{over[0]}, ..."})')
+
+
 def pierce_check(rows, tree, base, world, cache):
     """Every pierce line (an add_entry with `pierce_line`, content_edit.pierce_lines) is what the final
     files make: a row after the list's that retunes a weapon's or a round's piercing, a material's
@@ -1670,6 +1856,8 @@ def main():
         try:
             with timed('the edit lists'):
                 apply_edits(rows, args.tree, base_layers, work, world, cache)
+            with timed('the compacted configs'):
+                compact_configs(world, cache)
 
             # The value types every changed file keeps (content_type_check.py):
             # a key that exists in the base/live version keeps its type, a new key
@@ -1684,6 +1872,8 @@ def main():
                 keeper_check(rows, base_layers, world)
             with timed('the grass'):
                 grass_check(base_layers, world, cache)
+            with timed('the memory budget'):
+                memory_check(base_layers, world, cache)
             with timed('the walker twins'):
                 walker_check(base_layers, world, cache)
             with timed('the project names'):

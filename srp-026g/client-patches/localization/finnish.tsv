@@ -4185,7 +4185,7 @@ st_srp_medical_324_description	Vastamyrkyn alkaessa vaikuttaa palautuva kestävy
 st_srp_medical_324_name	Toinen tuuli
 st_srp_medical_331_description	Korvaa toissijaisen aseen paikan ylimääräisellä tarviketaskulla.
 st_srp_medical_331_name	Tarviketasku
-st_srp_medical_332_description	Lisäys käsien ja jalkojen enimmäisterveyteen:
+st_srp_medical_332_description	Lisäys käsien ja jalkojen enimmäisterveyteen (ei nosta kipukynnystä):
 st_srp_medical_332_name	Vahvat luut
 st_srp_medical_333_description	Vastamyrkyn vaikuttaessa latausnopeuden lisäys:
 st_srp_medical_333_name	Keskittyminen
@@ -4212,6 +4212,7 @@ st_srp_mode_cowboy	FFA: Saluuna
 st_srp_mode_cowboy_winchester	FFA: Saluuna (Winchester)
 st_srp_mode_free_for_all	Kaikki kaikkia vastaan
 st_srp_mode_freeze_tag	Jäädytys
+st_srp_mode_pistols	FFA: Pistoolit
 st_srp_mode_protective_device	Suojalaite
 st_srp_mode_racket	FFA: Meteli
 st_srp_mode_research	Tutkimus
@@ -4397,6 +4398,8 @@ st_srp_shop_not_owned	Piilota omistetut
 st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole
 st_srp_side_left	Vasen
 st_srp_side_right	Oikea
+st_srp_sight_distance_note	+ kauemmas, - lähemmäs
+st_srp_sight_distance_option	Tähtäimen etäisyys
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s
@@ -4446,6 +4449,7 @@ st_srp_technical_pockets	 taskua
 st_srp_technical_rearm	Aukeaa uudelleen ammuttaessa
 st_srp_technical_smoke_duration	Savun kesto
 st_srp_technical_toxic_damage	Myrkkyvahinko
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s pv
 st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
@@ -4485,6 +4489,10 @@ st_srp_weapon069_ppsh_drum_name	PPSH-41 ”Rumpu”
 st_srp_weapon_aim_zoom	Tähtäyksen perussuurennus
 st_srp_weapon_chamber	Latausliikkeen kesto
 st_srp_weapon_draw_time	Esillenottoaika
+st_srp_weapon_fov_aimed_option	Aseen FOV tähdätessä
+st_srp_weapon_fov_option	Aseen FOV lantiolta
+st_srp_weapon_fov_scope_option	Aseen FOV kiikarissa
+st_srp_weapon_fov_world_option	Ase maailman FOV:lla
 st_srp_weapon_full_damage	Täyden vahingon kantama
 st_srp_weapon_hip_spread	Lonkkatulen hajonta
 st_srp_weapon_holster_time	Poislaittoaika
@@ -4509,6 +4517,11 @@ st_srp_weapon_stats	Asetilastot
 st_srp_weapon_sway_cycle	Heiluntajakso
 st_srp_weapon_sway_horizontal	Vaakasuora heilunta
 st_srp_weapon_sway_vertical	Pystysuora heilunta
+st_srp_weapon_view_heading	Aseen näkymä
+st_srp_weapon_view_hip	Lantiolta
+st_srp_weapon_view_iron	Avotähtäin
+st_srp_weapon_view_red_dot	Punapiste
+st_srp_weapon_view_scope	Kiikari
 st_srp_weapon_with_kit	Varustesetillä
 st_srp_weapon_with_kit_skills	Varustesetillä ja taidoilla
 st_srp_weather_before_rain	ennen sadetta
@@ -4523,6 +4536,7 @@ st_srp_weight_penalty	%1$s% painohaitta
 st_srp_weight_speed	Liikenopeus
 st_srp_weight_sprint_stamina	Kestävyyden kulutus sprintatessa
 st_srp_weight_title	Painon vaikutukset
+st_srp_world_fov_option	Maailman FOV
 st_stamina_boost_name	Uusi puhti
 st_stamina_boost_time_description	Vihollisen taposta palautuva energia:
 st_stamina_loss_on_hit_description	Kestävyyshaitta haavoittuessa.

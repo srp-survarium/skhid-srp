@@ -9,6 +9,60 @@ release that made it what it is now.
 
 ---
 
+## 27 Nov, 23:34 — TODO: the owner's words (update required)
+
+<!-- Revision 75 (026g-rev75), released 2026-11-27 23:34 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2715 Release: a stopped run keeps the patch it uploaded; self-test's Onyx hint check without 75 %
+- TODO: #2718 Patch 215: first-person optics and parts move with the view in TAA (no see-through optic)
+- TODO: #2723 Larkspur II: a worn Larkspur's energy is its share of the whole bar
+- TODO: #2728 Patch 47: the decal editor starts only on a decal its item holds, and its preview reads only an entry there is
+- TODO: #2724 Artifact Hunt: a carrier who leaves drops the artefact where he stood (no free delivery on rejoin)
+- TODO: #2729 Patch 205: an empty reload stays empty after the seat (the two-clip reloads keep their first pick)
+- TODO: #2730 Patch 216: a Scaleform filter whose temporary target was not made is drawn without it; a death's breadcrumb once a life
+- TODO: #2597 Patch 203: the church's light line and seams, 0.69d's local probe tier (rudnya-069d@9, three-maps-021-lighting@16)
+- TODO: #2698 Rudnya (v0.69) @10: the ground types meet as in 0.69d, no straight seams (terrain overlays cut by their masked weight)
+- TODO: #2731 stk2-camo@2: the Novice's back print and collar, the loner's whole shirt and scarf
+- TODO: #2732 Patch 217: the exoskeletons' legs take the body's camouflage (exo-camo@2)
+- TODO: #2267 Relay: log what it carried; sign-in lines name the route
+- TODO: #2734 Kit names per loadout: a kit renamed in one keeps its name in the others
+- TODO: #2735 Skills window: a right click takes a point back, confirmed or not
+- TODO: #2737 Add match input summaries to client reports
+- TODO: #2739 Match history: the matches of before it, made again from their recordings, ordered by their end
+- TODO: #2740 Strong Bones: its text says it does not raise the pain threshold
+- TODO: #2741 Damage calculator: the client/build stamp removed
+- TODO: #2742 Wiki artefacts: the power each activation leaves, and each kind's numbers by activation
+- TODO: #2745 Match server: log resource integrity checks
+- TODO: #2750 Patch 117: a particle presenter does not read back an entry of no effect
+- TODO: #2736 Patch 218: the player's weapon view (the held gun's FOV, sight distance toward revision 73)
+- TODO: #2751 World reacts: more map things break, fly off or ring
+- TODO: #2753 wiki: sharp pictures for the index's Maps and Quests tiles
+- TODO: #2754 HUD short messages stay their time: Freeze Tag's reveal popups and Free for All's end message
+- TODO: #2755 Artifact Hunt: the clock and the wave show the same second; waves every 20 s
+- TODO: #2756 Rooms: a card on Military Warehouses drawn again (its map in the pool sent)
+- TODO: #2758 Free for All spawns at the owner's picks: Fire Station 9 more, London (v0.32) 26 more
+- TODO: #2743 Rudnya (v0.69): rudnya-069d@11, decals at 0.69d's own size
+- TODO: #2757 Rudnya (v0.69) Free for All at native Rudnya's spawns
+- TODO: #2761 Military Warehouses: a private room plays its Free for All plain again
+- TODO: #2763 Freeze Tag's notices at the battery message's place and size (reveal popups, round and match results)
+- TODO: #2764 London (v0.42) in Free for All at the owner's 20 picks
+- TODO: #2766 Upgrade window: a weapon's camouflage slot lists the camouflages, filled too
+- TODO: #2762 Patch 132: the game's own orbit once the player has the controls; only the spawn kept out of the body
+- TODO: #2767 Shop: Sell in a kit item's right-click menu, as in the inventory
+- TODO: #2768 build-content: London (v0.42)'s type rows cover its Free for All projects
+- TODO: #2420 Vostok Radar Station (v0.69): maps 258 and 259 (pack vostok-069d@6, lighting @19)
+- TODO: #2765 Weapon bodies: weapon-modules@13, gloss and Fresnel by 0.69d0's own formulas
+- TODO: #2771 London (v0.42) Free for All: the loose pieces' indices follow the removed ammo crates
+- TODO: #2769 Station: Free for All at the owner's 60 picks too, and Racket only in open rooms
+- TODO: #2759 FFA: Pistols, everyone the same two pistol kits of one level band (10 % of FFA cards); the plain FFA's wiki plaque
+- TODO: #2770 Rudnya (v0.21) and Chemical Plant (v0.21) in Free for All at the owner's picks
+- TODO: #2773 build-content: Rudnya (v0.21)'s and Chemical Plant (v0.21)'s type rows cover their Free for All projects
+- TODO: #2716 Release: no world check; the self-test from the preflight on, URLs checked once
+- TODO: #2774 build-content: the memory budget, each map's grass world and its configs in the unmanaged arena
+- TODO: #2775 build-content: the dictionary and Vector Laboratory's projects compacted after the edit lists
+- TODO: #2776 wiki maps: the battery is the Protective device's mode icon
+- TODO: #2777 Maps tab: Vostok (v0.69) released before its top-down render, its minimap only
+
 ## 26 Nov, 20:38 — TODO: the owner's words (update required)
 
 <!-- Revision 74 (026g-rev74), released 2026-11-26 20:38 UTC. To be worded for players; what it shipped: -->

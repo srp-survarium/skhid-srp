@@ -288,7 +288,7 @@ try {
     ...(sides.unknown ? [`No result ${percent(sides.unknown / (sides.wins[0] + sides.wins[1] + sides.draws + sides.unknown))} (${sides.unknown})`] : []),
     `Team 2 ${percent(sides.win_rates[1])} (${sides.wins[1]})`].join('') : '—';
   const GAME_MODES = ['Protective device', 'Protective device: chargers', 'Team Deathmatch', 'Research', 'Protective device: blackout',
-    'Free for all', 'Freeze Tag', 'Artifact Hunt', 'FFA: Racket', 'FFA: Saloon', 'FFA: Saloon (Winchester)', 'FFA: Roulette'];
+    'Free for all', 'Freeze Tag', 'Artifact Hunt', 'FFA: Racket', 'FFA: Saloon', 'FFA: Saloon (Winchester)', 'FFA: Roulette', 'FFA: Pistols'];
   await navigate('/stats');
   await evaluate("document.querySelector('[data-board=maps]').click()");
   await settled();

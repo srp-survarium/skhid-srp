@@ -17,7 +17,8 @@ package
    // Parameters: movie, members (1 to 20), owner (1: the asker owns the room), teams (a digit a
    // member, its team), phase (0 waiting, 2 in match, 3 the vote), squads, pool (the match pool's
    // `S1;M` rows, "|" between them: what the cards and the create window name), view ("create": the
-   // create window over the list instead of a room). Traces "SHOT ready" once drawn.
+   // create window over the list instead of a room), cards (the room's `C` rows, "|" between them;
+   // none: four on maps 61, 63, 117 and 65). Traces "SHOT ready" once drawn.
    public class RoomsShots extends Sprite
    {
       private static const STATE:int = 2060000001;
@@ -83,7 +84,8 @@ package
                return;
             }
             var head:String = ["S1","R",4242,7,0,10,30,phase,0,owner ? 1 : 0,24,count,99,1,0,1,0].join(";");
-            var names:Array = [head,"C;0;61;1;0","C;1;63;0;0","C;2;117;0;0","C;3;65;0;0"];
+            var names:Array = [head].concat(p.cards ? String(p.cards).split("|")
+               : ["C;0;61;1;0","C;1;63;0;0","C;2;117;0;0","C;3;65;0;0"]);
             for(var i:int = 0; i < count; i++)
             {
                // P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<name>

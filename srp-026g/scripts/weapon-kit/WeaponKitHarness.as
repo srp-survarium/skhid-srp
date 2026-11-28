@@ -37,6 +37,11 @@ package
    //   side) (HarnessExternal's calls) and shows at once, the account's update what the server holds;
    //   a kit whose own is the second sight; the slot chosen: what it takes bright, the rest dim, a
    //   double click into it, the side left; a weapon without rows has no second-sight slot;
+   // - real clicks (check.sh's xdotool on Ruffle's window) on the Appearance page as the right-click's
+   //   entry opens it: the list shows the slot's own kind, the camouflage slot's the camouflages
+   //   whether empty or filled (a filled slot's middle is its change button), after a decal slot's
+   //   click and a decal edit's start and cancel too; a decal's change button starts its edit
+   //   (start_decal_edit), a camouflage's never;
    // - the texts: each language's title, page names, slot labels, hints, buttons and the toggle fitting.
    // Prints "WEAPONKIT ..." lines and ends with "WEAPONKIT RESULT pass" or "... fail: ...".
    public class WeaponKitHarness extends Sprite
@@ -296,7 +301,12 @@ package
       // One step a few frames apart: the slots draw (and their frames tween) as the frames render.
       private function tick(e:Event) : void
       {
-         if(++frames < 10 || --wait > 0)
+         if(clickWait >= 0 && ++clickWait > 1800)
+         {
+            clickWait = -1;
+            require(false,"check.sh's click " + clickIndex + " never came");
+         }
+         if(++frames < 10 || --wait > 0 || clickWait >= 0)
          {
             return;
          }
@@ -531,6 +541,48 @@ package
                   require(!window.secondSightSlot.visible && !Window.greyed(inventory.getInventoryItem(SCOPE_ID)),"another weapon's window: no second-sight slot, its scope bright");
                   break;
                case 23:
+                  // real clicks on the Appearance page (check.sh's xdotool), the window right of the list
+                  // and its hint beside it as for the picture; first where the Ruffle window puts the stage
+                  shotX = window.container.x;
+                  shotHintX = window.infoContainer.x;
+                  clicks = appearanceClicks();
+                  stage.addEventListener(MouseEvent.MOUSE_DOWN,this.mouseDown,true);
+                  stage.addEventListener(MouseEvent.MOUSE_DOWN,this.mouseDown);
+                  stage.addEventListener(MouseEvent.CLICK,this.mouseClick,true);
+                  trace("WEAPONKIT calibrate");
+                  clickWait = 0;
+                  break;
+               case 24:
+                  if(clickIndex > 0)
+                  {
+                     clicks[clickIndex - 1].after();
+                  }
+                  if(clickIndex < clicks.length)
+                  {
+                     var next:Object = clicks[clickIndex];
+                     if(next.before != null)
+                     {
+                        next.before();
+                     }
+                     window.container.x = 640 - window.localToGlobal(new Point(0,0)).x;
+                     window.infoContainer.x = 860;
+                     external().calls = [];
+                     var at:Rectangle = next.target().getBounds(stage);
+                     trace("WEAPONKIT click " + clickIndex + " at " + int(at.x + at.width / 2) + "," + int(at.y + at.height / 2) + ": " + next.what);
+                     clickIndex++;
+                     clickWait = 0;
+                     step--;
+                  }
+                  else
+                  {
+                     stage.removeEventListener(MouseEvent.MOUSE_DOWN,this.mouseDown,true);
+                     stage.removeEventListener(MouseEvent.MOUSE_DOWN,this.mouseDown);
+                     stage.removeEventListener(MouseEvent.CLICK,this.mouseClick,true);
+                     window.container.x = shotX;
+                     window.infoContainer.x = shotHintX;
+                  }
+                  break;
+               case 25:
                   // every language: each window's texts in their fields
                   texts(WeaponKitText.LANGUAGES[language]);
                   if(++language < WeaponKitText.LANGUAGES.length)
@@ -715,8 +767,9 @@ package
       }
 
       // The window opened on an owned item with these upgrade records (the account's), as
-      // LobbyMenu.openModifierWindow opens it.
-      private function open(itemId:int, upgrades:Array) : void
+      // LobbyMenu.openModifierWindow opens it, on a page (UpgradeWindow.PAGE_*: its right-click's entry)
+      // or -1 the window's own.
+      private function open(itemId:int, upgrades:Array, page:int = -1) : void
       {
          var data:* = inventory.getInventoryItem(itemId);
          data.upgrades = upgrades;
@@ -725,7 +778,7 @@ package
             window.closePopup();
          }
          window.visible = true;
-         window.setData(data);
+         window.setData(data,true,page);
       }
 
       // The item ids of the slots (decalSlot, decalSlot1, decalSlot2, camoSlot), 0 empty.
@@ -965,6 +1018,143 @@ package
          {
             widest = {what:what,text:field.text.replace(/[\r\n]+/g," / "),used:used.toFixed(1),room:room.toFixed(1)};
          }
+      }
+
+      // The real clicks of case 24, one at a time: what is clicked (its middle), what runs before it
+      // (the window opened, a decal slot's click) and what it checks after.
+      private var clicks:Array;
+
+      private var clickIndex:int = 0;
+
+      // the frames waited for check.sh's click, -1 none awaited
+      private var clickWait:int = -1;
+
+      // A press: the click awaited has come (on the stage itself too, outside the capture phase).
+      private function mouseDown(e:MouseEvent) : void
+      {
+         if(e.eventPhase == 2 && e.target != stage || clickWait < 0)
+         {
+            return;
+         }
+         trace("WEAPONKIT mouse down at " + int(e.stageX) + "," + int(e.stageY) + " on " + path(e.target as DisplayObject));
+         clickWait = -1;
+         wait = 20;
+      }
+
+      private function mouseClick(e:MouseEvent) : void
+      {
+         trace("WEAPONKIT clicked " + path(e.target as DisplayObject));
+      }
+
+      private static function path(o:DisplayObject) : String
+      {
+         var names:Array = [];
+         for(; o != null; o = o.parent)
+         {
+            names.push(o.name);
+         }
+         return names.join("<");
+      }
+
+      // The weapon's Appearance page (its right-click's Appearance) clicked: the list after each click
+      // the slot's own kind (a camouflage slot's the camouflages, empty or filled, after a decal
+      // slot's click and a decal edit too), a decal's change button its edit, a camouflage's never.
+      private function appearanceClicks() : Array
+      {
+         var filled:Array = [{id:DECAL_A_ID,param:0},{id:CAMO_LOW_ID,param:2}];
+         var decalsListed:Function = function():void
+         {
+            window.decalSlot1.border.dispatchEvent(new MouseEvent(MouseEvent.CLICK,true));
+            requireListed("an empty decal slot's click",Category.DECALS);
+         };
+         return [{what:"the empty camouflage slot",target:function():DisplayObject
+         {
+            return window.decalSlot2.border;
+         },before:function():void
+         {
+            open(RIFLE_ID,[],Window.PAGE_APPEARANCE);
+            require(window.decalSlot2.visible && !window.camoSlot.visible,"the Appearance entry opens on Appearance");
+         },after:function():void
+         {
+            requireListed("the empty camouflage slot clicked",Category.CAMOUFLAGES);
+         }},{what:"the empty second decal slot",target:function():DisplayObject
+         {
+            return window.decalSlot1.border;
+         },before:function():void
+         {
+            open(RIFLE_ID,filled,Window.PAGE_APPEARANCE);
+         },after:function():void
+         {
+            requireListed("the empty decal slot clicked",Category.DECALS);
+         }},{what:"the filled camouflage slot's middle, after the decal slot",target:function():DisplayObject
+         {
+            return window.decalSlot2.border;
+         },after:function():void
+         {
+            requireListed("the filled camouflage slot clicked after a decal slot",Category.CAMOUFLAGES);
+            requireNoEdit("the filled camouflage slot clicked");
+         }},{what:"the filled camouflage slot's name, after a decal slot",target:function():DisplayObject
+         {
+            return window.decalSlot2.textField;
+         },before:decalsListed,after:function():void
+         {
+            requireListed("the filled camouflage slot's name clicked after a decal slot",Category.CAMOUFLAGES);
+            requireNoEdit("the filled camouflage slot's name clicked");
+         }},{what:"the decal's change button",target:function():DisplayObject
+         {
+            return window.decalSlot.btnChange;
+         },after:function():void
+         {
+            requireCalled("the decal's change button","start_decal_edit " + RIFLE_ID + " " + DECAL_A_ID);
+            require(window.decalControl.visible,"the decal's change button: the editor shown");
+            window.cancelDecalPosition.dispatchEvent(new (C("scaleform.clik.events.ButtonEvent"))("buttonClick"));
+            requireCalled("the decal edit's cancel","cancel_decal_edit " + RIFLE_ID + " " + DECAL_A_ID);
+            require(!window.decalControl.visible,"the decal edit's cancel: the editor hidden");
+         }},{what:"the filled camouflage slot's middle, after a decal edit and a decal slot",target:function():DisplayObject
+         {
+            return window.decalSlot2.border;
+         },before:decalsListed,after:function():void
+         {
+            requireListed("the filled camouflage slot clicked after a decal edit",Category.CAMOUFLAGES);
+            requireNoEdit("the filled camouflage slot clicked after a decal edit");
+         }}];
+      }
+
+      // The inventory's list: the one filter `category` chosen, nothing but its items listed.
+      private function requireListed(what:String, category:int) : void
+      {
+         var chosen:Array = inventory.optionControl.filterList.getSelectedIndexes().concat();
+         var listed:Object = {};
+         var others:int = 0;
+         var dp:* = inventory.itemsTileList.dataProvider;
+         for(var i:int = 0; i < dp.length; i++)
+         {
+            listed[dp[i].category] = int(listed[dp[i].category]) + 1;
+            if(int(dp[i].category) != category)
+            {
+               others++;
+            }
+         }
+         var counts:Array = [];
+         for(var c:String in listed)
+         {
+            counts.push(c + ": " + listed[c]);
+         }
+         trace("WEAPONKIT " + what + ": the filters " + chosen.join(",") + " chosen, listed by category " + counts.join(", ") + "; the exe was called " + (external().calls as Array).join("; "));
+         require(chosen.join(",") == String(category) && others == 0 && dp.length > 0,what + ": the list shows category " + chosen.join(",") + " (" + counts.join(", ") + "), not " + category);
+      }
+
+      private function requireNoEdit(what:String) : void
+      {
+         var made:String = (external().calls as Array).join("; ");
+         require(!window.decalControl.visible && made.indexOf("start_decal_edit") == -1,what + ": no decal edit (" + made + ")");
+      }
+
+      private function requireCalled(what:String, call:String) : void
+      {
+         var made:Array = external().calls as Array;
+         trace("WEAPONKIT " + what + ": the exe was called " + made.join("; "));
+         require(made.indexOf(call) != -1,what + ": " + call + " not sent (" + made.join("; ") + ")");
       }
 
       private function require(ok:Boolean, why:String) : void

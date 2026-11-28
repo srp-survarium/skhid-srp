@@ -4,8 +4,9 @@
 //!
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
+//!     [--roof-place 10=26.8,25.926,2.816] \
 //!     --points <tsv> [--roofs 49,8,10,42] [--stranded-ok 13] [--harmful-ok 45] [--as-stood 12] \
-//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] [--team 1] \
+//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] [--team 1] [--add [--cap 128]] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -29,13 +30,27 @@
 //! owner's picks, 2026-11-23) point ids in order (only position and rotation change, as
 //! `ffa-center-1`); picks past those get new points with the ids after the
 //! project's last; solo spawns left over (the highest ids, the project's last
-//! entries) go. `--roofs`: after them, a new point on the roof of the
+//! entries) go. `--add`: every kept pick is a new point after the project's
+//! last, and the team's points stay as they are (more picks on a map whose
+//! points are already his: London (v0.32)'s Free for All, 2026-11-27).
+//! `--cap <n>` with it: where the team's points and the kept picks pass `n`
+//! (128, the most exe patch 142 chooses among), the team's points nearest a
+//! pick (those the spawn check drops first, then in 3D the nearest; ties by id) give their ids to picks
+//! (`moved`) until they fit, the kept picks taking them in order and the
+//! others new ids (Station, 2026-11-27: his 60 "too", over its 96).
+//! `--roofs`: after them, a new point on the roof of the
 //! building at each of these picks ([`roof`]), its facing the longest view,
 //! the nearest spawn said; `--stranded-ok`: those of these picks whose roof
 //! may have no way down within 5 m drops. `--roof-at <x>,<y>,<z>` (repeatable):
 //! after those, a roof spawn on the building at a `where` place that is no
 //! pick (the owner, 2026-11-15, standing in Vostok's checkpoint: "we want the
-//! spawn on top of the building those coords have"). Prints
+//! spawn on top of the building those coords have"). `--roof-place
+//! <pick>=<x>,<y>,<z>` (repeatable): the roof spawn of the building at that
+//! pick is at this place, on its ground by the spawn check, with the roof
+//! checks but the flat floor's (body clear, 2 m from harmful zones, a way
+//! down): picks of one map on its ports, the map's own roof spawn kept where
+//! the port's roof has it (the owner, 2026-11-27, of Rudnya (v0.69): "can
+//! rudnya 69 use the same ffa spots as 26?"). Prints
 //! checked.tsv rows (`point` the point id, verdict `moved`, `added`, `roof`
 //! or `removed`: make_picks_edits.py makes them an edit list) and, on stderr,
 //! each dropped pick and why.
@@ -82,6 +97,26 @@ impl Ground {
         match self {
             Ground::AsStood(_) => "body as he stood",
             Ground::On | Ground::Nudged(_) | Ground::Shifted { .. } => "body clear",
+        }
+    }
+}
+
+/// Why a team's point gives its id to a pick (`--cap`).
+enum Gave {
+    /// The spawn check drops it, for this.
+    Fails(String),
+    /// It stands this far from the nearest pick.
+    Near(f32),
+}
+
+impl Gave {
+    /// Who gives first: a dropped point, then the nearest a pick.
+    fn order(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Gave::Fails(_), Gave::Fails(_)) => std::cmp::Ordering::Equal,
+            (Gave::Fails(_), Gave::Near(_)) => std::cmp::Ordering::Less,
+            (Gave::Near(_), Gave::Fails(_)) => std::cmp::Ordering::Greater,
+            (Gave::Near(a), Gave::Near(b)) => a.total_cmp(b),
         }
     }
 }
@@ -178,8 +213,9 @@ struct Roof {
     /// A floor of the map's walk grid: one players get to from the spawns.
     on_foot: bool,
     down: Down,
-    /// The most its floor rises or falls a metre round it, in degrees.
-    slope: f32,
+    /// The most its floor rises or falls a metre round it, in degrees; None
+    /// with an edge or a step within the metre (a `--roof-place`).
+    slope: Option<f32>,
     /// The roofs nearer the pick passed over, and why.
     skipped: Vec<String>,
 }
@@ -194,8 +230,9 @@ struct Roof {
 /// walk model's links (drops of 5 m at most) to a floor the map's players
 /// walk; of those, the one farthest in plan from every spawn of `set` (a
 /// preference for spread, no minimum). With `stranded_ok`, the nearest roof
-/// with such a floor, a way down or not.
-fn roof(map: &Map, at: Vec3, of: &str, set: &[Vec3], stranded_ok: bool) -> Result<Roof, String> {
+/// with such a floor, a way down or not. With `place` (`--roof-place`), that
+/// place on its ground, on the roof it is on, its floor's slope not asked.
+fn roof(map: &Map, at: Vec3, of: &str, set: &[Vec3], stranded_ok: bool, place: Option<Vec3>) -> Result<Roof, String> {
     use mapdata::{Body, LinkKind, WalkGrid};
     let r = ROOF_REACH + 13.0;
     let local = WalkGrid::build(
@@ -244,6 +281,23 @@ fn roof(map: &Map, at: Vec3, of: &str, set: &[Vec3], stranded_ok: bool) -> Resul
     // As near, the lower first: over one place, the building's roof before
     // a surface far above it (Vostok v0.11's border box ends 140 m up).
     order.sort_by(|&a, &b| nearest[a].0.total_cmp(&nearest[b].0).then(nearest[a].1.total_cmp(&nearest[b].1)));
+    // `--roof-place`: the place on its ground, and the roof it is on alone.
+    let pinned = match place {
+        Some(p) => {
+            let feet = match map.check(p) {
+                Verdict::Kept => p,
+                Verdict::Nudged { ground } => Vec3::new(p.x, ground, p.z),
+                Verdict::Dropped(why) => return Err(format!("{of}: --roof-place {} {} {}: {why}", p.x, p.y, p.z)),
+            };
+            let node = local
+                .locate(feet, 0.3)
+                .filter(|&n| (local.position(n).y - feet.y).abs() < 0.3 && label[n as usize] != usize::MAX)
+                .ok_or_else(|| format!("{of}: --roof-place {} {} {}: on no roof", p.x, p.y, p.z))?;
+            order = vec![label[node as usize]];
+            Some((node, feet))
+        }
+        None => None,
+    };
     let spacing = |p: Vec3| set.iter().map(|q| q.distance_xz(p)).fold(f32::INFINITY, f32::min);
     // The map's own floor there: players get to it.
     let walked = |p: Vec3| {
@@ -298,26 +352,30 @@ fn roof(map: &Map, at: Vec3, of: &str, set: &[Vec3], stranded_ok: bool) -> Resul
             }
             Some(drop)
         };
-        let mut candidates: Vec<u32> = (0..local.len() as u32)
-            .filter(|&n| region[n as usize] && slope(n).is_some_and(|s| s <= steepest))
-            .filter(|&n| {
-                let p = local.position(n);
-                map.blocked(p).is_none() && !map.harmful(p, HAZARD_MARGIN)
-            })
-            .collect();
+        let mut candidates: Vec<u32> = match pinned {
+            Some((node, feet)) => vec![node].into_iter().filter(|_| !map.harmful(feet, HAZARD_MARGIN)).collect(),
+            None => (0..local.len() as u32)
+                .filter(|&n| region[n as usize] && slope(n).is_some_and(|s| s <= steepest))
+                .filter(|&n| {
+                    let p = local.position(n);
+                    map.blocked(p).is_none() && !map.harmful(p, HAZARD_MARGIN)
+                })
+                .collect(),
+        };
         // The farthest from every spawn of `set` with a way down.
         candidates.sort_by(|&a, &b| spacing(local.position(b)).total_cmp(&spacing(local.position(a))));
         let (d, h) = nearest[id];
         match candidates.iter().find_map(|&n| way_down(n).map(|drop| (n, drop))) {
             Some((n, drop)) => {
-                found = Some((n, drop.map_or(Down::Walks, Down::Drops), slope(n).unwrap_or(0.0)));
+                found = Some((n, drop.map_or(Down::Walks, Down::Drops), slope(n)));
                 break;
             }
-            None if candidates.is_empty() => {
-                skipped.push(format!("the roof at {h:.1} m, {d:.1} m off: no flat, clear floor"))
-            }
+            None if candidates.is_empty() => skipped.push(match pinned {
+                Some(_) => format!("the place on the roof at {h:.1} m: under {HAZARD_MARGIN} m from a harmful zone"),
+                None => format!("the roof at {h:.1} m, {d:.1} m off: no flat, clear floor"),
+            }),
             None if stranded_ok => {
-                found = Some((candidates[0], Down::Stranded, slope(candidates[0]).unwrap_or(0.0)));
+                found = Some((candidates[0], Down::Stranded, slope(candidates[0])));
                 break;
             }
             None => skipped.push(format!(
@@ -328,7 +386,7 @@ fn roof(map: &Map, at: Vec3, of: &str, set: &[Vec3], stranded_ok: bool) -> Resul
     let (node, down, slope) = found.ok_or_else(|| {
         format!("{of}: no roof spawn within {ROOF_REACH} m ({})", skipped.join("; "))
     })?;
-    let feet = local.position(node);
+    let feet = pinned.map_or_else(|| local.position(node), |(_, feet)| feet);
     // Facing: the longest view at eye height, then towards the play area.
     let eye = feet + Vec3::new(0.0, 1.6, 0.0);
     let toward = Vec3::new(-feet.x, 0.0, -feet.z);
@@ -348,7 +406,7 @@ fn roof(map: &Map, at: Vec3, of: &str, set: &[Vec3], stranded_ok: bool) -> Resul
         height: feet.y - at.y,
         on_foot: walked(feet),
         down,
-        slope: slope.atan().to_degrees(),
+        slope: slope.map(|s| s.atan().to_degrees()),
         skipped,
     })
 }
@@ -359,8 +417,11 @@ fn run() -> Result<(), String> {
     let (mut roofs, mut harmful_ok, mut as_stood) = (Vec::<u32>::new(), Vec::<u32>::new(), Vec::<u32>::new());
     let mut stranded_ok = Vec::<u32>::new();
     let mut roof_at = Vec::<Vec3>::new();
+    let mut roof_place = Vec::<(u32, Vec3)>::new();
     let mut shift = 0f32;
     let mut team = 2i32;
+    let mut add = false;
+    let mut cap = None::<usize>;
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
             .split(',')
@@ -368,6 +429,10 @@ fn run() -> Result<(), String> {
             .collect()
     };
     while let Some(flag) = args.next() {
+        if flag == "--add" {
+            add = true;
+            continue;
+        }
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--db" | "--patch" => layers.push(PathBuf::from(value)),
@@ -381,7 +446,17 @@ fn run() -> Result<(), String> {
                 Ok(&[x, y, z]) if x.is_finite() && y.is_finite() && z.is_finite() => roof_at.push(Vec3::new(x, y, z)),
                 _ => return Err(format!("bad --roof-at {value}")),
             },
+            "--roof-place" => match value.split_once('=').and_then(|(n, at)| {
+                let at: Vec<f32> = at.split(',').map(str::parse).collect::<Result<_, _>>().ok()?;
+                Some((n.parse().ok()?, at))
+            }) {
+                Some((n, at)) if at.len() == 3 && at.iter().all(|v| v.is_finite()) => {
+                    roof_place.push((n, Vec3::new(at[0], at[1], at[2])))
+                }
+                _ => return Err(format!("bad --roof-place {value}")),
+            },
             "--team" => team = value.parse().map_err(|_| format!("bad --team {value}"))?,
+            "--cap" => cap = Some(value.parse().map_err(|_| format!("bad --cap {value}"))?),
             "--shift" => {
                 shift = value
                     .parse()
@@ -393,6 +468,12 @@ fn run() -> Result<(), String> {
         }
     }
     let picks = read(&points.ok_or("--points is required")?)?;
+    if cap.is_some() && !add {
+        return Err("--cap is --add's".into());
+    }
+    if let Some((n, _)) = roof_place.iter().find(|(n, _)| !roofs.contains(n)) {
+        return Err(format!("--roof-place {n}: not one of --roofs"));
+    }
     if layers.is_empty() || projects.is_empty() {
         return Err("--db and at least one --project are required".into());
     }
@@ -414,6 +495,9 @@ fn run() -> Result<(), String> {
             .map(|s| s.point_id)
             .collect();
         ids.sort_unstable();
+        if add {
+            ids.clear();
+        }
         // `--shift`: the nearest place within `shift` m in plan of a pick
         // the checks drop where it passes them all (rings 0.25 m apart).
         let shifted = |at: Vec3| -> Option<(Vec3, f32)> {
@@ -478,6 +562,32 @@ fn run() -> Result<(), String> {
             });
         }
         let kept: Vec<usize> = (0..placed.len()).collect();
+        // `--cap`: the team's points nearest a pick give their ids to picks until all fit.
+        let mut gave = std::collections::BTreeMap::<i32, Gave>::new();
+        if let Some(cap) = cap {
+            let team_points: Vec<_> = map.data.spawns.iter().filter(|s| s.team == team).collect();
+            let over = (team_points.len() + kept.len()).saturating_sub(cap);
+            if over > team_points.len() {
+                return Err(format!("{project}: {} picks pass --cap {cap} alone", kept.len()));
+            }
+            // A point the spawn check drops first, then the nearest a pick.
+            let mut near: Vec<(i32, Gave)> = team_points
+                .iter()
+                .map(|s| match map.check(s.position) {
+                    Verdict::Dropped(why) => (s.point_id, Gave::Fails(why)),
+                    Verdict::Kept | Verdict::Nudged { .. } => {
+                        let d = kept
+                            .iter()
+                            .map(|&i| (placed[i].feet - s.position).length())
+                            .fold(f32::INFINITY, f32::min);
+                        (s.point_id, Gave::Near(d))
+                    }
+                })
+                .collect();
+            near.sort_by(|a, b| a.1.order(&b.1).then(a.0.cmp(&b.0)));
+            gave.extend(near.into_iter().take(over));
+            ids = gave.keys().copied().collect();
+        }
         // The solo spawns' ids, then new ones after the project's last point.
         let last = map.data.spawns.iter().map(|s| s.point_id).max().ok_or("no respawn point")?;
         let new_ids = (last + 1..).take(kept.len().saturating_sub(ids.len()));
@@ -506,7 +616,7 @@ fn run() -> Result<(), String> {
             // list copies them).
             let radii = if team == 2 { "20\t0" } else { "-\t-" };
             println!(
-                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t{radii}\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead",
+                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t{radii}\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead{}",
                 p.feet.x,
                 p.feet.y,
                 p.feet.z,
@@ -516,7 +626,11 @@ fn run() -> Result<(), String> {
                 p.ground.said(),
                 p.ground.body(),
                 p.harm.as_deref().unwrap_or("harmful zones >=2m"),
-                place.cover.name()
+                place.cover.name(),
+                gave.get(&id).map_or(String::new(), |gave| match gave {
+                    Gave::Fails(why) => format!("; in the place of the team's point {id}, which the spawn check drops: {why} (--cap)"),
+                    Gave::Near(d) => format!("; in the place of the team's point {id}, {d:.1} m from the nearest pick (--cap)"),
+                })
             );
         }
         for id in ids.iter().skip(kept.len()) {
@@ -535,13 +649,14 @@ fn run() -> Result<(), String> {
                 .iter()
                 .find(|p| p.n == *n)
                 .ok_or_else(|| format!("--roofs {n}: no such pick on a floor"))?;
-            buildings.push((format!("pick {n}"), pick.feet, stranded_ok.contains(n)));
+            let place = roof_place.iter().find(|(m, _)| m == n).map(|&(_, p)| p);
+            buildings.push((format!("pick {n}"), pick.feet, stranded_ok.contains(n), place));
         }
         for at in &roof_at {
-            buildings.push((format!("place {} {} {}", at.x, at.y, at.z), *at, false));
+            buildings.push((format!("place {} {} {}", at.x, at.y, at.z), *at, false, None));
         }
-        for (of, at, stranded) in &buildings {
-            let r = roof(&map, *at, of, &set, *stranded)?;
+        for (of, at, stranded, pinned) in &buildings {
+            let r = roof(&map, *at, of, &set, *stranded, *pinned)?;
             let (near, plan, solid) = set
                 .iter()
                 .zip(kept.iter().map(|&i| format!("pick {}", placed[i].n)).chain(buildings.iter().map(|(of, ..)| format!("the roof spawn over {of}"))))
@@ -555,7 +670,7 @@ fn run() -> Result<(), String> {
                 Down::Stranded => "no way down within 5 m drops (--stranded-ok, the owner's)".to_owned(),
             };
             println!(
-                "{project}\t{next_id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\troof\t\troof spawn of the building at the owner's {} (facing {:.1} as where turns, the longest view); its floor {:.1} m over the pick's, sloping {:.0} deg; {}; {down}; body clear; harmful zones >=2m; nearest spawn {near}: {plan:.1} m in plan, {solid:.1} m in 3D; cover {}{}{}",
+                "{project}\t{next_id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\troof\t\troof spawn of the building at the owner's {} (facing {:.1} as where turns, the longest view); its floor {:.1} m over the pick's, {}; {}; {down}; body clear; harmful zones >=2m; nearest spawn {near}: {plan:.1} m in plan, {solid:.1} m in 3D; cover {}{}{}",
                 r.feet.x,
                 r.feet.y,
                 r.feet.z,
@@ -563,7 +678,18 @@ fn run() -> Result<(), String> {
                 r.of,
                 r.yaw,
                 r.height,
-                r.slope,
+                match (r.slope, pinned) {
+                    (Some(s), None) => format!("sloping {s:.0} deg"),
+                    (Some(s), Some(p)) => format!(
+                        "at {} {} {} (--roof-place), its floor within 1 m up to {:.2} m higher or lower",
+                        p.x,
+                        p.y,
+                        p.z,
+                        s.to_radians().tan() * ROOF_FLAT
+                    ),
+                    (None, Some(p)) => format!("at {} {} {} (--roof-place), an edge or a step within 1 m", p.x, p.y, p.z),
+                    (None, None) => "an edge or a step within 1 m".to_owned(),
+                },
                 if r.on_foot { "reached on foot" } else { "not reached on foot" },
                 place.cover.name(),
                 if place.inside { "" } else { "; in the perimeter band" },

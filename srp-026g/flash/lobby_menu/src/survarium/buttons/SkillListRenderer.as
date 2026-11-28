@@ -176,16 +176,26 @@ package survarium.buttons
                   this.skillProgressIndicator.value += 1;
                   _data.newValue = this.skillProgressIndicator.value;
                }
+               dispatchEvent(new Event(Events.SKILL_UPDATE,true));
+               this.updateDescription();
             }
-            else if(this.skillProgressIndicator.value > _data.value)
+            else if(_data.newValue > 0)
             {
-               this.skillProgressIndicator.value -= 1;
-               _data.newValue = this.skillProgressIndicator.value;
-               this.hoverSprite.visible = true;
+               // A right click takes a point back, confirmed or not (the owner, 2026-11-27): the
+               // window decides (CharWindow.onSkillTakeBack) and calls takeBack when it may.
+               dispatchEvent(new Event(Events.SKILL_TAKE_BACK,true));
             }
-            dispatchEvent(new Event(Events.SKILL_UPDATE,true));
-            this.updateDescription();
          }
+      }
+
+      // One point fewer, pending until Confirm as a point taken is (Cancel gives it back).
+      public function takeBack() : void
+      {
+         this.skillProgressIndicator.value -= 1;
+         _data.newValue = this.skillProgressIndicator.value;
+         this.hoverSprite.visible = true;
+         dispatchEvent(new Event(Events.SKILL_UPDATE,true));
+         this.updateDescription();
       }
       
       override protected function draw() : void
@@ -206,13 +216,10 @@ package survarium.buttons
          visible = _data != null;
          if(_data)
          {
+            // No row is left with points it no longer reaches: the window refuses a point taken back
+            // that would (CharWindow.onSkillTakeBack), where the stock window took that row's points
+            // away here unasked (the owner, 2026-11-27: refuse, never cascade).
             currentValue = (_data.newValue);
-            if(!enabled && currentValue)
-            {
-               currentValue = 0;
-               _data.newValue = 0;
-               dispatchEvent(new Event(Events.SKILL_UPDATE,true));
-            }
             this.textFieldLabel.text = _data.name;
             this.textFieldLevel.text = LEVELS[_data.level - 1];
             this.skillProgressIndicator.minimum = 0;

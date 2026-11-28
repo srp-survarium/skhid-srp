@@ -145,7 +145,6 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
 use survarium::v021d;
-use survarium::v026g::twist::Armed;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::{self, DropTable, Drops, Rng};
 use survarium::v026g::lobby::{
@@ -156,6 +155,7 @@ use survarium::v026g::maps::{GameMode, RuleMode};
 use survarium::v026g::match_msgs::snapshot::{EVENTS, HUNDREDTHS, KITS, PlayerStatistics, event};
 use survarium::v026g::match_msgs::static_info::{self, SCORE_WEIGHTS};
 use survarium::v026g::quests::MatchStats as QuestStats;
+use survarium::v026g::twist::Armed;
 use survarium::v026g::twist::LobbyMode;
 
 use super::account::Account;
@@ -1331,7 +1331,10 @@ impl Results {
         inner
             .changes
             .history
-            .extend(record.map(|record| PendingRecord { record, failures: 0 }));
+            .extend(record.map(|record| PendingRecord {
+                record,
+                failures: 0,
+            }));
         Some(report)
     }
 
@@ -1551,9 +1554,9 @@ fn player_id(player: &PlayerResult) -> u32 {
 /// by [`pay::level_reward`].
 pub(super) fn pay_levels(account: &mut Account, experience: u32) -> (Vec<u8>, u32) {
     let levels = account.add_experience(experience);
-    let silver = levels
-        .iter()
-        .fold(0_u32, |sum, &level| sum.saturating_add(pay::level_reward(level)));
+    let silver = levels.iter().fold(0_u32, |sum, &level| {
+        sum.saturating_add(pay::level_reward(level))
+    });
     account.generic_money = account.generic_money.saturating_add(silver);
     (levels, silver)
 }
@@ -1572,6 +1575,299 @@ fn total(events: &[[u16; KITS]; EVENTS], event: usize) -> u32 {
 
 fn clamp_u16(value: u32) -> u16 {
     value.min(u32::from(u16::MAX)) as u16
+}
+
+/// What a match's result says, as its settlement reads it: whether its
+/// numbers can be used, and who won.
+#[derive(Clone, Copy, Debug)]
+pub struct Judged<'a> {
+    result: &'a MatchResult,
+    /// Play began and a snapshot was trusted.
+    trusted: bool,
+    /// Who won, when trusted.
+    winners: Winners,
+}
+
+impl<'a> Judged<'a> {
+    pub fn of(result: &'a MatchResult) -> Self {
+        let trusted = result.played_ms.is_some() && result.trusted_by > 0;
+        Self {
+            result,
+            trusted,
+            winners: if result.mode == GameMode::FreeForAll {
+                Winners::MostKills(
+                    trusted
+                        .then(|| ffa_top_kills(result.players.iter().map(|player| player.kills)))
+                        .flatten(),
+                )
+            } else {
+                Winners::Team(result.winner.filter(|&winner| trusted && winner <= DRAW))
+            },
+        }
+    }
+
+    pub fn standing(&self, player: &PlayerResult) -> Standing {
+        if self.result.played_ms.is_none() {
+            Standing::NotPlayed
+        } else if !player.entered {
+            Standing::Absent
+        } else if player.present_at_end {
+            Standing::Finished
+        } else {
+            Standing::Left
+        }
+    }
+
+    fn won(&self, player: &PlayerResult) -> bool {
+        matches!(self.standing(player), Standing::Finished | Standing::Left)
+            && match self.winners {
+                Winners::Team(winner) => player.team < 2 && winner == Some(player.team),
+                Winners::MostKills(top) => top == Some(player.kills),
+            }
+    }
+
+    /// A player's counters, if the result's numbers can be used.
+    fn events(&self, player: &PlayerResult) -> [[u16; KITS]; EVENTS] {
+        if self.trusted {
+            counters(player)
+        } else {
+            [[0; KITS]; EVENTS]
+        }
+    }
+
+    /// The kits a player used, as the history keeps them
+    /// ([`history::KitLine`]): of its `kits` (at most [`KITS`]), every kit
+    /// with a counter above 0 in the trusted snapshot (as
+    /// [`Results::wear`] counts a kit worn); with none (no trusted
+    /// snapshot, or nothing done), `fallback`, the kit it plays, if known.
+    /// Each with its own kills, headshots, shots and hits, and what
+    /// `items` says it held by slot.
+    pub fn kit_lines(
+        &self,
+        player: &PlayerResult,
+        kits: usize,
+        fallback: Option<usize>,
+        items: impl Fn(usize) -> Vec<history::KitItem>,
+    ) -> Vec<history::KitLine> {
+        let events = self.events(player);
+        let kits = kits.min(KITS);
+        let mut used: Vec<usize> = (0..kits)
+            .filter(|&kit| events.iter().any(|counts| counts[kit] > 0))
+            .collect();
+        if used.is_empty() {
+            used.extend(fallback.filter(|&kit| kit < kits));
+        }
+        used.into_iter()
+            .map(|index| history::KitLine {
+                kit: index as u8,
+                counts: history::KitCounts {
+                    kills: u64::from(events[event::KILL][index]),
+                    headshots: u64::from(events[event::HEADSHOT_KILL][index]),
+                    shots: u64::from(events[event::BULLET_FIRE][index]),
+                    hits: u64::from(events[event::BULLET_HIT][index]),
+                },
+                items: items(index),
+            })
+            .collect()
+    }
+
+    /// What a player did with each weapon, as its games counted it, if the
+    /// result's numbers can be used.
+    fn weapons(&self, player: &PlayerResult) -> BTreeMap<u16, history::WeaponCounts> {
+        if !self.trusted {
+            return BTreeMap::new();
+        }
+        player
+            .weapons
+            .iter()
+            .map(|weapon| {
+                let counts = history::WeaponCounts {
+                    kills: u64::from(weapon.kills),
+                    headshots: u64::from(weapon.headshots),
+                    wall_kills: u64::from(weapon.wall_kills),
+                    ricochet_kills: u64::from(weapon.ricochet_kills),
+                    deaths: u64::from(weapon.deaths),
+                    shots: u64::from(weapon.shots),
+                    hits: u64::from(weapon.hits),
+                    damage: u64::from(weapon.damage),
+                    kill_distance_dm: u64::from(weapon.kill_distance_dm),
+                    longest_kill_dm: u64::from(weapon.longest_kill_dm),
+                    held_ms: u64::from(weapon.held_ms),
+                };
+                (weapon.dict_id, counts)
+            })
+            .collect()
+    }
+}
+
+/// Who the history may name, and their clans: the accounts srp holds.
+pub trait HistoryPeople {
+    /// Whether the account is one srp has.
+    fn known(&self, account_id: u32) -> bool;
+    /// The registered clan the account is of.
+    fn clan_of(&self, account_id: u32) -> Option<u32>;
+}
+
+impl HistoryPeople for GameAccounts {
+    fn known(&self, account_id: u32) -> bool {
+        self.get(account_id).is_some()
+    }
+
+    fn clan_of(&self, account_id: u32) -> Option<u32> {
+        self.clans()
+            .clan_of(account_id)
+            .filter(|clan| clan.registered)
+            .map(|clan| clan.id)
+    }
+}
+
+/// The match as the history keeps it ([`history`]): every account that was
+/// in it, each with its line, what its settlement said of it (`paid`: its
+/// rating after and its experience, when known) and the kits it used
+/// (`kits`, [`Judged::kit_lines`]); no bot (`bots`), and nobody `people`
+/// does not know. All by roster place. `None` when no account was in it.
+/// srp's settlement ([`Results::settle`]) and the matches made again from
+/// their recordings (`srp-history-backfill`) both write through it, so a
+/// line is worked out the same way.
+pub fn history_record(
+    judged: &Judged,
+    bots: &[bool],
+    paid: &[history::Paid],
+    kits: Vec<Vec<history::KitLine>>,
+    people: &dyn HistoryPeople,
+    ended_at: u64,
+    source: history::Source,
+) -> Option<MatchRecord> {
+    let result = judged.result;
+    let research = result.mode == GameMode::Research;
+    let decided = matches!(
+        judged.winners,
+        Winners::Team(Some(0 | 1)) | Winners::MostKills(Some(_))
+    );
+    let mut players: Vec<history::PlayerRecord> = Vec::new();
+    for (((player, &bot), paid), kits) in result.players.iter().zip(bots).zip(paid).zip(kits) {
+        let presence = match judged.standing(player) {
+            Standing::Finished => history::Presence::Finished,
+            Standing::Left => history::Presence::Left,
+            Standing::Absent | Standing::NotPlayed => continue,
+        };
+        if bot || player.account_id == 0 || !people.known(player.account_id) {
+            continue;
+        }
+        // As the rating takes it: one who left lost whatever its team
+        // did.
+        let outcome = if presence == history::Presence::Finished && judged.won(player) {
+            history::Outcome::Won
+        } else if decided {
+            history::Outcome::Lost
+        } else {
+            history::Outcome::Neither
+        };
+        let events = judged.events(player);
+        let count = |event| u64::from(total(&events, event));
+        players.push(history::PlayerRecord {
+            account_id: player.account_id,
+            clan_id: people.clan_of(player.account_id),
+            line: history::PlayerLine {
+                team: player.team,
+                place: 0,
+                seat: player.place,
+                presence,
+                outcome,
+                rating: paid.rating,
+                score: u64::from(player.score),
+                kills: u64::from(player.kills),
+                deaths: u64::from(player.deaths),
+                counters: history::Counters {
+                    assists: count(event::ASSIST),
+                    headshots: count(event::HEADSHOT_KILL),
+                    grenade_kills: count(event::GRENADE_KILL),
+                    melee_kills: count(event::MELEE_KILL),
+                    // Research counts its captures where a battery
+                    // mode counts a delivery's share (`event`).
+                    batteries: if research {
+                        0
+                    } else {
+                        count(event::PUT_VICTORY_ITEM_IN_CONTAINER)
+                    },
+                    capture_hundredths: if research {
+                        count(event::RESEARCH_CAPTURE)
+                    } else {
+                        0
+                    },
+                    // Every artefact taken from an anomaly, the
+                    // results' explorer count; not patch 80's
+                    // empty-slot bonus (event 16).
+                    artefacts: count(event::ARTEFACT),
+                    shots: count(event::BULLET_FIRE),
+                    hits: count(event::BULLET_HIT),
+                },
+                played_ms: player.time_in_match_ms,
+                experience: paid.experience,
+            },
+            kits,
+            weapons: judged.weapons(player),
+        });
+    }
+    if players.is_empty() {
+        return None;
+    }
+    // The place in its team by score, or among everyone of a
+    // free-for-all by kills, then score; a tie goes to the roster's
+    // order.
+    let free_for_all = matches!(judged.winners, Winners::MostKills(_));
+    let rank = |line: &history::PlayerLine| {
+        if free_for_all {
+            (line.kills, line.score)
+        } else {
+            (line.score, 0)
+        }
+    };
+    let places: Vec<u8> = players
+        .iter()
+        .enumerate()
+        .map(|(index, me)| {
+            let ahead = players.iter().enumerate().filter(|&(other, them)| {
+                (free_for_all || them.line.team == me.line.team)
+                    && (rank(&them.line) > rank(&me.line)
+                        || (rank(&them.line) == rank(&me.line) && other < index))
+            });
+            u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
+        })
+        .collect();
+    for (player, place) in players.iter_mut().zip(places) {
+        player.line.place = place;
+    }
+    let kind = if result.private {
+        MatchKind::Private
+    } else if result.vs_bots {
+        MatchKind::VsBots
+    } else {
+        MatchKind::Public(history::Eligibility::of(
+            bots.contains(&true),
+            players.len(),
+            result.played_ms,
+            judged.trusted,
+        ))
+    };
+    Some(MatchRecord {
+        replay_id: result.replay_id.clone(),
+        kind,
+        info: history::MatchInfo {
+            ended_at,
+            duration_ms: result.duration_ms,
+            map_id: result.map_id,
+            mode: LobbyMode::of(result.mode, result.twist),
+            match_level: result.match_level,
+            winner: match judged.winners {
+                Winners::Team(team) => history::Winner::of(team, DRAW),
+                Winners::MostKills(_) => history::Winner::MostKills,
+            },
+            team_points: result.team_points,
+        },
+        players,
+        source,
+    })
 }
 
 /// What every player of a match is settled with.
@@ -1610,7 +1906,9 @@ struct Shared<'a> {
 
 impl<'a> Shared<'a> {
     fn of(result: &'a MatchResult, terms: &'a Terms) -> Self {
-        let trusted = result.played_ms.is_some() && result.trusted_by > 0;
+        let Judged {
+            trusted, winners, ..
+        } = Judged::of(result);
         let batteries = result.mode.rules().has_batteries();
         let mut stole = [false; 2];
         if trusted && batteries {
@@ -1639,15 +1937,7 @@ impl<'a> Shared<'a> {
             result,
             terms,
             trusted,
-            winners: if result.mode == GameMode::FreeForAll {
-                Winners::MostKills(
-                    trusted
-                        .then(|| ffa_top_kills(result.players.iter().map(|player| player.kills)))
-                        .flatten(),
-                )
-            } else {
-                Winners::Team(result.winner.filter(|&winner| trusted && winner <= DRAW))
-            },
+            winners,
             batteries,
             stole,
             weights: static_info::weights_of(result.mode.rules(), terms.score_weights),
@@ -1705,24 +1995,21 @@ impl<'a> Shared<'a> {
         (f64::from(paid[(paid.len() - 1) / 2]) * pay::FLOOR_OF_MEDIAN) as u32
     }
 
-    fn standing(&self, player: &PlayerResult) -> Standing {
-        if self.result.played_ms.is_none() {
-            Standing::NotPlayed
-        } else if !player.entered {
-            Standing::Absent
-        } else if player.present_at_end {
-            Standing::Finished
-        } else {
-            Standing::Left
+    /// What the result says, as every player is settled by it.
+    fn judged(&self) -> Judged<'a> {
+        Judged {
+            result: self.result,
+            trusted: self.trusted,
+            winners: self.winners,
         }
     }
 
+    fn standing(&self, player: &PlayerResult) -> Standing {
+        self.judged().standing(player)
+    }
+
     fn won(&self, player: &PlayerResult) -> bool {
-        matches!(self.standing(player), Standing::Finished | Standing::Left)
-            && match self.winners {
-                Winners::Team(winner) => player.team < 2 && winner == Some(player.team),
-                Winners::MostKills(top) => top == Some(player.kills),
-            }
+        self.judged().won(player)
     }
 
     /// The kits `account` used in the match, as the history keeps them
@@ -1732,30 +2019,12 @@ impl<'a> Shared<'a> {
     /// the one the match took. Each with its own kills, headshots, shots and
     /// hits, and its weapons and armour by slot.
     fn kits_used(&self, account: &Account, player: &PlayerResult) -> Vec<history::KitLine> {
-        let events = self.events(player);
-        let kits = account.kits.len().min(KITS);
-        let mut used: Vec<usize> = (0..kits)
-            .filter(|&kit| events.iter().any(|counts| counts[kit] > 0))
-            .collect();
-        if used.is_empty() {
-            used.extend(
-                account
-                    .kit_index(account.active_kit)
-                    .filter(|&kit| kit < kits),
-            );
-        }
-        used.into_iter()
-            .map(|index| history::KitLine {
-                kit: index as u8,
-                counts: history::KitCounts {
-                    kills: u64::from(events[event::KILL][index]),
-                    headshots: u64::from(events[event::HEADSHOT_KILL][index]),
-                    shots: u64::from(events[event::BULLET_FIRE][index]),
-                    hits: u64::from(events[event::BULLET_HIT][index]),
-                },
-                items: self.kit_items(account, index),
-            })
-            .collect()
+        self.judged().kit_lines(
+            player,
+            account.kits.len(),
+            account.kit_index(account.active_kit),
+            |index| self.kit_items(account, index),
+        )
     }
 
     /// What the history keeps of `account`'s kit `index`
@@ -1778,10 +2047,8 @@ impl<'a> Shared<'a> {
             .collect()
     }
 
-    /// The match as the history keeps it ([`history`]): every account that
-    /// was in it, each with its line, its rating after (`reports`) and the
-    /// kits it used (`kits`, [`Self::kits_used`]); no bot (`bots`). All by
-    /// roster place. `None` when no account was in it.
+    /// The match as the history keeps it ([`history_record`]), each line
+    /// with its rating after and its experience (`reports`).
     fn history_record(
         &self,
         bots: &[bool],
@@ -1789,178 +2056,27 @@ impl<'a> Shared<'a> {
         kits: Vec<Vec<history::KitLine>>,
         accounts: &GameAccounts,
     ) -> Option<MatchRecord> {
-        let result = self.result;
-        let research = result.mode == GameMode::Research;
-        let decided = matches!(
-            self.winners,
-            Winners::Team(Some(0 | 1)) | Winners::MostKills(Some(_))
-        );
-        let mut players: Vec<history::PlayerRecord> = Vec::new();
-        for (((player, &bot), report), kits) in
-            result.players.iter().zip(bots).zip(reports).zip(kits)
-        {
-            let presence = match self.standing(player) {
-                Standing::Finished => history::Presence::Finished,
-                Standing::Left => history::Presence::Left,
-                Standing::Absent | Standing::NotPlayed => continue,
-            };
-            if bot || player.account_id == 0 || accounts.get(player.account_id).is_none() {
-                continue;
-            }
-            // As the rating takes it: one who left lost whatever its team
-            // did.
-            let outcome = if presence == history::Presence::Finished && self.won(player) {
-                history::Outcome::Won
-            } else if decided {
-                history::Outcome::Lost
-            } else {
-                history::Outcome::Neither
-            };
-            let events = self.events(player);
-            let count = |event| u64::from(total(&events, event));
-            players.push(history::PlayerRecord {
-                account_id: player.account_id,
-                clan_id: accounts
-                    .clans()
-                    .clan_of(player.account_id)
-                    .filter(|clan| clan.registered)
-                    .map(|clan| clan.id),
-                line: history::PlayerLine {
-                    team: player.team,
-                    place: 0,
-                    seat: player.place,
-                    presence,
-                    outcome,
-                    rating: report.reward.rating_after,
-                    score: u64::from(player.score),
-                    kills: u64::from(player.kills),
-                    deaths: u64::from(player.deaths),
-                    counters: history::Counters {
-                        assists: count(event::ASSIST),
-                        headshots: count(event::HEADSHOT_KILL),
-                        grenade_kills: count(event::GRENADE_KILL),
-                        melee_kills: count(event::MELEE_KILL),
-                        // Research counts its captures where a battery
-                        // mode counts a delivery's share (`event`).
-                        batteries: if research {
-                            0
-                        } else {
-                            count(event::PUT_VICTORY_ITEM_IN_CONTAINER)
-                        },
-                        capture_hundredths: if research {
-                            count(event::RESEARCH_CAPTURE)
-                        } else {
-                            0
-                        },
-                        // Every artefact taken from an anomaly, the
-                        // results' explorer count; not patch 80's
-                        // empty-slot bonus (event 16).
-                        artefacts: count(event::ARTEFACT),
-                        shots: count(event::BULLET_FIRE),
-                        hits: count(event::BULLET_HIT),
-                    },
-                    played_ms: player.time_in_match_ms,
-                    experience: Some(report.reward.played_experience()),
-                },
-                kits,
-                weapons: self.weapons(player),
-            });
-        }
-        if players.is_empty() {
-            return None;
-        }
-        // The place in its team by score, or among everyone of a
-        // free-for-all by kills, then score; a tie goes to the roster's
-        // order.
-        let free_for_all = matches!(self.winners, Winners::MostKills(_));
-        let rank = |line: &history::PlayerLine| {
-            if free_for_all {
-                (line.kills, line.score)
-            } else {
-                (line.score, 0)
-            }
-        };
-        let places: Vec<u8> = players
+        let paid: Vec<history::Paid> = reports
             .iter()
-            .enumerate()
-            .map(|(index, me)| {
-                let ahead = players.iter().enumerate().filter(|&(other, them)| {
-                    (free_for_all || them.line.team == me.line.team)
-                        && (rank(&them.line) > rank(&me.line)
-                            || (rank(&them.line) == rank(&me.line) && other < index))
-                });
-                u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
+            .map(|report| history::Paid {
+                rating: Some(report.reward.rating_after),
+                experience: Some(report.reward.played_experience()),
             })
             .collect();
-        for (player, place) in players.iter_mut().zip(places) {
-            player.line.place = place;
-        }
-        let kind = if result.private {
-            MatchKind::Private
-        } else if result.vs_bots {
-            MatchKind::VsBots
-        } else {
-            MatchKind::Public(history::Eligibility::of(
-                bots.contains(&true),
-                players.len(),
-                result.played_ms,
-                self.trusted,
-            ))
-        };
-        Some(MatchRecord {
-            replay_id: result.replay_id.clone(),
-            kind,
-            info: history::MatchInfo {
-                ended_at: self.terms.now,
-                duration_ms: result.duration_ms,
-                map_id: result.map_id,
-                mode: LobbyMode::of(result.mode, result.twist),
-                match_level: result.match_level,
-                winner: match self.winners {
-                    Winners::Team(team) => history::Winner::of(team, DRAW),
-                    Winners::MostKills(_) => history::Winner::MostKills,
-                },
-                team_points: result.team_points,
-            },
-            players,
-        })
-    }
-
-    /// What a player did with each weapon, as its games counted it, if the
-    /// result's numbers can be used.
-    fn weapons(&self, player: &PlayerResult) -> BTreeMap<u16, history::WeaponCounts> {
-        if !self.trusted {
-            return BTreeMap::new();
-        }
-        player
-            .weapons
-            .iter()
-            .map(|weapon| {
-                let counts = history::WeaponCounts {
-                    kills: u64::from(weapon.kills),
-                    headshots: u64::from(weapon.headshots),
-                    wall_kills: u64::from(weapon.wall_kills),
-                    ricochet_kills: u64::from(weapon.ricochet_kills),
-                    deaths: u64::from(weapon.deaths),
-                    shots: u64::from(weapon.shots),
-                    hits: u64::from(weapon.hits),
-                    damage: u64::from(weapon.damage),
-                    kill_distance_dm: u64::from(weapon.kill_distance_dm),
-                    longest_kill_dm: u64::from(weapon.longest_kill_dm),
-                    held_ms: u64::from(weapon.held_ms),
-                };
-                (weapon.dict_id, counts)
-            })
-            .collect()
+        history_record(
+            &self.judged(),
+            bots,
+            &paid,
+            kits,
+            accounts,
+            self.terms.now,
+            history::Source::Live,
+        )
     }
 
     /// A player's counters, if the result's numbers can be used.
     fn events(&self, player: &PlayerResult) -> [[u16; KITS]; EVENTS] {
-        if self.trusted {
-            counters(player)
-        } else {
-            [[0; KITS]; EVENTS]
-        }
+        self.judged().events(player)
     }
 
     /// The score with what the client adds at the end of a match.
@@ -2019,11 +2135,19 @@ impl<'a> Shared<'a> {
                     continue;
                 }
                 let mut opponents = vec![(0, held[index].as_ref().unwrap().0, true)];
-                opponents.extend(rated.iter().filter(|&&other| other != index)
-                    .map(|&other| (1, held[other].as_ref().unwrap().0, true)));
+                opponents.extend(
+                    rated
+                        .iter()
+                        .filter(|&&other| other != index)
+                        .map(|&other| (1, held[other].as_ref().unwrap().0, true)),
+                );
                 changes[index] = v021d::rating::changes_scaled(
-                    &opponents, 0, pay::RATING_STEP, pay::RATING_SPREAD,
-                )[0].max(0);
+                    &opponents,
+                    0,
+                    pay::RATING_STEP,
+                    pay::RATING_SPREAD,
+                )[0]
+                .max(0);
             }
             return changes;
         }
@@ -2150,7 +2274,11 @@ impl<'a> Shared<'a> {
         for (event, counts) in events.iter().enumerate() {
             // Freeze Tag's thaw is in the kills' line and pays as a kill.
             let thaw = self.result.mode == GameMode::FreezeTag && event == event::THAW;
-            let line = if thaw { EVENT_LINES[event::KILL] } else { EVENT_LINES[event] };
+            let line = if thaw {
+                EVENT_LINES[event::KILL]
+            } else {
+                EVENT_LINES[event]
+            };
             // What one of the event pays. A kill and a help pay by the
             // event; an event of the activity line by its score, with the
             // weight the scoreboard counted it with. An event that scores
@@ -2282,7 +2410,11 @@ impl<'a> Shared<'a> {
         }
 
         // The rating.
-        if matches!(self.winners, Winners::Team(Some(_)) | Winners::MostKills(Some(_))) && !self.unrated {
+        if matches!(
+            self.winners,
+            Winners::Team(Some(_)) | Winners::MostKills(Some(_))
+        ) && !self.unrated
+        {
             account.rating_before = account.rating;
             account.rating = v021d::rating::moved(account.rating, rating_change);
             reward.rating_after = account.rating;
@@ -2299,14 +2431,13 @@ impl<'a> Shared<'a> {
             let respawns = total(&events, event::DEATH)
                 .saturating_add(u32::from(player.kit_changes))
                 .saturating_add(u32::from(self.result.round_starts));
-            reward.supplies_used =
-                super::autobuy::used(
-                    account,
-                    player.supplies.as_ref(),
-                    &shots,
-                    respawns,
-                    self.result.twist,
-                );
+            reward.supplies_used = super::autobuy::used(
+                account,
+                player.supplies.as_ref(),
+                &shots,
+                respawns,
+                self.result.twist,
+            );
         }
         // The score's lines. A match against the server's bots pays a share
         // of the silver and the experience (`SRP_PVB_PAY`): of every cell,
@@ -2398,9 +2529,9 @@ impl<'a> Shared<'a> {
             // armour, `items_rules::kit_bonuses`): the screen's "premium
             // items" column. [GUESS: the
             // three bytes are the percents.]
-            // None in Roulette: its kits were not the account's.
+            // None in Roulette and Pistols: their kits were not the account's.
             let gear = match self.result.twist {
-                Some(Armed::Roulette(_)) => survarium::v026g::modifications::Bonuses::default(),
+                Some(twist) if !twist.keeps_own_items() => survarium::v026g::modifications::Bonuses::default(),
                 _ => items_rules::kit_bonuses(account, kit),
             };
             let gear_reputation = match faction {

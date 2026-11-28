@@ -462,7 +462,6 @@ Nobody yet.	Még senki.
 Modes	Játékmódok
 Every mode: its rules, numbers and maps.	Minden játékmód: szabályok, számok és pályák.
 Versions	Változatok
-Public rooms only	Csak nyilvános szobák
 Private rooms only	Csak privát szobák
 Not offered now	Most nem elérhető
 Respawn after {0} s.	Újraéledés {0} mp után.
@@ -514,9 +513,14 @@ Level bands: {0}.	Szintsávok: {0}.
 A room draws bands up to its level.	A szoba a szintjéig sorsol sávot.
 Each kit a gun of another class, with random bonuses and attachments.	Minden felszerelésben más osztályú fegyver, véletlen bónuszokkal és kiegészítőkkel.
 {0} % of deals: pistols only.	Az osztások {0} %-a: csak pisztolyok.
-Plain FFA: {0} % of FFA cards.	Sima FFA: az FFA-kártyák {0} %-a.
+Everyone plays his own kits.	Mindenki a saját felszereléseivel játszik.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Mindenki ugyanazzal a {0} véletlen felszereléssel játszik, mindegyikben egy pisztoly; a harmadik felszerelés üres marad.
+Pistols of levels {0}: {1}.	{0} szintű pisztolyok: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	A szoba a szintjéig sorsol sávot; a 10. szint feletti szoba 0–5 vagy 6–10 sávval játszik.
+Two different pistols of the band, with random armour, bonuses and attachments.	Két különböző pisztoly a sávból, véletlen páncéllal, bónuszokkal és kiegészítőkkel.
 {0} % of FFA cards.	Az FFA-kártyák {0} %-a.
 FFA: Roulette	FFA: Rulett
+FFA: Pistols	FFA: Pisztolyok
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Fegyver keresése
@@ -943,6 +947,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Egy fajta példányai összeadódnak (az Ónix passzívja szorzódik); legfeljebb 4 számít.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívhoz; az Ónixé felváltja azt.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Együtt aktivált Ónixok: egy csökkentés, minden további példányért 1 mp-cel tovább.
+Power per activation	Erő aktiválásonként
+Activations	Aktiválások
+Power	Erő	artefact
+Next activation	Következő aktiválás
+Regeneration limit	Regenerációs határ
+Missing health restored	Visszaadott hiányzó életerő
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Minden aktiválás után az artefaktum megtartja ereje 80%-át: 100 → 80 → 64 → 51%… Sosem merül ki, és az erő annál a példánynál marad, amíg újat nem szerzel.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Minden sor: ennyi aktiválás után a passzív most és a következő aktiválás. Csak a gombnyomással aktivált példányok gyengülnek.
+It still cures injuries on every activation.	Továbbra is minden aktiváláskor gyógyítja a sérüléseket.
+Its skills work at its power: {skills}.	A képességei az erejével hatnak: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	A regenerációs határ hozzáadódik minden testrész saját határához, de sosem több a teljesnél.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomáliák
@@ -1001,3 +1016,5 @@ night	éjszaka	weather
 before rain	eső előtt	weather
 Weathers	Időjárás
 Variants	Változatok
+History since {0}.	Előzmények: {0} óta.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Előzmények: {0} óta, valamint {1} korábbi meccs a felvételeikből visszaállítva, {2} óta; a {0} előtti meccsek nincsenek meg mind.

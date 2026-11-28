@@ -245,7 +245,12 @@ package survarium.controls
             sellPrice = price / ItemPrice.SELL_DIVISOR;
             _cost = sellPrice;
          }
-         _step = slotData.clip_size == undefined ? 1 : (slotData.clip_size);
+         // The card's own item (updateData: a stack, a pocket's item) is an ItemData, which has
+         // clipSize and no clip_size; it is sealed, so reading clip_size off it threw (#1069) and
+         // the click that chose a kit's ammo or medkit in the shop stopped there, before its
+         // right-click menu (InventoryList.selectItem puts the kit's item on the card).
+         var clip:uint = slotData is ItemData ? (slotData as ItemData).clipSize : uint(slotData.clip_size);
+         _step = clip == 0 ? 1 : clip;
          trace("onSlotUpdate",this._cost,slotData.cost);
       }
       

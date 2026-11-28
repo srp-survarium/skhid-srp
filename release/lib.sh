@@ -735,16 +735,24 @@ cache_patches() {
 # to the next. False, with URL_PROBLEM saying why, when <needed URL> fails
 # (a patch's on the patches server: the release builds the server data from
 # it) or no URL gives the file. URLS_GOOD: how many gave it.
-URLS_GOOD=0
+# URLS_CHECKED_LOG: a file each URL that gave it is added to, as
+# `<sha256> <size> <url>` (release.sh's preflight); URLS_CHECKED_BEFORE: such
+# a file of this run, whose URLs are not asked again (build-server-db
+# --urls-checked: release.sh's step 2, minutes after its preflight).
+URLS_GOOD=0 URLS_CHECKED_LOG='' URLS_CHECKED_BEFORE=''
 check_file_urls() {
     local name=$1 sha=$2 size=$3 urls=$4 dir=$5 how=$6 needed=${7:-} url last=''
     local -a each
     read -r -a each <<<"$urls"
     URLS_GOOD=0
     for url in "${each[@]}"; do
-        if check_patch_url "$url" "$sha" "$size" "$dir" "$how"; then
+        if [[ -n $URLS_CHECKED_BEFORE ]] && grep -qxF -- "$sha $size $url" "$URLS_CHECKED_BEFORE" 2>/dev/null; then
+            URLS_GOOD=$((URLS_GOOD + 1))
+            say "  ok       $name at $url: checked by this release's preflight"
+        elif check_patch_url "$url" "$sha" "$size" "$dir" "$how"; then
             URLS_GOOD=$((URLS_GOOD + 1))
             say "  ok       $name at $url: $CHECKED"
+            if [[ -n $URLS_CHECKED_LOG ]]; then printf '%s %s %s\n' "$sha" "$size" "$url" >>"$URLS_CHECKED_LOG"; fi
         elif [[ $url == "$needed" ]]; then
             return 1
         else

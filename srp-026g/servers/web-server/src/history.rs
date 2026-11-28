@@ -13,13 +13,12 @@ use serde_json::{Value, json};
 use std::time::Instant;
 
 use session::SessionStore;
-use session::v026g::replays::{Replays, Status};
 use session::v026g::persist::history::{
     ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchInfo,
-    MatchSummary,
-    Named, Order, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey,
+    MatchSummary, Named, Order, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey,
     WeaponRanking, WeaponTotals, Winner,
 };
+use session::v026g::replays::{Replays, Status};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
 
@@ -125,6 +124,11 @@ fn page_text(lang: Lang) -> Value {
         ("replayFile", lang.t("Download")),
         ("today", lang.t("Daily leaders")),
         ("allTime", lang.t("All time")),
+        ("historySince", lang.t("History since {0}.")),
+        (
+            "historySinceRecorded",
+            lang.t("History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there."),
+        ),
         ("shots", lang.t("Shots fired")),
         ("accuracy", lang.t("Accuracy")),
         ("weapons", lang.t("Weapons")),
@@ -192,7 +196,10 @@ pub(crate) fn page(lang: Lang, header: &str, query: &str) -> Response {
     let stats = lang.t("Stats");
     let query = Query::of(query);
     let trees = if query.text("id").or(query.text("player")).is_some() {
-        format!("<template id=stats-skills>{}</template>", skills::trees(lang))
+        format!(
+            "<template id=stats-skills>{}</template>",
+            skills::trees(lang)
+        )
     } else {
         String::new()
     };
@@ -292,16 +299,28 @@ impl Period {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Endpoint {
     Player(PlayerKey),
-    PlayerMatches { account_id: u32, page: Page },
-    PlayerDays { account_id: u32, days: u64 },
-    PlayerEquipment { account_id: u32, limit: usize },
+    PlayerMatches {
+        account_id: u32,
+        page: Page,
+    },
+    PlayerDays {
+        account_id: u32,
+        days: u64,
+    },
+    PlayerEquipment {
+        account_id: u32,
+        limit: usize,
+    },
     PlayerWeapons {
         account_id: u32,
         by: WeaponRanking,
         order: Order,
         limit: usize,
     },
-    Matches { page: Page, clan: Option<u32> },
+    Matches {
+        page: Page,
+        clan: Option<u32>,
+    },
     Match(u64),
     Replay(u64),
     Top {
@@ -311,7 +330,9 @@ enum Endpoint {
         limit: usize,
     },
     Best(Period),
-    Today { limit: usize },
+    Today {
+        limit: usize,
+    },
     AllTime,
     Clans {
         by: TotalsKey,
@@ -517,11 +538,13 @@ impl Endpoint {
                 account_id: query.required("id")?,
                 by: match query.text("by") {
                     None => WeaponRanking::Kills,
-                    Some(text) => WEAPON_RANKINGS
-                        .iter()
-                        .find(|(name, _)| *name == text)
-                        .ok_or(Refusal::BadRequest)?
-                        .1,
+                    Some(text) => {
+                        WEAPON_RANKINGS
+                            .iter()
+                            .find(|(name, _)| *name == text)
+                            .ok_or(Refusal::BadRequest)?
+                            .1
+                    }
                 },
                 order: query.order()?,
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
@@ -596,7 +619,15 @@ pub(crate) fn response(
         let history = game.accounts.history().ok_or(Refusal::NoHistory)?;
         let banned = |account_id: u32| store.account_ban(account_id).is_some();
         let rooms = game.pools.room_order();
-        answer(&endpoint, history, game.replays.as_deref(), &banned, rooms, lang, now)
+        answer(
+            &endpoint,
+            history,
+            game.replays.as_deref(),
+            &banned,
+            rooms,
+            lang,
+            now,
+        )
     });
     match answer {
         Ok(body) => Response {
@@ -730,9 +761,7 @@ fn answer(
         Endpoint::Replay(id) => {
             let (summary, _) = history.game_match(*id)?.ok_or(Refusal::NotFound)?;
             let asked = match replays {
-                Some(replays) => {
-                    replays.ask_for_site(summary.replay_id.match_id(), Instant::now())
-                }
+                Some(replays) => replays.ask_for_site(summary.replay_id.match_id(), Instant::now()),
                 None => return Ok(json!({ "status": Status::Off.word() })),
             };
             let mut value = json!({ "status": asked.status.word() });
@@ -757,7 +786,9 @@ fn answer(
             after,
             limit,
         } => {
-            let page = history.top(*by, *order, *after, *limit, &|account_id| !banned(account_id))?;
+            let page = history.top(*by, *order, *after, *limit, &|account_id| {
+                !banned(account_id)
+            })?;
             let players: Vec<Value> = page
                 .players
                 .iter()
@@ -831,6 +862,13 @@ fn answer(
                 "hits": counters.hits,
                 "accuracy": accuracy(counters.shots, counters.hits),
                 "played_s": all.totals.played_ms / 1000,
+                // When the history began, and the matches of before it made
+                // again from their recordings (`srp-history-backfill`).
+                "since": all.live_since,
+                "recorded": (all.recorded > 0).then(|| json!({
+                    "matches": all.recorded,
+                    "since": all.recorded_since,
+                })),
             })
         }
         Endpoint::Clans { by, order, limit } => {
@@ -881,9 +919,13 @@ fn answer(
             &plays::Atlas::shared(),
             rooms,
         ),
-        Endpoint::Modes(span) => {
-            plays::modes(&*history.plays(span.window(now))?, *span, now, lang, &plays::Atlas::shared())
-        }
+        Endpoint::Modes(span) => plays::modes(
+            &*history.plays(span.window(now))?,
+            *span,
+            now,
+            lang,
+            &plays::Atlas::shared(),
+        ),
     })
 }
 

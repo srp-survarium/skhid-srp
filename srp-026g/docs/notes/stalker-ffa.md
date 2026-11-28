@@ -19,7 +19,21 @@ reaches. The list removes its ammo stashes from the `day_8` copy itself (as no-a
 Depository's 48 points stay in the table, held (the owner, 2026-11-21: "only station is fine"); move
 it from `THIRD.held` to `THIRD.maps` to offer it as 32.
 
-Fire Station (pack `stalker-maps-2`, maps_dict 39, `ffa-stalker-2.json`; its 48 points by the spawn rule are the owner's 42 picks since `ffa-fire-station-picks-1`, `ffa.md`) is in `stalker-maps.md`, "Four more maps"; Dark Valley, Vehicle Station (47 points) and Sports Center are held there.
+Station at the owner's picks too (2026-11-27: 60 `where` places on its day_8, "use them too",
+`private/spawn-examples/station-2026-11-27.tsv`): `ffa-station-picks-1.json`, from
+`scripts/ffa-mode/station-picks.tsv` (`picks --add --cap 128 --shift 1`) and `make_picks_edits.py
+station`, after `ffa-stalker-3`. The 96 and his 60 would be 156; the respawn chooses among 128 at the
+most (exe patch 142, `free_for_all.rs` `MAX_POINTS`), so 28 of the 96 give their ids (names, radii,
+protection) to his places: point 80, which the spawn check drops (no floor reached from the spawns, as
+the live data has it), then the 27 nearest a pick (0.6 to 6.8 m: 92 at 0.6 and 86 at 1.9 m are
+near-duplicates, the others go for the cap). His other 32 are new points 96-127; the 68 others stay.
+- All 60 on their ground (0 to 9 cm), body clear, 2 m from harmful zones; 28 0.25 m off his place (the
+  ground was 0.74 m under it). 3, 18, 27, 37 and 44 have no cover, kept as his.
+- His 25 and 59 stand 0.47 m apart, 7 and 8 1.35 m: both kept, as every pick.
+- `check-points report` on the result: all 128 on their ground (point 80 of before failed it).
+- Racket only in open rooms (`ffa-station-racket-1.json`): `ffa.md`, "Twists".
+
+Fire Station (pack `stalker-maps-2`, maps_dict 39, `ffa-stalker-2.json`; its 48 points by the spawn rule are the owner's picks since `ffa-fire-station-picks-1`, 51 since 2026-11-27, `ffa.md`) is in `stalker-maps.md`, "Four more maps"; Dark Valley, Vehicle Station (47 points) and Sports Center are held there.
 
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
 six TDM ports. The other three are Repair Depot, Station and Depository. Only

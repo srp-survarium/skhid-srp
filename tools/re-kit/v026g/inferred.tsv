@@ -1342,7 +1342,6 @@ va	status	ref_021d	name
 0x00243770	inferred-medium	0x00184a1e	survarium::weapon::`scalar deleting destructor'
 0x00243790	inferred-medium	0x00184a3c	survarium::weapon::~weapon
 0x002443d0	inferred-medium	0x0018511b	survarium::weapon::play_weapon_fire_pfx
-0x00244d40	inferred-medium		survarium::weapon::calculate_aim_alignment
 0x00246380	inferred-medium	0x00184924	survarium::game_options::input_handler
 0x00246b80	inferred-medium	0x0018679f	survarium::victory_item::taken_from_container
 0x00246d80	inferred-medium	0x00186978	vostok::buffer_vector<vostok::math::float4x4>::resize
@@ -3726,3 +3725,7 @@ va	status	ref_021d	name
 0x00528900	inferred-medium		Scaleform::Render::RBGenericImpl::RenderBufferManager::CreateTempRenderTarget
 0x00529110	inferred-medium		Scaleform::Render::FilterPrimitive::GetCacheResults
 0x005298c0	inferred-medium		Scaleform::Render::FilterPrimitive::SetCacheResults
+0x002ac6c0	inferred-high		survarium::particle_game_effect_presenter::effect_data::operator=
+0x0075d4b0	inferred-high		Scaleform::GFx::AS3::Instances::fl_display::MovieClip::currentFrameGet
+0x0075d630	inferred-high		Scaleform::GFx::AS3::Instances::fl_display::MovieClip::totalFramesGet
+0x00760120	inferred-high		Scaleform::GFx::AS3::Instances::fl_display::MovieClip::gotoAndPlay

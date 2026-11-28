@@ -172,19 +172,28 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     ("ffa should be a third pane always"), and Blackout had that card from 2026-11-02
     (`ffa.md`, "Where it is played").
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
-    draws "FFA: Racket", "FFA: Roulette" (one of its bands, not shown: `ffa-roulette.md`), "FFA: Saloon
-    (Winchester)", "FFA: Saloon" (the Colt alone) or none by the owner's shares (30 / 30 / 5 / 5 /
-    30 since 2026-11-22; the two Saloons by their own names since 2026-11-15, "so
+    draws "FFA: Racket", "FFA: Roulette" (one of its bands, not shown: `ffa-roulette.md`), "FFA:
+    Pistols" (`ffa-pistols.md`), "FFA: Saloon (Winchester)", "FFA: Saloon" (the Colt alone) or none
+    by the owner's shares (Racket 30, Roulette 25, Pistols 10, the Saloons 5 and 5, plain 25 since
+    2026-11-27; 30 / 30 / 5 / 5 / 30 from 2026-11-22; the two Saloons by their own names since
+    2026-11-15, "so
     people know what they get and can vote based on this"); a private
     room's is always plain Free for all, and the create window has no twist tick (the owner's of
     2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from
     2026-11-14 to then). A window saved with them loads, the twists' modes left out.
   - **A map played with a twist only** (Military Warehouses; the owner, 2026-11-22: "military
     warehouses should not be playable on general ffa, only ffa: racket and other variants";
-    `ffa.md`, "Twists"): its config's `srp_twists_only`. An open room's card on it draws a twist
-    alone, by the twists' shares (the map drawn first, as any); a private room never has it: the
-    create window does not list it (`Core::private_entries`) and its pool leaves it out
-    (`Rooms::create_with_pool`).
+    `ffa.md`, "Twists"): its config's `srp_twists_only`, which holds in open rooms alone. An
+    open room's card on it draws a twist alone, by the twists' shares (the map drawn first, as
+    any). A private room may hold it as any map and plays it plain, as its every free-for-all
+    (the owner, 2026-11-27: "when creating private room… this is because we removed FFA from
+    them, which is fine for pub lobbies, not for private ones"): the create window lists it and
+    a private room's pool keeps it. From 2026-11-22 to 2026-11-27 no private room had it.
+  - **The pool the movie is sent** (`S1;M`) lists every entry, each `offered` 1: the movie names
+    and draws every card, room and match by it (from 2026-11-22 to 2026-11-27 Military Warehouses
+    was left out, and a card on it was empty: no picture, name or mode; the owner, 2026-11-27:
+    "they don't get an icon in room voting"). Its `offered` 0, a map only an open room's card
+    shows and no create window lists, is read by the movie but not sent now.
   - **Free for All and Blackout are each on one card at the most** (the owner's of 2026-11-12:
     "Make it so blackout cannot be on two cards at the same time"; of 2026-11-22: "there can
     only be one ffa (or none)", plain or with any twist). A case of no mode repeats (above): a

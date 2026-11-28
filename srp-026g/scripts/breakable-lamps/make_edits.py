@@ -84,8 +84,11 @@ BOTTLES = {prefix + 'props/kitchen/bottle_vodka' for prefix in PORT_PREFIXES}
 SHARDS = 8
 # The most loose pieces a project's table may have: the client's MAX_PIECES
 # and its registry's MAX_LOOSE (lamps/model.rs, vostok/project.rs), past
-# which it refuses the map at its load.
-MAX_PIECES = 32
+# which it refuses the map at its load; and the most objects it binds
+# (MAX_BINDINGS: each visual, loose piece, light, ambient light, particle and
+# probe of every row).
+MAX_PIECES = 384
+MAX_BINDINGS = 1024
 BOTTLE_SHARDS = {prefix + 'props/kitchen/bottle_vodka':
                  [prefix + f'props/kitchen/srp_bottle_vodka_shard{k}' for k in range(SHARDS)]
                  for prefix in ('', 'ported/v021d/')}
@@ -98,9 +101,42 @@ BOTTLE_SHARDS = {prefix + 'props/kitchen/bottle_vodka':
 # leftover 'body' (the client marks the figure's collision once broken),
 # one of lamps leaves it out (their glass's stays: never marked).
 FIGURE_FOLDERS = ('character/human/static/remains/', 'ported/v021d/character/human/static/remains/',
-                  'v069d_rudnya/character/human/static/remains/')
+                  'v069d_rudnya/character/human/static/remains/', 'ported/v011e/character/human/remains/',
+                  'ported/v032a/character/human/static/remains/', 'ported/v044a/character/human/static/remains/')
 FIGURES = {folder + 'skeleton_sitting1': (folder + 'srp_skeleton_sitting1_bare', folder + 'srp_skeleton_sitting1_cap')
            for folder in FIGURE_FOLDERS}
+
+
+def _pack(name, path):
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[1] / path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# Later lists' fixtures (breakable-lamps/fixtures.py): the kitchen things a
+# shot throws whole (kitchen-ware-1: the loose copy, kind 'ware') or breaks
+# (its shards, kind 'shard'), Vector's capsules (lab-capsule-glass-1: the
+# frame without its glass while broken, the glass's shards, kind
+# 'pane_shard'), Vector's jars (lab-jars-1: each jar of a rack drawn alone,
+# its stump while broken, its shards, kind 'pane_shard'), Vector's windows (vector-windows-1: each
+# bay of its building's glass drawn alone, what its frame keeps while broken,
+# no pieces) and School's bells (school-bells-1: rows of reaction 'ring',
+# nothing drawn).
+_ware = _pack('kitchen_ware_pack', 'kitchen-ware/make_pack.py')
+_capsule = _pack('lab_capsule_pack', 'lab-capsule/make_pack.py')
+_jars = _pack('lab_jars_pack', 'lab-jars/make_pack.py')
+_windows = _pack('vector_windows_pack', 'vector-windows/make_pack.py')
+WARE_LOOSE = {name: _ware.loose_name(name) for name in _ware.WARE}
+CERAMIC_SHARDS = {name: _ware.shard_names(name) for name in _ware.CERAMIC}
+# a figure's scale its pieces are cut at (they are placed unscaled)
+PIECE_SCALE = dict(_ware.SCALE)
+CAPSULES = {g.model: (g.broken, g.shard_names) for g in _capsule.GLASSES}
+JARS = dict(zip(_jars.jar_names(), _jars.broken_names()))
+JAR_SHARDS = {jar: _jars.shard_names(k) for k, jar in enumerate(_jars.jar_names())}
+# the bays a building's glass has (Vector's 23), and more
+PANES = {_windows.pane_name(k): _windows.broken_name(k) for k in range(64)}
+BELLS = ('props/electric/bell_school', 'ported/v021d/props/electric/bell_school')
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
 # triangles make_pack.py drops: lamp_midle_0N y -0.099..-0.055, lamp_big_01
@@ -443,8 +479,17 @@ def check_built(path, data):
     placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
               for kind in ('light', 'ambient_light', 'particle', 'environment_probe')}
     problems = []
-    broken_of = REPLACEMENTS | {figure: models[0] for figure, models in FIGURES.items()}
+    broken_of = REPLACEMENTS | {figure: models[0] for figure, models in FIGURES.items()} \
+        | {capsule: models[0] for capsule, models in CAPSULES.items()} | JARS | PANES
+    table_leftover = root['srp_lamps'].get('leftover', 'glass')
+    bindings = 0
     for name, row in root['srp_lamps']['lamps'].items():
+        bindings += sum(len(row.get(t, {})) for t in ('visuals', 'loose', 'lights', 'ambient_lights', 'particles',
+                                                       'probes'))
+        if row.get('reaction', 'break') == 'ring':
+            problems += ring_problems(path, name, row, visuals)
+            continue
+
         def visual(key, table='visuals'):
             index = row[table][key]['index']
             return visuals[index] if 0 <= index < len(visuals) else None
@@ -457,7 +502,9 @@ def check_built(path, data):
             if v is None:
                 ok = False
             elif role == 'intact':
-                ok = model in FIGURES or ((model in REPLACEMENTS or model in GLASS or model in BOTTLES) and inside(v))
+                ok = model in FIGURES or model in CAPSULES or (
+                    (model in REPLACEMENTS or model in GLASS or model in BOTTLES or model in WARE_LOOSE
+                     or model in CERAMIC_SHARDS or model in JARS or model in PANES) and inside(v))
             elif role == 'broken':
                 intact = visual('intact' + key[len(role):])
                 ok = intact is not None and model_name(intact) in broken_of and \
@@ -468,15 +515,22 @@ def check_built(path, data):
             if not ok:
                 problems.append(f'{path}: {name} {key}: render_visuals[{row["visuals"][key]["index"]}] is {model!r}')
         pieces_of = {figure: ([models[1]], 'headwear') for figure, models in FIGURES.items()} \
-            | {bottle: (shards, 'shard') for bottle, shards in BOTTLE_SHARDS.items()}
+            | {bottle: (shards, 'shard') for bottle, shards in BOTTLE_SHARDS.items()} \
+            | {ware: ([loose], 'ware') for ware, loose in WARE_LOOSE.items()} \
+            | {jug: (shards, 'shard') for jug, shards in CERAMIC_SHARDS.items()} \
+            | {capsule: (models[1], 'pane_shard') for capsule, models in CAPSULES.items()} \
+            | {jar: (shards, 'pane_shard') for jar, shards in JAR_SHARDS.items()}
         figures = [visual(key) for key in row['visuals'] if key.startswith('intact')]
         figures = [v for v in figures if v is not None and model_name(v) in pieces_of]
         for key, piece in row.get('loose', {}).items():
             v = visual(key, 'loose')
             ok = v is not None and len(figures) == 1 and model_name(v) in pieces_of[model_name(figures[0])][0] \
                 and piece.get('kind', 'headwear') == pieces_of[model_name(figures[0])][1] \
-                and all(v[k] == figures[0][k] for k in ('rotation', 'scale')) and inside(v) \
-                and all(abs(s - 1) < 0.01 for s in v['scale'])     # the client's seat is rigid (2 %)
+                and v['rotation'] == figures[0]['rotation'] and inside(v) \
+                and all(abs(s - PIECE_SCALE.get(model_name(figures[0]), 1.0)) < 1e-3 for s in figures[0]['scale']) \
+                and all(abs(s - 1) < 0.01 for s in v['scale']) \
+                and (piece.get('kind') != 'ware' or ware_shape_ok(piece)) \
+                and (piece.get('kind') != 'pane_shard' or pane_frame_ok(piece))     # the client's seat is rigid (2 %)
             if not ok:
                 model = model_name(v) if v else None
                 problems.append(f'{path}: {name} loose {key}: render_visuals[{row["loose"][key]["index"]}] is {model!r}')
@@ -490,15 +544,57 @@ def check_built(path, data):
                 found = sum(p == [light['x'], light['y'], light['z']] for p in placed[kind])
                 if found != 1:
                     problems.append(f'{path}: {name} {key}: {found} {what} of the map at its position')
-    intact = [model_name(visuals[v['index']]) for row in root['srp_lamps']['lamps'].values()
-              for key, v in row['visuals'].items() if key.startswith('intact') and 0 <= v['index'] < len(visuals)]
+        # a figure's row marks its body once broken, every other its glass never
+        figure = any(model_name(visuals[v['index']]) in FIGURES for key, v in row['visuals'].items()
+                     if key.startswith('intact') and 0 <= v['index'] < len(visuals))
+        leftover = row.get('leftover', table_leftover)
+        if leftover != ('body' if figure else 'glass'):
+            problems.append(f'{path}: {name}: leftover {leftover!r} for a {"figure" if figure else "glass"} fixture')
     pieces = sum(len(row.get('loose', {})) for row in root['srp_lamps']['lamps'].values())
     if pieces > MAX_PIECES:
         problems.append(f'{path}: {pieces} loose pieces, more than the client binds ({MAX_PIECES})')
-    kinds = {'body' if name in FIGURES else 'glass' for name in intact}
-    leftover = root['srp_lamps'].get('leftover', 'glass')
-    if kinds != {leftover}:
-        problems.append(f'{path}: leftover {leftover!r} for fixtures of {sorted(kinds)}')
+    if bindings > MAX_BINDINGS:
+        problems.append(f'{path}: {bindings} bound objects, more than the client binds ({MAX_BINDINGS})')
+    if all(row.get('reaction', 'break') == 'ring' for row in root['srp_lamps']['lamps'].values()):
+        problems.append(f'{path}: a lamp table of bells alone (the client keeps a history of breaking rows)')
+    return problems
+
+
+def ware_shape_ok(piece):
+    """A ware's capsule as the client parses it (WareShape::new, WareAxis)."""
+    half, radius = piece.get('half'), piece.get('radius')
+    return isinstance(half, (int, float)) and isinstance(radius, (int, float)) and 0 <= half <= 0.5 \
+        and 0 < radius <= 0.3 and piece.get('axis') in ('x', 'y', 'z')
+
+
+def pane_frame_ok(piece):
+    """A pane shard's frame as the client parses it (lamps::model::pane_frame):
+    its long side and its level outward normal, unit and across each other."""
+    out = [piece.get(f'out_{a}') for a in 'xyz']
+    along = [piece.get(f'along_{a}') for a in 'xyz']
+    if not all(isinstance(v, (int, float)) for v in out + along):
+        return False
+    dot = sum(a * b for a, b in zip(out, along))
+    return abs(math.hypot(*out) - 1) < 0.01 and abs(math.hypot(*along) - 1) < 0.01 and abs(dot) < 0.95 \
+        and abs(out[1]) < 1e-6
+
+
+def ring_problems(path, name, row, visuals):
+    """A bell's row: no visual, no piece, no light of its own; its interval
+    the client's (over 0, to 600 s); a bell of the map inside its bounds;
+    its glass line (where the ring plays) inside them too."""
+    problems = []
+    inside = lambda p: all(row['min_' + a] - 1e-3 <= c <= row['max_' + a] + 1e-3 for a, c in zip('xyz', p))
+    every = row.get('ring_every')
+    if not isinstance(every, (int, float)) or not 0 < every <= 600:
+        problems.append(f'{path}: {name}: ring_every {every!r}')
+    if any(row.get(t) for t in ('visuals', 'loose', 'lights', 'ambient_lights', 'particles', 'probes')):
+        problems.append(f'{path}: {name}: a bell binds nothing')
+    if not any(model_name(v) in BELLS and inside(v['position']) for v in visuals):
+        problems.append(f'{path}: {name}: no bell of the map in its bounds')
+    for end in ('from', 'to'):
+        if not inside([row[f'glass_{end}_{a}'] for a in 'xyz']):
+            problems.append(f'{path}: {name}: its glass line leaves its bounds')
     return problems
 
 

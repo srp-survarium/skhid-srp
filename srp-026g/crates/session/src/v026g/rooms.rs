@@ -660,8 +660,8 @@ impl Rooms {
     /// the account's draft of them, or the `default` pool with none. The
     /// owner's equipment level `gear` must be within an open room's max
     /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
-    /// says, and its pool has no map played with a twist only
-    /// (`MapMode::twists_only`: its free-for-all is plain); one with bots `pvb/default_size` (8: always 8 v 8), and it keeps
+    /// says (its pool may hold a map played with a twist only, `MapMode::open_play`, played
+    /// plain there: [`Self::deal`]); one with bots `pvb/default_size` (8: always 8 v 8), and it keeps
     /// only the maps of its pool in `bot_maps` (those the server's bots play).
     #[allow(clippy::too_many_arguments)]
     pub fn create(
@@ -697,8 +697,6 @@ impl Rooms {
     ) -> Result<u32, Refused> {
         if let Door::Pin { bots, .. } = spec.door {
             spec.size = PRIVATE_SIZE;
-            // Its free-for-all is plain: no map played with a twist only.
-            pool.retain(|&id| maps::map_mode(id).is_none_or(|map| !map.twists_only));
             if bots {
                 // Always 8 v 8 (the owner's of 2026-11-05): bots fill each
                 // team to its size, a team takes no more.
@@ -1350,10 +1348,12 @@ impl Rooms {
     /// only draws a twist), Racket with the gun of the room's max level
     /// ("racket on lvl10 room should not give AK-12 and instead AK74N"),
     /// Roulette with a band it allows and a hand of it
-    /// (`docs/notes/ffa-roulette.md`), a private room's none (the owner,
+    /// (`docs/notes/ffa-roulette.md`), Pistols with such a band and a pair of
+    /// it (`docs/notes/ffa-pistols.md`), a private room's none (the owner,
     /// 2026-11-15: "we can also remove from private lobbies FFA: Saloon and
-    /// FFA: Racket"; its pool has no map played with a twist only,
-    /// [`Self::create_with_pool`]). A pool's id no match can play is no card.
+    /// FFA: Racket"), a map played with a twist only too (the owner, 2026-11-27:
+    /// "we removed FFA from them, which is fine for pub lobbies, not for private
+    /// ones"). A pool's id no match can play is no card.
     fn deal(pool: &[MapId], door: Door, below: &mut impl FnMut(usize) -> usize) -> Vec<Played> {
         let maps: Vec<maps::MatchMap> = Self::draw(pool, below)
             .into_iter()

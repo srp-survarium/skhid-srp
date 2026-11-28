@@ -1,0 +1,6435 @@
+{
+  "_about": "Vector Laboratory's glazed partitions break bay by bay (the owner, 2026-11-27): its building (level/07/base_a) draws its copy with its flat glass alone (pack vector-windows@1) and each bay of its partitions' glass is a row of its project's lamp table, the bay drawn while intact and the glass left in its frame once broken, placed after the project's last visual (docs/notes/breakable_lamps.md \"Vector's windows\"). Authored by scripts/vector-windows/make_edits.py over the projects as the manifest leaves them; indices refer to the final render_visuals.",
+  "set_string": [
+    {
+      "file": "projects/level_07/day_2/client_project",
+      "path": "render_visuals[161]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_2/client_project",
+      "path": "render_visuals[161]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_3/client_project",
+      "path": "render_visuals[161]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_3/client_project",
+      "path": "render_visuals[161]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_4/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_4/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_5/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_5/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_8/client_project",
+      "path": "render_visuals[155]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_8/client_project",
+      "path": "render_visuals[155]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_ah/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/day_ah/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_2/client_project",
+      "path": "render_visuals[161]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_2/client_project",
+      "path": "render_visuals[161]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_3/client_project",
+      "path": "render_visuals[161]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_3/client_project",
+      "path": "render_visuals[161]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_4/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_4/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_5/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_5/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_8/client_project",
+      "path": "render_visuals[155]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_8/client_project",
+      "path": "render_visuals[155]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_ah/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/evening_ah/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_2/client_project",
+      "path": "render_visuals[161]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_2/client_project",
+      "path": "render_visuals[161]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_3/client_project",
+      "path": "render_visuals[161]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_3/client_project",
+      "path": "render_visuals[161]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_4/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_4/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_5/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_5/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_8/client_project",
+      "path": "render_visuals[155]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_8/client_project",
+      "path": "render_visuals[155]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_ah/client_project",
+      "path": "render_visuals[157]/visual_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    },
+    {
+      "file": "projects/level_07/rain_ah/client_project",
+      "path": "render_visuals[157]/lib_name",
+      "from": "level/07/base_a",
+      "to": "level/07/srp_base_a_frame"
+    }
+  ],
+  "add_entry": [
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane0",
+        "position": [
+          68.1425,
+          21.151,
+          -27.005499999999998
+        ],
+        "visual_name": "level/07/srp_base_a_pane0"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane0_broken",
+        "position": [
+          68.1425,
+          21.151,
+          -27.005499999999998
+        ],
+        "visual_name": "level/07/srp_base_a_pane0_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane1",
+        "position": [
+          68.1425,
+          21.151,
+          -25.872999999999998
+        ],
+        "visual_name": "level/07/srp_base_a_pane1"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane1_broken",
+        "position": [
+          68.1425,
+          21.151,
+          -25.872999999999998
+        ],
+        "visual_name": "level/07/srp_base_a_pane1_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane2",
+        "position": [
+          68.1425,
+          22.064500000000002,
+          -24.5605
+        ],
+        "visual_name": "level/07/srp_base_a_pane2"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane2_broken",
+        "position": [
+          68.1425,
+          22.064500000000002,
+          -24.5605
+        ],
+        "visual_name": "level/07/srp_base_a_pane2_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane3",
+        "position": [
+          68.1425,
+          21.151,
+          -21.933999999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane3"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane3_broken",
+        "position": [
+          68.1425,
+          21.151,
+          -21.933999999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane3_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane4",
+        "position": [
+          68.1425,
+          22.4265,
+          -19.307499999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane4"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane4_broken",
+        "position": [
+          68.1425,
+          22.4265,
+          -19.307499999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane4_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane5",
+        "position": [
+          58.102999999999994,
+          27.6875,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane5"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane5_broken",
+        "position": [
+          58.102999999999994,
+          27.6875,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane5_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane6",
+        "position": [
+          59.4705,
+          27.691499999999998,
+          -31.4585
+        ],
+        "visual_name": "level/07/srp_base_a_pane6"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane6_broken",
+        "position": [
+          59.4705,
+          27.691499999999998,
+          -31.4585
+        ],
+        "visual_name": "level/07/srp_base_a_pane6_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane7",
+        "position": [
+          60.848,
+          27.686500000000002,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane7"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane7_broken",
+        "position": [
+          60.848,
+          27.686500000000002,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane7_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane8",
+        "position": [
+          62.213499999999996,
+          27.686500000000002,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane8"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane8_broken",
+        "position": [
+          62.213499999999996,
+          27.686500000000002,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane8_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane9",
+        "position": [
+          63.5795,
+          27.691499999999998,
+          -31.4585
+        ],
+        "visual_name": "level/07/srp_base_a_pane9"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane9_broken",
+        "position": [
+          63.5795,
+          27.691499999999998,
+          -31.4585
+        ],
+        "visual_name": "level/07/srp_base_a_pane9_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane10",
+        "position": [
+          67.785,
+          27.686500000000002,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane10"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane10_broken",
+        "position": [
+          67.785,
+          27.686500000000002,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane10_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane11",
+        "position": [
+          69.2515,
+          27.691499999999998,
+          -31.4585
+        ],
+        "visual_name": "level/07/srp_base_a_pane11"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane11_broken",
+        "position": [
+          69.2515,
+          27.691499999999998,
+          -31.4585
+        ],
+        "visual_name": "level/07/srp_base_a_pane11_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane12",
+        "position": [
+          70.71549999999999,
+          27.6875,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane12"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane12_broken",
+        "position": [
+          70.71549999999999,
+          27.6875,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane12_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane13",
+        "position": [
+          72.1845,
+          27.6875,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane13"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane13_broken",
+        "position": [
+          72.1845,
+          27.6875,
+          -31.4555
+        ],
+        "visual_name": "level/07/srp_base_a_pane13_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane14",
+        "position": [
+          57.973,
+          22.430500000000002,
+          -27.5075
+        ],
+        "visual_name": "level/07/srp_base_a_pane14"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane14_broken",
+        "position": [
+          57.973,
+          22.430500000000002,
+          -27.5075
+        ],
+        "visual_name": "level/07/srp_base_a_pane14_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane15",
+        "position": [
+          60.684,
+          22.064,
+          -27.503999999999998
+        ],
+        "visual_name": "level/07/srp_base_a_pane15"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane15_broken",
+        "position": [
+          60.684,
+          22.064,
+          -27.503999999999998
+        ],
+        "visual_name": "level/07/srp_base_a_pane15_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane16",
+        "position": [
+          61.926500000000004,
+          21.151,
+          -27.496499999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane16"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane16_broken",
+        "position": [
+          61.926500000000004,
+          21.151,
+          -27.496499999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane16_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane17",
+        "position": [
+          63.304,
+          22.064,
+          -27.483
+        ],
+        "visual_name": "level/07/srp_base_a_pane17"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane17_broken",
+        "position": [
+          63.304,
+          22.064,
+          -27.483
+        ],
+        "visual_name": "level/07/srp_base_a_pane17_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane18",
+        "position": [
+          64.6695,
+          22.387999999999998,
+          -27.496499999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane18"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane18_broken",
+        "position": [
+          64.6695,
+          22.387999999999998,
+          -27.496499999999997
+        ],
+        "visual_name": "level/07/srp_base_a_pane18_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane19",
+        "position": [
+          67.43299999999999,
+          21.1515,
+          -27.485500000000002
+        ],
+        "visual_name": "level/07/srp_base_a_pane19"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane19_broken",
+        "position": [
+          67.43299999999999,
+          21.1515,
+          -27.485500000000002
+        ],
+        "visual_name": "level/07/srp_base_a_pane19_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane20",
+        "position": [
+          71.7345,
+          22.430500000000002,
+          -18.6565
+        ],
+        "visual_name": "level/07/srp_base_a_pane20"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane20_broken",
+        "position": [
+          71.7345,
+          22.430500000000002,
+          -18.6565
+        ],
+        "visual_name": "level/07/srp_base_a_pane20_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane21",
+        "position": [
+          63.8995,
+          21.151,
+          -11.752500000000001
+        ],
+        "visual_name": "level/07/srp_base_a_pane21"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane21_broken",
+        "position": [
+          63.8995,
+          21.151,
+          -11.752500000000001
+        ],
+        "visual_name": "level/07/srp_base_a_pane21_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane22",
+        "position": [
+          68.141,
+          21.151,
+          -11.752500000000001
+        ],
+        "visual_name": "level/07/srp_base_a_pane22"
+      },
+      "files": "projects/level_07/*/client_project"
+    },
+    {
+      "at_end": true,
+      "like": {
+        "lib_name": "level/07/srp_base_a_frame",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visual_name": "level/07/srp_base_a_frame"
+      },
+      "list": "render_visuals",
+      "values": {
+        "lib_name": "level/07/srp_base_a_pane22_broken",
+        "position": [
+          68.141,
+          21.151,
+          -11.752500000000001
+        ],
+        "visual_name": "level/07/srp_base_a_pane22_broken"
+      },
+      "files": "projects/level_07/*/client_project"
+    }
+  ],
+  "add_value": [
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane0",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.005499999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.005499999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -26.548,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -27.463,
+        "visuals": {
+          "broken0": {
+            "index": 2192,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2191,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane1",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -25.872999999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -25.872999999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -25.243,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -26.503,
+        "visuals": {
+          "broken0": {
+            "index": 2194,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2193,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane10",
+      "value": {
+        "glass_from_x": 67.785,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 67.785,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 68.50800000000001,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 67.062,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2212,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2211,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane11",
+      "value": {
+        "glass_from_x": 69.2515,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 69.2515,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 69.97500000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 68.52799999999999,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2214,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2213,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane12",
+      "value": {
+        "glass_from_x": 70.71549999999999,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 70.71549999999999,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 71.435,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 69.996,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2216,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2215,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane13",
+      "value": {
+        "glass_from_x": 72.1845,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 72.1845,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 72.90400000000001,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 71.46499999999999,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2218,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2217,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane14",
+      "value": {
+        "glass_from_x": 57.973,
+        "glass_from_y": 21.574,
+        "glass_from_z": -27.5075,
+        "glass_to_x": 57.973,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.5075,
+        "lights": {},
+        "max_x": 58.507999999999996,
+        "max_y": 23.347,
+        "max_z": -27.468,
+        "min_x": 57.438,
+        "min_y": 21.514,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2220,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2219,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane15",
+      "value": {
+        "glass_from_x": 60.684,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.503999999999998,
+        "glass_to_x": 60.684,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.503999999999998,
+        "lights": {},
+        "max_x": 61.244,
+        "max_y": 23.347,
+        "max_z": -27.461,
+        "min_x": 60.124,
+        "min_y": 20.781,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2222,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2221,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane16",
+      "value": {
+        "glass_from_x": 61.926500000000004,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 61.926500000000004,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 62.592999999999996,
+        "max_y": 21.512,
+        "max_z": -27.456999999999997,
+        "min_x": 61.260000000000005,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2224,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2223,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane17",
+      "value": {
+        "glass_from_x": 63.304,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.483,
+        "glass_to_x": 63.304,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.483,
+        "lights": {},
+        "max_x": 63.97,
+        "max_y": 23.347,
+        "max_z": -27.441,
+        "min_x": 62.638000000000005,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2226,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2225,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane18",
+      "value": {
+        "glass_from_x": 64.6695,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 64.6695,
+        "glass_to_y": 23.926,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 65.339,
+        "max_y": 23.986,
+        "max_z": -27.456999999999997,
+        "min_x": 64.0,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2228,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2227,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane19",
+      "value": {
+        "glass_from_x": 67.43299999999999,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.485500000000002,
+        "glass_to_x": 67.43299999999999,
+        "glass_to_y": 21.462,
+        "glass_to_z": -27.485500000000002,
+        "lights": {},
+        "max_x": 68.113,
+        "max_y": 21.522000000000002,
+        "max_z": -27.445999999999998,
+        "min_x": 66.753,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2230,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2229,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane2",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -24.5605,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 23.279,
+        "glass_to_z": -24.5605,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 23.339000000000002,
+        "max_z": -23.93,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -25.191000000000003,
+        "visuals": {
+          "broken0": {
+            "index": 2196,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2195,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane20",
+      "value": {
+        "glass_from_x": 71.7345,
+        "glass_from_y": 21.574,
+        "glass_from_z": -18.6565,
+        "glass_to_x": 71.7345,
+        "glass_to_y": 23.287,
+        "glass_to_z": -18.6565,
+        "lights": {},
+        "max_x": 72.37400000000001,
+        "max_y": 23.347,
+        "max_z": -18.616999999999997,
+        "min_x": 71.095,
+        "min_y": 21.514,
+        "min_z": -18.696,
+        "visuals": {
+          "broken0": {
+            "index": 2232,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2231,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane21",
+      "value": {
+        "glass_from_x": 63.8995,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 63.8995,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 64.53800000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 63.261,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2234,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2233,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane22",
+      "value": {
+        "glass_from_x": 68.141,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 68.141,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 68.77900000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 67.503,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2236,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2235,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane3",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -21.933999999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -21.933999999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -21.304,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -22.564,
+        "visuals": {
+          "broken0": {
+            "index": 2198,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2197,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane4",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -19.307499999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 24.003,
+        "glass_to_z": -19.307499999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 24.063000000000002,
+        "max_z": -18.677999999999997,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -19.937,
+        "visuals": {
+          "broken0": {
+            "index": 2200,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2199,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane5",
+      "value": {
+        "glass_from_x": 58.102999999999994,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 58.102999999999994,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 58.778999999999996,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 57.427,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2202,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2201,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane6",
+      "value": {
+        "glass_from_x": 59.4705,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 59.4705,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 60.137,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 58.804,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2204,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2203,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane7",
+      "value": {
+        "glass_from_x": 60.848,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 60.848,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 61.516,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 60.18,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2206,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2205,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane8",
+      "value": {
+        "glass_from_x": 62.213499999999996,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 62.213499999999996,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 62.881,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 61.546,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2208,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2207,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_2/client_project",
+        "projects/level_07/evening_2/client_project",
+        "projects/level_07/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane9",
+      "value": {
+        "glass_from_x": 63.5795,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 63.5795,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 64.24600000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 62.913000000000004,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2210,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2209,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane0",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.005499999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.005499999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -26.548,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -27.463,
+        "visuals": {
+          "broken0": {
+            "index": 2226,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2225,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane1",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -25.872999999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -25.872999999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -25.243,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -26.503,
+        "visuals": {
+          "broken0": {
+            "index": 2228,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2227,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane10",
+      "value": {
+        "glass_from_x": 67.785,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 67.785,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 68.50800000000001,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 67.062,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2246,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2245,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane11",
+      "value": {
+        "glass_from_x": 69.2515,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 69.2515,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 69.97500000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 68.52799999999999,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2248,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2247,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane12",
+      "value": {
+        "glass_from_x": 70.71549999999999,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 70.71549999999999,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 71.435,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 69.996,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2250,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2249,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane13",
+      "value": {
+        "glass_from_x": 72.1845,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 72.1845,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 72.90400000000001,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 71.46499999999999,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2252,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2251,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane14",
+      "value": {
+        "glass_from_x": 57.973,
+        "glass_from_y": 21.574,
+        "glass_from_z": -27.5075,
+        "glass_to_x": 57.973,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.5075,
+        "lights": {},
+        "max_x": 58.507999999999996,
+        "max_y": 23.347,
+        "max_z": -27.468,
+        "min_x": 57.438,
+        "min_y": 21.514,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2254,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2253,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane15",
+      "value": {
+        "glass_from_x": 60.684,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.503999999999998,
+        "glass_to_x": 60.684,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.503999999999998,
+        "lights": {},
+        "max_x": 61.244,
+        "max_y": 23.347,
+        "max_z": -27.461,
+        "min_x": 60.124,
+        "min_y": 20.781,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2256,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2255,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane16",
+      "value": {
+        "glass_from_x": 61.926500000000004,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 61.926500000000004,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 62.592999999999996,
+        "max_y": 21.512,
+        "max_z": -27.456999999999997,
+        "min_x": 61.260000000000005,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2258,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2257,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane17",
+      "value": {
+        "glass_from_x": 63.304,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.483,
+        "glass_to_x": 63.304,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.483,
+        "lights": {},
+        "max_x": 63.97,
+        "max_y": 23.347,
+        "max_z": -27.441,
+        "min_x": 62.638000000000005,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2260,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2259,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane18",
+      "value": {
+        "glass_from_x": 64.6695,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 64.6695,
+        "glass_to_y": 23.926,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 65.339,
+        "max_y": 23.986,
+        "max_z": -27.456999999999997,
+        "min_x": 64.0,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2262,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2261,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane19",
+      "value": {
+        "glass_from_x": 67.43299999999999,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.485500000000002,
+        "glass_to_x": 67.43299999999999,
+        "glass_to_y": 21.462,
+        "glass_to_z": -27.485500000000002,
+        "lights": {},
+        "max_x": 68.113,
+        "max_y": 21.522000000000002,
+        "max_z": -27.445999999999998,
+        "min_x": 66.753,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2264,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2263,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane2",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -24.5605,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 23.279,
+        "glass_to_z": -24.5605,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 23.339000000000002,
+        "max_z": -23.93,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -25.191000000000003,
+        "visuals": {
+          "broken0": {
+            "index": 2230,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2229,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane20",
+      "value": {
+        "glass_from_x": 71.7345,
+        "glass_from_y": 21.574,
+        "glass_from_z": -18.6565,
+        "glass_to_x": 71.7345,
+        "glass_to_y": 23.287,
+        "glass_to_z": -18.6565,
+        "lights": {},
+        "max_x": 72.37400000000001,
+        "max_y": 23.347,
+        "max_z": -18.616999999999997,
+        "min_x": 71.095,
+        "min_y": 21.514,
+        "min_z": -18.696,
+        "visuals": {
+          "broken0": {
+            "index": 2266,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2265,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane21",
+      "value": {
+        "glass_from_x": 63.8995,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 63.8995,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 64.53800000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 63.261,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2268,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2267,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane22",
+      "value": {
+        "glass_from_x": 68.141,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 68.141,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 68.77900000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 67.503,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2270,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2269,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane3",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -21.933999999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -21.933999999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -21.304,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -22.564,
+        "visuals": {
+          "broken0": {
+            "index": 2232,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2231,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane4",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -19.307499999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 24.003,
+        "glass_to_z": -19.307499999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 24.063000000000002,
+        "max_z": -18.677999999999997,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -19.937,
+        "visuals": {
+          "broken0": {
+            "index": 2234,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2233,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane5",
+      "value": {
+        "glass_from_x": 58.102999999999994,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 58.102999999999994,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 58.778999999999996,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 57.427,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2236,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2235,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane6",
+      "value": {
+        "glass_from_x": 59.4705,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 59.4705,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 60.137,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 58.804,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2238,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2237,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane7",
+      "value": {
+        "glass_from_x": 60.848,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 60.848,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 61.516,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 60.18,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2240,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2239,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane8",
+      "value": {
+        "glass_from_x": 62.213499999999996,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 62.213499999999996,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 62.881,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 61.546,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2242,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2241,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_3/client_project",
+        "projects/level_07/evening_3/client_project",
+        "projects/level_07/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane9",
+      "value": {
+        "glass_from_x": 63.5795,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 63.5795,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 64.24600000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 62.913000000000004,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2244,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2243,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane0",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.005499999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.005499999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -26.548,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -27.463,
+        "visuals": {
+          "broken0": {
+            "index": 2161,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2160,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane1",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -25.872999999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -25.872999999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -25.243,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -26.503,
+        "visuals": {
+          "broken0": {
+            "index": 2163,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2162,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane10",
+      "value": {
+        "glass_from_x": 67.785,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 67.785,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 68.50800000000001,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 67.062,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2181,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2180,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane11",
+      "value": {
+        "glass_from_x": 69.2515,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 69.2515,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 69.97500000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 68.52799999999999,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2183,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2182,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane12",
+      "value": {
+        "glass_from_x": 70.71549999999999,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 70.71549999999999,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 71.435,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 69.996,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2185,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2184,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane13",
+      "value": {
+        "glass_from_x": 72.1845,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 72.1845,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 72.90400000000001,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 71.46499999999999,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2187,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2186,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane14",
+      "value": {
+        "glass_from_x": 57.973,
+        "glass_from_y": 21.574,
+        "glass_from_z": -27.5075,
+        "glass_to_x": 57.973,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.5075,
+        "lights": {},
+        "max_x": 58.507999999999996,
+        "max_y": 23.347,
+        "max_z": -27.468,
+        "min_x": 57.438,
+        "min_y": 21.514,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2189,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2188,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane15",
+      "value": {
+        "glass_from_x": 60.684,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.503999999999998,
+        "glass_to_x": 60.684,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.503999999999998,
+        "lights": {},
+        "max_x": 61.244,
+        "max_y": 23.347,
+        "max_z": -27.461,
+        "min_x": 60.124,
+        "min_y": 20.781,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2191,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2190,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane16",
+      "value": {
+        "glass_from_x": 61.926500000000004,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 61.926500000000004,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 62.592999999999996,
+        "max_y": 21.512,
+        "max_z": -27.456999999999997,
+        "min_x": 61.260000000000005,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2193,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2192,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane17",
+      "value": {
+        "glass_from_x": 63.304,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.483,
+        "glass_to_x": 63.304,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.483,
+        "lights": {},
+        "max_x": 63.97,
+        "max_y": 23.347,
+        "max_z": -27.441,
+        "min_x": 62.638000000000005,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2195,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2194,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane18",
+      "value": {
+        "glass_from_x": 64.6695,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 64.6695,
+        "glass_to_y": 23.926,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 65.339,
+        "max_y": 23.986,
+        "max_z": -27.456999999999997,
+        "min_x": 64.0,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2197,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2196,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane19",
+      "value": {
+        "glass_from_x": 67.43299999999999,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.485500000000002,
+        "glass_to_x": 67.43299999999999,
+        "glass_to_y": 21.462,
+        "glass_to_z": -27.485500000000002,
+        "lights": {},
+        "max_x": 68.113,
+        "max_y": 21.522000000000002,
+        "max_z": -27.445999999999998,
+        "min_x": 66.753,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2199,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2198,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane2",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -24.5605,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 23.279,
+        "glass_to_z": -24.5605,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 23.339000000000002,
+        "max_z": -23.93,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -25.191000000000003,
+        "visuals": {
+          "broken0": {
+            "index": 2165,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2164,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane20",
+      "value": {
+        "glass_from_x": 71.7345,
+        "glass_from_y": 21.574,
+        "glass_from_z": -18.6565,
+        "glass_to_x": 71.7345,
+        "glass_to_y": 23.287,
+        "glass_to_z": -18.6565,
+        "lights": {},
+        "max_x": 72.37400000000001,
+        "max_y": 23.347,
+        "max_z": -18.616999999999997,
+        "min_x": 71.095,
+        "min_y": 21.514,
+        "min_z": -18.696,
+        "visuals": {
+          "broken0": {
+            "index": 2201,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2200,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane21",
+      "value": {
+        "glass_from_x": 63.8995,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 63.8995,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 64.53800000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 63.261,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2203,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2202,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane22",
+      "value": {
+        "glass_from_x": 68.141,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 68.141,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 68.77900000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 67.503,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2205,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2204,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane3",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -21.933999999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -21.933999999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -21.304,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -22.564,
+        "visuals": {
+          "broken0": {
+            "index": 2167,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2166,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane4",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -19.307499999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 24.003,
+        "glass_to_z": -19.307499999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 24.063000000000002,
+        "max_z": -18.677999999999997,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -19.937,
+        "visuals": {
+          "broken0": {
+            "index": 2169,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2168,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane5",
+      "value": {
+        "glass_from_x": 58.102999999999994,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 58.102999999999994,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 58.778999999999996,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 57.427,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2171,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2170,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane6",
+      "value": {
+        "glass_from_x": 59.4705,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 59.4705,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 60.137,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 58.804,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2173,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2172,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane7",
+      "value": {
+        "glass_from_x": 60.848,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 60.848,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 61.516,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 60.18,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2175,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2174,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane8",
+      "value": {
+        "glass_from_x": 62.213499999999996,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 62.213499999999996,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 62.881,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 61.546,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2177,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2176,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_4/client_project",
+        "projects/level_07/evening_4/client_project",
+        "projects/level_07/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane9",
+      "value": {
+        "glass_from_x": 63.5795,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 63.5795,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 64.24600000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 62.913000000000004,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2179,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2178,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane0",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.005499999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.005499999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -26.548,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -27.463,
+        "visuals": {
+          "broken0": {
+            "index": 2206,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2205,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane1",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -25.872999999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -25.872999999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -25.243,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -26.503,
+        "visuals": {
+          "broken0": {
+            "index": 2208,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2207,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane10",
+      "value": {
+        "glass_from_x": 67.785,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 67.785,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 68.50800000000001,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 67.062,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2226,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2225,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane11",
+      "value": {
+        "glass_from_x": 69.2515,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 69.2515,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 69.97500000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 68.52799999999999,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2228,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2227,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane12",
+      "value": {
+        "glass_from_x": 70.71549999999999,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 70.71549999999999,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 71.435,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 69.996,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2230,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2229,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane13",
+      "value": {
+        "glass_from_x": 72.1845,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 72.1845,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 72.90400000000001,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 71.46499999999999,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2232,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2231,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane14",
+      "value": {
+        "glass_from_x": 57.973,
+        "glass_from_y": 21.574,
+        "glass_from_z": -27.5075,
+        "glass_to_x": 57.973,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.5075,
+        "lights": {},
+        "max_x": 58.507999999999996,
+        "max_y": 23.347,
+        "max_z": -27.468,
+        "min_x": 57.438,
+        "min_y": 21.514,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2234,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2233,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane15",
+      "value": {
+        "glass_from_x": 60.684,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.503999999999998,
+        "glass_to_x": 60.684,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.503999999999998,
+        "lights": {},
+        "max_x": 61.244,
+        "max_y": 23.347,
+        "max_z": -27.461,
+        "min_x": 60.124,
+        "min_y": 20.781,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2236,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2235,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane16",
+      "value": {
+        "glass_from_x": 61.926500000000004,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 61.926500000000004,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 62.592999999999996,
+        "max_y": 21.512,
+        "max_z": -27.456999999999997,
+        "min_x": 61.260000000000005,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2238,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2237,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane17",
+      "value": {
+        "glass_from_x": 63.304,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.483,
+        "glass_to_x": 63.304,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.483,
+        "lights": {},
+        "max_x": 63.97,
+        "max_y": 23.347,
+        "max_z": -27.441,
+        "min_x": 62.638000000000005,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2240,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2239,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane18",
+      "value": {
+        "glass_from_x": 64.6695,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 64.6695,
+        "glass_to_y": 23.926,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 65.339,
+        "max_y": 23.986,
+        "max_z": -27.456999999999997,
+        "min_x": 64.0,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2242,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2241,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane19",
+      "value": {
+        "glass_from_x": 67.43299999999999,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.485500000000002,
+        "glass_to_x": 67.43299999999999,
+        "glass_to_y": 21.462,
+        "glass_to_z": -27.485500000000002,
+        "lights": {},
+        "max_x": 68.113,
+        "max_y": 21.522000000000002,
+        "max_z": -27.445999999999998,
+        "min_x": 66.753,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2244,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2243,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane2",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -24.5605,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 23.279,
+        "glass_to_z": -24.5605,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 23.339000000000002,
+        "max_z": -23.93,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -25.191000000000003,
+        "visuals": {
+          "broken0": {
+            "index": 2210,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2209,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane20",
+      "value": {
+        "glass_from_x": 71.7345,
+        "glass_from_y": 21.574,
+        "glass_from_z": -18.6565,
+        "glass_to_x": 71.7345,
+        "glass_to_y": 23.287,
+        "glass_to_z": -18.6565,
+        "lights": {},
+        "max_x": 72.37400000000001,
+        "max_y": 23.347,
+        "max_z": -18.616999999999997,
+        "min_x": 71.095,
+        "min_y": 21.514,
+        "min_z": -18.696,
+        "visuals": {
+          "broken0": {
+            "index": 2246,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2245,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane21",
+      "value": {
+        "glass_from_x": 63.8995,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 63.8995,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 64.53800000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 63.261,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2248,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2247,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane22",
+      "value": {
+        "glass_from_x": 68.141,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 68.141,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 68.77900000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 67.503,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2250,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2249,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane3",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -21.933999999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -21.933999999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -21.304,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -22.564,
+        "visuals": {
+          "broken0": {
+            "index": 2212,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2211,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane4",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -19.307499999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 24.003,
+        "glass_to_z": -19.307499999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 24.063000000000002,
+        "max_z": -18.677999999999997,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -19.937,
+        "visuals": {
+          "broken0": {
+            "index": 2214,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2213,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane5",
+      "value": {
+        "glass_from_x": 58.102999999999994,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 58.102999999999994,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 58.778999999999996,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 57.427,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2216,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2215,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane6",
+      "value": {
+        "glass_from_x": 59.4705,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 59.4705,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 60.137,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 58.804,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2218,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2217,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane7",
+      "value": {
+        "glass_from_x": 60.848,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 60.848,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 61.516,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 60.18,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2220,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2219,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane8",
+      "value": {
+        "glass_from_x": 62.213499999999996,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 62.213499999999996,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 62.881,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 61.546,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2222,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2221,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_5/client_project",
+        "projects/level_07/evening_5/client_project",
+        "projects/level_07/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane9",
+      "value": {
+        "glass_from_x": 63.5795,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 63.5795,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 64.24600000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 62.913000000000004,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2224,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2223,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane0",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.005499999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.005499999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -26.548,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -27.463,
+        "visuals": {
+          "broken0": {
+            "index": 2159,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2158,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane1",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -25.872999999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -25.872999999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -25.243,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -26.503,
+        "visuals": {
+          "broken0": {
+            "index": 2161,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2160,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane10",
+      "value": {
+        "glass_from_x": 67.785,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 67.785,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 68.50800000000001,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 67.062,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2179,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2178,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane11",
+      "value": {
+        "glass_from_x": 69.2515,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 69.2515,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 69.97500000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 68.52799999999999,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2181,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2180,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane12",
+      "value": {
+        "glass_from_x": 70.71549999999999,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 70.71549999999999,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 71.435,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 69.996,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2183,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2182,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane13",
+      "value": {
+        "glass_from_x": 72.1845,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 72.1845,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 72.90400000000001,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 71.46499999999999,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2185,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2184,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane14",
+      "value": {
+        "glass_from_x": 57.973,
+        "glass_from_y": 21.574,
+        "glass_from_z": -27.5075,
+        "glass_to_x": 57.973,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.5075,
+        "lights": {},
+        "max_x": 58.507999999999996,
+        "max_y": 23.347,
+        "max_z": -27.468,
+        "min_x": 57.438,
+        "min_y": 21.514,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2187,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2186,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane15",
+      "value": {
+        "glass_from_x": 60.684,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.503999999999998,
+        "glass_to_x": 60.684,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.503999999999998,
+        "lights": {},
+        "max_x": 61.244,
+        "max_y": 23.347,
+        "max_z": -27.461,
+        "min_x": 60.124,
+        "min_y": 20.781,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2189,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2188,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane16",
+      "value": {
+        "glass_from_x": 61.926500000000004,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 61.926500000000004,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 62.592999999999996,
+        "max_y": 21.512,
+        "max_z": -27.456999999999997,
+        "min_x": 61.260000000000005,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2191,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2190,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane17",
+      "value": {
+        "glass_from_x": 63.304,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.483,
+        "glass_to_x": 63.304,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.483,
+        "lights": {},
+        "max_x": 63.97,
+        "max_y": 23.347,
+        "max_z": -27.441,
+        "min_x": 62.638000000000005,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2193,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2192,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane18",
+      "value": {
+        "glass_from_x": 64.6695,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 64.6695,
+        "glass_to_y": 23.926,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 65.339,
+        "max_y": 23.986,
+        "max_z": -27.456999999999997,
+        "min_x": 64.0,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2195,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2194,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane19",
+      "value": {
+        "glass_from_x": 67.43299999999999,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.485500000000002,
+        "glass_to_x": 67.43299999999999,
+        "glass_to_y": 21.462,
+        "glass_to_z": -27.485500000000002,
+        "lights": {},
+        "max_x": 68.113,
+        "max_y": 21.522000000000002,
+        "max_z": -27.445999999999998,
+        "min_x": 66.753,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2197,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2196,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane2",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -24.5605,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 23.279,
+        "glass_to_z": -24.5605,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 23.339000000000002,
+        "max_z": -23.93,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -25.191000000000003,
+        "visuals": {
+          "broken0": {
+            "index": 2163,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2162,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane20",
+      "value": {
+        "glass_from_x": 71.7345,
+        "glass_from_y": 21.574,
+        "glass_from_z": -18.6565,
+        "glass_to_x": 71.7345,
+        "glass_to_y": 23.287,
+        "glass_to_z": -18.6565,
+        "lights": {},
+        "max_x": 72.37400000000001,
+        "max_y": 23.347,
+        "max_z": -18.616999999999997,
+        "min_x": 71.095,
+        "min_y": 21.514,
+        "min_z": -18.696,
+        "visuals": {
+          "broken0": {
+            "index": 2199,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2198,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane21",
+      "value": {
+        "glass_from_x": 63.8995,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 63.8995,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 64.53800000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 63.261,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2201,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2200,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane22",
+      "value": {
+        "glass_from_x": 68.141,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 68.141,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 68.77900000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 67.503,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2203,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2202,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane3",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -21.933999999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -21.933999999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -21.304,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -22.564,
+        "visuals": {
+          "broken0": {
+            "index": 2165,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2164,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane4",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -19.307499999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 24.003,
+        "glass_to_z": -19.307499999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 24.063000000000002,
+        "max_z": -18.677999999999997,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -19.937,
+        "visuals": {
+          "broken0": {
+            "index": 2167,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2166,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane5",
+      "value": {
+        "glass_from_x": 58.102999999999994,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 58.102999999999994,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 58.778999999999996,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 57.427,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2169,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2168,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane6",
+      "value": {
+        "glass_from_x": 59.4705,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 59.4705,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 60.137,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 58.804,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2171,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2170,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane7",
+      "value": {
+        "glass_from_x": 60.848,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 60.848,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 61.516,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 60.18,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2173,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2172,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane8",
+      "value": {
+        "glass_from_x": 62.213499999999996,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 62.213499999999996,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 62.881,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 61.546,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2175,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2174,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_8/client_project",
+        "projects/level_07/evening_8/client_project",
+        "projects/level_07/rain_8/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane9",
+      "value": {
+        "glass_from_x": 63.5795,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 63.5795,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 64.24600000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 62.913000000000004,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2177,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2176,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane0",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.005499999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.005499999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -26.548,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -27.463,
+        "visuals": {
+          "broken0": {
+            "index": 2163,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2162,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane1",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -25.872999999999998,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -25.872999999999998,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -25.243,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -26.503,
+        "visuals": {
+          "broken0": {
+            "index": 2165,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2164,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane10",
+      "value": {
+        "glass_from_x": 67.785,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 67.785,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 68.50800000000001,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 67.062,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2183,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2182,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane11",
+      "value": {
+        "glass_from_x": 69.2515,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 69.2515,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 69.97500000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 68.52799999999999,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2185,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2184,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane12",
+      "value": {
+        "glass_from_x": 70.71549999999999,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 70.71549999999999,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 71.435,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 69.996,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2187,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2186,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane13",
+      "value": {
+        "glass_from_x": 72.1845,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 72.1845,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 72.90400000000001,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 71.46499999999999,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2189,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2188,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane14",
+      "value": {
+        "glass_from_x": 57.973,
+        "glass_from_y": 21.574,
+        "glass_from_z": -27.5075,
+        "glass_to_x": 57.973,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.5075,
+        "lights": {},
+        "max_x": 58.507999999999996,
+        "max_y": 23.347,
+        "max_z": -27.468,
+        "min_x": 57.438,
+        "min_y": 21.514,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2191,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2190,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane15",
+      "value": {
+        "glass_from_x": 60.684,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.503999999999998,
+        "glass_to_x": 60.684,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.503999999999998,
+        "lights": {},
+        "max_x": 61.244,
+        "max_y": 23.347,
+        "max_z": -27.461,
+        "min_x": 60.124,
+        "min_y": 20.781,
+        "min_z": -27.547,
+        "visuals": {
+          "broken0": {
+            "index": 2193,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2192,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane16",
+      "value": {
+        "glass_from_x": 61.926500000000004,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 61.926500000000004,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 62.592999999999996,
+        "max_y": 21.512,
+        "max_z": -27.456999999999997,
+        "min_x": 61.260000000000005,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2195,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2194,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane17",
+      "value": {
+        "glass_from_x": 63.304,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.483,
+        "glass_to_x": 63.304,
+        "glass_to_y": 23.287,
+        "glass_to_z": -27.483,
+        "lights": {},
+        "max_x": 63.97,
+        "max_y": 23.347,
+        "max_z": -27.441,
+        "min_x": 62.638000000000005,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2197,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2196,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane18",
+      "value": {
+        "glass_from_x": 64.6695,
+        "glass_from_y": 20.85,
+        "glass_from_z": -27.496499999999997,
+        "glass_to_x": 64.6695,
+        "glass_to_y": 23.926,
+        "glass_to_z": -27.496499999999997,
+        "lights": {},
+        "max_x": 65.339,
+        "max_y": 23.986,
+        "max_z": -27.456999999999997,
+        "min_x": 64.0,
+        "min_y": 20.79,
+        "min_z": -27.536,
+        "visuals": {
+          "broken0": {
+            "index": 2199,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2198,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane19",
+      "value": {
+        "glass_from_x": 67.43299999999999,
+        "glass_from_y": 20.841,
+        "glass_from_z": -27.485500000000002,
+        "glass_to_x": 67.43299999999999,
+        "glass_to_y": 21.462,
+        "glass_to_z": -27.485500000000002,
+        "lights": {},
+        "max_x": 68.113,
+        "max_y": 21.522000000000002,
+        "max_z": -27.445999999999998,
+        "min_x": 66.753,
+        "min_y": 20.781,
+        "min_z": -27.525000000000002,
+        "visuals": {
+          "broken0": {
+            "index": 2201,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2200,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane2",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -24.5605,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 23.279,
+        "glass_to_z": -24.5605,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 23.339000000000002,
+        "max_z": -23.93,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -25.191000000000003,
+        "visuals": {
+          "broken0": {
+            "index": 2167,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2166,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane20",
+      "value": {
+        "glass_from_x": 71.7345,
+        "glass_from_y": 21.574,
+        "glass_from_z": -18.6565,
+        "glass_to_x": 71.7345,
+        "glass_to_y": 23.287,
+        "glass_to_z": -18.6565,
+        "lights": {},
+        "max_x": 72.37400000000001,
+        "max_y": 23.347,
+        "max_z": -18.616999999999997,
+        "min_x": 71.095,
+        "min_y": 21.514,
+        "min_z": -18.696,
+        "visuals": {
+          "broken0": {
+            "index": 2203,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2202,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane21",
+      "value": {
+        "glass_from_x": 63.8995,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 63.8995,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 64.53800000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 63.261,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2205,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2204,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane22",
+      "value": {
+        "glass_from_x": 68.141,
+        "glass_from_y": 20.85,
+        "glass_from_z": -11.752500000000001,
+        "glass_to_x": 68.141,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -11.752500000000001,
+        "lights": {},
+        "max_x": 68.77900000000001,
+        "max_y": 21.512,
+        "max_z": -11.713000000000001,
+        "min_x": 67.503,
+        "min_y": 20.79,
+        "min_z": -11.792,
+        "visuals": {
+          "broken0": {
+            "index": 2207,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2206,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane3",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -21.933999999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 21.451999999999998,
+        "glass_to_z": -21.933999999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 21.512,
+        "max_z": -21.304,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -22.564,
+        "visuals": {
+          "broken0": {
+            "index": 2169,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2168,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane4",
+      "value": {
+        "glass_from_x": 68.1425,
+        "glass_from_y": 20.85,
+        "glass_from_z": -19.307499999999997,
+        "glass_to_x": 68.1425,
+        "glass_to_y": 24.003,
+        "glass_to_z": -19.307499999999997,
+        "lights": {},
+        "max_x": 68.182,
+        "max_y": 24.063000000000002,
+        "max_z": -18.677999999999997,
+        "min_x": 68.103,
+        "min_y": 20.79,
+        "min_z": -19.937,
+        "visuals": {
+          "broken0": {
+            "index": 2171,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2170,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane5",
+      "value": {
+        "glass_from_x": 58.102999999999994,
+        "glass_from_y": 27.274,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 58.102999999999994,
+        "glass_to_y": 28.101,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 58.778999999999996,
+        "max_y": 28.161,
+        "max_z": -31.416,
+        "min_x": 57.427,
+        "min_y": 27.214,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2173,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2172,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane6",
+      "value": {
+        "glass_from_x": 59.4705,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 59.4705,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 60.137,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 58.804,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2175,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2174,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane7",
+      "value": {
+        "glass_from_x": 60.848,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 60.848,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 61.516,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 60.18,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2177,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2176,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane8",
+      "value": {
+        "glass_from_x": 62.213499999999996,
+        "glass_from_y": 27.277,
+        "glass_from_z": -31.4555,
+        "glass_to_x": 62.213499999999996,
+        "glass_to_y": 28.096,
+        "glass_to_z": -31.4555,
+        "lights": {},
+        "max_x": 62.881,
+        "max_y": 28.156000000000002,
+        "max_z": -31.416,
+        "min_x": 61.546,
+        "min_y": 27.217,
+        "min_z": -31.495,
+        "visuals": {
+          "broken0": {
+            "index": 2179,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2178,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_07/day_ah/client_project",
+        "projects/level_07/evening_ah/client_project",
+        "projects/level_07/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "pane9",
+      "value": {
+        "glass_from_x": 63.5795,
+        "glass_from_y": 27.285,
+        "glass_from_z": -31.4585,
+        "glass_to_x": 63.5795,
+        "glass_to_y": 28.098,
+        "glass_to_z": -31.4585,
+        "lights": {},
+        "max_x": 64.24600000000001,
+        "max_y": 28.158,
+        "max_z": -31.419,
+        "min_x": 62.913000000000004,
+        "min_y": 27.224999999999998,
+        "min_z": -31.498,
+        "visuals": {
+          "broken0": {
+            "index": 2181,
+            "state": 1
+          },
+          "intact0": {
+            "index": 2180,
+            "state": 0
+          }
+        }
+      }
+    }
+  ]
+}

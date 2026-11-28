@@ -462,7 +462,6 @@ Nobody yet.	Ninguém ainda.
 Modes	Modos
 Every mode: its rules, numbers and maps.	Todos os modos: regras, números e mapas.
 Versions	Versões
-Public rooms only	Só salas públicas
 Private rooms only	Só salas privadas
 Not offered now	Não oferecido agora
 Respawn after {0} s.	Renascimento após {0} s.
@@ -514,9 +513,14 @@ Level bands: {0}.	Faixas de nível: {0}.
 A room draws bands up to its level.	Uma sala sorteia faixas até o seu nível.
 Each kit a gun of another class, with random bonuses and attachments.	Cada kit com uma arma de outra classe, com bônus e acessórios aleatórios.
 {0} % of deals: pistols only.	{0} % das distribuições: só pistolas.
-Plain FFA: {0} % of FFA cards.	FFA normal: {0} % das cartas de FFA.
+Everyone plays his own kits.	Cada um joga com os seus próprios kits.
+Everyone plays the same {0} random kits, each with one pistol; the third kit stays empty.	Todos jogam com os mesmos {0} kits aleatórios, cada um com uma pistola; o terceiro kit fica vazio.
+Pistols of levels {0}: {1}.	Pistolas dos níveis {0}: {1}.
+A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10.	Uma sala sorteia faixas até o seu nível; uma sala acima do nível 10 joga 0–5 ou 6–10.
+Two different pistols of the band, with random armour, bonuses and attachments.	Duas pistolas diferentes da faixa, com armadura, bônus e acessórios aleatórios.
 {0} % of FFA cards.	{0} % das cartas de FFA.
 FFA: Roulette	FFA: Roleta
+FFA: Pistols	FFA: Pistolas
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Buscar armas
@@ -943,6 +947,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Cópias de um tipo se somam (o passivo do Ônix se multiplica); contam no máximo 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	O ativo da Fonte e da Espora soma-se ao passivo; o do Ônix o substitui.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Ônix ativados juntos: uma redução, 1 s a mais por cópia extra.
+Power per activation	Força por ativação
+Activations	Ativações
+Power	Força	artefact
+Next activation	Próxima ativação
+Regeneration limit	Limite de regeneração
+Missing health restored	Vida perdida restaurada
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Cada ativação deixa ao artefato 80% da sua força: 100 → 80 → 64 → 51%… Nunca se esgota, e a força fica com essa cópia até você conseguir uma nova.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Cada linha: após tantas ativações, o passivo agora e a próxima ativação. Só enfraquecem as cópias que uma tecla ativa.
+It still cures injuries on every activation.	Continua curando ferimentos a cada ativação.
+Its skills work at its power: {skills}.	As suas habilidades agem com a sua força: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	O limite de regeneração soma-se ao limite próprio de cada parte do corpo, nunca acima do total.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomalias
@@ -1001,3 +1016,5 @@ night	noite	weather
 before rain	antes da chuva	weather
 Weathers	Climas
 Variants	Variantes
+History since {0}.	Histórico desde {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Histórico desde {0}, mais {1} partidas anteriores refeitas a partir das suas gravações, desde {2}; as partidas antes de {0} não estão todas.

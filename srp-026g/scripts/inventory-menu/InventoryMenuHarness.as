@@ -10,8 +10,8 @@ package
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
 
-   // The right-click menu's Buy (InventoryList.showContextMenu, docs/notes/shop-character-menu.md) with
-   // the lobby movie's own inventory list, item card, character menu and shop: Buy buys the item
+   // The right-click menu's Buy and Sell (InventoryList.showContextMenu, docs/notes/shop-character-menu.md)
+   // with the lobby movie's own inventory list, item card, character menu and shop: Buy buys the item
    // the menu was opened on, whatever the list has selected.
    // - a row of the inventory list;
    // - the kit's medkit and rifle in the inventory (the character menu selects the item's row);
@@ -21,7 +21,14 @@ package
    // - a shop entry locked at its seller, the item sold unlocked by another seller (the menu lists
    //   Buy for an item the shop sells at any seller).
    // Each buy is caught at GangShop.buyFunction (LobbyMenu.try_buy_item in the game, which opens
-   // the buy dialog). Prints "INVMENU ..." lines and ends with "INVMENU RESULT pass" or
+   // the buy dialog).
+   // Sell (the owner, 2026-11-27: "when in shop rmb on equipment there is no sell button"): every
+   // owned item's menu lists it, in the inventory and in the shop: the kit's weapon, ammo, helmet,
+   // body armour and medkit in both, and in the inventory the rows of a body armour, an artefact, a
+   // camouflage and a decal (none of those three goes in a kit: the kit's artefact places are closed
+   // placeholders, PaperDollBase.handleQuickSlots); Sell opens the sale's question (MessageAskSell)
+   // for that item, at a quarter of its cost. The shop's own entries (a helmet's, a camouflage's, a
+   // decal's) list no Sell. Prints "INVMENU ..." lines and ends with "INVMENU RESULT pass" or
    // "INVMENU RESULT fail: ...".
    public class InventoryMenuHarness extends Sprite
    {
@@ -30,6 +37,21 @@ package
       private static const MEDKIT:int = 9002;
 
       private static const HELMET:int = 9003;
+
+      private static const ARMOUR:int = 9004;
+
+      private static const AMMO:int = 9005;
+
+      private static const ARTEFACT:int = 9006;
+
+      private static const CAMO:int = 9007;
+
+      private static const DECAL:int = 9008;
+
+      // What an item costs at the shop (offer), and what it sells for (a quarter: ItemPrice.SELL_DIVISOR).
+      private static const COST:int = 100;
+
+      private static const SELL_PRICE:int = 25;
 
       // A bundle's id, the owned rifle's id too (a bundle's id is its own: 8 and up).
       private static const BUNDLE:int = 11;
@@ -50,6 +72,16 @@ package
       private var shop:*;
 
       private var bought:Array = [];
+
+      private var boxes:Sprite;
+
+      // The Sell checks (sellCases), one a step pair: open the menu, then choose Sell.
+      private var sells:Array;
+
+      private var sellAt:int = 0;
+
+      // The sale's question last shown, closed a step later (once it has drawn).
+      private var asked:* = null;
 
       private var failures:Array = [];
 
@@ -100,22 +132,22 @@ package
          {
             domain = loader.contentLoaderInfo.applicationDomain;
             domain.getDefinition("MainScene").stage = this;
-            domain.getDefinition("survarium.data.LocalizationData").setData({buy:"Buy",sell:"Sell",wear:"Wear",drop:"Drop",fix:"Repair",non_faction_items:"Any"});
+            domain.getDefinition("survarium.data.LocalizationData").setData({buy:"Buy",sell:"Sell",wear:"Wear",drop:"Drop",fix:"Repair",non_faction_items:"Any",item_piece_postfix:" pcs"});
             at = "the icons";
             var Container:Class = C("survarium.data.IconContainer");
-            for each(var icons:String in ["weapons","equipment","consumables","factionItemIcons","bundles"])
+            for each(var icons:String in ["weapons","equipment","consumables","decals","camo","factionItemIcons","bundles"])
             {
                new Container(icons,1,1,new BitmapData(1,1,true,0),false,1,0,0,false);
             }
             at = "the items";
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("inventory-menu-check");
-            descriptor.setItemsDictionary([item(RIFLE,Category("ASSAULT_RIFLES"),"Rifle",false),item(MEDKIT,Category("MEDKITS"),"Medkit",true),item(HELMET,Category("HELMETS"),"Helmet",false)]);
+            descriptor.setItemsDictionary([item(RIFLE,Category("ASSAULT_RIFLES"),"Rifle",false),item(MEDKIT,Category("MEDKITS"),"Medkit",true),item(HELMET,Category("HELMETS"),"Helmet",false),item(ARMOUR,Category("BODY_ARMOR"),"Armour",false),item(AMMO,Category("ASSAULT_RIFLE_AMMO"),"Ammo",true),item(ARTEFACT,Category("ARTEFACTS"),"Artefact",false),item(CAMO,Category("CAMOUFLAGES"),"Camo",false),item(DECAL,Category("DECALS"),"Decal",false)]);
             at = "the shop";
             var Shop:Class = C("survarium.controls.GangShop");
             shop = new Shop();
             shop.registerItemDescriptor(descriptor);
             // Each item at seller 0 (always unlocked), the rifle also at a seller's level 5.
-            shop.setupShopItems([offer(RIFLE,0,0),offer(MEDKIT,0,0),offer(HELMET,0,0),offer(RIFLE,LOCKED_SELLER,5)]);
+            shop.setupShopItems([offer(RIFLE,0,0),offer(MEDKIT,0,0),offer(HELMET,0,0),offer(ARMOUR,0,0),offer(AMMO,0,0),offer(ARTEFACT,0,0),offer(CAMO,0,0),offer(DECAL,0,0),offer(RIFLE,LOCKED_SELLER,5)]);
             Shop.buyFunction = this.buy;
             at = "the lobby";
             // The lobby's root as the list and the card find it (parent["player_profile"]).
@@ -140,6 +172,16 @@ package
             profile.paperDoll.ammoControl.registerShop(shop);
             profile.paperDoll.ammoControl.registerInventory(inventory);
             inventory.item_control = card;
+            at = "the boxes";
+            // The sale's question, the game's own (LobbyMenu registers it as "asks").
+            var Message:* = C("survarium.controls.Message");
+            boxes = new Sprite();
+            lobby.addChild(boxes);
+            Message.initStage(boxes);
+            // the dimming behind a box (the lobby's own; a closed box takes it away)
+            Message.registerBackground(Sprite);
+            Message.registerMessage("asks",C("survarium.messages.MessageAskSell"));
+            sells = this.sellCases();
             addEventListener(Event.ENTER_FRAME,this.tick);
          }
          catch(err:Error)
@@ -155,7 +197,7 @@ package
 
       private static function offer(dictId:int, seller:int, level:int) : Object
       {
-         return {dictId:dictId,faction_id:seller,level:level,cost:100,condition_or_stack:10000};
+         return {dictId:dictId,faction_id:seller,level:level,cost:COST,condition_or_stack:10000};
       }
 
       private static function owned(id:int, dictId:int, value:int) : Object
@@ -199,12 +241,13 @@ package
                   inventory.setupShopItems(offers);
                   // A bundle whose id is an owned item's too (the rifle's).
                   inventory.setupBundleData([{bundle_id:BUNDLE,bundle_icon:0,bundle_name:"Bundle",bundle_descr:"",bundle_properties:[],currency_type:false,cost:500,bundle_items:[]}]);
-                  inventory.setupInventoryData([owned(11,RIFLE,10000),owned(12,MEDKIT,3),owned(13,HELMET,10000)]);
+                  inventory.setupInventoryData([owned(11,RIFLE,10000),owned(12,MEDKIT,3),owned(13,HELMET,10000),owned(14,ARMOUR,10000),owned(15,AMMO,60),owned(16,ARTEFACT,10000),owned(17,CAMO,10000),owned(18,DECAL,10000)]);
                   break;
                case 1:
-                  // The kit: the rifle in hand, the helmet on, the medkit in the first pocket.
-                  lobby.player_profile.paperDoll.setSlotsRestrictions([{slot_id:Slot("HEAD"),category_id:Category("HELMETS")},{slot_id:Slot("WEAPON_1"),category_id:Category("ASSAULT_RIFLES")},{slot_id:Slot("QUICK_1"),category_id:Category("MEDKITS")}]);
-                  lobby.player_profile.fillProfileItems({profileId:1,items:[{itemId:11,slotId:Slot("WEAPON_1"),condition_or_stack:10000},{itemId:13,slotId:Slot("HEAD"),condition_or_stack:10000},{itemId:12,slotId:Slot("QUICK_1"),condition_or_stack:3}],item_slots:4,artifact_slots:0});
+                  // The kit: the rifle in hand with its ammo, the helmet and the body armour on, the
+                  // medkit in the first pocket.
+                  lobby.player_profile.paperDoll.setSlotsRestrictions([{slot_id:Slot("HEAD"),category_id:Category("HELMETS")},{slot_id:Slot("BODY"),category_id:Category("BODY_ARMOR")},{slot_id:Slot("WEAPON_1"),category_id:Category("ASSAULT_RIFLES")},{slot_id:Slot("WEAPON_1_AMMO_1"),category_id:Category("ASSAULT_RIFLE_AMMO")},{slot_id:Slot("QUICK_1"),category_id:Category("MEDKITS")}]);
+                  lobby.player_profile.fillProfileItems({profileId:1,items:[{itemId:11,slotId:Slot("WEAPON_1"),condition_or_stack:10000},{itemId:15,slotId:Slot("WEAPON_1_AMMO_1"),condition_or_stack:30},{itemId:13,slotId:Slot("HEAD"),condition_or_stack:10000},{itemId:14,slotId:Slot("BODY"),condition_or_stack:10000},{itemId:12,slotId:Slot("QUICK_1"),condition_or_stack:3}],item_slots:4,artifact_slots:0});
                   trace("INVMENU the inventory's rows: " + names());
                   break;
                case 2:
@@ -251,8 +294,27 @@ package
                   break;
                case 11:
                   choose(RIFLE,"the rifle's entry locked at its seller");
+                  // Every seller's items again, every group, for Sell.
+                  inventory.optionControl.checkbox_all_traders.selected = true;
+                  inventory.sellersTabPage.selectedIndex = 0;
                   break;
                default:
+                  // The Sell checks, one a pair of steps: the menu opened, then Sell chosen.
+                  var sell:Object = sellAt < sells.length * 2 ? sells[sellAt >> 1] : null;
+                  if(sell != null)
+                  {
+                     if((sellAt++ & 1) == 0)
+                     {
+                        closeAsked();
+                        sell.open();
+                     }
+                     else
+                     {
+                        chooseSell(sell.itemId,sell.what);
+                     }
+                     break;
+                  }
+                  closeAsked();
                   removeEventListener(Event.ENTER_FRAME,this.tick);
                   finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
             }
@@ -262,6 +324,147 @@ package
             removeEventListener(Event.ENTER_FRAME,this.tick);
             finish("fail: step " + (step - 1) + ": " + err);
          }
+      }
+
+      // The Sell checks: where the menu is opened and the owned item its Sell must sell (0: the menu
+      // lists no Sell). Each opens the menu in its tab (the inventory, then the shop).
+      private function sellCases() : Array
+      {
+         var cases:Array = [];
+         var add:Function = function(shopTab:Boolean, what:String, itemId:int, open:Function):void
+         {
+            cases.push({itemId:itemId,what:what + (shopTab ? " in the shop" : " in the inventory"),open:function():void
+            {
+               if(inventory.isShop != shopTab)
+               {
+                  inventory.toggleShopMode(shopTab);
+               }
+               inventory.inventoryTabPage.selectedIndex = 0;
+               if(shopTab)
+               {
+                  inventory.itemsTileList.selectedIndex = -1;
+               }
+               open();
+            }});
+         };
+         var kit:Function = function(slot:String):Function
+         {
+            return function():void
+            {
+               kitClick(Slot(slot));
+            };
+         };
+         var inventoryRow:Function = function(itemId:int):Function
+         {
+            return function():void
+            {
+               rightClick(row(itemId));
+            };
+         };
+         var entry:Function = function(dictId:int):Function
+         {
+            return function():void
+            {
+               rightClick(shopRow(dictId));
+            };
+         };
+         for each(var shopTab:Boolean in [false,true])
+         {
+            add(shopTab,"the kit's rifle",11,kit("WEAPON_1"));
+            add(shopTab,"the kit's ammo",15,kit("WEAPON_1_AMMO_1"));
+            add(shopTab,"the kit's helmet",13,kit("HEAD"));
+            add(shopTab,"the kit's body armour",14,kit("BODY"));
+            add(shopTab,"the kit's medkit",12,kit("QUICK_1"));
+         }
+         add(false,"the body armour's row",14,inventoryRow(14));
+         add(false,"the artefact's row",16,inventoryRow(16));
+         add(false,"the camouflage's row",17,inventoryRow(17));
+         add(false,"the decal's row",18,inventoryRow(18));
+         add(true,"the helmet's shop entry",0,entry(HELMET));
+         add(true,"the camouflage's shop entry",0,entry(CAMO));
+         add(true,"the decal's shop entry",0,entry(DECAL));
+         return cases;
+      }
+
+      // Chooses Sell in the open right-click menu: it must ask to sell the owned item `itemId` (0:
+      // the menu must list no Sell), at a quarter of its cost, one of an item or the whole stack.
+      private function chooseSell(itemId:int, what:String) : void
+      {
+         var Menu:Object = domain.getDefinition("survarium.controls.SrvContextMenu");
+         var shown:* = Menu.visisble ? Menu.getInstance().contextList.list.dataProvider : null;
+         var options:Array = [];
+         var chosen:Object = null;
+         for(var i:int = 0; shown != null && i < shown.length; i++)
+         {
+            options.push(shown[i].name);
+            if(shown[i].name == "Sell")
+            {
+               chosen = shown[i];
+            }
+         }
+         trace("INVMENU the menu of " + what + ": " + options.join(", ") + "; the card shows " + cardName());
+         if(shown == null)
+         {
+            require(false,what + ": no menu");
+            return;
+         }
+         Menu.hide();
+         if(itemId == 0)
+         {
+            require(chosen == null,what + ": Sell listed");
+            return;
+         }
+         if(chosen == null)
+         {
+            require(false,what + ": no Sell");
+            return;
+         }
+         try
+         {
+            chosen.click_function();
+         }
+         catch(err:Error)
+         {
+            trace("INVMENU Sell threw " + err);
+         }
+         // Each question is closed before the next menu opens, so one shown is this Sell's.
+         var ask:* = sellDialog();
+         if(ask == null)
+         {
+            require(false,what + ": Sell asked nothing");
+            return;
+         }
+         var data:Object = ask.getMessageData();
+         trace("INVMENU Sell asks: item " + data.id + " (dict " + data.uid + "), count " + data.count + ", price " + data.price + ", stack " + data.is_stack);
+         require(data.sell == true && data.id == itemId,what + ": Sell asked about item " + data.id + ", not " + itemId);
+         require(data.price == SELL_PRICE,what + ": the price is " + data.price + ", not " + SELL_PRICE);
+         // A stack offers all the inventory has (the kit's pocket holds less of the ammo), else one.
+         var count:int = itemId == 15 ? 60 : (itemId == 12 ? 3 : 1);
+         require(data.count == count,what + ": " + data.count + " to sell, not " + count);
+         asked = ask;
+      }
+
+      private function closeAsked() : void
+      {
+         if(asked != null)
+         {
+            domain.getDefinition("survarium.controls.Message").close(asked.getMessageId(),true);
+            asked = null;
+         }
+      }
+
+      // The sale's question on top of the boxes.
+      private function sellDialog() : *
+      {
+         var Ask:Class = C("survarium.messages.MessageAskSell");
+         for(var i:int = boxes.numChildren - 1; i >= 0; i--)
+         {
+            if(boxes.getChildAt(i) is Ask)
+            {
+               return boxes.getChildAt(i);
+            }
+         }
+         return null;
       }
 
       private function require(ok:Boolean, why:String) : void
